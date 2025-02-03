@@ -271,6 +271,29 @@ def prepare_msp_data(config, model_config, loader: S3ModelLoader = None):
     
     return nn_inputs, nn_beliefs, nn_belief_indices, nn_probs, nn_unnormalized_beliefs
 
+def run_activation_to_beliefs_regression_fast(
+    activations, ground_truth_beliefs
+):
+    """
+    A faster version that only does the main regression once
+    and returns MSE. No cross-val, no shuffle.
+    """
+    # Flatten
+    batch_size, n_ctx, d_model = activations.shape
+    belief_dim = ground_truth_beliefs.shape[-1]
+    X = activations.view(-1, d_model).numpy()        # Convert to numpy
+    y = ground_truth_beliefs.view(-1, belief_dim).numpy()
+
+    # Fit
+    reg = LinearRegression()
+    reg.fit(X, y)
+    y_pred = reg.predict(X)
+
+    # MSE
+    mse = np.mean((y_pred - y)**2)
+    return mse
+
+
 def run_activation_to_beliefs_regression(activations, ground_truth_beliefs, sample_weights=None):
     start_time = time.time()
     #print("Starting activation to beliefs regression...")
