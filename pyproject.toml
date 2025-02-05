@@ -1,34 +1,38 @@
-
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools]
+[tool.hatch.build.targets.wheel]
 packages = ["epsilon_transformers"]
 
 [project]
 name = "epsilon_transformers"
 version = "0.1"
 description = "Computational Mechanics of Transformer Models"
+readme = "README.md"
+requires-python = ">=3.12"
 dependencies = [
-    "torch",
+    "boto3",
+    "fire",
+    "matplotlib",
     "numpy",
     "pandas",
-    "seaborn",
-    "matplotlib",
-    "wandb",
-    "scikit-learn",
     "plotly",
-    "transformer_lens",
-    "pytest",
     "PyDrive",
-    "black",
-    "mypy",
-    "jaxtyping",
-    "fire",
     "pydantic",
-    "wandb",
     "python-dotenv",
+    "scikit-learn",
+    "seaborn",
+    "torch",
+    "transformer_lens",
     "tqdm",
-    "boto3"
+    "wandb"
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "jaxtyping",
+    "mypy",
+    "pytest"
 ]
