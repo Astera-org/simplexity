@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import argparse
-from epsilon_transformers.training.trainer import train_model
-from epsilon_transformers.training.configs import TrainConfig
+from simplexity.training.trainer import train_model
+from simplexity.training.configs import TrainConfig
 
 def main():
     parser = argparse.ArgumentParser()

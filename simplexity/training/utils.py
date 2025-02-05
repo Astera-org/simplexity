@@ -1,7 +1,7 @@
 from pathlib import Path
 import multiprocessing as mp
-from epsilon_transformers.training.trainer import Trainer
-from epsilon_transformers.training.configs import TrainConfig
+from simplexity.training.trainer import Trainer
+from simplexity.training.configs import TrainConfig
 
 def run_experiment(config: TrainConfig):
     """Run a single training experiment"""

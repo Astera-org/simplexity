@@ -7,7 +7,7 @@ from io import StringIO
 from pathlib import Path
 from dotenv import load_dotenv
 import torch
-from epsilon_transformers.training.networks import create_RNN
+from simplexity.training.networks import create_RNN
 from transformer_lens import HookedTransformer, HookedTransformerConfig
 from typing import Optional
 from io import BytesIO

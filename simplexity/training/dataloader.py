@@ -1,7 +1,7 @@
 from typing import Tuple
 import torch
-from epsilon_transformers.process.GHMM import GHMM, TransitionMatrixGHMM
-from epsilon_transformers.process.transition_matrices import get_matrix_from_args
+from simplexity.process.GHMM import GHMM, TransitionMatrixGHMM
+from simplexity.process.transition_matrices import get_matrix_from_args
 from torch.utils.data import IterableDataset
 
 def generate_all_seqs(process: GHMM, seq_len: int, bos: bool = True) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
