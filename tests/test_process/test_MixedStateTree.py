@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from epsilon_transformers.process.MixedStateTree import MixedStateTree, MixedStateTreeNode
+from simplexity.process.MixedStateTree import MixedStateTree, MixedStateTreeNode
 
 def test_mixed_state_tree_node():
     # Test node creation and child addition

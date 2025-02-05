@@ -1,5 +1,5 @@
 import numpy as np
-from epsilon_transformers.process.GHMM import TransitionMatrixGHMM
+from simplexity.process.GHMM import TransitionMatrixGHMM
 
 def test_ghmm_initialization():
     T = np.array([

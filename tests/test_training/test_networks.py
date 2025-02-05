@@ -1,7 +1,7 @@
 import pytest
 import torch
 import torch.nn as nn
-from epsilon_transformers.training.networks import RNNWrapper, create_RNN
+from simplexity.training.networks import RNNWrapper, create_RNN
 
 def test_rnn_wrapper():
     vocab_size = 10

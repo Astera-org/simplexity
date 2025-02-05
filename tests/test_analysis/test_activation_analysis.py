@@ -1,7 +1,7 @@
 import pytest
 import torch
 import numpy as np
-from epsilon_transformers.analysis.activation_analysis import run_activation_to_beliefs_regression
+from simplexity.analysis.activation_analysis import run_activation_to_beliefs_regression
 
 def test_activation_to_beliefs_regression():
     # Create dummy data
