@@ -33,6 +33,12 @@ Install the dependencies:
 uv sync
 ```
 
+to include the dev dependencies, run:
+
+```bash
+uv sync --extra dev
+```
+
 This should create a new python environment at `.venv` and install the dependencies.
 
 ### Downloading Experiments
