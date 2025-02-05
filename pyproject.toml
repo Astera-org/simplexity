@@ -30,6 +30,11 @@ dependencies = [
 ]
 
 [dependency-groups]
+dash = [
+    "dash",
+    "dash-bootstrap-components",
+    "jupyter-dash"
+]
 dev = [
     "black",
     "jaxtyping",
