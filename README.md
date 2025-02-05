@@ -20,7 +20,20 @@ The most important folders and files are:
 ## Usage
 
 ### Installation
-To install, alongside all dependencies, run `pip install -e .` from the repository folder.
+
+[Install UV](https://docs.astral.sh/uv/getting-started/installation/):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Install the dependencies:
+
+```bash
+uv sync
+```
+
+This should create a new python environment at `.venv` and install the dependencies.
 
 ### Downloading Experiments
 
