@@ -1,11 +1,11 @@
-# Epsilon Transformers
+# Simplexity
 
 This codebase contains the code for analyzing transformers from a Computational Mechanics point of view.
 
 ## Codebase Structure
 
-epsilon_transformers/
-  ├── epsilon_transformers/
+simplexity/
+  ├── simplexity/
   │   ├── analysis/
   │   ├── process/
   │   ├── training/

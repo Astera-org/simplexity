@@ -3,7 +3,7 @@ import yaml
 import os
 import json
 import numpy as np
-from epsilon_transformers.training.dataloader import get_dataloader_and_loss_lower_bound_from_process
+from simplexity.training.dataloader import get_dataloader_and_loss_lower_bound_from_process
 import torch
 
 def load_process_data(config, process_dir):

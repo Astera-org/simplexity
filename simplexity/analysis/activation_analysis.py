@@ -5,18 +5,18 @@ from jaxtyping import Float
 import numpy as np
 import torch
 from sklearn.decomposition import PCA
-from epsilon_transformers.process.GHMM import GHMM, markov_approximation
-from epsilon_transformers.process.transition_matrices import get_matrix_from_args
-from epsilon_transformers.process.GHMM import TransitionMatrixGHMM
-from epsilon_transformers.training.networks import RNNWrapper
+from simplexity.process.GHMM import GHMM, markov_approximation
+from simplexity.process.transition_matrices import get_matrix_from_args
+from simplexity.process.GHMM import TransitionMatrixGHMM
+from simplexity.training.networks import RNNWrapper
 from tqdm.auto import tqdm
-from epsilon_transformers.visualization.plots import _project_to_simplex
+from simplexity.visualization.plots import _project_to_simplex
 import time
 
 import matplotlib.pyplot as plt
 import numpy as np
 import json
-from epsilon_transformers.analysis.load_data import S3ModelLoader
+from simplexity.analysis.load_data import S3ModelLoader
 import hashlib
 import io
 import os

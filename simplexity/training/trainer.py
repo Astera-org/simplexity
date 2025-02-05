@@ -6,9 +6,9 @@ import time
 import numpy as np
 from pathlib import Path
 
-from epsilon_transformers.training.logger import StructuredLogger
-from epsilon_transformers.training.models import RNNWrapper
-from epsilon_transformers.training.configs import TrainConfig
+from simplexity.training.logger import StructuredLogger
+from simplexity.training.models import RNNWrapper
+from simplexity.training.configs import TrainConfig
 
 class Trainer:
     """Main trainer class that handles both Transformer and RNN training"""

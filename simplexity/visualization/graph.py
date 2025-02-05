@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import networkx as nx
-from epsilon_transformers.analysis.entropy_analysis import (
+from simplexity.analysis.entropy_analysis import (
     compute_block_entropy,
     compute_conditional_entropy,
     compute_empirical_conditional_entropy,

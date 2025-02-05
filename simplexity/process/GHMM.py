@@ -6,7 +6,7 @@ from collections import deque
 from typing import Union
 
 
-from epsilon_transformers.process.MixedStateTree import MixedStateTree, MixedStateTreeNode
+from simplexity.process.MixedStateTree import MixedStateTree, MixedStateTreeNode
 
 class GHMM(ABC):
     name: str
