@@ -9,13 +9,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
 
       - name: ruff check
-        run: ruff check --output-format=github || true
+        run: uv run --extra dev ruff check --output-format=github || true
         continue-on-error: true
 
       - name: ruff format
-        run: ruff format --check
+        run: uv run --extra dev ruff format --check
 
       - name: pyright
-        run: pyright
+        run: uv run --extra dev pyright
