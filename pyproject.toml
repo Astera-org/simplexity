@@ -36,8 +36,47 @@ dash = [
     "jupyter-dash"
 ]
 dev = [
-    "black",
     "jaxtyping",
-    "mypy",
-    "pytest"
+    "pyright",
+    "pytest",
+    "ruff"
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+include = [
+    "simplexity/generative_processes/**",
+]
+
+[tool.ruff.lint]
+ignore = [
+    "D100",   # undocumented-public-module
+    "D105",   # Missing docstring in magic method
+    "D107",   # Missing docstring in __init__
+    "SIM108", # Use the ternary operator
+]
+select = [
+    "A",   # flake8-builtins
+    "B",   # flake8-bugbear
+    "D",   # pydocstyle https://www.pydocstyle.org/en/stable/error_codes.html
+    "E",   # pycodestyle
+    "F",   # Pyflakes
+    "I",   # isort
+    "PT",  # flake8-pytest-style
+    "SIM", # flake8-simplify
+    "UP",  # pyupgrade
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"test_*.py" = ["D"]
+"*.ipynb" = ["D"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+include = [
+    "simplexity/generative_processes/**",
 ]
