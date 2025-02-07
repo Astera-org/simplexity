@@ -1,0 +1,21 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ruff check
+        run: ruff check --output-format=github || true
+        continue-on-error: true
+
+      - name: ruff format
+        run: ruff format --check
+
+      - name: pyright
+        run: pyright
