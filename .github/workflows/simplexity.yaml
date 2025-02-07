@@ -1,0 +1,24 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: ruff check
+        run: uv run --extra dev ruff check --output-format=github || true
+        continue-on-error: true
+
+      - name: ruff format
+        run: uv run --extra dev ruff format --check
+
+      - name: pyright
+        run: uv run --extra dev pyright
