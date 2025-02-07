@@ -3,11 +3,14 @@ import pytest
 
 from simplexity.generative_processes.transition_matrices import (
     days_of_week,
+    even_ones,
     fanizza,
     mess3,
+    no_consecutive_ones,
     post_quantum,
     rrxor,
     tom_quantum,
+    zero_one_random,
 )
 
 
@@ -26,6 +29,21 @@ def validate_transition_matrices(transition_matrices: jnp.ndarray):
     assert jnp.isclose(max_eigenval, 1.0, atol=1e-10), (
         "State transition matrix should have largest absolute eigenvalue = 1"
     )
+
+def test_no_consecutive_ones():
+    transition_matrices = no_consecutive_ones()
+    assert transition_matrices.shape == (2, 2, 2)
+    validate_transition_matrices(transition_matrices)
+
+def test_even_ones():
+    transition_matrices = even_ones()
+    assert transition_matrices.shape == (2, 2, 2)
+    validate_transition_matrices(transition_matrices)   
+
+def test_zero_one_random():
+    transition_matrices = zero_one_random()
+    assert transition_matrices.shape == (2, 3, 3)
+    validate_transition_matrices(transition_matrices)
 
 def test_post_quantum():
     transition_matrices = post_quantum()

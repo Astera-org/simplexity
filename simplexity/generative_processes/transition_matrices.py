@@ -1,6 +1,62 @@
 import jax.numpy as jnp
 
 
+def no_consecutive_ones(p: float = 0.5):
+    """Creates a transition matrix for the No Consecutive Ones Process."""
+    assert 0 <= p <= 1
+    q = 1 - p
+    return jnp.array(
+        [
+            [
+                [q, 1],
+                [0, 0],
+            ],
+            [
+                [0, 0],
+                [p, 0],
+            ],
+        ]
+    )
+
+
+def even_ones(p: float = 0.5):
+    """Creates a transition matrix for the Even Ones Process."""
+    assert 0 <= p <= 1
+    q = 1 - p
+    return jnp.array(
+        [
+            [
+                [q, 0],
+                [0, 0],
+            ],
+            [
+                [0, 0],
+                [p, 1],
+            ],
+        ]
+    )
+
+
+def zero_one_random(p: float = 0.5):
+    """Creates a transition matrix for the Zero One Random (Z1R) Process."""
+    assert 0 <= p <= 1
+    q = 1 - p
+    return jnp.array(
+        [
+            [
+                [0, 0, q],
+                [1, 0, 0],
+                [0, 0, 0],
+            ],
+            [
+                [0, 0, p],
+                [0, 0, 0],
+                [0, 1, 0],
+            ],
+        ]
+    )
+
+
 def _validate_post_quantum_conditions(alpha, beta):
     if not (alpha > 1 > beta > 0):
         raise ValueError("Condition alpha > 1 > beta > 0 not satisfied")
