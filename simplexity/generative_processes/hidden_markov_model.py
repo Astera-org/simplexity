@@ -65,7 +65,12 @@ class HiddenMarkovModel(GenerativeProcess[State]):
 
     @eqx.filter_jit
     def transition(self, state: State, key: chex.PRNGKey) -> tuple[State, jax.Array]:
-        """Transition the state of the GHMM, state is a probability distribution over states."""
+        """Transition the state of the GHMM, state is a probability distribution over states.
+
+        The input state represents a prior distribution over hidden states, and
+        the returned state represents a posterior distribution over hidden states
+        conditioned on the observation.
+        """
         obs_state_probs = self.transition_matrices @ state
         obs_probs = jnp.sum(obs_state_probs, axis=1)
         obs_probs = normalize_simplex(obs_probs)
