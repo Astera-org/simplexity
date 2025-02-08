@@ -1,3 +1,5 @@
+import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -30,10 +32,10 @@ def log_matmul(A: jax.Array, B: jax.Array) -> jax.Array:
     sum_mat = A[:, :, None] + B[None, :, :]
     return jax.nn.logsumexp(sum_mat, axis=1)
 
+@eqx.filter_jit
 def normalize_simplex(simplex: jax.Array) -> jax.Array:
     """Normalize probabilities to sum to 1."""
-    assert simplex.ndim == 1
-    assert jnp.all(simplex >= 0) or jnp.all(simplex <= 0)
+    chex.assert_rank(simplex, 1)
     return simplex / jnp.sum(simplex)
 
 def stationary_distribution(transition_matrix: jax.Array) -> jax.Array:
