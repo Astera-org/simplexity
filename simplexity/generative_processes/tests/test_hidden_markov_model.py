@@ -54,3 +54,13 @@ def test_transition(z1r: HiddenMarkovModel):
         # P(obs=1 | prev=1) * P(prev=1) = 1.0 * 0.4 = 0.4
         next_mixed_state = jnp.array([0.2, 0.0, 0.8])
     chex.assert_trees_all_equal(next_state, next_mixed_state)
+
+def test_probability(z1r: HiddenMarkovModel):
+    observations = jnp.array([1, 0, 0, 1, 1, 0])
+    expected_probability = 1 / 12
+
+    probability = z1r.probability(observations)
+    assert jnp.isclose(probability, expected_probability)
+
+    log_probability = z1r.log_probability(observations)
+    assert jnp.isclose(log_probability, jnp.log(expected_probability))
