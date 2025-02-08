@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
 
@@ -32,6 +33,15 @@ def log_matmul(A: jax.Array, B: jax.Array) -> jax.Array:
 def normalize_simplex(simplex: jax.Array) -> jax.Array:
     """Normalize probabilities to sum to 1."""
     assert simplex.ndim == 1
-    assert jnp.all(simplex >= 0)
+    assert jnp.all(simplex >= 0) or jnp.all(simplex <= 0)
     return simplex / jnp.sum(simplex)
 
+def stationary_distribution(transition_matrix: jax.Array) -> jax.Array:
+    """Compute the stationary eigenvector of a transition matrix.
+    
+    the jax.numpy version of linalg.eig is buggy, so we use numpy instead.
+    """
+    eigenvalues, eigenvectors = np.linalg.eig(np.array(transition_matrix))
+    eigenvectors = jnp.array(eigenvectors)
+    stationary_eigenvector = eigenvectors[:, np.isclose(eigenvalues, 1)].squeeze().real
+    return normalize_simplex(stationary_eigenvector)
