@@ -181,14 +181,14 @@ def rrxor(pR1=0.5, pR2=0.5):
     s = {"S": 0, "0": 1, "1": 2, "T": 3, "F": 4}
 
     transition_matrices = jnp.zeros((2, 5, 5))
-    transition_matrices = transition_matrices.at[0, s["S"], s["0"]].set(pR1)
-    transition_matrices = transition_matrices.at[1, s["S"], s["1"]].set(1 - pR1)
-    transition_matrices = transition_matrices.at[0, s["0"], s["F"]].set(pR2)
-    transition_matrices = transition_matrices.at[1, s["0"], s["T"]].set(1 - pR2)
-    transition_matrices = transition_matrices.at[0, s["1"], s["T"]].set(pR2)
-    transition_matrices = transition_matrices.at[1, s["1"], s["F"]].set(1 - pR2)
-    transition_matrices = transition_matrices.at[1, s["T"], s["S"]].set(1.0)
-    transition_matrices = transition_matrices.at[0, s["F"], s["S"]].set(1.0)
+    transition_matrices = transition_matrices.at[0, s["0"], s["S"]].set(pR1)
+    transition_matrices = transition_matrices.at[1, s["1"], s["S"]].set(1 - pR1)
+    transition_matrices = transition_matrices.at[0, s["F"], s["0"]].set(pR2)
+    transition_matrices = transition_matrices.at[1, s["T"], s["0"]].set(1 - pR2)
+    transition_matrices = transition_matrices.at[0, s["T"], s["1"]].set(pR2)
+    transition_matrices = transition_matrices.at[1, s["F"], s["1"]].set(1 - pR2)
+    transition_matrices = transition_matrices.at[1, s["S"], s["T"]].set(1.0)
+    transition_matrices = transition_matrices.at[0, s["S"], s["F"]].set(1.0)
 
     return transition_matrices
 
