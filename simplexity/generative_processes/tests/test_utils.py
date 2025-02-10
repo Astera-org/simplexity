@@ -19,11 +19,13 @@ def test_normalize_simplex():
 
 
 def test_stationary_distribution():
-    transition_matrix = jnp.array([
-        [0, 0, 0, 1], 
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-    ])
+    transition_matrix = jnp.array(
+        [
+            [0, 0, 0, 1],
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+        ]
+    )
     expected = jnp.array([0.25, 0.25, 0.25, 0.25])
     assert jnp.allclose(stationary_distribution(transition_matrix), expected)
