@@ -55,6 +55,22 @@ def test_transition(z1r: HiddenMarkovModel):
         next_mixed_state = jnp.array([0.2, 0.0, 0.8])
     chex.assert_trees_all_equal(next_state, next_mixed_state)
 
+def test_generate(z1r: HiddenMarkovModel):
+    batch_size = 4
+    sequence_len = 10
+
+    initial_states = jnp.repeat(z1r.right_stationary_distribution[None, :], batch_size, axis=0)
+    keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
+    intermediate_states, intermediate_observations = z1r.generate(initial_states, keys, sequence_len)
+    assert intermediate_states.shape == (batch_size, z1r.num_states)
+    assert intermediate_observations.shape == (batch_size, sequence_len)
+
+    keys = jax.random.split(jax.random.PRNGKey(1), batch_size)
+    final_states, final_observations = z1r.generate(intermediate_states, keys, sequence_len)
+    assert final_states.shape == (batch_size, z1r.num_states)
+    assert final_observations.shape == (batch_size, sequence_len)
+
+
 def test_probability(z1r: HiddenMarkovModel):
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
