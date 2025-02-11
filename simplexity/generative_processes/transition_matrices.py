@@ -75,9 +75,9 @@ def post_quantum(log_alpha=1, beta=0.5):
     mu0 = jnp.array([[1, -1, -1]])
 
     def _intermediate_matrix(val):
-        return jnp.array([[val, 0, 0], [0, 1, 0], [0, jnp.log(val), 1]])
+        return jnp.array([[val, 0, 0], [0, 1, jnp.log(val)], [0, 0, 1]])
 
-    transition_matrices = jnp.array([jnp.outer(m0, mu0), _intermediate_matrix(alpha), _intermediate_matrix(beta)])
+    transition_matrices = jnp.array([jnp.outer(mu0, m0), _intermediate_matrix(alpha), _intermediate_matrix(beta)])
 
     # Normalize transition_matrices such that
     # transition_matrices[0] + transition_matrices[1] + transition_matrices[2] has largest abs eigenvalue = 1
@@ -167,10 +167,15 @@ def fanizza(alpha: float, lamb: float):
         [1, 1 - lamb, 1 + lamb * (jnp.sin(alpha) - jnp.cos(alpha)), 1 - lamb * (jnp.sin(alpha) + jnp.cos(alpha))]
     )
 
-    Da = jnp.outer(w, pi0)
+    Da = jnp.outer(pi0, w)
 
     Db = lamb * jnp.array(
-        [[0, 0, 0, 0], [0, 1, 0, 0], [0, 0, jnp.cos(alpha), -jnp.sin(alpha)], [0, 0, jnp.sin(alpha), jnp.cos(alpha)]]
+        [
+            [0, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, jnp.cos(alpha), jnp.sin(alpha)],
+            [0, 0, -jnp.sin(alpha), jnp.cos(alpha)],
+        ]
     )
 
     return jnp.stack([Da, Db], axis=0)
