@@ -27,27 +27,22 @@ class HiddenMarkovModel(GenerativeProcess[State]):
     """
 
     transition_matrices: jax.Array
-    _log_transition_matrices: jax.Array
-    right_stationary_distribution: jax.Array
-    _log_right_stationary_distribution: jax.Array
-    left_stationary_distribution: jax.Array
-    _log_left_stationary_distribution: jax.Array
+    log_transition_matrices: jax.Array
+    stationary_distribution: jax.Array
+    log_stationary_distribution: jax.Array
 
     def __init__(self, transition_matrices: jax.Array, log: bool = False):
         if log:
             self.transition_matrices = jnp.exp(transition_matrices)
-            self._log_transition_matrices = transition_matrices
+            self.log_transition_matrices = transition_matrices
         else:
             self.transition_matrices = transition_matrices
-            self._log_transition_matrices = jnp.log(transition_matrices)
+            self.log_transition_matrices = jnp.log(transition_matrices)
 
         state_transition_matrix = jnp.sum(self.transition_matrices, axis=0)
 
-        self.right_stationary_distribution = stationary_distribution(state_transition_matrix)
-        self._log_right_stationary_distribution = jnp.log(self.right_stationary_distribution)
-
-        self.left_stationary_distribution = stationary_distribution(state_transition_matrix.T)
-        self._log_left_stationary_distribution = jnp.log(self.left_stationary_distribution)
+        self.stationary_distribution = stationary_distribution(state_transition_matrix)
+        self.log_stationary_distribution = jnp.log(self.stationary_distribution)
 
     def __post_init__(self):
         if self.transition_matrices.ndim != 3 or self.transition_matrices.shape[1] != self.transition_matrices.shape[2]:
@@ -91,7 +86,7 @@ class HiddenMarkovModel(GenerativeProcess[State]):
         def _scan_fn(state_distribution, observation):
             return self.transition_matrices[observation] @ state_distribution, None
 
-        state_distribution, _ = jax.lax.scan(_scan_fn, init=self.right_stationary_distribution, xs=observations)
+        state_distribution, _ = jax.lax.scan(_scan_fn, init=self.stationary_distribution, xs=observations)
 
         return jnp.sum(state_distribution)
 
@@ -100,10 +95,8 @@ class HiddenMarkovModel(GenerativeProcess[State]):
         """Compute the log probability of the process generating a sequence of observations."""
 
         def _scan_fn(log_state_distribution, observation):
-            return jax.nn.logsumexp(self._log_transition_matrices[observation] + log_state_distribution, axis=1), None
+            return jax.nn.logsumexp(self.log_transition_matrices[observation] + log_state_distribution, axis=1), None
 
-        log_state_distribution, _ = jax.lax.scan(
-            _scan_fn, init=self._log_right_stationary_distribution, xs=observations
-        )
+        log_state_distribution, _ = jax.lax.scan(_scan_fn, init=self.log_stationary_distribution, xs=observations)
 
         return jax.nn.logsumexp(log_state_distribution)

@@ -17,8 +17,7 @@ def test_properties(z1r: HiddenMarkovModel):
     assert z1r.num_observations == 2
     assert z1r.num_states == 3
     stationary_distribution = jnp.ones(3) / 3
-    chex.assert_trees_all_close(z1r.right_stationary_distribution, stationary_distribution)
-    chex.assert_trees_all_close(z1r.left_stationary_distribution, stationary_distribution)
+    chex.assert_trees_all_close(z1r.stationary_distribution, stationary_distribution)
 
 
 def test_single_transition(z1r: HiddenMarkovModel):
@@ -63,7 +62,7 @@ def test_generate(z1r: HiddenMarkovModel):
     batch_size = 4
     sequence_len = 10
 
-    initial_states = jnp.repeat(z1r.right_stationary_distribution[None, :], batch_size, axis=0)
+    initial_states = jnp.repeat(z1r.stationary_distribution[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     intermediate_states, intermediate_observations = z1r.generate(initial_states, keys, sequence_len)
     assert intermediate_states.shape == (batch_size, z1r.num_states)
