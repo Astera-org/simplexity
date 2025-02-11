@@ -64,20 +64,25 @@ class HiddenMarkovModel(GenerativeProcess[State]):
         return self.transition_matrices.shape[1]
 
     @eqx.filter_jit
-    def transition(self, state: State, key: chex.PRNGKey) -> tuple[State, jax.Array]:
-        """Transition the state of the GHMM, state is a probability distribution over states.
+    def emit_observation(self, state: State, key: chex.PRNGKey) -> jax.Array:
+        """Emit an observation based on the state of the generative process."""
+        obs_state_probs = self.transition_matrices @ state
+        obs_probs = jnp.sum(obs_state_probs, axis=1)
+        obs_probs = normalize_simplex(obs_probs)
+        obs = jax.random.choice(key, self.num_observations, p=obs_probs)
+        return obs
+
+    @eqx.filter_jit
+    def transition_states(self, state: State, obs: chex.Array) -> State:
+        """Evolve the state of the generative process based on the observation.
 
         The input state represents a prior distribution over hidden states, and
         the returned state represents a posterior distribution over hidden states
         conditioned on the observation.
         """
-        obs_state_probs = self.transition_matrices @ state
-        obs_probs = jnp.sum(obs_state_probs, axis=1)
-        obs_probs = normalize_simplex(obs_probs)
-        obs = jax.random.choice(key, self.num_observations, p=obs_probs)
         next_state = self.transition_matrices[obs] @ state
         next_state = normalize_simplex(next_state)
-        return cast(State, next_state), obs
+        return cast(State, next_state)
 
     @eqx.filter_jit
     def probability(self, observations: jax.Array) -> jax.Array:
