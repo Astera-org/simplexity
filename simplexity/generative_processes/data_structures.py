@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import Generic, TypeVar
 
 import equinox as eqx
@@ -7,7 +8,27 @@ import jax.numpy as jnp
 Element = TypeVar("Element")
 
 
-class Stack(eqx.Module, Generic[Element]):
+class Collection(eqx.Module, Generic[Element]):
+    """Generic collection for any PyTree structure."""
+
+    @property
+    @abstractmethod
+    def is_empty(self) -> jax.Array:
+        """Whether the collection is empty."""
+        ...
+
+    @abstractmethod
+    def add(self, element: Element) -> "Collection[Element]":
+        """Add an element to the collection."""
+        ...
+
+    @abstractmethod
+    def remove(self) -> tuple["Collection[Element]", Element]:
+        """Remove an element from the collection."""
+        ...
+
+
+class Stack(Collection[Element]):
     """Generic stack for any PyTree structure."""
 
     default_element: Element
@@ -28,11 +49,6 @@ class Stack(eqx.Module, Generic[Element]):
     def is_full(self) -> jax.Array:
         """Whether the stack is full."""
         return self.size == self.max_size
-
-    @property
-    def top_idx(self) -> jax.Array:
-        """The index of the top element in the stack."""
-        return self.size - 1
 
     def __init__(self, max_size: int, default_element: Element):
         """Initialize empty queue/stack."""
@@ -64,7 +80,7 @@ class Stack(eqx.Module, Generic[Element]):
             return stack, jax.tree_map(lambda x: jnp.zeros_like(x[0]), stack.data)
 
         def do_pop(stack: Stack) -> tuple["Stack[Element]", Element]:
-            element = jax.tree_map(lambda x: x[stack.top_idx], stack.data)
+            element = jax.tree_map(lambda x: x[stack.size - 1], stack.data)
             stack = eqx.tree_at(lambda s: s.size, stack, stack.size - 1)
             return stack, element
 
@@ -78,7 +94,7 @@ class Stack(eqx.Module, Generic[Element]):
             return stack.default_element
 
         def do_peek(stack: Stack) -> Element:
-            return jax.tree_map(lambda x: x[stack.top_idx], stack.data)
+            return jax.tree_map(lambda x: x[stack.size - 1], stack.data)
 
         return jax.lax.cond(self.is_empty, do_nothing, do_peek, self)
 
@@ -87,8 +103,11 @@ class Stack(eqx.Module, Generic[Element]):
         """Clear the stack."""
         return eqx.tree_at(lambda s: s.size, self, 0)
 
+    add = push
+    remove = pop
 
-class Queue(eqx.Module, Generic[Element]):
+
+class Queue(Collection[Element]):
     """Generic queue for any PyTree structure."""
 
     instack: Stack[Element]
@@ -187,3 +206,6 @@ class Queue(eqx.Module, Generic[Element]):
 
         should_restack = self.outstack.is_empty & ~self.instack.is_empty
         return jax.lax.cond(should_restack, transfer_elements, do_nothing, self)
+
+    add = enqueue
+    remove = dequeue
