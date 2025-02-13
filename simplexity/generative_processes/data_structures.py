@@ -17,6 +17,12 @@ class Collection(eqx.Module, Generic[Element]):
         """Whether the collection is empty."""
         ...
 
+    @property
+    @abstractmethod
+    def is_full(self) -> jax.Array:
+        """Whether the collection is full."""
+        ...
+
     @abstractmethod
     def add(self, element: Element) -> "Collection[Element]":
         """Add an element to the collection."""
