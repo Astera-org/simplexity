@@ -34,11 +34,7 @@ class Stack(Collection[Element]):
     default_element: Element
     data: jax.Array  # stores PyTree structures
     size: jax.Array
-
-    @property
-    def max_size(self) -> int:
-        """The maximum number of elements that can be stored in the queue/stack."""
-        return self.data.shape[0]
+    max_size: jax.Array
 
     @property
     def is_empty(self) -> jax.Array:
@@ -55,6 +51,7 @@ class Stack(Collection[Element]):
         self.default_element = default_element
         self.data = jax.tree_map(lambda x: jnp.zeros((max_size,) + x.shape, dtype=x.dtype), default_element)
         self.size = jnp.array(0, dtype=jnp.int32)
+        self.max_size = jnp.array(max_size, dtype=jnp.int32)
 
     @eqx.filter_jit
     def push(self, element: Element) -> "Stack":
