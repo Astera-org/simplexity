@@ -2,7 +2,10 @@ import jax.numpy as jnp
 
 
 def no_consecutive_ones(p: float = 0.5):
-    """Creates a transition matrix for the No Consecutive Ones Process."""
+    """Creates a transition matrix for the No Consecutive Ones Process.
+
+    Steady-state distribution = [2, 1] / 3
+    """
     assert 0 <= p <= 1
     q = 1 - p
     return jnp.array(
@@ -20,7 +23,10 @@ def no_consecutive_ones(p: float = 0.5):
 
 
 def even_ones(p: float = 0.5):
-    """Creates a transition matrix for the Even Ones Process."""
+    """Creates a transition matrix for the Even Ones Process.
+
+    Steady-state distribution = [2, 1] / 3
+    """
     assert 0 <= p <= 1
     q = 1 - p
     return jnp.array(
@@ -38,7 +44,10 @@ def even_ones(p: float = 0.5):
 
 
 def zero_one_random(p: float = 0.5):
-    """Creates a transition matrix for the Zero One Random (Z1R) Process."""
+    """Creates a transition matrix for the Zero One Random (Z1R) Process.
+
+    Steady-state districution = [1, 1, 1] / 3
+    """
     assert 0 <= p <= 1
     q = 1 - p
     return jnp.array(
@@ -182,7 +191,10 @@ def fanizza(alpha: float, lamb: float):
 
 
 def rrxor(pR1=0.5, pR2=0.5):
-    """Creates a transition matrix for the RRXOR Process."""
+    """Creates a transition matrix for the RRXOR Process.
+
+    Steady-state distribution = [2, 1, 1, 1, 1] / 6
+    """
     s = {"S": 0, "0": 1, "1": 2, "T": 3, "F": 4}
 
     transition_matrices = jnp.zeros((2, 5, 5))
