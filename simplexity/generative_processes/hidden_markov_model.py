@@ -32,6 +32,7 @@ class HiddenMarkovModel(GenerativeProcess[State]):
     log_stationary_distribution: jax.Array
 
     def __init__(self, transition_matrices: jax.Array, log: bool = False):
+        self.validate_transition_matrices(transition_matrices)
         if log:
             self.transition_matrices = jnp.exp(transition_matrices)
             self.log_transition_matrices = transition_matrices
@@ -44,8 +45,9 @@ class HiddenMarkovModel(GenerativeProcess[State]):
         self.stationary_distribution = stationary_distribution(state_transition_matrix)
         self.log_stationary_distribution = jnp.log(self.stationary_distribution)
 
-    def __post_init__(self):
-        if self.transition_matrices.ndim != 3 or self.transition_matrices.shape[1] != self.transition_matrices.shape[2]:
+    def validate_transition_matrices(self, transition_matrices: jax.Array):
+        """Validate the transition matrices."""
+        if transition_matrices.ndim != 3 or transition_matrices.shape[1] != transition_matrices.shape[2]:
             raise ValueError("Transition matrices must have shape (num_observations, num_states, num_states)")
 
     @property
