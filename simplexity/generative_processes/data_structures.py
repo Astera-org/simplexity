@@ -13,6 +13,12 @@ class Collection(eqx.Module, Generic[Element]):
 
     @property
     @abstractmethod
+    def size(self) -> jax.Array:
+        """The number of elements in the collection."""
+        ...
+
+    @property
+    @abstractmethod
     def is_empty(self) -> jax.Array:
         """Whether the collection is empty."""
         ...
@@ -39,8 +45,13 @@ class Stack(Collection[Element]):
 
     default_element: Element
     data: jax.Array  # stores PyTree structures
-    size: jax.Array
+    _size: jax.Array
     max_size: jax.Array
+
+    @property
+    def size(self) -> jax.Array:
+        """The number of elements in the stack."""
+        return self._size
 
     @property
     def is_empty(self) -> jax.Array:
@@ -56,7 +67,7 @@ class Stack(Collection[Element]):
         """Initialize empty queue/stack."""
         self.default_element = default_element
         self.data = jax.tree_map(lambda x: jnp.zeros((max_size,) + x.shape, dtype=x.dtype), default_element)
-        self.size = jnp.array(0, dtype=jnp.int32)
+        self._size = jnp.array(0, dtype=jnp.int32)
         self.max_size = jnp.array(max_size, dtype=jnp.int32)
 
     @eqx.filter_jit
