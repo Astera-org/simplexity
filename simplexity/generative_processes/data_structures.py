@@ -11,6 +11,9 @@ Element = TypeVar("Element")
 class Collection(eqx.Module, Generic[Element]):
     """Generic collection for any PyTree structure."""
 
+    def __init__(self, *args, **kwargs):
+        pass
+
     @property
     @abstractmethod
     def size(self) -> jax.Array:

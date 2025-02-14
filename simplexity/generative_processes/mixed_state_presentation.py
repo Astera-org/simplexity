@@ -1,8 +1,9 @@
+from enum import Enum
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.data_structures import Collection, Stack
+from simplexity.generative_processes.data_structures import Collection, Queue, Stack
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 
 NodeDict = dict[tuple[int, ...], float]
@@ -85,13 +86,19 @@ class MixedStateTree:
         self.nodes[key] = value
 
 
+class SearchAlgorithm(Enum):
+    """The algorithm to use for searching the tree."""
+
+    BREADTH_FIRST = "breadth_first"
+    DEPTH_FIRST = "depth_first"
+
+
 class MixedStateTreeGenerator(eqx.Module):
     """A generator of nodes in a mixed state presentation of a generative process."""
 
     ghmm: GeneralizedHiddenMarkovModel
     max_sequence_length: int
     max_tree_size: int
-    max_stack_size: int
     log_prob_threshold: float
 
     def __init__(
@@ -99,35 +106,36 @@ class MixedStateTreeGenerator(eqx.Module):
         ghmm: GeneralizedHiddenMarkovModel,
         max_sequence_length: int,
         max_tree_size: int,
-        max_stack_size: int,
         log_prob_threshold: float = -jnp.inf,
     ):
         self.ghmm = ghmm
         self.max_sequence_length = max_sequence_length
         self.max_tree_size = max_tree_size
-        self.max_stack_size = max_stack_size
         self.log_prob_threshold = log_prob_threshold
 
-    def generate(self) -> MixedStateTree:
+    def generate(self, search_algorithm: SearchAlgorithm = SearchAlgorithm.DEPTH_FIRST) -> MixedStateTree:
         """Generate all nodes in the tree."""
 
         def continue_loop(carry: tuple[TreeData, Collection[MixedStateNode]]) -> jax.Array:
-            tree_data, stack = carry
-            return jnp.logical_and(~stack.is_empty, tree_data.size < tree_data.max_size)
+            tree_data, search_nodes = carry
+            return jnp.logical_and(~search_nodes.is_empty, tree_data.size < tree_data.max_size)
 
         def add_next_node(
             carry: tuple[TreeData, Collection[MixedStateNode]],
         ) -> tuple[TreeData, Collection[MixedStateNode]]:
-            tree_data, stack = carry
-            stack, node = self._next_node(stack)
+            tree_data, search_nodes = carry
+            search_nodes, node = self._next_node(search_nodes)
             tree_data = tree_data.add(node)
-            return tree_data, stack
+            return tree_data, search_nodes
 
         tree_data = TreeData.empty(self.max_tree_size, self.max_sequence_length)
-        stack = Stack(self.max_stack_size, default_element=self.root)
-        stack = stack.push(self.root)
+        if search_algorithm == SearchAlgorithm.BREADTH_FIRST:
+            search_nodes = Queue(self.max_tree_size, default_element=self.root)
+        else:
+            search_nodes = Stack(self.max_tree_size, default_element=self.root)
+        search_nodes = search_nodes.add(self.root)
 
-        tree_data, _ = jax.lax.while_loop(continue_loop, add_next_node, (tree_data, stack))
+        tree_data, _ = jax.lax.while_loop(continue_loop, add_next_node, (tree_data, search_nodes))
         return MixedStateTree(tree_data)
 
     @property
