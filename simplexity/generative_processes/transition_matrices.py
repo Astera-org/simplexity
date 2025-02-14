@@ -131,10 +131,10 @@ def days_of_week():
 
 def tom_quantum(alpha: float, beta: float):
     """Creates a transition matrix for the Tom Quantum Process."""
-    gamma = 1 / (2 * jnp.sqrt(alpha**2 + beta**2))
+    gamma2 = 1 / (4 * (alpha**2 + beta**2))
     common_diag = 1 / 4
-    middle_diag = (alpha**2 - beta**2) * gamma**2
-    off_diag = 2 * alpha * beta * gamma**2
+    middle_diag = (alpha**2 - beta**2) * gamma2
+    off_diag = 2 * alpha * beta * gamma2
 
     transition_matrices = jnp.array(
         [
