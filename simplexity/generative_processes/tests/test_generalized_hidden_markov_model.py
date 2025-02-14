@@ -1,4 +1,3 @@
-import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -6,22 +5,7 @@ import pytest
 
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.transition_matrices import fanizza, zero_one_random
-
-
-def assert_proportional(a: jax.Array, b: jax.Array):
-    def normalize(x: jax.Array) -> jax.Array:
-        return x / jnp.maximum(jnp.abs(x).max(), 1e-6)
-
-    chex.assert_equal_shape([a, b])
-    norm_a = normalize(a)
-    norm_b = normalize(b)
-    try:
-        chex.assert_trees_all_close(norm_a, norm_b)
-    except AssertionError as e:
-        try:
-            chex.assert_trees_all_close(norm_a, -norm_b)
-        except AssertionError:
-            raise AssertionError(f"Arrays are not proportional: {a} and {b}.\n{e}") from e
+from simplexity.generative_processes.utils import assert_proportional
 
 
 @pytest.fixture

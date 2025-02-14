@@ -1,3 +1,4 @@
+import chex
 import jax.numpy as jnp
 import pytest
 
@@ -12,19 +13,28 @@ from simplexity.generative_processes.transition_matrices import (
     tom_quantum,
     zero_one_random,
 )
-from simplexity.generative_processes.utils import stationary_distribution
+from simplexity.generative_processes.utils import assert_proportional
 
 
-def validate_transition_matrices(transition_matrices: jnp.ndarray):
+def validate_transition_matrices(transition_matrices: jnp.ndarray, rtol: float = 1e-6, atol: float = 0):
     assert jnp.all(transition_matrices >= 0)
     assert jnp.all(transition_matrices <= 1)
 
     sum_over_obs_and_next = jnp.sum(transition_matrices, axis=(0, 1))
-    assert jnp.allclose(sum_over_obs_and_next, 1.0), "Probabilities don't sum to 1 for each current state"
+    chex.assert_trees_all_close(sum_over_obs_and_next, jnp.ones_like(sum_over_obs_and_next), rtol=rtol, atol=atol)
 
     transition_matrix = jnp.sum(transition_matrices, axis=0)
-    distribution = stationary_distribution(transition_matrix)
-    assert distribution.size > 0, "State transition matrix should have stationary distribution = 1"
+
+    eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
+    assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
+    stationary_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    assert stationary_eigenvector.size > 0, "State transition matrix should have stationary distribution = 1"
+
+    eigenvalues, left_eigenvectors = jnp.linalg.eig(transition_matrix.T)
+    assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
+    stationary_eigenvector = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    assert stationary_eigenvector.size > 0, "State transition matrix should have stationary distribution = 1"
+    assert_proportional(stationary_eigenvector, jnp.ones_like(stationary_eigenvector), rtol=rtol, atol=atol)
 
 
 def test_no_consecutive_ones():
@@ -61,7 +71,7 @@ def test_post_quantum():
 def test_days_of_week():
     transition_matrices = days_of_week()
     assert transition_matrices.shape == (11, 7, 7)
-    validate_transition_matrices(transition_matrices)
+    validate_transition_matrices(transition_matrices, rtol=2e-6)
 
 
 def test_tom_quantum():
