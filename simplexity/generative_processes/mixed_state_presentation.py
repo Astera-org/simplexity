@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.data_structures import Collection, Stack
-from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 
 NodeDict = dict[tuple[int, ...], float]
 
@@ -88,7 +88,7 @@ class MixedStateTree:
 class MixedStateTreeGenerator(eqx.Module):
     """A generator of nodes in a mixed state presentation of a generative process."""
 
-    hmm: HiddenMarkovModel
+    ghmm: GeneralizedHiddenMarkovModel
     max_sequence_length: int
     max_tree_size: int
     max_stack_size: int
@@ -96,13 +96,13 @@ class MixedStateTreeGenerator(eqx.Module):
 
     def __init__(
         self,
-        hmm: HiddenMarkovModel,
+        ghmm: GeneralizedHiddenMarkovModel,
         max_sequence_length: int,
         max_tree_size: int,
         max_stack_size: int,
         log_prob_threshold: float = -jnp.inf,
     ):
-        self.hmm = hmm
+        self.ghmm = ghmm
         self.max_sequence_length = max_sequence_length
         self.max_tree_size = max_tree_size
         self.max_stack_size = max_stack_size
@@ -135,7 +135,7 @@ class MixedStateTreeGenerator(eqx.Module):
         """The root node of the tree."""
         empty_sequence = jnp.zeros((self.max_sequence_length,), dtype=jnp.int32)
         sequence_length = jnp.array(0)
-        log_state_distribution = self.hmm.log_stationary_distribution
+        log_state_distribution = self.ghmm.log_right_eigenvector
         return MixedStateNode(empty_sequence, sequence_length, log_state_distribution)
 
     @eqx.filter_jit
@@ -144,7 +144,7 @@ class MixedStateTreeGenerator(eqx.Module):
         sequence = node.sequence.at[node.sequence_length].set(obs)
         sequence_length = node.sequence_length + 1
         log_state_distribution = jax.nn.logsumexp(
-            self.hmm.log_transition_matrices[obs] + node.log_state_distribution, axis=1
+            self.ghmm.log_transition_matrices[obs] + node.log_state_distribution, axis=1
         )
         return MixedStateNode(sequence, sequence_length, log_state_distribution)
 
@@ -179,7 +179,7 @@ class MixedStateTreeGenerator(eqx.Module):
                 )
                 return nodes, node
 
-            return jax.lax.fori_loop(0, self.hmm.num_observations, maybe_add_child, nodes_node)
+            return jax.lax.fori_loop(0, self.ghmm.num_observations, maybe_add_child, nodes_node)
 
         def no_update(
             nodes_node: tuple[Collection[MixedStateNode], MixedStateNode],

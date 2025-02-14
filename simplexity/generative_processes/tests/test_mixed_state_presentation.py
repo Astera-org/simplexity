@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.generative_processes.data_structures import Stack
-from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.mixed_state_presentation import MixedStateNode, MixedStateTreeGenerator, NodeDict
 from simplexity.generative_processes.transition_matrices import no_consecutive_ones
 
@@ -49,8 +49,8 @@ NODE_11 = MixedStateNode(
 @pytest.fixture
 def generator() -> MixedStateTreeGenerator:
     transition_matrices = no_consecutive_ones()
-    hmm = HiddenMarkovModel(transition_matrices)
-    return MixedStateTreeGenerator(hmm, max_sequence_length=2, max_tree_size=7, max_stack_size=7)
+    ghmm = GeneralizedHiddenMarkovModel(transition_matrices)
+    return MixedStateTreeGenerator(ghmm, max_sequence_length=2, max_tree_size=7, max_stack_size=7)
 
 
 def test_get_child(generator: MixedStateTreeGenerator):
