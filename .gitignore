@@ -19,3 +19,10 @@ examples/quantum_animation2.gif
 results/
 data/
 notebooks/
+
+# TODO: Move to separate files
+simplexity/analysis/activation_analysis.py
+simplexity/process/GHMM.py
+simplexity/process/MixedStateTree.py
+simplexity/visualization/plots.py
+tests/test_analysis/test_activation_analysis.py
