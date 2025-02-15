@@ -3,17 +3,22 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from simplexity.generative_processes.data_structures import Queue, Stack
+from simplexity.generative_processes.data_structures import Collection, Queue, Stack
 
 
 @pytest.fixture
-def stack() -> Stack:
-    return Stack(max_size=2, default_element=jnp.zeros(2))
+def default_element() -> jax.Array:
+    return jnp.zeros(2)
 
 
 @pytest.fixture
-def queue() -> Queue:
-    return Queue(max_size=2, default_element=jnp.zeros(2))
+def stack(default_element: jax.Array) -> Stack:
+    return Stack(max_size=2, default_element=default_element)
+
+
+@pytest.fixture
+def queue(default_element: jax.Array) -> Queue:
+    return Queue(max_size=2, default_element=default_element)
 
 
 @pytest.fixture
@@ -22,159 +27,90 @@ def elements() -> jax.Array:
     return jax.random.uniform(key, (3, 2))
 
 
-def test_stack_push(stack: Stack, elements: jax.Array):
-    """Test basic push operation."""
-    stack = stack.push(elements[0])
-    assert stack.size == 1
-    assert not stack.is_full
-    assert not stack.is_empty
+@pytest.mark.parametrize("data_structure_name", ["stack", "queue"])
+def test_add(data_structure_name: str, elements: jax.Array, request: pytest.FixtureRequest):
+    """Test basic add operation."""
+    data_structure: Collection = request.getfixturevalue(data_structure_name)
+    data_structure = data_structure.add(elements[0])
+    assert data_structure.size == 1
+    assert not data_structure.is_full
+    assert not data_structure.is_empty
 
-    stack = stack.push(elements[1])
+    data_structure = data_structure.add(elements[1])
 
-    assert stack.size == 2
-    assert stack.is_full
-    assert not stack.is_empty
-
-    chex.assert_trees_all_equal(stack.data[0], elements[0])
-    chex.assert_trees_all_equal(stack.data[1], elements[1])
-
-
-def test_stack_full_push(stack: Stack, elements: jax.Array):
-    """Test pushing to a full stack."""
-    stack = stack.push(elements[0])
-    stack = stack.push(elements[1])
-    stack = stack.push(elements[2])  # Should not add
-
-    assert stack.size == 2
-    assert stack.is_full
-    assert not stack.is_empty
-
-    chex.assert_trees_all_equal(stack.data[0], elements[0])
-    chex.assert_trees_all_equal(stack.data[1], elements[1])
+    assert data_structure.size == 2
+    assert data_structure.is_full
+    assert not data_structure.is_empty
 
 
-def test_stack_pop(stack: Stack, elements: jax.Array):
-    """Test basic pop operation."""
-    stack = stack.push(elements[0])
-    stack = stack.push(elements[1])
+@pytest.mark.parametrize("data_structure_name", ["stack", "queue"])
+def test_full_add(data_structure_name: str, elements: jax.Array, request: pytest.FixtureRequest):
+    """Test adding to full data structure."""
+    data_structure: Collection = request.getfixturevalue(data_structure_name)
+    data_structure = data_structure.add(elements[0])
+    data_structure = data_structure.add(elements[1])
+    data_structure = data_structure.add(elements[2])  # Should not add
 
-    stack, val = stack.pop()
-    assert stack.size == 1
+    assert data_structure.size == 2
+    assert data_structure.is_full
+    assert not data_structure.is_empty
+
+
+@pytest.mark.parametrize(("data_structure_name", "remove_order"), [("stack", (1, 0)), ("queue", (0, 1))])
+def test_remove(
+    data_structure_name: str, remove_order: tuple[int, int], elements: jax.Array, request: pytest.FixtureRequest
+):
+    """Test basic remove operation."""
+    data_structure: Collection = request.getfixturevalue(data_structure_name)
+    data_structure = data_structure.add(elements[0])
+    data_structure = data_structure.add(elements[1])
+
+    data_structure, val = data_structure.remove()
+    assert data_structure.size == 1
     assert isinstance(val, jax.Array)
-    chex.assert_trees_all_equal(val, elements[1])
+    chex.assert_trees_all_equal(val, elements[remove_order[0]])
 
-    stack, val = stack.pop()
-    assert stack.size == 0
+    data_structure, val = data_structure.remove()
+    assert data_structure.size == 0
     assert isinstance(val, jax.Array)
-    chex.assert_trees_all_equal(val, elements[0])
+    chex.assert_trees_all_equal(val, elements[remove_order[1]])
 
 
-def test_stack_empty_pop(stack: Stack):
-    """Test popping from empty stack."""
-    stack, val = stack.pop()
-    assert jnp.all(val == stack.default_element)
-    assert stack.is_empty
+@pytest.mark.parametrize("data_structure_name", ["stack", "queue"])
+def test_empty_remove(data_structure_name: str, default_element: jax.Array, request: pytest.FixtureRequest):
+    """Test removing from empty data structure."""
+    data_structure: Collection = request.getfixturevalue(data_structure_name)
+    data_structure, val = data_structure.remove()
+    chex.assert_trees_all_equal(val, default_element)
+    assert data_structure.is_empty
 
 
-def test_stack_peek(stack: Stack, elements: jax.Array):
+@pytest.mark.parametrize(("data_structure_name", "peek_idx"), [("stack", 1), ("queue", 0)])
+def test_peek(data_structure_name: str, peek_idx: int, elements: jax.Array, request: pytest.FixtureRequest):
     """Test peek operation."""
-    stack = stack.push(elements[0])
-    stack = stack.push(elements[1])
+    data_structure: Collection = request.getfixturevalue(data_structure_name)
+    data_structure = data_structure.add(elements[0])
+    data_structure = data_structure.add(elements[1])
 
-    val = stack.peek()
-    assert stack.size == 2  # Size unchanged
-    chex.assert_trees_all_equal(val, elements[1])
-
-
-def test_stack_empty_peek(stack: Stack):
-    """Test peeking empty stack."""
-    val = stack.peek()
-    assert jnp.all(val == stack.default_element)
+    val = data_structure.peek()
+    assert data_structure.size == 2  # Size unchanged
+    chex.assert_trees_all_equal(val, elements[peek_idx])
 
 
-def test_stack_clear(stack: Stack, elements: jax.Array):
+@pytest.mark.parametrize("data_structure_name", ["stack", "queue"])
+def test_empty_peek(data_structure_name: str, default_element: jax.Array, request: pytest.FixtureRequest):
+    """Test peeking empty data structure."""
+    data_structure: Collection = request.getfixturevalue(data_structure_name)
+    val = data_structure.peek()
+    chex.assert_trees_all_equal(val, default_element)
+
+
+@pytest.mark.parametrize("data_structure_name", ["stack", "queue"])
+def test_clear(data_structure_name: str, elements: jax.Array, request: pytest.FixtureRequest):
     """Test clear operation."""
-    stack = stack.push(elements[0])
-    stack = stack.push(elements[1])
-    stack = stack.clear()
+    data_structure: Collection = request.getfixturevalue(data_structure_name)
+    data_structure = data_structure.add(elements[0])
+    data_structure = data_structure.add(elements[1])
+    data_structure = data_structure.clear()
 
-    assert stack.is_empty
-
-
-def test_queue_enqueue(queue: Queue, elements: jax.Array):
-    """Test basic enqueue operation."""
-    queue = queue.enqueue(elements[0])
-    queue = queue.enqueue(elements[1])
-
-    assert queue.size == 2
-    assert not queue.is_empty
-    assert not queue.is_full
-
-
-def test_queue_full_enqueue(queue: Queue, elements: jax.Array):
-    """Test enqueueing to full queue."""
-    queue = queue.enqueue(elements[0])
-    queue = queue.enqueue(elements[1])
-    queue = queue.enqueue(elements[2])  # Should not add
-
-    assert queue.size == 2
-    assert queue.is_full
-    assert not queue.is_empty
-
-
-def test_queue_dequeue(queue: Queue, elements: jax.Array):
-    """Test dequeue operation with restacking."""
-    queue = queue.enqueue(elements[0])
-    queue = queue.enqueue(elements[1])
-
-    queue, val = queue.dequeue()  # Should restack
-    queue = queue.enqueue(elements[2])
-
-    queue, val = queue.dequeue()  # Should restack
-    assert queue.size == 1
-    assert isinstance(val, jax.Array)
-    chex.assert_trees_all_equal(val, elements[1])
-
-    queue, val = queue.dequeue()  # Should not restack
-    assert queue.size == 0
-    assert isinstance(val, jax.Array)
-    chex.assert_trees_all_equal(val, elements[2])
-
-
-def test_queue_empty_dequeue(queue: Queue):
-    """Test dequeuing from empty queue."""
-    queue, val = queue.dequeue()
-    assert jnp.all(val == queue.default_element)
-    assert queue.is_empty
-
-
-def test_queue_peek(queue: Queue, elements: jax.Array):
-    """Test peek operation."""
-    queue = queue.enqueue(elements[0])
-    queue = queue.enqueue(elements[1])
-
-    val = queue.peek()
-    assert isinstance(val, jax.Array)
-    assert queue.size == 2
-    chex.assert_trees_all_equal(val, elements[0])
-
-    queue, _ = queue.dequeue()
-    val = queue.peek()
-    assert isinstance(val, jax.Array)
-    assert queue.size == 1
-    chex.assert_trees_all_equal(val, elements[1])
-
-
-def test_queue_empty_peek(queue: Queue):
-    """Test peeking empty queue."""
-    val = queue.peek()
-    assert jnp.all(val == queue.default_element)
-
-
-def test_queue_clear(queue: Queue, elements: jax.Array):
-    """Test clear operation."""
-    queue = queue.enqueue(elements[0])
-    queue = queue.enqueue(elements[1])
-    queue = queue.clear()
-
-    assert queue.is_empty
+    assert data_structure.is_empty

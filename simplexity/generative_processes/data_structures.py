@@ -42,6 +42,16 @@ class Collection(eqx.Module, Generic[Element]):
         """Remove an element from the collection."""
         ...
 
+    @abstractmethod
+    def peek(self) -> Element:
+        """Look at the next element without removing it."""
+        ...
+
+    @abstractmethod
+    def clear(self) -> "Collection[Element]":
+        """Clear the collection."""
+        ...
+
 
 class Stack(Collection[Element]):
     """Generic stack for any PyTree structure."""
@@ -94,7 +104,7 @@ class Stack(Collection[Element]):
         """Pop the next element from the stack."""
 
         def do_nothing(stack: Stack) -> tuple["Stack[Element]", Element]:
-            return stack, jax.tree_map(lambda x: jnp.zeros_like(x[0]), stack.data)
+            return stack, self.default_element
 
         def do_pop(stack: Stack) -> tuple["Stack[Element]", Element]:
             element = jax.tree_map(lambda x: x[stack.size - 1], stack.data)
