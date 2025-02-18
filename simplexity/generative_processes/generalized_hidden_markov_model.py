@@ -23,14 +23,10 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     _normalizing_constant: jax.Array
     _log_normalizing_constant: jax.Array
 
-    def __init__(self, transition_matrices: jax.Array, log: bool = False):
+    def __init__(self, transition_matrices: jax.Array):
         self.validate_transition_matrices(transition_matrices)
-        if log:
-            self.transition_matrices = jnp.exp(transition_matrices)
-            self.log_transition_matrices = transition_matrices
-        else:
-            self.transition_matrices = transition_matrices
-            self.log_transition_matrices = jnp.log(transition_matrices)
+        self.transition_matrices = transition_matrices
+        self.log_transition_matrices = jnp.log(transition_matrices)
 
         state_transition_matrix = jnp.sum(self.transition_matrices, axis=0)
 
