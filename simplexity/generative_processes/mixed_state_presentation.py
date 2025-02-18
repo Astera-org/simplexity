@@ -139,7 +139,7 @@ class MixedStateTreeGenerator(eqx.Module):
         empty_sequence = jnp.zeros((self.max_sequence_length,), dtype=jnp.int32)
         sequence_length = jnp.array(0)
         log_state = self.ghmm.log_right_eigenvector
-        log_probability = jax.nn.logsumexp(self.ghmm.log_left_eigenvector + log_state) + jnp.log(self.ghmm.num_states)
+        log_probability = jax.nn.logsumexp(self.ghmm.log_left_eigenvector + log_state)
         return MixedStateNode(empty_sequence, sequence_length, log_state, log_probability)
 
     @eqx.filter_jit
@@ -148,7 +148,7 @@ class MixedStateTreeGenerator(eqx.Module):
         sequence = node.sequence.at[node.sequence_length].set(obs)
         sequence_length = node.sequence_length + 1
         log_state = jax.nn.logsumexp(self.ghmm.log_transition_matrices[obs] + node.log_state, axis=1)
-        log_probability = jax.nn.logsumexp(self.ghmm.log_left_eigenvector + log_state) + jnp.log(self.ghmm.num_states)
+        log_probability = jax.nn.logsumexp(self.ghmm.log_left_eigenvector + log_state)
         return MixedStateNode(sequence, sequence_length, log_state, log_probability)
 
     @eqx.filter_jit

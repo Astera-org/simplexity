@@ -6,7 +6,6 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.generative_processes.utils import stationary_distribution
 
 State = TypeVar("State", bound=jax.Array)
 
@@ -25,15 +24,24 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
 
     def __init__(self, transition_matrices: jax.Array):
         self.validate_transition_matrices(transition_matrices)
-        self.transition_matrices = transition_matrices
+
+        state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+        eigenvalues, right_eigenvectors = jnp.linalg.eig(state_transition_matrix)
+        principal_eigenvalue = jnp.max(eigenvalues)
+
+        if jnp.isclose(principal_eigenvalue, 1):
+            self.transition_matrices = transition_matrices
+        else:
+            self.transition_matrices = transition_matrices / principal_eigenvalue
         self.log_transition_matrices = jnp.log(transition_matrices)
 
-        state_transition_matrix = jnp.sum(self.transition_matrices, axis=0)
-
-        self.right_eigenvector = stationary_distribution(state_transition_matrix)
+        right_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
+        self.right_eigenvector = right_eigenvector / jnp.sum(right_eigenvector)
         self.log_right_eigenvector = jnp.log(self.right_eigenvector)
 
-        self.left_eigenvector = stationary_distribution(state_transition_matrix.T)
+        eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
+        left_eigenvector = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
+        self.left_eigenvector = left_eigenvector / jnp.sum(left_eigenvector) * self.num_states
         self.log_left_eigenvector = jnp.log(self.left_eigenvector)
 
         self._normalizing_constant = self.left_eigenvector @ self.right_eigenvector
