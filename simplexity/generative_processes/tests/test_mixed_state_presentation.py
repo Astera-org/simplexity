@@ -18,37 +18,44 @@ NODES = {
     "": MixedStateNode(
         sequence=jnp.array([0, 0], dtype=jnp.int32),
         sequence_length=jnp.array(0, dtype=jnp.int32),
-        log_state_distribution=jnp.log(jnp.array([2 / 3, 1 / 3])),
+        log_state=jnp.log(jnp.array([2 / 3, 1 / 3])),
+        log_probability=jnp.log(1),
     ),
     "0": MixedStateNode(
         sequence=jnp.array([0, 0], dtype=jnp.int32),
         sequence_length=jnp.array(1, dtype=jnp.int32),
-        log_state_distribution=jnp.log(jnp.array([2 / 3, 0])),
+        log_state=jnp.log(jnp.array([2 / 3, 0])),
+        log_probability=jnp.log(2 / 3),
     ),
     "1": MixedStateNode(
         sequence=jnp.array([1, 0], dtype=jnp.int32),
         sequence_length=jnp.array(1, dtype=jnp.int32),
-        log_state_distribution=jnp.log(jnp.array([0, 1 / 3])),
+        log_state=jnp.log(jnp.array([0, 1 / 3])),
+        log_probability=jnp.log(1 / 3),
     ),
     "00": MixedStateNode(
         sequence=jnp.array([0, 0], dtype=jnp.int32),
         sequence_length=jnp.array(2, dtype=jnp.int32),
-        log_state_distribution=jnp.log(jnp.array([1 / 3, 0])),
+        log_state=jnp.log(jnp.array([1 / 3, 0])),
+        log_probability=jnp.log(1 / 3),
     ),
     "01": MixedStateNode(
         sequence=jnp.array([0, 1], dtype=jnp.int32),
         sequence_length=jnp.array(2, dtype=jnp.int32),
-        log_state_distribution=jnp.log(jnp.array([0, 1 / 3])),
+        log_state=jnp.log(jnp.array([0, 1 / 3])),
+        log_probability=jnp.log(1 / 3),
     ),
     "10": MixedStateNode(
         sequence=jnp.array([1, 0], dtype=jnp.int32),
         sequence_length=jnp.array(2, dtype=jnp.int32),
-        log_state_distribution=jnp.log(jnp.array([1 / 3, 0])),
+        log_state=jnp.log(jnp.array([1 / 3, 0])),
+        log_probability=jnp.log(1 / 3),
     ),
     "11": MixedStateNode(
         sequence=jnp.array([1, 1], dtype=jnp.int32),
         sequence_length=jnp.array(2, dtype=jnp.int32),
-        log_state_distribution=jnp.log(jnp.array([0, 0])),
+        log_state=jnp.log(jnp.array([0, 0])),
+        log_probability=jnp.log(0),
     ),
 }
 
