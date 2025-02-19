@@ -37,7 +37,7 @@ def test_hmm_single_transition(z1r: GeneralizedHiddenMarkovModel):
     one_state = jnp.array([[0.0, 1.0, 0.0]])
     random_state = jnp.array([[0.0, 0.0, 1.0]])
 
-    probability = eqx.filter_vmap(z1r.state_probability)
+    probability = eqx.filter_vmap(z1r.normalize_belief_state)
 
     key = jax.random.PRNGKey(0)[None, :]
     single_transition = 1

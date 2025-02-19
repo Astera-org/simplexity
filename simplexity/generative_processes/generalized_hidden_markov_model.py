@@ -82,12 +82,12 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         return cast(State, state / (state @ self.normalizing_eigenvector))
 
     @eqx.filter_jit
-    def state_probability(self, state: State) -> jax.Array:
+    def normalize_belief_state(self, state: State) -> jax.Array:
         """Compute the probability distribution over states from a state vector."""
         return state * self.normalizing_eigenvector / (state @ self.normalizing_eigenvector)
 
     @eqx.filter_jit
-    def state_log_probability(self, log_state: jax.Array) -> jax.Array:
+    def normalize_log_belief_state(self, log_state: jax.Array) -> jax.Array:
         """Compute the log probability distribution over states from a log state vector."""
         log_prob = log_state + self.log_normalizing_eigenvector
         return log_prob - jax.nn.logsumexp(log_prob)
