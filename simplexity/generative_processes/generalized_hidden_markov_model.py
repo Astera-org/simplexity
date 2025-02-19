@@ -94,7 +94,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
             - jax.nn.logsumexp(log_state + self.log_normalizing_eigenvector)
         )
 
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def probability(self, observations: jax.Array) -> jax.Array:
         """Compute the probability of the process generating a sequence of observations."""
 
@@ -104,7 +104,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         state_vector, _ = jax.lax.scan(_scan_fn, init=self.state_eigenvector, xs=observations)
         return (state_vector @ self.normalizing_eigenvector) / self._normalizing_constant
 
-    # @eqx.filter_jit
+    @eqx.filter_jit
     def log_probability(self, observations: jax.Array) -> jax.Array:
         """Compute the log probability of the process generating a sequence of observations."""
 
