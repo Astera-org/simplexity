@@ -128,7 +128,7 @@ def days_of_week():
         transition_matrices = transition_matrices.at[d[next_day], d[day], d[next_day]].set(5.0)
         transition_matrices = transition_matrices.at[d["Yest"], d[day], d[prev_day]].set(1.0)
 
-    transition_matrices = transition_matrices / transition_matrices.sum()
+    transition_matrices = transition_matrices / transition_matrices.sum(axis=(0, 2), keepdims=True)
 
     return transition_matrices
 
