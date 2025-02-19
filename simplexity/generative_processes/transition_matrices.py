@@ -11,12 +11,12 @@ def no_consecutive_ones(p: float = 0.5):
     return jnp.array(
         [
             [
-                [q, 1],
-                [0, 0],
+                [q, 0],
+                [1, 0],
             ],
             [
+                [0, p],
                 [0, 0],
-                [p, 0],
             ],
         ]
     )
@@ -36,8 +36,8 @@ def even_ones(p: float = 0.5):
                 [0, 0],
             ],
             [
-                [0, 0],
-                [p, 1],
+                [0, p],
+                [0, 1],
             ],
         ]
     )
@@ -46,21 +46,21 @@ def even_ones(p: float = 0.5):
 def zero_one_random(p: float = 0.5):
     """Creates a transition matrix for the Zero One Random (Z1R) Process.
 
-    Steady-state districution = [1, 1, 1] / 3
+    Steady-state distribution = [1, 1, 1] / 3
     """
     assert 0 <= p <= 1
     q = 1 - p
     return jnp.array(
         [
             [
-                [0, 0, q],
-                [1, 0, 0],
+                [0, 1, 0],
                 [0, 0, 0],
+                [q, 0, 0],
             ],
             [
-                [0, 0, p],
                 [0, 0, 0],
-                [0, 1, 0],
+                [0, 0, 1],
+                [p, 0, 0],
             ],
         ]
     )
@@ -80,13 +80,19 @@ def post_quantum(log_alpha=1, beta=0.5):
     alpha = jnp.exp(log_alpha)
     _validate_post_quantum_conditions(alpha, beta)
 
-    m0 = jnp.array([[1, 1, 0]])
-    mu0 = jnp.array([[1, -1, -1]])
+    m0 = jnp.array([1, 1, 0])
+    mu0 = jnp.array([1, -1, -1])
 
     def _intermediate_matrix(val):
-        return jnp.array([[val, 0, 0], [0, 1, jnp.log(val)], [0, 0, 1]])
+        return jnp.array(
+            [
+                [val, 0, 0],
+                [0, 1, 0],
+                [0, jnp.log(val), 1],
+            ]
+        )
 
-    transition_matrices = jnp.array([jnp.outer(mu0, m0), _intermediate_matrix(alpha), _intermediate_matrix(beta)])
+    transition_matrices = jnp.array([jnp.outer(m0, mu0), _intermediate_matrix(alpha), _intermediate_matrix(beta)])
 
     # Normalize transition_matrices such that
     # transition_matrices[0] + transition_matrices[1] + transition_matrices[2] has largest abs eigenvalue = 1
@@ -122,9 +128,7 @@ def days_of_week():
         transition_matrices = transition_matrices.at[d[next_day], d[day], d[next_day]].set(5.0)
         transition_matrices = transition_matrices.at[d["Yest"], d[day], d[prev_day]].set(1.0)
 
-    transition_matrices_sum = transition_matrices.sum(axis=0)
-    transition_matrices_row_sums = transition_matrices_sum.sum(axis=0)
-    transition_matrices = transition_matrices / transition_matrices_row_sums
+    transition_matrices = transition_matrices / transition_matrices.sum()
 
     return transition_matrices
 
@@ -176,14 +180,14 @@ def fanizza(alpha: float, lamb: float):
         [1, 1 - lamb, 1 + lamb * (jnp.sin(alpha) - jnp.cos(alpha)), 1 - lamb * (jnp.sin(alpha) + jnp.cos(alpha))]
     )
 
-    Da = jnp.outer(pi0, w)
+    Da = jnp.outer(w, pi0)
 
     Db = lamb * jnp.array(
         [
             [0, 0, 0, 0],
             [0, 1, 0, 0],
-            [0, 0, jnp.cos(alpha), jnp.sin(alpha)],
-            [0, 0, -jnp.sin(alpha), jnp.cos(alpha)],
+            [0, 0, jnp.cos(alpha), -jnp.sin(alpha)],
+            [0, 0, jnp.sin(alpha), jnp.cos(alpha)],
         ]
     )
 
@@ -198,14 +202,14 @@ def rrxor(pR1=0.5, pR2=0.5):
     s = {"S": 0, "0": 1, "1": 2, "T": 3, "F": 4}
 
     transition_matrices = jnp.zeros((2, 5, 5))
-    transition_matrices = transition_matrices.at[0, s["0"], s["S"]].set(pR1)
-    transition_matrices = transition_matrices.at[1, s["1"], s["S"]].set(1 - pR1)
-    transition_matrices = transition_matrices.at[0, s["F"], s["0"]].set(pR2)
-    transition_matrices = transition_matrices.at[1, s["T"], s["0"]].set(1 - pR2)
-    transition_matrices = transition_matrices.at[0, s["T"], s["1"]].set(pR2)
-    transition_matrices = transition_matrices.at[1, s["F"], s["1"]].set(1 - pR2)
-    transition_matrices = transition_matrices.at[1, s["S"], s["T"]].set(1.0)
-    transition_matrices = transition_matrices.at[0, s["S"], s["F"]].set(1.0)
+    transition_matrices = transition_matrices.at[0, s["S"], s["0"]].set(pR1)
+    transition_matrices = transition_matrices.at[1, s["S"], s["1"]].set(1 - pR1)
+    transition_matrices = transition_matrices.at[0, s["0"], s["F"]].set(pR2)
+    transition_matrices = transition_matrices.at[1, s["0"], s["T"]].set(1 - pR2)
+    transition_matrices = transition_matrices.at[0, s["1"], s["T"]].set(pR2)
+    transition_matrices = transition_matrices.at[1, s["1"], s["F"]].set(1 - pR2)
+    transition_matrices = transition_matrices.at[1, s["T"], s["S"]].set(1.0)
+    transition_matrices = transition_matrices.at[0, s["F"], s["S"]].set(1.0)
 
     return transition_matrices
 
@@ -223,19 +227,19 @@ def mess3(x=0.15, a=0.6):
     return jnp.array(
         [
             [
-                [ay, bx, bx],
-                [ax, by, bx],
-                [ax, bx, by],
+                [ay, ax, ax],
+                [bx, by, bx],
+                [bx, bx, by],
             ],
             [
-                [by, ax, bx],
-                [bx, ay, bx],
-                [bx, ax, by],
+                [by, bx, bx],
+                [ax, ay, ax],
+                [bx, bx, by],
             ],
             [
-                [by, bx, ax],
-                [bx, by, ax],
-                [bx, bx, ay],
+                [by, bx, bx],
+                [bx, by, bx],
+                [ax, ax, ay],
             ],
         ]
     )

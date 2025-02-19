@@ -23,8 +23,8 @@ def fanizza_model() -> GeneralizedHiddenMarkovModel:
 def test_hmm_properties(z1r: GeneralizedHiddenMarkovModel):
     assert z1r.num_observations == 2
     assert z1r.num_states == 3
-    assert_proportional(z1r.right_eigenvector, jnp.ones(3))
-    assert_proportional(z1r.left_eigenvector, jnp.ones(3))
+    assert_proportional(z1r.normalizing_eigenvector, jnp.ones(3))
+    assert_proportional(z1r.state_eigenvector, jnp.ones(3))
 
 
 def test_ghmm_properties(fanizza_model: GeneralizedHiddenMarkovModel):
@@ -76,7 +76,7 @@ def test_hmm_generate(z1r: GeneralizedHiddenMarkovModel):
     batch_size = 4
     sequence_len = 10
 
-    initial_states = jnp.repeat(z1r.right_eigenvector[None, :], batch_size, axis=0)
+    initial_states = jnp.repeat(z1r.normalizing_eigenvector[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     intermediate_states, intermediate_observations = z1r.generate(initial_states, keys, sequence_len)
     assert intermediate_states.shape == (batch_size, z1r.num_states)
@@ -92,7 +92,7 @@ def test_ghmm_generate(fanizza_model: GeneralizedHiddenMarkovModel):
     batch_size = 4
     sequence_len = 10
 
-    initial_states = jnp.repeat(fanizza_model.right_eigenvector[None, :], batch_size, axis=0)
+    initial_states = jnp.repeat(fanizza_model.normalizing_eigenvector[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     intermediate_states, intermediate_observations = fanizza_model.generate(initial_states, keys, sequence_len)
     assert intermediate_states.shape == (batch_size, fanizza_model.num_states)
