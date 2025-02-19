@@ -10,6 +10,7 @@ from simplexity.generative_processes.mixed_state_presentation import (
     MixedStateNode,
     MixedStateTreeGenerator,
     NodeDict,
+    NodeDictValue,
     SearchAlgorithm,
 )
 from simplexity.generative_processes.transition_matrices import no_consecutive_ones
@@ -105,15 +106,28 @@ def test_next_node(
 @pytest.mark.parametrize("search_algorithm", [SearchAlgorithm.BREADTH_FIRST, SearchAlgorithm.DEPTH_FIRST])
 def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAlgorithm):
     tree = generator.generate(search_algorithm)
+    log_1 = 0.0
+    log_2_3 = math.log(2 / 3)
+    log_1_3 = math.log(1 / 3)
+    log_0 = -math.inf
     expected_nodes: NodeDict = {
-        (): math.log(1),
-        (0,): math.log(2 / 3),
-        (1,): math.log(1 / 3),
-        (0, 0): math.log(1 / 3),
-        (0, 1): math.log(1 / 3),
-        (1, 0): math.log(1 / 3),
-        (1, 1): -math.inf,
+        (): (log_1, (log_2_3, log_1_3)),
+        (0,): (log_2_3, (log_1, log_0)),
+        (1,): (log_1_3, (log_0, log_1)),
+        (0, 0): (log_1_3, (log_1, log_0)),
+        (0, 1): (log_1_3, (log_0, log_1)),
+        (1, 0): (log_1_3, (log_1, log_0)),
+        (1, 1): (log_0, (math.nan, math.nan)),  # TODO: fix normalization
     }
     assert set(tree.nodes.keys()) == set(expected_nodes.keys())
-    for sequence, log_prob in tree.nodes.items():
-        assert math.isclose(log_prob, expected_nodes[sequence], abs_tol=1e-7)
+
+    def assert_node_dict_values_close(actual: NodeDictValue, expected: NodeDictValue):
+        assert math.isclose(actual[0], expected[0], abs_tol=1e-7)
+        for actual_state_log_prob, expected_state_log_prob in zip(actual[1], expected[1], strict=True):
+            if math.isnan(expected_state_log_prob):
+                assert math.isnan(actual_state_log_prob)
+            else:
+                assert math.isclose(actual_state_log_prob, expected_state_log_prob, abs_tol=1e-7)
+
+    for sequence in tree.nodes:
+        assert_node_dict_values_close(tree.nodes[sequence], expected_nodes[sequence])

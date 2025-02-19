@@ -7,7 +7,11 @@ import jax.numpy as jnp
 from simplexity.generative_processes.data_structures import Collection, Queue, Stack
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 
-NodeDict = dict[tuple[int, ...], float]
+Sequence = tuple[int, ...]
+LogProbability = float
+LogBeliefState = tuple[float, ...]
+NodeDictValue = tuple[LogProbability, LogBeliefState]
+NodeDict = dict[Sequence, NodeDictValue]
 
 
 class MixedStateNode(eqx.Module):
@@ -20,6 +24,11 @@ class MixedStateNode(eqx.Module):
     log_probability: jax.Array
 
     @property
+    def num_states(self) -> int:
+        """The number of states in the node."""
+        return self.log_belief_state.shape[0]
+
+    @property
     def max_sequence_length(self) -> int:
         """The maximum length of the sequence."""
         return self.sequence.shape[0]
@@ -30,15 +39,17 @@ class TreeData(eqx.Module):
 
     sequences: jax.Array
     sequence_lengths: jax.Array
+    log_belief_states: jax.Array
     log_probabilities: jax.Array
     size: jax.Array
 
     @classmethod
-    def empty(cls, max_size: int, max_sequence_length: int) -> "TreeData":
+    def empty(cls, max_size: int, max_sequence_length: int, num_states: int) -> "TreeData":
         """Create an empty tree."""
         return cls(
             sequences=jnp.zeros((max_size, max_sequence_length), dtype=jnp.int32),
             sequence_lengths=jnp.zeros((max_size,), dtype=jnp.int32),
+            log_belief_states=jnp.zeros((max_size, num_states), dtype=jnp.float32),
             log_probabilities=jnp.zeros((max_size,), dtype=jnp.float32),
             size=jnp.array(0, dtype=jnp.int32),
         )
@@ -48,6 +59,7 @@ class TreeData(eqx.Module):
         return TreeData(
             sequences=self.sequences.at[self.size].set(node.sequence),
             sequence_lengths=self.sequence_lengths.at[self.size].set(node.sequence_length),
+            log_belief_states=self.log_belief_states.at[self.size].set(node.log_belief_state),
             log_probabilities=self.log_probabilities.at[self.size].set(node.log_probability),
             size=self.size + 1,
         )
@@ -62,6 +74,11 @@ class TreeData(eqx.Module):
         """The maximum length of the sequences."""
         return self.sequences.shape[1]
 
+    @property
+    def num_states(self) -> int:
+        """The number of states in the tree."""
+        return self.log_belief_states.shape[1]
+
 
 class MixedStateTree:
     """A presentation of a generative process as a mixed state."""
@@ -69,17 +86,22 @@ class MixedStateTree:
     def __init__(self, nodes: TreeData):
         self.nodes: NodeDict = {}
         for i in range(nodes.size):
-            self.add(nodes.sequences[i, : nodes.sequence_lengths[i]], nodes.log_probabilities[i])
+            self.add(
+                nodes.sequences[i, : nodes.sequence_lengths[i]],
+                nodes.log_probabilities[i],
+                nodes.log_belief_states[i],
+            )
 
     def __len__(self) -> int:
         """The number of nodes in the tree."""
         return len(self.nodes)
 
-    def add(self, sequence: jax.Array, log_probability: jax.Array) -> None:
+    def add(self, sequence: jax.Array, log_probability: jax.Array, log_belief_state: jax.Array) -> None:
         """Add a sequence to the tree."""
-        key = tuple(sequence.tolist())
-        value = log_probability.item()
-        self.nodes[key] = value
+        sequence_ = tuple(sequence.tolist())
+        log_probability_ = log_probability.item()
+        log_belief_state_ = tuple(log_belief_state.tolist())
+        self.nodes[sequence_] = (log_probability_, log_belief_state_)
 
 
 class SearchAlgorithm(Enum):
@@ -124,7 +146,7 @@ class MixedStateTreeGenerator(eqx.Module):
             tree_data = tree_data.add(node)
             return tree_data, search_nodes
 
-        tree_data = TreeData.empty(self.max_tree_size, self.max_sequence_length)
+        tree_data = TreeData.empty(self.max_tree_size, self.max_sequence_length, self.ghmm.num_states)
         if search_algorithm == SearchAlgorithm.BREADTH_FIRST:
             search_nodes = Queue(self.max_tree_size, default_element=self.root)
         else:
