@@ -78,7 +78,8 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         the returned state represents a posterior distribution over hidden states
         conditioned on the observation.
         """
-        return cast(State, state @ self.transition_matrices[obs])
+        state = cast(State, state @ self.transition_matrices[obs])
+        return cast(State, state / (state @ self.normalizing_eigenvector))
 
     @eqx.filter_jit
     def state_probability(self, state: State) -> jax.Array:
