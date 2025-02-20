@@ -46,9 +46,8 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
     @eqx.filter_jit
     def emit_observation(self, state: State, key: chex.PRNGKey) -> jax.Array:
         """Emit an observation based on the state of the generative process."""
-        obs_probs = (state @ self.transition_matrices @ self.normalizing_eigenvector) / (
-            state @ self.normalizing_eigenvector
-        )
+        obs_probs = jnp.sum(state @ self.transition_matrices, axis=1)
+        obs_probs = obs_probs / jnp.sum(obs_probs)
         return jax.random.choice(key, self.num_observations, p=obs_probs)
 
     @eqx.filter_jit
