@@ -1,3 +1,4 @@
+import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -78,13 +79,13 @@ def test_generate(z1r: HiddenMarkovModel):
 
 
 def test_observation_probability_distribution(z1r: HiddenMarkovModel):
-    state = jnp.array([[0.3, 0.1, 0.6]])
+    state = jnp.array([0.3, 0.1, 0.6])
     obs_probs = z1r.observation_probability_distribution(state)
-    assert jnp.allclose(obs_probs, jnp.array([0.6, 0.4]))
+    chex.assert_trees_all_close(obs_probs, jnp.array([0.6, 0.4]))
 
-    state = jnp.array([[0.5, 0.3, 0.2]])
+    state = jnp.array([0.5, 0.3, 0.2])
     obs_probs = z1r.observation_probability_distribution(state)
-    assert jnp.allclose(obs_probs, jnp.array([0.6, 0.4]))
+    chex.assert_trees_all_close(obs_probs, jnp.array([0.6, 0.4]))
 
 
 def test_probability(z1r: HiddenMarkovModel):
