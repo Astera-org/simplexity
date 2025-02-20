@@ -45,6 +45,11 @@ class GenerativeProcess(eqx.Module, Generic[State]):
         return jax.lax.scan(scan_fn, state, keys)
 
     @abstractmethod
+    def observation_probability_distribution(self, state: State) -> jax.Array:
+        """Compute the probability distribution of the observations that can be emitted by the generative process."""
+        ...
+
+    @abstractmethod
     def probability(self, observations: jax.Array) -> jax.Array:
         """Compute the probability of the process generating a sequence of observations."""
         ...

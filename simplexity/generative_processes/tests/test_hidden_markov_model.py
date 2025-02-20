@@ -77,6 +77,16 @@ def test_generate(z1r: HiddenMarkovModel):
     assert final_observations.shape == (batch_size, sequence_len)
 
 
+def test_observation_probability_distribution(z1r: HiddenMarkovModel):
+    state = jnp.array([[0.3, 0.1, 0.6]])
+    obs_probs = z1r.observation_probability_distribution(state)
+    assert jnp.allclose(obs_probs, jnp.array([0.6, 0.4]))
+
+    state = jnp.array([[0.5, 0.3, 0.2]])
+    obs_probs = z1r.observation_probability_distribution(state)
+    assert jnp.allclose(obs_probs, jnp.array([0.6, 0.4]))
+
+
 def test_probability(z1r: HiddenMarkovModel):
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12

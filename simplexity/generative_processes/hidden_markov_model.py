@@ -44,13 +44,6 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         chex.assert_trees_all_close(sum_over_obs_and_next, jnp.ones_like(sum_over_obs_and_next))
 
     @eqx.filter_jit
-    def emit_observation(self, state: State, key: chex.PRNGKey) -> jax.Array:
-        """Emit an observation based on the state of the generative process."""
-        obs_probs = jnp.sum(state @ self.transition_matrices, axis=1)
-        obs_probs = obs_probs / jnp.sum(obs_probs)
-        return jax.random.choice(key, self.num_observations, p=obs_probs)
-
-    @eqx.filter_jit
     def transition_states(self, state: State, obs: chex.Array) -> State:
         """Evolve the state of the generative process based on the observation.
 
@@ -70,6 +63,11 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
     def normalize_log_belief_state(self, log_state: jax.Array) -> jax.Array:
         """Compute the log probability distribution over states from a log state vector."""
         return log_state - jax.nn.logsumexp(log_state)
+
+    @eqx.filter_jit
+    def observation_probability_distribution(self, state: State) -> jax.Array:
+        """Compute the probability distribution of the observations that can be emitted by the generative process."""
+        return jnp.sum(state @ self.transition_matrices, axis=1)
 
     @eqx.filter_jit
     def probability(self, observations: jax.Array) -> jax.Array:

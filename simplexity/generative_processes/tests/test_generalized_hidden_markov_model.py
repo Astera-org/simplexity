@@ -85,6 +85,24 @@ def test_generate(model_name: str, request: pytest.FixtureRequest):
     assert final_observations.shape == (batch_size, sequence_len)
 
 
+def test_hmm_observation_probability_distribution(z1r: GeneralizedHiddenMarkovModel):
+    state = jnp.array([[0.3, 0.1, 0.6]])
+    obs_probs = z1r.observation_probability_distribution(state)
+    assert jnp.allclose(obs_probs, jnp.array([0.6, 0.4]))
+
+    state = jnp.array([[0.5, 0.3, 0.2]])
+    obs_probs = z1r.observation_probability_distribution(state)
+    assert jnp.allclose(obs_probs, jnp.array([0.6, 0.4]))
+
+
+def test_ghmm_observation_probability_distribution(fanizza_model: GeneralizedHiddenMarkovModel):
+    state = jnp.array([[0.3, 0.1, 0.6, 0.0]])
+    obs_probs = fanizza_model.observation_probability_distribution(state)
+    assert jnp.all(obs_probs >= 0)
+    assert jnp.all(obs_probs <= 1)
+    assert jnp.allclose(jnp.sum(obs_probs), 1)
+
+
 def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
