@@ -26,16 +26,6 @@ def markov_approximation(process: GenerativeProcess, sequence_len: int, min_prob
 
 
 @eqx.filter_jit
-def log_matmul(A: jax.Array, B: jax.Array) -> jax.Array:
-    """Compute the log of the matrix product of A and B.
-
-    A and B are log-space matrices.
-    """
-    sum_mat = A[:, :, None] + B[None, :, :]
-    return jax.nn.logsumexp(sum_mat, axis=1)
-
-
-@eqx.filter_jit
 def normalize_simplex(simplex: jax.Array) -> jax.Array:
     """Normalize probabilities to sum to 1."""
     chex.assert_rank(simplex, 1)
