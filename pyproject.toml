@@ -41,6 +41,7 @@ dash = [
 ]
 dev = [
     "jaxtyping",
+    "nbqa",
     "pyright",
     "pytest",
     "ruff"
