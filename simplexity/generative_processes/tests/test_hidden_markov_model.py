@@ -4,30 +4,24 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.generative_processes.assertions import assert_proportional
-from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
-from simplexity.generative_processes.transition_matrices import fanizza, zero_one_random
+from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.transition_matrices import zero_one_random
 
 
 @pytest.fixture
-def z1r() -> GeneralizedHiddenMarkovModel:
+def z1r() -> HiddenMarkovModel:
     transition_matrices = zero_one_random()
-    return GeneralizedHiddenMarkovModel(transition_matrices)
+    return HiddenMarkovModel(transition_matrices)
 
 
-@pytest.fixture
-def fanizza_model() -> GeneralizedHiddenMarkovModel:
-    transition_matrices = fanizza(alpha=2000, lamb=0.49)
-    return GeneralizedHiddenMarkovModel(transition_matrices)
+def test_properties(z1r: HiddenMarkovModel):
+    assert z1r.num_observations == 2
+    assert z1r.num_states == 3
+    assert_proportional(z1r.normalizing_eigenvector, jnp.ones(3))
+    assert_proportional(z1r.state_eigenvector, jnp.ones(3))
 
 
-@pytest.mark.parametrize(("model_name", "num_observations", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])
-def test_properties(model_name: str, num_observations: int, num_states: int, request: pytest.FixtureRequest):
-    model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
-    assert model.num_observations == num_observations
-    assert model.num_states == num_states
-
-
-def test_hmm_single_transition(z1r: GeneralizedHiddenMarkovModel):
+def test_single_transition(z1r: HiddenMarkovModel):
     zero_state = jnp.array([[1.0, 0.0, 0.0]])
     one_state = jnp.array([[0.0, 1.0, 0.0]])
     random_state = jnp.array([[0.0, 0.0, 1.0]])
@@ -67,25 +61,23 @@ def test_hmm_single_transition(z1r: GeneralizedHiddenMarkovModel):
     assert_proportional(probability(next_state), next_mixed_state)
 
 
-@pytest.mark.parametrize("model_name", ["z1r", "fanizza_model"])
-def test_generate(model_name: str, request: pytest.FixtureRequest):
-    model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
+def test_generate(z1r: HiddenMarkovModel):
     batch_size = 4
     sequence_len = 10
 
-    initial_states = jnp.repeat(model.normalizing_eigenvector[None, :], batch_size, axis=0)
+    initial_states = jnp.repeat(z1r.normalizing_eigenvector[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
-    intermediate_states, intermediate_observations = model.generate(initial_states, keys, sequence_len)
-    assert intermediate_states.shape == (batch_size, model.num_states)
+    intermediate_states, intermediate_observations = z1r.generate(initial_states, keys, sequence_len)
+    assert intermediate_states.shape == (batch_size, z1r.num_states)
     assert intermediate_observations.shape == (batch_size, sequence_len)
 
     keys = jax.random.split(jax.random.PRNGKey(1), batch_size)
-    final_states, final_observations = model.generate(intermediate_states, keys, sequence_len)
-    assert final_states.shape == (batch_size, model.num_states)
+    final_states, final_observations = z1r.generate(intermediate_states, keys, sequence_len)
+    assert final_states.shape == (batch_size, z1r.num_states)
     assert final_observations.shape == (batch_size, sequence_len)
 
 
-def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
+def test_probability(z1r: HiddenMarkovModel):
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
 
@@ -93,28 +85,9 @@ def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
     assert jnp.isclose(probability, expected_probability)
 
 
-def test_ghmm_probability(fanizza_model: GeneralizedHiddenMarkovModel):
-    key = jax.random.PRNGKey(0)
-    observations = jax.random.randint(key, (10,), 0, fanizza_model.num_observations)
-
-    probability = fanizza_model.probability(observations)
-    assert 0 <= probability <= 1
-
-
-def test_hmm_log_probability(z1r: GeneralizedHiddenMarkovModel):
+def test_log_probability(z1r: HiddenMarkovModel):
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
 
     log_probability = z1r.log_probability(observations)
     assert jnp.isclose(log_probability, jnp.log(expected_probability))
-
-
-def test_ghmm_log_probability(fanizza_model: GeneralizedHiddenMarkovModel):
-    key = jax.random.PRNGKey(0)
-    observations = jax.random.randint(key, (10,), 0, fanizza_model.num_observations)
-
-    log_probability = fanizza_model.log_probability(observations)
-    try:
-        assert log_probability <= 0
-    except AssertionError:
-        pytest.xfail("Eigenvector contains negative values -> log_eigenvector contains nans")
