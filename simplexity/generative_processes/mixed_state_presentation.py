@@ -117,18 +117,21 @@ class MixedStateTreeGenerator(eqx.Module):
     ghmm: GeneralizedHiddenMarkovModel
     max_sequence_length: int
     max_tree_size: int
+    max_search_nodes_size: int
     log_prob_threshold: float
 
     def __init__(
         self,
         ghmm: GeneralizedHiddenMarkovModel,
         max_sequence_length: int,
-        max_tree_size: int,
+        max_tree_size: int = -1,
+        max_search_nodes_size: int = -1,
         log_prob_threshold: float = -jnp.inf,
     ):
         self.ghmm = ghmm
         self.max_sequence_length = max_sequence_length
         self.max_tree_size = max_tree_size
+        self.max_search_nodes_size = max_search_nodes_size
         self.log_prob_threshold = log_prob_threshold
 
     def generate(self, search_algorithm: SearchAlgorithm = SearchAlgorithm.DEPTH_FIRST) -> MixedStateTree:
@@ -146,11 +149,25 @@ class MixedStateTreeGenerator(eqx.Module):
             tree_data = tree_data.add(node)
             return tree_data, search_nodes
 
-        tree_data = TreeData.empty(self.max_tree_size, self.max_sequence_length, self.ghmm.num_states)
-        if search_algorithm == SearchAlgorithm.BREADTH_FIRST:
-            search_nodes = Queue(self.max_tree_size, default_element=self.root)
+        if self.max_tree_size < 0:
+            max_tree_size = int(jnp.sum(self.ghmm.num_observations ** jnp.arange(self.max_sequence_length + 1)))
         else:
-            search_nodes = Stack(self.max_tree_size, default_element=self.root)
+            max_tree_size = self.max_tree_size
+        tree_data = TreeData.empty(max_tree_size, self.max_sequence_length, self.ghmm.num_states)
+
+        if search_algorithm == SearchAlgorithm.BREADTH_FIRST:
+            if self.max_search_nodes_size < 0:
+                max_size = self.ghmm.num_observations ** (self.max_sequence_length + 1)
+            else:
+                max_size = self.max_search_nodes_size
+            search_nodes = Queue(max_size, default_element=self.root)
+        else:  # DEPTH_FIRST
+            if self.max_search_nodes_size < 0:
+                max_size = (self.ghmm.num_observations - 1) * self.max_sequence_length + 1
+            else:
+                max_size = self.max_search_nodes_size
+            search_nodes = Stack(max_size, default_element=self.root)
+
         search_nodes = search_nodes.add(self.root)
 
         tree_data, _ = jax.lax.while_loop(continue_loop, add_next_node, (tree_data, search_nodes))

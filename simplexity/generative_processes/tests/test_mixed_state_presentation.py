@@ -72,7 +72,7 @@ NODES = {
 def generator() -> MixedStateTreeGenerator:
     transition_matrices = no_consecutive_ones()
     ghmm = GeneralizedHiddenMarkovModel(transition_matrices)
-    return MixedStateTreeGenerator(ghmm, max_sequence_length=2, max_tree_size=7)
+    return MixedStateTreeGenerator(ghmm, max_sequence_length=2)
 
 
 def test_get_child(generator: MixedStateTreeGenerator):
