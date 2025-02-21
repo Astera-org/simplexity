@@ -66,8 +66,15 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
 
     @eqx.filter_jit
     def observation_probability_distribution(self, state: State) -> jax.Array:
-        """Compute the probability distribution of the observations that can be emitted by the generative process."""
-        return jnp.sum(state @ self.transition_matrices, axis=1)
+        """Compute the probability distribution of the observations that can be emitted by the process."""
+        obs_state_dist = state @ self.transition_matrices
+        return jnp.sum(obs_state_dist, axis=1)
+
+    @eqx.filter_jit
+    def log_observation_probability_distribution(self, log_state: State) -> jax.Array:
+        """Compute the log probability distribution of the observations that can be emitted by the process."""
+        log_obs_state_dist = jax.nn.logsumexp(log_state[:, None] + self.log_transition_matrices, axis=1)
+        return jax.nn.logsumexp(log_obs_state_dist, axis=1)
 
     @eqx.filter_jit
     def probability(self, observations: jax.Array) -> jax.Array:

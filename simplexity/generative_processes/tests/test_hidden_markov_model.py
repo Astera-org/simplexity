@@ -88,6 +88,18 @@ def test_observation_probability_distribution(z1r: HiddenMarkovModel):
     chex.assert_trees_all_close(obs_probs, jnp.array([0.6, 0.4]))
 
 
+def test_log_observation_probability_distribution(z1r: HiddenMarkovModel):
+    log_state = jnp.log(jnp.array([0.3, 0.1, 0.6]))
+    log_obs_probs = z1r.log_observation_probability_distribution(log_state)
+    assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=1e-7)
+    chex.assert_trees_all_close(log_obs_probs, jnp.log(jnp.array([0.6, 0.4])))
+
+    log_state = jnp.log(jnp.array([0.5, 0.3, 0.2]))
+    log_obs_probs = z1r.log_observation_probability_distribution(log_state)
+    assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=1e-7)
+    chex.assert_trees_all_close(log_obs_probs, jnp.log(jnp.array([0.6, 0.4])))
+
+
 def test_probability(z1r: HiddenMarkovModel):
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
