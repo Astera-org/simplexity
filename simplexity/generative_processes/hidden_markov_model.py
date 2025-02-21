@@ -15,7 +15,7 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         self.validate_transition_matrices(transition_matrices)
 
         state_transition_matrix = jnp.sum(transition_matrices, axis=0)
-        eigenvalues, right_eigenvectors = jnp.linalg.eig(state_transition_matrix)
+        eigenvalues, _ = jnp.linalg.eig(state_transition_matrix)
         principal_eigenvalue = jnp.max(eigenvalues)
 
         if jnp.isclose(principal_eigenvalue, 1):
