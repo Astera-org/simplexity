@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import NamedTuple
 
 import equinox as eqx
 import jax
@@ -10,7 +11,15 @@ from simplexity.generative_processes.generalized_hidden_markov_model import Gene
 Sequence = tuple[int, ...]
 LogProbability = float
 LogBeliefState = tuple[float, ...]
-NodeDictValue = tuple[LogProbability, LogBeliefState]
+
+
+class NodeDictValue(NamedTuple):
+    """The value of a node in the node dictionary."""
+
+    log_probability: LogProbability
+    log_belief_state: LogBeliefState
+
+
 NodeDict = dict[Sequence, NodeDictValue]
 
 
@@ -101,7 +110,7 @@ class MixedStateTree:
         sequence_ = tuple(sequence.tolist())
         log_probability_ = log_probability.item()
         log_belief_state_ = tuple(log_belief_state.tolist())
-        self.nodes[sequence_] = (log_probability_, log_belief_state_)
+        self.nodes[sequence_] = NodeDictValue(log_probability_, log_belief_state_)
 
 
 class SearchAlgorithm(Enum):

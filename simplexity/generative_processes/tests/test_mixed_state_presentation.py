@@ -111,13 +111,13 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
     log_1_3 = math.log(1 / 3)
     log_0 = -math.inf
     expected_nodes: NodeDict = {
-        (): (log_1, (log_2_3, log_1_3)),
-        (0,): (log_2_3, (log_1, log_0)),
-        (1,): (log_1_3, (log_0, log_1)),
-        (0, 0): (log_1_3, (log_1, log_0)),
-        (0, 1): (log_1_3, (log_0, log_1)),
-        (1, 0): (log_1_3, (log_1, log_0)),
-        (1, 1): (log_0, (math.nan, math.nan)),  # TODO: fix normalization
+        (): NodeDictValue(log_probability=log_1, log_belief_state=(log_2_3, log_1_3)),
+        (0,): NodeDictValue(log_probability=log_2_3, log_belief_state=(log_1, log_0)),
+        (1,): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_0, log_1)),
+        (0, 0): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_1, log_0)),
+        (0, 1): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_0, log_1)),
+        (1, 0): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_1, log_0)),
+        (1, 1): NodeDictValue(log_probability=log_0, log_belief_state=(math.nan, math.nan)),  # TODO: fix normalization
     }
     assert set(tree.nodes.keys()) == set(expected_nodes.keys())
 
