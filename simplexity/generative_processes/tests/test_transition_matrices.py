@@ -1,6 +1,5 @@
 import chex
 import jax.numpy as jnp
-import pytest
 
 from simplexity.generative_processes.assertions import assert_proportional
 from simplexity.generative_processes.transition_matrices import (
@@ -76,10 +75,7 @@ def test_post_quantum():
 def test_days_of_week():
     transition_matrices = days_of_week()
     assert transition_matrices.shape == (11, 7, 7)
-    try:
-        validate_hmm_transition_matrices(transition_matrices, rtol=2e-6)
-    except AssertionError:
-        pytest.xfail("TODO: debug")
+    validate_hmm_transition_matrices(transition_matrices, rtol=2e-6)
 
 
 def test_tom_quantum():
