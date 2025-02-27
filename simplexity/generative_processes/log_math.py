@@ -4,6 +4,18 @@ import jax.numpy as jnp
 
 
 @eqx.filter_jit
+def entropy(log_probs: jax.Array) -> jax.Array:
+    """Compute the entropy of a log probability distribution."""
+    return -jnp.sum(jnp.exp(log_probs) * log_probs)
+
+
+@eqx.filter_jit
+def log_weighted_average(log_values: jax.Array, log_probs: jax.Array) -> jax.Array:
+    """Compute the weighted average of a log probability distribution."""
+    return jax.nn.logsumexp(log_probs[:, None] + log_values, axis=0)
+
+
+@eqx.filter_jit
 def log_matmul(log_A: jax.Array, log_B: jax.Array) -> jax.Array:
     """Compute the log of the matrix product of A and B.
 

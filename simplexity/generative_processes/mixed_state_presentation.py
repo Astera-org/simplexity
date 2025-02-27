@@ -7,6 +7,7 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.data_structures import Collection, Queue, Stack
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
+from simplexity.generative_processes.log_math import entropy, log_weighted_average
 
 Sequence = tuple[int, ...]
 LogProbability = float
@@ -118,18 +119,6 @@ class SearchAlgorithm(Enum):
 
     BREADTH_FIRST = "breadth_first"
     DEPTH_FIRST = "depth_first"
-
-
-@eqx.filter_jit
-def log_weighted_average(log_values: jax.Array, log_probs: jax.Array) -> jax.Array:
-    """Compute the weighted average of a log probability distribution."""
-    return jax.nn.logsumexp(log_probs[:, None] + log_values, axis=0)
-
-
-@eqx.filter_jit
-def entropy(log_probs: jax.Array) -> jax.Array:
-    """Compute the entropy of a log probability distribution."""
-    return -jnp.sum(jnp.exp(log_probs) * log_probs)
 
 
 class MixedStateTreeGenerator(eqx.Module):
