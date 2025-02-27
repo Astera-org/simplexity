@@ -1,4 +1,5 @@
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
@@ -6,25 +7,40 @@ import pytest
 from simplexity.generative_processes.data_structures import Collection, Queue, Stack
 
 
-@pytest.fixture
-def default_element() -> jax.Array:
-    return jnp.zeros(2)
+class TestElement(eqx.Module):
+    x: jax.Array
+    y: jax.Array
+    z: jax.Array
 
 
 @pytest.fixture
-def stack(default_element: jax.Array) -> Stack:
+def default_element() -> TestElement:
+    return TestElement(x=jnp.zeros(4), y=jnp.zeros((2, 3)), z=jnp.array(0))
+
+
+@pytest.fixture
+def stack(default_element: TestElement) -> Stack:
     return Stack(max_size=2, default_element=default_element)
 
 
 @pytest.fixture
-def queue(default_element: jax.Array) -> Queue:
+def queue(default_element: TestElement) -> Queue:
     return Queue(max_size=2, default_element=default_element)
 
 
 @pytest.fixture
-def elements() -> jax.Array:
+def elements() -> list[TestElement]:
+    num_elements = 3
     key = jax.random.PRNGKey(0)
-    return jax.random.uniform(key, (3, 2))
+    keys = jax.random.split(key, 3 * num_elements)
+    return [
+        TestElement(
+            x=jax.random.uniform(keys[3 * i], (4,)),
+            y=jax.random.uniform(keys[3 * i + 1], (2, 3)),
+            z=jax.random.randint(keys[3 * i + 2], (), 0, 10),
+        )
+        for i in range(num_elements)
+    ]
 
 
 @pytest.mark.parametrize("data_structure_name", ["stack", "queue"])
@@ -67,12 +83,12 @@ def test_remove(
 
     data_structure, val = data_structure.remove()
     assert data_structure.size == 1
-    assert isinstance(val, jax.Array)
+    assert isinstance(val, TestElement)
     chex.assert_trees_all_equal(val, elements[remove_order[0]])
 
     data_structure, val = data_structure.remove()
     assert data_structure.size == 0
-    assert isinstance(val, jax.Array)
+    assert isinstance(val, TestElement)
     chex.assert_trees_all_equal(val, elements[remove_order[1]])
 
 
