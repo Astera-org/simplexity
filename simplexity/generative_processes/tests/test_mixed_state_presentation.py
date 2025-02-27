@@ -131,3 +131,10 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
 
     for sequence in tree.nodes:
         assert_node_dict_values_close(tree.nodes[sequence], expected_nodes[sequence])
+
+
+def test_myopic_entropy(generator: MixedStateTreeGenerator):
+    myopic_entropy = generator.myopic_entropy(sequence_length=2)
+    assert myopic_entropy.shape == (3,)
+    assert jnp.all(~jnp.isnan(myopic_entropy))
+    assert jnp.all(myopic_entropy[1:] - myopic_entropy[:-1] <= 0)

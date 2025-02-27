@@ -152,6 +152,12 @@ class Queue(Collection[Element]):
         return self.instack.default_element
 
     @property
+    def data(self) -> jax.Array:
+        """The data in the queue."""
+        queue = self._restack()
+        return queue.outstack.data
+
+    @property
     def size(self) -> jax.Array:
         """The number of elements in the queue."""
         return self.instack.size + self.outstack.size

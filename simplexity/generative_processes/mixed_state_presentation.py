@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import NamedTuple
+from typing import NamedTuple, cast
 
 import equinox as eqx
 import jax
@@ -120,6 +120,18 @@ class SearchAlgorithm(Enum):
     DEPTH_FIRST = "depth_first"
 
 
+@eqx.filter_jit
+def log_weighted_average(log_values: jax.Array, log_probs: jax.Array) -> jax.Array:
+    """Compute the weighted average of a log probability distribution."""
+    return jax.nn.logsumexp(log_probs[:, None] + log_values, axis=0)
+
+
+@eqx.filter_jit
+def entropy(log_probs: jax.Array) -> jax.Array:
+    """Compute the entropy of a log probability distribution."""
+    return -jnp.sum(jnp.exp(log_probs) * log_probs)
+
+
 class MixedStateTreeGenerator(eqx.Module):
     """A generator of nodes in a mixed state presentation of a generative process."""
 
@@ -181,6 +193,59 @@ class MixedStateTreeGenerator(eqx.Module):
 
         tree_data, _ = jax.lax.while_loop(continue_loop, add_next_node, (tree_data, search_nodes))
         return MixedStateTree(tree_data)
+
+    def myopic_entropy(self, sequence_length: int) -> jax.Array:
+        """Compute the myopic entropy of the generative process."""
+        log_obs_dist_fn = eqx.filter_vmap(self.ghmm.log_observation_probability_distribution)
+
+        def compute_myopic_entropy(search_nodes: Queue[MixedStateNode]) -> jax.Array:
+            """Compute the myopic entropy of the generative process."""
+            data = cast(MixedStateNode, search_nodes.data)
+            log_obs_dists = log_obs_dist_fn(data.log_belief_state)
+            log_obs_dist = log_weighted_average(log_obs_dists, data.log_probability)
+            return entropy(log_obs_dist)
+
+        def continue_loop(carry: tuple[jax.Array, Queue[MixedStateNode]]) -> jax.Array:
+            sequence_length, search_nodes = carry
+            return jnp.logical_and(~search_nodes.is_empty, search_nodes.peek().sequence_length < sequence_length)
+
+        def add_next_node(
+            carry: tuple[jax.Array, Queue[MixedStateNode]],
+        ) -> tuple[jax.Array, Queue[MixedStateNode]]:
+            sequence_length, search_nodes = carry
+            search_nodes, _ = self._next_node(search_nodes)
+            search_nodes = cast(Queue[MixedStateNode], search_nodes)
+            return sequence_length, search_nodes
+
+        def update_search_nodes(search_nodes: Queue[MixedStateNode]) -> Queue[MixedStateNode]:
+            """Update the search nodes."""
+            sequence_length = search_nodes.peek().sequence_length
+            _, search_nodes = jax.lax.while_loop(continue_loop, add_next_node, (sequence_length, search_nodes))
+            return search_nodes
+
+        def update_myopic_entropy(
+            sequence_length: int, carry: tuple[jax.Array, Queue[MixedStateNode]]
+        ) -> tuple[jax.Array, Queue[MixedStateNode]]:
+            myopic_entropy, search_nodes = carry
+            sequence_length_entropy = compute_myopic_entropy(search_nodes)
+            myopic_entropy = myopic_entropy.at[sequence_length].set(sequence_length_entropy)
+            search_nodes = update_search_nodes(search_nodes)
+            return myopic_entropy, search_nodes
+
+        max_size = self.ghmm.num_observations ** (self.max_sequence_length + 1)
+        if self.max_search_nodes_size > 0 and self.max_search_nodes_size < max_size:
+            raise ValueError(
+                f"max_search_nodes_size ({self.max_search_nodes_size}) not large enough for computing myopic entropy "
+                f"up to a sequence length of {sequence_length}, a size of {max_size} is required."
+            )
+        search_nodes = Queue(max_size, default_element=self.root)
+        search_nodes = search_nodes.add(self.root)
+
+        myopic_entropy = jnp.zeros(sequence_length + 1)
+        myopic_entropy, _ = jax.lax.fori_loop(
+            0, sequence_length + 1, update_myopic_entropy, (myopic_entropy, search_nodes)
+        )
+        return myopic_entropy
 
     @property
     def root(self) -> MixedStateNode:
