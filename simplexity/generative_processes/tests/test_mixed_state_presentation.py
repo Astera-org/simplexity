@@ -134,9 +134,8 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
 
 
 def test_myopic_entropy(generator: MixedStateTreeGenerator):
-    sequence_length = 3
-    myopic_entropy = generator.myopic_entropy(sequence_length)
-    assert myopic_entropy.shape == (sequence_length + 1,)
+    myopic_entropy = generator.myopic_entropy()
+    assert myopic_entropy.shape == (generator.max_sequence_length + 1,)
     assert jnp.all(~jnp.isnan(myopic_entropy))
     assert jnp.all(myopic_entropy[1:] - myopic_entropy[:-1] <= 0), (
         "Myopic entropy should be monotonically non-increasing with sequence length"

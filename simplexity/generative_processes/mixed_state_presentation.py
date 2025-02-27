@@ -194,7 +194,7 @@ class MixedStateTreeGenerator(eqx.Module):
         tree_data, _ = jax.lax.while_loop(continue_loop, add_next_node, (tree_data, search_nodes))
         return MixedStateTree(tree_data)
 
-    def myopic_entropy(self, sequence_length: int) -> jax.Array:
+    def myopic_entropy(self) -> jax.Array:
         """Compute the myopic entropy of the generative process."""
         log_obs_dist_fn = eqx.filter_vmap(self.ghmm.log_observation_probability_distribution)
 
@@ -236,14 +236,14 @@ class MixedStateTreeGenerator(eqx.Module):
         if self.max_search_nodes_size > 0 and self.max_search_nodes_size < max_size:
             raise ValueError(
                 f"max_search_nodes_size ({self.max_search_nodes_size}) not large enough for computing myopic entropy "
-                f"up to a sequence length of {sequence_length}, a size of {max_size} is required."
+                f"up to a sequence length of {self.max_sequence_length}, a size of {max_size} is required."
             )
         search_nodes = Queue(max_size, default_element=self.root)
         search_nodes = search_nodes.add(self.root)
 
-        myopic_entropy = jnp.zeros(sequence_length + 1)
+        myopic_entropy = jnp.zeros(self.max_sequence_length + 1)
         myopic_entropy, _ = jax.lax.fori_loop(
-            0, sequence_length + 1, update_myopic_entropy, (myopic_entropy, search_nodes)
+            0, self.max_sequence_length + 1, update_myopic_entropy, (myopic_entropy, search_nodes)
         )
         return myopic_entropy
 
