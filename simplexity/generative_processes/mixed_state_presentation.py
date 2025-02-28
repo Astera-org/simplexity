@@ -7,7 +7,7 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.data_structures import Collection, Queue, Stack
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
-from simplexity.generative_processes.log_math import entropy, log_weighted_average
+from simplexity.generative_processes.log_math import entropy
 
 Sequence = tuple[int, ...]
 LogProbability = float
@@ -121,6 +121,20 @@ class SearchAlgorithm(Enum):
     DEPTH_FIRST = "depth_first"
 
 
+class MyopicEntropies(eqx.Module):
+    """The myopic entropies of a generative process."""
+
+    belief_state_entropies: jax.Array
+    observation_entropies: jax.Array
+    sequence_lengths: jax.Array
+
+    def __init__(self, belief_state_entropies: jax.Array, observation_entropies: jax.Array):
+        assert belief_state_entropies.shape == observation_entropies.shape
+        self.belief_state_entropies = belief_state_entropies
+        self.observation_entropies = observation_entropies
+        self.sequence_lengths = jnp.arange(belief_state_entropies.shape[0])
+
+
 class MixedStateTreeGenerator(eqx.Module):
     """A generator of nodes in a mixed state presentation of a generative process."""
 
@@ -183,16 +197,26 @@ class MixedStateTreeGenerator(eqx.Module):
         tree_data, _ = jax.lax.while_loop(continue_loop, add_next_node, (tree_data, search_nodes))
         return MixedStateTree(tree_data)
 
-    def myopic_entropy(self) -> jax.Array:
+    def compute_myopic_entropy(self) -> MyopicEntropies:
         """Compute the myopic entropy of the generative process."""
         log_obs_dist_fn = eqx.filter_vmap(self.ghmm.log_observation_probability_distribution)
+        entropy_fn = eqx.filter_vmap(entropy)
 
-        def compute_myopic_entropy(search_nodes: Queue[MixedStateNode]) -> jax.Array:
+        def log_weighted_average(log_values: jax.Array, log_probs: jax.Array) -> jax.Array:
+            return jax.nn.logsumexp(log_probs + log_values)
+
+        def compute_belief_state_entropy(search_nodes: Queue[MixedStateNode]) -> jax.Array:
+            """Compute the myopic entropy of the generative process."""
+            data = cast(MixedStateNode, search_nodes.data)
+            belief_state_entropies = entropy_fn(data.log_belief_state)
+            return log_weighted_average(belief_state_entropies, data.log_probability)
+
+        def compute_observation_entropy(search_nodes: Queue[MixedStateNode]) -> jax.Array:
             """Compute the myopic entropy of the generative process."""
             data = cast(MixedStateNode, search_nodes.data)
             log_obs_dists = log_obs_dist_fn(data.log_belief_state)
-            log_obs_dist = log_weighted_average(log_obs_dists, data.log_probability)
-            return entropy(log_obs_dist)
+            obs_entropies = entropy_fn(log_obs_dists)
+            return log_weighted_average(obs_entropies, data.log_probability)
 
         def continue_loop(carry: tuple[jax.Array, Queue[MixedStateNode]]) -> jax.Array:
             sequence_length, search_nodes = carry
@@ -212,14 +236,16 @@ class MixedStateTreeGenerator(eqx.Module):
             _, search_nodes = jax.lax.while_loop(continue_loop, add_next_node, (sequence_length, search_nodes))
             return search_nodes
 
-        def update_myopic_entropy(
-            sequence_length: int, carry: tuple[jax.Array, Queue[MixedStateNode]]
-        ) -> tuple[jax.Array, Queue[MixedStateNode]]:
-            myopic_entropy, search_nodes = carry
-            sequence_length_entropy = compute_myopic_entropy(search_nodes)
-            myopic_entropy = myopic_entropy.at[sequence_length].set(sequence_length_entropy)
+        def update_myopic_entropies(
+            sequence_length: int, carry: tuple[jax.Array, jax.Array, Queue[MixedStateNode]]
+        ) -> tuple[jax.Array, jax.Array, Queue[MixedStateNode]]:
+            belief_state_entropies, observation_entropies, search_nodes = carry
+            belief_state_entropy = compute_belief_state_entropy(search_nodes)
+            observation_entropy = compute_observation_entropy(search_nodes)
+            belief_state_entropies = belief_state_entropies.at[sequence_length].set(belief_state_entropy)
+            observation_entropies = observation_entropies.at[sequence_length].set(observation_entropy)
             search_nodes = update_search_nodes(search_nodes)
-            return myopic_entropy, search_nodes
+            return belief_state_entropies, observation_entropies, search_nodes
 
         max_size = self.ghmm.num_observations ** (self.max_sequence_length + 1)
         if self.max_search_nodes_size > 0 and self.max_search_nodes_size < max_size:
@@ -230,11 +256,15 @@ class MixedStateTreeGenerator(eqx.Module):
         search_nodes = Queue(max_size, default_element=self.root)
         search_nodes = search_nodes.add(self.root)
 
-        myopic_entropy = jnp.zeros(self.max_sequence_length + 1)
-        myopic_entropy, _ = jax.lax.fori_loop(
-            0, self.max_sequence_length + 1, update_myopic_entropy, (myopic_entropy, search_nodes)
+        belief_state_entropies = jnp.zeros(self.max_sequence_length + 1)
+        observation_entropies = jnp.zeros(self.max_sequence_length + 1)
+        belief_state_entropies, observation_entropies, _ = jax.lax.fori_loop(
+            0,
+            self.max_sequence_length + 1,
+            update_myopic_entropies,
+            (belief_state_entropies, observation_entropies, search_nodes),
         )
-        return myopic_entropy
+        return MyopicEntropies(belief_state_entropies, observation_entropies)
 
     @property
     def root(self) -> MixedStateNode:

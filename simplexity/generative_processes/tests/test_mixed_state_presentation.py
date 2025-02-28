@@ -134,9 +134,15 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
 
 
 def test_myopic_entropy(generator: MixedStateTreeGenerator):
-    myopic_entropy = generator.myopic_entropy()
-    assert myopic_entropy.shape == (generator.max_sequence_length + 1,)
-    assert jnp.all(~jnp.isnan(myopic_entropy))
-    assert jnp.all(myopic_entropy[1:] - myopic_entropy[:-1] <= 0), (
-        "Myopic entropy should be monotonically non-increasing with sequence length"
+    myopic_entropies = generator.compute_myopic_entropy()
+    assert myopic_entropies.sequence_lengths.shape == (generator.max_sequence_length + 1,)
+    assert myopic_entropies.belief_state_entropies.shape == (generator.max_sequence_length + 1,)
+    assert jnp.all(~jnp.isnan(myopic_entropies.belief_state_entropies))
+    assert jnp.all(myopic_entropies.belief_state_entropies[1:] - myopic_entropies.belief_state_entropies[:-1] <= 0), (
+        "Belief state myopic entropy should be monotonically non-increasing with sequence length"
+    )
+    assert myopic_entropies.observation_entropies.shape == (generator.max_sequence_length + 1,)
+    assert jnp.all(~jnp.isnan(myopic_entropies.observation_entropies))
+    assert jnp.all(myopic_entropies.observation_entropies[1:] - myopic_entropies.observation_entropies[:-1] <= 0), (
+        "Observation myopic entropy should be monotonically non-increasing with sequence length"
     )
