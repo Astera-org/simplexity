@@ -6,7 +6,9 @@ import jax.numpy as jnp
 @eqx.filter_jit
 def entropy(log_probs: jax.Array) -> jax.Array:
     """Compute the entropy of a log probability distribution."""
-    return -jnp.sum(jnp.exp(log_probs) * log_probs)
+    terms = -jnp.exp(log_probs) * log_probs
+    terms = jnp.where(jnp.isnan(terms), jnp.zeros_like(terms), terms)
+    return jnp.sum(terms)
 
 
 @eqx.filter_jit
