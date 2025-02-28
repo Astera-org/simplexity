@@ -62,7 +62,7 @@ NODES = {
         sequence=jnp.array([1, 1], dtype=jnp.int32),
         sequence_length=jnp.array(2, dtype=jnp.int32),
         log_state=jnp.log(jnp.array([0, 0])),
-        log_belief_state=jnp.log(jnp.array([jnp.nan, jnp.nan])),  # TODO: fix normalization
+        log_belief_state=jnp.log(jnp.array([jnp.nan, jnp.nan])),
         log_probability=jnp.log(0),
     ),
 }
@@ -117,7 +117,7 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
         (0, 0): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_1, log_0)),
         (0, 1): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_0, log_1)),
         (1, 0): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_1, log_0)),
-        (1, 1): NodeDictValue(log_probability=log_0, log_belief_state=(math.nan, math.nan)),  # TODO: fix normalization
+        (1, 1): NodeDictValue(log_probability=log_0, log_belief_state=(math.nan, math.nan)),
     }
     assert set(tree.nodes.keys()) == set(expected_nodes.keys())
 
