@@ -87,6 +87,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     @eqx.filter_jit
     def normalize_log_belief_state(self, log_state: jax.Array) -> jax.Array:
         """Compute the log probability distribution over states from a log state vector."""
+        # TODO: returns nans when log_state is -infs (state is zeros)
         log_prob = log_state + self.log_normalizing_eigenvector
         return log_prob - jax.nn.logsumexp(log_prob)
 
