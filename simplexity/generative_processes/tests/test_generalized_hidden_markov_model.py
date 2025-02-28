@@ -97,14 +97,16 @@ def test_hmm_observation_probability_distribution(z1r: GeneralizedHiddenMarkovMo
 
 
 def test_ghmm_observation_probability_distribution(fanizza_model: GeneralizedHiddenMarkovModel):
-    state = jnp.array([0.3, 0.1, 0.6, 0.0])
-    obs_probs = fanizza_model.observation_probability_distribution(state)
+    valid_state = fanizza_model.state_eigenvector
+    obs_probs = fanizza_model.observation_probability_distribution(valid_state)
     assert jnp.isclose(jnp.sum(obs_probs), 1)
-    try:
-        assert jnp.all(obs_probs >= 0)
-        assert jnp.all(obs_probs <= 1)
-    except AssertionError:
-        pytest.xfail("Obs probs contains values outside of [0, 1]")
+    assert jnp.all(obs_probs >= 0)
+    assert jnp.all(obs_probs <= 1)
+
+    invalid_state = jnp.array([0.3, 0.1, 0.6, 0.0])
+    obs_probs = fanizza_model.observation_probability_distribution(invalid_state)
+    assert jnp.isclose(jnp.sum(obs_probs), 1)
+    assert jnp.logical_or(jnp.any(obs_probs < 0), jnp.any(obs_probs > 1))
 
 
 def test_hmm_log_observation_probability_distribution(z1r: GeneralizedHiddenMarkovModel):
@@ -120,7 +122,8 @@ def test_hmm_log_observation_probability_distribution(z1r: GeneralizedHiddenMark
 
 
 def test_ghmm_log_observation_probability_distribution(fanizza_model: GeneralizedHiddenMarkovModel):
-    log_state = jnp.log(jnp.array([0.3, 0.1, 0.6, 0.0]))
+    # log_state = jnp.log(jnp.array([0.3, 0.1, 0.6, 0.0]))
+    log_state = fanizza_model.log_state_eigenvector
     log_obs_probs = fanizza_model.log_observation_probability_distribution(log_state)
     try:
         assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=1e-7)
