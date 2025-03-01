@@ -218,24 +218,6 @@ class MixedStateTreeGenerator(eqx.Module):
             obs_entropies = entropy_fn(log_obs_dists)
             return log_weighted_average(obs_entropies, data.log_probability)
 
-        def continue_loop(carry: tuple[jax.Array, Queue[MixedStateNode]]) -> jax.Array:
-            sequence_length, search_nodes = carry
-            return jnp.logical_and(~search_nodes.is_empty, search_nodes.peek().sequence_length < sequence_length)
-
-        def add_next_node(
-            carry: tuple[jax.Array, Queue[MixedStateNode]],
-        ) -> tuple[jax.Array, Queue[MixedStateNode]]:
-            sequence_length, search_nodes = carry
-            search_nodes, _ = self._next_node(search_nodes)
-            search_nodes = cast(Queue[MixedStateNode], search_nodes)
-            return sequence_length, search_nodes
-
-        def update_search_nodes(search_nodes: Queue[MixedStateNode]) -> Queue[MixedStateNode]:
-            """Update the search nodes."""
-            sequence_length = search_nodes.peek().sequence_length
-            _, search_nodes = jax.lax.while_loop(continue_loop, add_next_node, (sequence_length, search_nodes))
-            return search_nodes
-
         def update_myopic_entropies(
             sequence_length: int, carry: tuple[jax.Array, jax.Array, Queue[MixedStateNode]]
         ) -> tuple[jax.Array, jax.Array, Queue[MixedStateNode]]:
@@ -244,7 +226,7 @@ class MixedStateTreeGenerator(eqx.Module):
             observation_entropy = compute_observation_entropy(search_nodes)
             belief_state_entropies = belief_state_entropies.at[sequence_length].set(belief_state_entropy)
             observation_entropies = observation_entropies.at[sequence_length].set(observation_entropy)
-            search_nodes = update_search_nodes(search_nodes)
+            search_nodes = self.get_all_children(search_nodes)
             return belief_state_entropies, observation_entropies, search_nodes
 
         max_size = self.ghmm.num_observations ** (self.max_sequence_length + 1)
@@ -326,3 +308,14 @@ class MixedStateTreeGenerator(eqx.Module):
 
         nodes, node = nodes.remove()
         return jax.lax.cond(node.sequence_length < node.max_sequence_length, add_children, no_update, (nodes, node))
+
+    def get_all_children(self, search_nodes: Queue[MixedStateNode]) -> Queue[MixedStateNode]:
+        """Return a queue that contains just contains all the children of the current nodes in the queue."""
+
+        def add_children(_: int, nodes: Queue[MixedStateNode]) -> Queue[MixedStateNode]:
+            nodes, _ = self._next_node(nodes)  # type: ignore
+            return cast(Queue[MixedStateNode], nodes)
+
+        initial_size = search_nodes.size
+        search_nodes = jax.lax.fori_loop(0, initial_size, add_children, search_nodes)
+        return search_nodes

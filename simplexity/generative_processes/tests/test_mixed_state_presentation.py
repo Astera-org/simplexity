@@ -1,4 +1,5 @@
 import math
+from typing import cast
 
 import chex
 import jax.numpy as jnp
@@ -75,6 +76,15 @@ def generator() -> MixedStateTreeGenerator:
     return MixedStateTreeGenerator(ghmm, max_sequence_length=2)
 
 
+def get_sequences_in_collection(collection: Queue[MixedStateNode]) -> list[tuple[int, ...]]:
+    nodes = cast(MixedStateNode, collection.data)
+    sequences = []
+    for i in range(collection.size):
+        sequence = tuple(nodes.sequence[i][: nodes.sequence_length[i]].tolist())
+        sequences.append(sequence)
+    return sequences
+
+
 def test_get_child(generator: MixedStateTreeGenerator):
     child = generator.get_child(generator.root, jnp.array(0))
     chex.assert_trees_all_close(child, NODES["0"])
@@ -83,6 +93,21 @@ def test_get_child(generator: MixedStateTreeGenerator):
     child = generator.get_child(child, jnp.array(1))
     chex.assert_trees_all_close(child, NODES["01"])
     chex.assert_trees_all_close(child.log_probability, jnp.log(1 / 3))
+
+
+def test_get_all_children(generator: MixedStateTreeGenerator):
+    search_nodes = Queue(max_size=7, default_element=generator.root)
+    search_nodes = search_nodes.enqueue(generator.root)
+    sequences = get_sequences_in_collection(search_nodes)
+    assert set(sequences) == {()}
+    search_nodes = generator.get_all_children(search_nodes)
+    assert search_nodes.size == 2
+    sequences = get_sequences_in_collection(search_nodes)
+    assert set(sequences) == {(0,), (1,)}
+    search_nodes = generator.get_all_children(search_nodes)
+    assert search_nodes.size == 4
+    sequences = get_sequences_in_collection(search_nodes)
+    assert set(sequences) == {(0, 0), (0, 1), (1, 0), (1, 1)}
 
 
 @pytest.mark.parametrize(
