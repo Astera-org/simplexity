@@ -21,6 +21,7 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pandas",
+    "penzai",
     "plotly",
     "PyDrive",
     "pydantic",
@@ -29,6 +30,7 @@ dependencies = [
     "seaborn",
     "torch",
     "transformer_lens",
+    "treescope",
     "tqdm",
     "wandb"
 ]
