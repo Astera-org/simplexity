@@ -135,6 +135,12 @@ class MyopicEntropies(eqx.Module):
         self.sequence_lengths = jnp.arange(belief_state_entropies.shape[0])
 
 
+def compute_average_entropy(log_dists: jax.Array, log_probs: jax.Array) -> jax.Array:
+    """Compute the weighted average entropy of a collection of distributions."""
+    entropies = eqx.filter_vmap(entropy)(log_dists)
+    return jnp.sum(entropies * jnp.exp(log_probs))
+
+
 class MixedStateTreeGenerator(eqx.Module):
     """A generator of nodes in a mixed state presentation of a generative process."""
 
@@ -200,30 +206,15 @@ class MixedStateTreeGenerator(eqx.Module):
     def compute_myopic_entropy(self) -> MyopicEntropies:
         """Compute the myopic entropy of the generative process."""
         log_obs_dist_fn = eqx.filter_vmap(self.ghmm.log_observation_probability_distribution)
-        entropy_fn = eqx.filter_vmap(entropy)
-
-        def log_weighted_average(log_values: jax.Array, log_probs: jax.Array) -> jax.Array:
-            return jax.nn.logsumexp(log_probs + log_values)
-
-        def compute_belief_state_entropy(search_nodes: Queue[MixedStateNode]) -> jax.Array:
-            """Compute the myopic entropy of the generative process."""
-            data = cast(MixedStateNode, search_nodes.data)
-            belief_state_entropies = entropy_fn(data.log_belief_state)
-            return log_weighted_average(belief_state_entropies, data.log_probability)
-
-        def compute_observation_entropy(search_nodes: Queue[MixedStateNode]) -> jax.Array:
-            """Compute the myopic entropy of the generative process."""
-            data = cast(MixedStateNode, search_nodes.data)
-            log_obs_dists = log_obs_dist_fn(data.log_belief_state)
-            obs_entropies = entropy_fn(log_obs_dists)
-            return log_weighted_average(obs_entropies, data.log_probability)
 
         def update_myopic_entropies(
             sequence_length: int, carry: tuple[jax.Array, jax.Array, Queue[MixedStateNode]]
         ) -> tuple[jax.Array, jax.Array, Queue[MixedStateNode]]:
             belief_state_entropies, observation_entropies, search_nodes = carry
-            belief_state_entropy = compute_belief_state_entropy(search_nodes)
-            observation_entropy = compute_observation_entropy(search_nodes)
+            data = cast(MixedStateNode, search_nodes.data)
+            log_obs_dists = log_obs_dist_fn(data.log_belief_state)
+            belief_state_entropy = compute_average_entropy(data.log_belief_state, data.log_probability)
+            observation_entropy = compute_average_entropy(log_obs_dists, data.log_probability)
             belief_state_entropies = belief_state_entropies.at[sequence_length].set(belief_state_entropy)
             observation_entropies = observation_entropies.at[sequence_length].set(observation_entropy)
             search_nodes = self.get_all_children(search_nodes)
