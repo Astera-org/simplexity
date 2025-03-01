@@ -1,4 +1,5 @@
 import math
+from typing import cast
 
 import chex
 import jax.numpy as jnp
@@ -62,7 +63,7 @@ NODES = {
         sequence=jnp.array([1, 1], dtype=jnp.int32),
         sequence_length=jnp.array(2, dtype=jnp.int32),
         log_state=jnp.log(jnp.array([0, 0])),
-        log_belief_state=jnp.log(jnp.array([jnp.nan, jnp.nan])),  # TODO: fix normalization
+        log_belief_state=jnp.log(jnp.array([jnp.nan, jnp.nan])),
         log_probability=jnp.log(0),
     ),
 }
@@ -75,6 +76,15 @@ def generator() -> MixedStateTreeGenerator:
     return MixedStateTreeGenerator(ghmm, max_sequence_length=2)
 
 
+def get_sequences_in_collection(collection: Queue[MixedStateNode]) -> list[tuple[int, ...]]:
+    nodes = cast(MixedStateNode, collection.data)
+    sequences = []
+    for i in range(collection.size):
+        sequence = tuple(nodes.sequence[i][: nodes.sequence_length[i]].tolist())
+        sequences.append(sequence)
+    return sequences
+
+
 def test_get_child(generator: MixedStateTreeGenerator):
     child = generator.get_child(generator.root, jnp.array(0))
     chex.assert_trees_all_close(child, NODES["0"])
@@ -83,6 +93,21 @@ def test_get_child(generator: MixedStateTreeGenerator):
     child = generator.get_child(child, jnp.array(1))
     chex.assert_trees_all_close(child, NODES["01"])
     chex.assert_trees_all_close(child.log_probability, jnp.log(1 / 3))
+
+
+def test_get_all_children(generator: MixedStateTreeGenerator):
+    search_nodes = Queue(max_size=7, default_element=generator.root)
+    search_nodes = search_nodes.enqueue(generator.root)
+    sequences = get_sequences_in_collection(search_nodes)
+    assert set(sequences) == {()}
+    search_nodes = generator.get_all_children(search_nodes)
+    assert search_nodes.size == 2
+    sequences = get_sequences_in_collection(search_nodes)
+    assert set(sequences) == {(0,), (1,)}
+    search_nodes = generator.get_all_children(search_nodes)
+    assert search_nodes.size == 4
+    sequences = get_sequences_in_collection(search_nodes)
+    assert set(sequences) == {(0, 0), (0, 1), (1, 0), (1, 1)}
 
 
 @pytest.mark.parametrize(
@@ -117,7 +142,7 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
         (0, 0): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_1, log_0)),
         (0, 1): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_0, log_1)),
         (1, 0): NodeDictValue(log_probability=log_1_3, log_belief_state=(log_1, log_0)),
-        (1, 1): NodeDictValue(log_probability=log_0, log_belief_state=(math.nan, math.nan)),  # TODO: fix normalization
+        (1, 1): NodeDictValue(log_probability=log_0, log_belief_state=(math.nan, math.nan)),
     }
     assert set(tree.nodes.keys()) == set(expected_nodes.keys())
 
@@ -134,9 +159,15 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
 
 
 def test_myopic_entropy(generator: MixedStateTreeGenerator):
-    myopic_entropy = generator.myopic_entropy()
-    assert myopic_entropy.shape == (generator.max_sequence_length + 1,)
-    assert jnp.all(~jnp.isnan(myopic_entropy))
-    assert jnp.all(myopic_entropy[1:] - myopic_entropy[:-1] <= 0), (
-        "Myopic entropy should be monotonically non-increasing with sequence length"
+    myopic_entropies = generator.compute_myopic_entropy()
+    assert myopic_entropies.sequence_lengths.shape == (generator.max_sequence_length + 1,)
+    assert myopic_entropies.belief_state_entropies.shape == (generator.max_sequence_length + 1,)
+    assert jnp.all(~jnp.isnan(myopic_entropies.belief_state_entropies))
+    assert jnp.all(myopic_entropies.belief_state_entropies[1:] - myopic_entropies.belief_state_entropies[:-1] <= 0), (
+        "Belief state myopic entropy should be monotonically non-increasing with sequence length"
+    )
+    assert myopic_entropies.observation_entropies.shape == (generator.max_sequence_length + 1,)
+    assert jnp.all(~jnp.isnan(myopic_entropies.observation_entropies))
+    assert jnp.all(myopic_entropies.observation_entropies[1:] - myopic_entropies.observation_entropies[:-1] <= 0), (
+        "Observation myopic entropy should be monotonically non-increasing with sequence length"
     )

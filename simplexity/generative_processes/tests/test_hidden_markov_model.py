@@ -22,6 +22,26 @@ def test_properties(z1r: HiddenMarkovModel):
     assert_proportional(z1r.state_eigenvector, jnp.ones(3))
 
 
+def test_normalize_belief_state(z1r: HiddenMarkovModel):
+    state = jnp.array([2, 5, 1])
+    belief_state = z1r.normalize_belief_state(state)
+    chex.assert_trees_all_close(belief_state, jnp.array([0.25, 0.625, 0.125]))
+
+    state = jnp.array([0, 0, 0])
+    belief_state = z1r.normalize_belief_state(state)
+    assert jnp.all(jnp.isnan(belief_state))
+
+
+def test_normalize_log_belief_state(z1r: HiddenMarkovModel):
+    state = jnp.log(jnp.array([2, 5, 1]))
+    log_belief_state = z1r.normalize_log_belief_state(state)
+    chex.assert_trees_all_close(log_belief_state, jnp.log(jnp.array([0.25, 0.625, 0.125])))
+
+    log_state = jnp.array([-jnp.inf, -jnp.inf, -jnp.inf])
+    log_belief_state = z1r.normalize_log_belief_state(log_state)
+    assert jnp.all(jnp.isnan(log_belief_state))
+
+
 def test_single_transition(z1r: HiddenMarkovModel):
     zero_state = jnp.array([[1.0, 0.0, 0.0]])
     one_state = jnp.array([[0.0, 1.0, 0.0]])
