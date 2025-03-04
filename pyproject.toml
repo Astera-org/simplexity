@@ -12,33 +12,15 @@ description = "Computational Mechanics of Transformer Models"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "boto3",
     "chex",
     "equinox",
-    "fire",
     "jax[cuda12_pip]",
     "jupyter",
     "matplotlib",
-    "numpy",
     "pandas",
-    "plotly",
-    "PyDrive",
-    "pydantic",
-    "python-dotenv",
-    "scikit-learn",
-    "seaborn",
-    "torch",
-    "transformer_lens",
-    "tqdm",
-    "wandb"
 ]
 
 [dependency-groups]
-dash = [
-    "dash",
-    "dash-bootstrap-components",
-    "jupyter-dash"
-]
 dev = [
     "jaxtyping",
     "nbqa",
