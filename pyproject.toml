@@ -17,6 +17,7 @@ dependencies = [
     "jax[cuda12_pip]",
     "jupyter",
     "matplotlib",
+    "optax",
     "pandas",
     "penzai",
     "treescope",
