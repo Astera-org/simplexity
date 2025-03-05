@@ -22,7 +22,6 @@ class RNN(PredictiveModel):
             ]
         )
 
-    @eqx.filter_jit
     def __call__(self, xs: jax.Array) -> jax.Array:
         """Forward pass of the RNN."""
         hidden = jnp.zeros(self.hidden_size)
