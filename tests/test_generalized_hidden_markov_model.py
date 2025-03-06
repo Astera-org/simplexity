@@ -4,9 +4,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from simplexity.generative_processes.assertions import assert_proportional
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.transition_matrices import fanizza, zero_one_random
+from tests.assertions import assert_proportional
 
 
 @pytest.fixture

@@ -1,7 +1,6 @@
 import chex
 import jax.numpy as jnp
 
-from simplexity.generative_processes.assertions import assert_proportional
 from simplexity.generative_processes.transition_matrices import (
     days_of_week,
     even_ones,
@@ -13,6 +12,7 @@ from simplexity.generative_processes.transition_matrices import (
     tom_quantum,
     zero_one_random,
 )
+from tests.assertions import assert_proportional
 
 
 def validate_ghmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: float = 1e-6, atol: float = 0):
