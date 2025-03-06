@@ -2,7 +2,7 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.log_math import log_matmul, signed_logsumexp
+from simplexity.log_math import log_matmul, signed_logsumexp
 
 
 def test_log_matmul():

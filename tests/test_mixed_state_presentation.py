@@ -5,7 +5,7 @@ import chex
 import jax.numpy as jnp
 import pytest
 
-from simplexity.generative_processes.data_structures import Collection, Queue, Stack
+from simplexity.data_structures import Collection, Queue, Stack
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.mixed_state_presentation import (
     MixedStateNode,
