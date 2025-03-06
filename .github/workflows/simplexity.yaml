@@ -14,14 +14,14 @@ jobs:
           enable-cache: true
 
       - name: ruff check
-        run: uv run ruff check --output-format=github || true
+        run: uv run --extra dev ruff check --output-format=github || true
         continue-on-error: true
 
       - name: ruff format
-        run: uv run ruff format --check
+        run: uv run --extra dev ruff format --check
 
       - name: pyright
-        run: uv run pyright
+        run: uv run --extra dev pyright
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -32,7 +32,7 @@ jobs:
           enable-cache: true
 
       - name: pytest
-        run: uv run pytest --capture=no --verbose --cov --cov-report=xml
+        run: uv run --extra dev pytest --capture=no --verbose --cov --cov-report=xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
