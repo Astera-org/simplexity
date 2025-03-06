@@ -6,7 +6,10 @@ A library for exploring sequence prediction models from a Computational Mechanic
 
 ```
 simplexity/
+  ├── data/
+  ├── notebooks/
   ├── simplexity/
+  │   ├── generative_processes/
   └── tests/
 ```
 
