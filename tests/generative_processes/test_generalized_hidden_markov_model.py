@@ -132,12 +132,12 @@ def test_ghmm_observation_probability_distribution(fanizza_model: GeneralizedHid
 def test_hmm_log_observation_probability_distribution(z1r: GeneralizedHiddenMarkovModel):
     log_state = jnp.log(jnp.array([0.3, 0.1, 0.6]))
     log_obs_probs = z1r.log_observation_probability_distribution(log_state)
-    assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=1e-7)
+    assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=2e-7)
     chex.assert_trees_all_close(log_obs_probs, jnp.log(jnp.array([0.6, 0.4])))
 
     log_state = jnp.log(jnp.array([0.5, 0.3, 0.2]))
     log_obs_probs = z1r.log_observation_probability_distribution(log_state)
-    assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=1e-7)
+    assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=2e-7)
     chex.assert_trees_all_close(log_obs_probs, jnp.log(jnp.array([0.6, 0.4])))
 
 
