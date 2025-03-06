@@ -9,13 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
       - name: ruff check
         run: uv run --extra dev ruff check --output-format=github || true
-        continue-on-error: true
 
       - name: ruff format
         run: uv run --extra dev ruff format --check
@@ -25,3 +24,21 @@ jobs:
 
       - name: pyright
         run: uv run --extra dev pyright
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: pytest
+        run: uv run --extra dev pytest --capture=no --verbose --cov --cov-report=xml
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: Astera-org/simplexity
+          verbose: true
