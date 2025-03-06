@@ -22,3 +22,21 @@ jobs:
 
       - name: pyright
         run: uv run pyright
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: pytest
+        run: uv run pytest --capture=no --verbose --cov --cov-report=xml
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: Astera-org/simplexity
+          verbose: true
