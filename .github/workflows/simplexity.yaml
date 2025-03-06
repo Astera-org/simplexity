@@ -15,7 +15,6 @@ jobs:
 
       - name: ruff check
         run: uv run --extra dev ruff check --output-format=github || true
-        continue-on-error: true
 
       - name: ruff format
         run: uv run --extra dev ruff format --check
