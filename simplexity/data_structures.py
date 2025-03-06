@@ -80,7 +80,7 @@ class Stack(Collection[Element]):
     def __init__(self, max_size: int, default_element: Element):
         """Initialize empty queue/stack."""
         self.default_element = default_element
-        self.data = jax.tree_map(lambda x: jnp.zeros((max_size,) + x.shape, dtype=x.dtype), default_element)
+        self.data = jax.tree.map(lambda x: jnp.zeros((max_size,) + x.shape, dtype=x.dtype), default_element)
         self._size = jnp.array(0, dtype=jnp.int32)
         self.max_size = jnp.array(max_size, dtype=jnp.int32)
 
@@ -95,7 +95,7 @@ class Stack(Collection[Element]):
             return eqx.tree_at(
                 lambda s: (s.data, s.size),
                 stack,
-                (jax.tree_map(lambda arr, val: arr.at[stack.size].set(val), stack.data, element), stack.size + 1),
+                (jax.tree.map(lambda arr, val: arr.at[stack.size].set(val), stack.data, element), stack.size + 1),
             )
 
         return jax.lax.cond(self.is_full, do_nothing, do_push, self)
@@ -108,7 +108,7 @@ class Stack(Collection[Element]):
             return stack, self.default_element
 
         def do_pop(stack: Stack) -> tuple["Stack[Element]", Element]:
-            element = jax.tree_map(lambda x: x[stack.size - 1], stack.data)
+            element = jax.tree.map(lambda x: x[stack.size - 1], stack.data)
             stack = eqx.tree_at(lambda s: s.size, stack, stack.size - 1)
             return stack, element
 
@@ -122,7 +122,7 @@ class Stack(Collection[Element]):
             return stack.default_element
 
         def do_peek(stack: Stack) -> Element:
-            return jax.tree_map(lambda x: x[stack.size - 1], stack.data)
+            return jax.tree.map(lambda x: x[stack.size - 1], stack.data)
 
         return jax.lax.cond(self.is_empty, do_nothing, do_peek, self)
 
@@ -207,7 +207,7 @@ class Queue(Collection[Element]):
                 return stack.default_element
 
             def bottom(stack: Stack[Element]) -> Element:
-                return jax.tree_map(lambda x: x[0], stack.data)
+                return jax.tree.map(lambda x: x[0], stack.data)
 
             return jax.lax.cond(queue.instack.is_empty, empty, bottom, queue.instack)
 
@@ -253,7 +253,7 @@ class Heap(Stack[Element]):
     def __init__(self, max_size: int, default_element: Element, compare: Callable[[Element, Element], jax.Array]):
         """Initialize empty queue/stack."""
         self.default_element = default_element
-        self.data = jax.tree_map(lambda x: jnp.zeros((max_size,) + x.shape, dtype=x.dtype), default_element)
+        self.data = jax.tree.map(lambda x: jnp.zeros((max_size,) + x.shape, dtype=x.dtype), default_element)
         self._size = jnp.array(0, dtype=jnp.int32)
         self.max_size = jnp.array(max_size, dtype=jnp.int32)
         self.compare = compare
@@ -283,7 +283,7 @@ class Heap(Stack[Element]):
             return heap.default_element
 
         def do_peek(heap: Heap) -> Element:
-            return jax.tree_map(lambda x: x[0], heap.data)
+            return jax.tree.map(lambda x: x[0], heap.data)
 
         return jax.lax.cond(self.is_empty, do_nothing, do_peek, self)
 
@@ -305,7 +305,7 @@ class Heap(Stack[Element]):
     @eqx.filter_jit
     def __getitem__(self, idx: jax.Array) -> Element:
         """Get an element from the heap."""
-        return jax.tree_map(lambda x: x[idx], self.data)
+        return jax.tree.map(lambda x: x[idx], self.data)
 
     @eqx.filter_jit
     def _swap(self, index1: jax.Array, index2: jax.Array) -> "Heap[Element]":
