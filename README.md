@@ -4,9 +4,11 @@ A library for exploring sequence prediction models from a Computational Mechanic
 
 ## Codebase Structure
 
+```
 simplexity/
   ├── simplexity/
   └── tests/
+```
 
 ## Usage
 
