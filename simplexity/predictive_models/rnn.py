@@ -7,42 +7,66 @@ from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
 class GRUFn(eqx.Module):
-    """A simple RNN model."""
+    """Apply a GRU cell to each element of the input sequence."""
 
-    hidden_size: int = eqx.static_field()
     cell: eqx.nn.GRUCell
 
     def __init__(self, in_size: int, hidden_size: int, key: chex.PRNGKey):
-        self.hidden_size = hidden_size
         self.cell = eqx.nn.GRUCell(in_size, hidden_size, key=key)
 
     def __call__(self, xs: jax.Array) -> jax.Array:
-        """Forward pass of the RNN."""
+        """Forward pass of the GRU cell."""
 
         def process_element(carry, x):
-            return self.cell(x, carry), None
+            next_carry = self.cell(x, carry)
+            return next_carry, next_carry
 
-        hidden = jnp.zeros(self.hidden_size)
-        out, _ = jax.lax.scan(process_element, hidden, xs)
-        return out
+        hidden = jnp.zeros(self.cell.hidden_size)
+        _, outs = jax.lax.scan(process_element, hidden, xs)
+        return outs
+
+
+class LinearFn(eqx.Module):
+    """Apply a linear model to each element of the input sequence."""
+
+    linear: eqx.nn.Linear
+
+    def __init__(self, in_size: int, out_size: int, key: chex.PRNGKey):
+        self.linear = eqx.nn.Linear(in_size, out_size, key=key)
+
+    def __call__(self, xs: jax.Array) -> jax.Array:
+        """Forward pass of the linear model."""
+
+        def process_element(_, x):
+            out = self.linear(x)
+            return None, out
+
+        _, outs = jax.lax.scan(process_element, None, xs)
+        return outs
 
 
 class RNN(PredictiveModel):
     """A simple RNN model."""
 
+    hidden_sizes: list[int]
     layers: eqx.nn.Sequential
 
-    def __init__(self, in_size: int, out_size: int, hidden_size: int, *, key: chex.PRNGKey):
-        cell_key, linear_key = jax.random.split(key)
+    def __init__(self, in_size: int, out_size: int, hidden_sizes: list[int], *, key: chex.PRNGKey):
+        num_gru_layers = len(hidden_sizes)
+        linear_key, *cell_keys = jax.random.split(key, num_gru_layers + 1)
 
-        gru_fn = GRUFn(in_size, hidden_size, key=cell_key)
+        self.hidden_sizes = hidden_sizes
 
-        self.layers = eqx.nn.Sequential(
-            [
-                eqx.nn.Lambda(gru_fn),
-                eqx.nn.Linear(hidden_size, out_size, use_bias=False, key=linear_key),
-            ]
-        )
+        layers = []
+        for hidden_size, cell_key in zip(hidden_sizes, cell_keys, strict=True):
+            gru_fn = GRUFn(in_size, hidden_size, cell_key)
+            gru_layer = eqx.nn.Lambda(gru_fn)
+            layers.append(gru_layer)
+            in_size = hidden_size
+        linear_fn = LinearFn(in_size, out_size, linear_key)
+        linear_layer = eqx.nn.Lambda(linear_fn)
+        layers.append(linear_layer)
+        self.layers = eqx.nn.Sequential(layers)
 
     def __call__(self, xs: jax.Array) -> jax.Array:
         """Forward pass of the RNN."""

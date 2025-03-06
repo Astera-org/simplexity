@@ -33,7 +33,8 @@ class TrainingAttributes(eqx.Module):
 def loss_fn(model: PredictiveModel, x: jax.Array, y: jax.Array) -> chex.Array:
     """Compute the loss for a batch of observations and their corresponding states."""
     logits = model(x)
-    return optax.softmax_cross_entropy_with_integer_labels(logits, y)
+    losses = optax.softmax_cross_entropy_with_integer_labels(logits, y)
+    return jnp.mean(losses)
 
 
 @eqx.filter_jit
@@ -65,7 +66,7 @@ def training_epoch(
     if obs.ndim == 2:
         obs = obs[:, :, None]
     x = obs[:, :-1, :]
-    y = obs[:, -1, :].squeeze()
+    y = obs[:, 1:, :].squeeze()
     return update(state, x, y, attrs.opt_update)
 
 
