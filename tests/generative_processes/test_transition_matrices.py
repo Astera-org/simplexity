@@ -45,25 +45,25 @@ def validate_hmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: flo
 
 
 def test_no_consecutive_ones():
-    transition_matrices = no_consecutive_ones()
+    transition_matrices = no_consecutive_ones(p=0.5)
     assert transition_matrices.shape == (2, 2, 2)
     validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_even_ones():
-    transition_matrices = even_ones()
+    transition_matrices = even_ones(p=0.5)
     assert transition_matrices.shape == (2, 2, 2)
     validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_zero_one_random():
-    transition_matrices = zero_one_random()
+    transition_matrices = zero_one_random(p=0.5)
     assert transition_matrices.shape == (2, 3, 3)
     validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_post_quantum():
-    transition_matrices = post_quantum()
+    transition_matrices = post_quantum(log_alpha=1.0, beta=0.5)
     assert transition_matrices.shape == (3, 3, 3)
     validate_ghmm_transition_matrices(transition_matrices)
     # Verify that transition_matrix[0] + transition_matrix[1] + transition_matrix[2] has largest abs eigenvalue = 1
@@ -93,12 +93,12 @@ def test_fanizza():
 
 
 def test_rrxor():
-    transition_matrices = rrxor()
+    transition_matrices = rrxor(pR1=0.5, pR2=0.5)
     assert transition_matrices.shape == (2, 5, 5)
     validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_mess3():
-    transition_matrices = mess3()
+    transition_matrices = mess3(x=0.15, a=0.6)
     assert transition_matrices.shape == (3, 3, 3)
     validate_hmm_transition_matrices(transition_matrices)

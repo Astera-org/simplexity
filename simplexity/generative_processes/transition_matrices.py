@@ -1,7 +1,8 @@
+import jax
 import jax.numpy as jnp
 
 
-def no_consecutive_ones(p: float = 0.5):
+def no_consecutive_ones(p: float) -> jax.Array:
     """Creates a transition matrix for the No Consecutive Ones Process.
 
     Steady-state distribution = [2, 1] / 3
@@ -22,7 +23,7 @@ def no_consecutive_ones(p: float = 0.5):
     )
 
 
-def even_ones(p: float = 0.5):
+def even_ones(p: float) -> jax.Array:
     """Creates a transition matrix for the Even Ones Process.
 
     Steady-state distribution = [2, 1] / 3
@@ -43,7 +44,7 @@ def even_ones(p: float = 0.5):
     )
 
 
-def zero_one_random(p: float = 0.5):
+def zero_one_random(p: float) -> jax.Array:
     """Creates a transition matrix for the Zero One Random (Z1R) Process.
 
     Steady-state distribution = [1, 1, 1] / 3
@@ -66,7 +67,7 @@ def zero_one_random(p: float = 0.5):
     )
 
 
-def _validate_post_quantum_conditions(alpha, beta):
+def _validate_post_quantum_conditions(alpha: jax.Array, beta: float) -> None:
     if not (alpha > 1 > beta > 0):
         raise ValueError("Condition alpha > 1 > beta > 0 not satisfied")
     if alpha + beta == 2:
@@ -75,7 +76,7 @@ def _validate_post_quantum_conditions(alpha, beta):
         raise ValueError("Condition ln(alpha) / ln(beta) ∉ ℚ not satisfied")
 
 
-def post_quantum(log_alpha=1, beta=0.5):
+def post_quantum(log_alpha: float, beta: float) -> jax.Array:
     """Creates a transition matrix for the Post Quantum Process."""
     alpha = jnp.exp(log_alpha)
     _validate_post_quantum_conditions(alpha, beta)
@@ -103,7 +104,7 @@ def post_quantum(log_alpha=1, beta=0.5):
     return transition_matrices
 
 
-def days_of_week():
+def days_of_week() -> jax.Array:
     """Creates a transition matrix for the Days of the Week Process."""
     d = {"M": 0, "Tu": 1, "W": 2, "Th": 3, "F": 4, "Sa": 5, "Su": 6, "Tmrw": 7, "Yest": 8, "Wknd": 9, "Wkdy": 10}
     all_days = ["M", "Tu", "W", "Th", "F", "Sa", "Su"]
@@ -133,7 +134,7 @@ def days_of_week():
     return transition_matrices
 
 
-def tom_quantum(alpha: float, beta: float):
+def tom_quantum(alpha: float, beta: float) -> jax.Array:
     """Creates a transition matrix for the Tom Quantum Process."""
     gamma2 = 1 / (4 * (alpha**2 + beta**2))
     common_diag = 1 / 4
@@ -168,7 +169,7 @@ def tom_quantum(alpha: float, beta: float):
     return transition_matrices
 
 
-def fanizza(alpha: float, lamb: float):
+def fanizza(alpha: float, lamb: float) -> jax.Array:
     """Creates a transition matrix for the Faniza Process."""
     a_la = (1 - lamb * jnp.cos(alpha) + lamb * jnp.sin(alpha)) / (1 - 2 * lamb * jnp.cos(alpha) + lamb**2)
     b_la = (1 - lamb * jnp.cos(alpha) - lamb * jnp.sin(alpha)) / (1 - 2 * lamb * jnp.cos(alpha) + lamb**2)
@@ -194,7 +195,7 @@ def fanizza(alpha: float, lamb: float):
     return jnp.stack([Da, Db], axis=0)
 
 
-def rrxor(pR1=0.5, pR2=0.5):
+def rrxor(pR1: float, pR2: float) -> jax.Array:
     """Creates a transition matrix for the RRXOR Process.
 
     Steady-state distribution = [2, 1, 1, 1, 1] / 6
@@ -214,7 +215,7 @@ def rrxor(pR1=0.5, pR2=0.5):
     return transition_matrices
 
 
-def mess3(x=0.15, a=0.6):
+def mess3(x: float, a: float) -> jax.Array:
     """Creates a transition matrix for the Mess3 Process."""
     b = (1 - a) / 2
     y = 1 - 2 * x

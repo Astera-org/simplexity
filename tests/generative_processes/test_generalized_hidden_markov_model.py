@@ -4,21 +4,19 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from simplexity.generative_processes.builder import build_generalized_hidden_markov_model
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
-from simplexity.generative_processes.transition_matrices import fanizza, zero_one_random
 from tests.assertions import assert_proportional
 
 
 @pytest.fixture
 def z1r() -> GeneralizedHiddenMarkovModel:
-    transition_matrices = zero_one_random()
-    return GeneralizedHiddenMarkovModel(transition_matrices)
+    return build_generalized_hidden_markov_model("zero_one_random", p=0.5)
 
 
 @pytest.fixture
 def fanizza_model() -> GeneralizedHiddenMarkovModel:
-    transition_matrices = fanizza(alpha=2000, lamb=0.49)
-    return GeneralizedHiddenMarkovModel(transition_matrices)
+    return build_generalized_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
 
 
 @pytest.mark.parametrize(("model_name", "num_observations", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])
