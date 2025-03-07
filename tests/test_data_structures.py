@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from simplexity.generative_processes.data_structures import Collection, Queue, Stack
+from simplexity.data_structures import Collection, Queue, Stack
 
 
 class TestElement(eqx.Module):

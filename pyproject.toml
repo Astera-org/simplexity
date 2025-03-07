@@ -8,7 +8,7 @@ packages = ["simplexity"]
 [project]
 name = "simplexity"
 version = "0.1"
-description = "Computational Mechanics of Transformer Models"
+description = "Computational Mechanics of sequence prediction models."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -23,21 +23,19 @@ dependencies = [
     "treescope",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "jaxtyping",
     "nbqa",
     "pyright",
     "pytest",
+    "pytest-cov",
     "ruff"
 ]
 
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-include = [
-    "simplexity/generative_processes/**",
-]
 
 [tool.ruff.lint]
 ignore = [
@@ -67,6 +65,3 @@ convention = "google"
 
 [tool.pyright]
 typeCheckingMode = "standard"
-include = [
-    "simplexity/generative_processes/**",
-]

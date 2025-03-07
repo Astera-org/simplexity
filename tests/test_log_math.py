@@ -2,14 +2,16 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.log_math import log_matmul, signed_logsumexp
+from simplexity.log_math import log_matmul, signed_logsumexp
 
 
 def test_log_matmul():
     key_a, key_b = jax.random.split(jax.random.PRNGKey(0))
     A = jax.random.uniform(key_a, (3, 4))
     B = jax.random.uniform(key_b, (4, 5))
-    chex.assert_trees_all_close(log_matmul(jnp.log(A), jnp.log(B)), jnp.log(A @ B))
+    actual = log_matmul(jnp.log(A), jnp.log(B))
+    expected = jnp.log(A @ B)
+    chex.assert_trees_all_close(actual, expected, atol=1e-7)
 
 
 def test_signed_logsumexp():

@@ -5,9 +5,9 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.data_structures import Collection, Queue, Stack
+from simplexity.data_structures import Collection, Queue, Stack
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
-from simplexity.generative_processes.log_math import entropy
+from simplexity.log_math import entropy
 
 Sequence = tuple[int, ...]
 LogProbability = float
