@@ -1,0 +1,7 @@
+name: rnn
+instance:
+  _target_: simplexity.predictive_models.rnn.RNN
+  in_size: 10
+  hidden_sizes: [64, 64, 64, 64]
+  out_size: 10
+  seed: 0

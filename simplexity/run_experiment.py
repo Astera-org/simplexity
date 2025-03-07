@@ -5,7 +5,6 @@ import optax
 from simplexity.configs.config import Config
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
 from simplexity.generative_processes.transition_matrices import mess3
-from simplexity.predictive_models.rnn import RNN
 from simplexity.training.train import train
 
 
@@ -21,10 +20,7 @@ def run_experiment(cfg: Config):
     generative_process = HiddenMarkovModel(transition_matrices)
     initial_gen_process_state = generative_process.state_eigenvector
 
-    hidden_size = 64
-    hidden_sizes = [hidden_size] * 4
-    key, model_key = jax.random.split(key)
-    model = RNN(in_size=1, out_size=vocab_size, hidden_sizes=hidden_sizes, key=model_key)
+    model = hydra.utils.instantiate(cfg.predictive_model.instance, in_size=1, out_size=vocab_size)
     optimizer = optax.adam(learning_rate=0.001)
 
     sequence_len = 8

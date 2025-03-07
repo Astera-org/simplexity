@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 import chex
 import equinox as eqx
 import jax
@@ -51,8 +53,10 @@ class RNN(PredictiveModel):
     hidden_sizes: list[int]
     layers: eqx.nn.Sequential
 
-    def __init__(self, in_size: int, out_size: int, hidden_sizes: list[int], *, key: chex.PRNGKey):
+    def __init__(self, in_size: int, out_size: int, hidden_sizes: Iterable[int], *, seed: int):
+        hidden_sizes = list(hidden_sizes)
         num_gru_layers = len(hidden_sizes)
+        key = jax.random.PRNGKey(seed)
         linear_key, *cell_keys = jax.random.split(key, num_gru_layers + 1)
 
         self.hidden_sizes = hidden_sizes
