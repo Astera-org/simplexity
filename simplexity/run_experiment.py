@@ -1,15 +1,20 @@
+import hydra
 import jax
 import optax
 
+from simplexity.configs.config import Config
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
 from simplexity.generative_processes.transition_matrices import mess3
 from simplexity.predictive_models.rnn import RNN
 from simplexity.training.train import train
 
 
-def run_experiment():
+@hydra.main(config_path="configs", config_name="experiment.yaml", version_base="1.2")
+def run_experiment(cfg: Config):
     """Run the experiment."""
-    key = jax.random.PRNGKey(0)
+    print(cfg)
+
+    key = jax.random.PRNGKey(cfg.seed)
 
     transition_matrices = mess3()
     vocab_size = transition_matrices.shape[0]
