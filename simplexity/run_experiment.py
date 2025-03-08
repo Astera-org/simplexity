@@ -1,7 +1,11 @@
 import hydra
 import jax
+from optax import GradientTransformation
 
 from simplexity.configs.config import Config
+from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.hydra_helpers import typed_instantiate
+from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train import train
 
 
@@ -12,12 +16,12 @@ def run_experiment(cfg: Config):
 
     key = jax.random.PRNGKey(cfg.seed)
 
-    generative_process = hydra.utils.instantiate(cfg.generative_process.instance)
-    initial_gen_process_state = generative_process.state_eigenvector
+    generative_process = typed_instantiate(cfg.generative_process.instance, GenerativeProcess)
+    initial_gen_process_state = generative_process.initial_state
     num_observations = generative_process.num_observations
 
-    model = hydra.utils.instantiate(cfg.predictive_model.instance, in_size=1, out_size=num_observations)
-    optimizer = hydra.utils.instantiate(cfg.train.optimizer.instance)
+    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, in_size=1, out_size=num_observations)
+    optimizer = typed_instantiate(cfg.train.optimizer.instance, GradientTransformation)
 
     sequence_len = cfg.train.sequence_len
     batch_size = cfg.train.batch_size
