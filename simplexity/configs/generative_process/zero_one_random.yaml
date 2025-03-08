@@ -1,0 +1,5 @@
+name: zero_one_random
+instance:
+  _target_: simplexity.generative_processes.builder.build_hidden_markov_model
+  process_name: zero_one_random
+  p: 0.5

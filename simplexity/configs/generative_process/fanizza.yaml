@@ -1,0 +1,6 @@
+name: fanizza
+instance:
+  _target_: simplexity.generative_processes.builder.build_generalized_hidden_markov_model
+  process_name: fanizza
+  alpha: 2000.0
+  lamb: 0.49

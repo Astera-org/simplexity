@@ -1,0 +1,4 @@
+name: days_of_week
+instance:
+  _target_: simplexity.generative_processes.builder.build_hidden_markov_model
+  process_name: days_of_week

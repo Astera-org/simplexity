@@ -3,8 +3,6 @@ import jax
 import optax
 
 from simplexity.configs.config import Config
-from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
-from simplexity.generative_processes.transition_matrices import mess3
 from simplexity.training.train import train
 
 
@@ -15,12 +13,11 @@ def run_experiment(cfg: Config):
 
     key = jax.random.PRNGKey(cfg.seed)
 
-    transition_matrices = mess3()
-    vocab_size = transition_matrices.shape[0]
-    generative_process = HiddenMarkovModel(transition_matrices)
+    generative_process = hydra.utils.instantiate(cfg.generative_process.instance)
     initial_gen_process_state = generative_process.state_eigenvector
+    num_observations = generative_process.num_observations
 
-    model = hydra.utils.instantiate(cfg.predictive_model.instance, in_size=1, out_size=vocab_size)
+    model = hydra.utils.instantiate(cfg.predictive_model.instance, in_size=1, out_size=num_observations)
     optimizer = optax.adam(learning_rate=0.001)
 
     sequence_len = 8
