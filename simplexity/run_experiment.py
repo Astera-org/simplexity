@@ -1,6 +1,5 @@
 import hydra
 import jax
-import optax
 
 from simplexity.configs.config import Config
 from simplexity.training.train import train
@@ -18,11 +17,11 @@ def run_experiment(cfg: Config):
     num_observations = generative_process.num_observations
 
     model = hydra.utils.instantiate(cfg.predictive_model.instance, in_size=1, out_size=num_observations)
-    optimizer = optax.adam(learning_rate=0.001)
+    optimizer = hydra.utils.instantiate(cfg.train.optimizer.instance)
 
-    sequence_len = 8
-    batch_size = 4
-    num_epochs = 3
+    sequence_len = cfg.train.sequence_len
+    batch_size = cfg.train.batch_size
+    num_epochs = cfg.train.num_epochs
 
     model, losses = train(
         key,
