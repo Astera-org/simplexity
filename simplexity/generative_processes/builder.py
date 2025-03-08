@@ -58,6 +58,7 @@ def build_generalized_hidden_markov_model(process_name: str, **kwargs) -> Genera
         return GeneralizedHiddenMarkovModel(transition_matrices)
     elif process_type == GHMMProcessType.MESS3:
         transition_matrices = mess3(**kwargs)
+        return GeneralizedHiddenMarkovModel(transition_matrices)
     raise ValueError(f"Unknown process type: {process_type}")
 
 
@@ -92,4 +93,5 @@ def build_hidden_markov_model(process_name: str, **kwargs) -> HiddenMarkovModel:
         return HiddenMarkovModel(transition_matrices)
     elif process_type == HMMProcessType.MESS3:
         transition_matrices = mess3(**kwargs)
+        return HiddenMarkovModel(transition_matrices)
     raise ValueError(f"Unknown process type: {process_type}")
