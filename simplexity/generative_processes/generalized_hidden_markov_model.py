@@ -62,6 +62,11 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         """The number of hidden states in the model."""
         return self.transition_matrices.shape[1]
 
+    @property
+    def initial_state(self) -> State:
+        """The initial state of the model."""
+        return cast(State, self.state_eigenvector)
+
     @eqx.filter_jit
     def emit_observation(self, state: State, key: chex.PRNGKey) -> jax.Array:
         """Emit an observation based on the state of the generative process."""
