@@ -1,9 +1,11 @@
 import hydra
 import jax
+from omegaconf import DictConfig
 
 from simplexity.configs.config import Config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.hydra_helpers import typed_instantiate
+from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train import train
@@ -12,6 +14,10 @@ from simplexity.training.train import train
 @hydra.main(config_path="configs", config_name="experiment.yaml", version_base="1.2")
 def run_experiment(cfg: Config):
     """Run the experiment."""
+    assert isinstance(cfg, DictConfig)
+    logger = typed_instantiate(cfg.logging.instance, Logger)
+    logger.log_params(cfg)
+
     key = jax.random.PRNGKey(cfg.seed)
 
     generative_process = typed_instantiate(cfg.generative_process.instance, GenerativeProcess)
@@ -30,7 +36,7 @@ def run_experiment(cfg: Config):
         generative_process,
         initial_gen_process_state,
         persister,
-        log_every=1,
+        logger,
     )
     print("Training complete")
 

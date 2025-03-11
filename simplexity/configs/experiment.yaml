@@ -3,6 +3,7 @@ defaults:
  - generative_process: mess3
  - predictive_model: rnn
  - persistence: local_persister
+ - logging: mlflow_logger
  - train: small
 
 seed: 0

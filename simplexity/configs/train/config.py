@@ -11,5 +11,6 @@ class Config:
     batch_size: int
     num_epochs: int
     optimizer: OptimizerConfig
+    log_every: int
     checkpoint_every: int
     checkpoint_name: str

@@ -1,0 +1,6 @@
+name: mlflow_logger
+instance:
+  _target_: simplexity.logging.mlflow_logger.MLFlowLogger
+  experiment_name: /Shared/simplexity_test
+  run_name: test
+  tracking_uri: databricks
