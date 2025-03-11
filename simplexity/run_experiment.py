@@ -11,8 +11,6 @@ from simplexity.training.train import train
 @hydra.main(config_path="configs", config_name="experiment.yaml", version_base="1.2")
 def run_experiment(cfg: Config):
     """Run the experiment."""
-    print(cfg)
-
     key = jax.random.PRNGKey(cfg.seed)
 
     generative_process = typed_instantiate(cfg.generative_process.instance, GenerativeProcess)
@@ -21,7 +19,7 @@ def run_experiment(cfg: Config):
 
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, in_size=1, out_size=num_observations)
 
-    model, losses = train(
+    train(
         cfg.train,
         key,
         model,
@@ -29,7 +27,7 @@ def run_experiment(cfg: Config):
         initial_gen_process_state,
         log_every=1,
     )
-    print(losses.shape)
+    print("Training complete")
 
 
 if __name__ == "__main__":
