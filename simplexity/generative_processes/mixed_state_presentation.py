@@ -135,10 +135,11 @@ class MyopicEntropies(eqx.Module):
         self.sequence_lengths = jnp.arange(belief_state_entropies.shape[0])
 
 
-def compute_average_entropy(log_dists: jax.Array, log_probs: jax.Array) -> jax.Array:
+def compute_average_entropy(log_dists: jax.Array, log_probs: jax.Array, size: jax.Array) -> jax.Array:
     """Compute the weighted average entropy of a collection of distributions."""
     entropies = eqx.filter_vmap(entropy)(log_dists)
-    return jnp.sum(entropies * jnp.exp(log_probs))
+    mask = jnp.where(jnp.arange(log_dists.shape[0]) < size, 1, 0)
+    return jnp.sum(entropies * jnp.exp(log_probs) * mask)
 
 
 class MixedStateTreeGenerator(eqx.Module):
@@ -213,8 +214,10 @@ class MixedStateTreeGenerator(eqx.Module):
             belief_state_entropies, observation_entropies, search_nodes = carry
             data = cast(MixedStateNode, search_nodes.data)
             log_obs_dists = log_obs_dist_fn(data.log_belief_state)
-            belief_state_entropy = compute_average_entropy(data.log_belief_state, data.log_probability)
-            observation_entropy = compute_average_entropy(log_obs_dists, data.log_probability)
+            belief_state_entropy = compute_average_entropy(
+                data.log_belief_state, data.log_probability, search_nodes.size
+            )
+            observation_entropy = compute_average_entropy(log_obs_dists, data.log_probability, search_nodes.size)
             belief_state_entropies = belief_state_entropies.at[sequence_length].set(belief_state_entropy)
             observation_entropies = observation_entropies.at[sequence_length].set(observation_entropy)
             search_nodes = self.get_all_children(search_nodes)
