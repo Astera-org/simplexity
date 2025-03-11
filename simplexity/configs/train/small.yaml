@@ -5,3 +5,4 @@ defaults:
 sequence_len: 8
 batch_size: 4
 num_epochs: 3
+save_weights: True

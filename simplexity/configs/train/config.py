@@ -11,3 +11,4 @@ class Config:
     batch_size: int
     num_epochs: int
     optimizer: OptimizerConfig
+    save_weights: bool

@@ -21,10 +21,10 @@ def run_experiment(cfg: Config):
     initial_gen_process_state = generative_process.initial_state
     num_observations = generative_process.num_observations
 
-    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, in_size=1, out_size=num_observations)
     persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
-    if cfg.persistence.load_weights:
-        model = persister.load_weights(model, cfg.persistence.weights_filename)
+    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, in_size=1, out_size=num_observations)
+    if cfg.predictive_model.load_weights:
+        model = persister.load_weights(model, cfg.predictive_model.weights_filename)
     optimizer = typed_instantiate(cfg.train.optimizer.instance, GradientTransformation)
 
     sequence_len = cfg.train.sequence_len
@@ -42,8 +42,8 @@ def run_experiment(cfg: Config):
         sequence_len,
         log_every=1,
     )
-    if cfg.persistence.save_weights:
-        persister.save_weights(model, cfg.persistence.weights_filename)
+    if cfg.train.save_weights:
+        persister.save_weights(model, cfg.predictive_model.weights_filename)
     print(losses.shape)
 
 

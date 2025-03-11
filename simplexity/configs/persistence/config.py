@@ -22,7 +22,4 @@ class Config:
     """Base configuration for persistence."""
 
     name: Literal["local_persister"]
-    weights_filename: str
-    load_weights: bool
-    save_weights: bool
     instance: PersistenceInstanceConfig

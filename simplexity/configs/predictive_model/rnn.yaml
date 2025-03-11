@@ -5,3 +5,6 @@ instance:
   hidden_sizes: [64, 64, 64, 64]
   out_size: 10
   seed: 0
+
+weights_filename: rnn
+load_weights: True

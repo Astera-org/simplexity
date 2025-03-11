@@ -26,3 +26,5 @@ class Config:
 
     name: Literal["rnn"]
     instance: ModelInstanceConfig
+    weights_filename: str
+    load_weights: bool
