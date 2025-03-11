@@ -1,7 +1,9 @@
-.pytest_cache
-.ruff_cache
+.pytest_cache/
+.ruff_cache/
 .venv/
 .vscode/
 __pycache__/
 data/
 outputs/
+.env
+setup_mlflow.py
