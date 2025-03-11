@@ -5,6 +5,7 @@ from optax import GradientTransformation
 from simplexity.configs.config import Config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.hydra_helpers import typed_instantiate
+from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train import train
 
@@ -21,6 +22,9 @@ def run_experiment(cfg: Config):
     num_observations = generative_process.num_observations
 
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, in_size=1, out_size=num_observations)
+    persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
+    if cfg.persistence.load_weights:
+        model = persister.load_weights(model, cfg.persistence.weights_filename)
     optimizer = typed_instantiate(cfg.train.optimizer.instance, GradientTransformation)
 
     sequence_len = cfg.train.sequence_len
@@ -38,6 +42,8 @@ def run_experiment(cfg: Config):
         sequence_len,
         log_every=1,
     )
+    if cfg.persistence.save_weights:
+        persister.save_weights(model, cfg.persistence.weights_filename)
     print(losses.shape)
 
 

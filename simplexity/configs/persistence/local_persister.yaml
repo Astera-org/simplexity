@@ -1,0 +1,9 @@
+name: local_persister
+
+weights_filename: model
+load_weights: True
+save_weights: True
+
+instance:
+  _target_: simplexity.persistence.local_persister.LocalPersister
+  base_dir: ./data/models
