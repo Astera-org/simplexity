@@ -1,6 +1,5 @@
 import hydra
 import jax
-from optax import GradientTransformation
 
 from simplexity.configs.config import Config
 from simplexity.generative_processes.generative_process import GenerativeProcess
@@ -21,21 +20,13 @@ def run_experiment(cfg: Config):
     num_observations = generative_process.num_observations
 
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, in_size=1, out_size=num_observations)
-    optimizer = typed_instantiate(cfg.train.optimizer.instance, GradientTransformation)
-
-    sequence_len = cfg.train.sequence_len
-    batch_size = cfg.train.batch_size
-    num_epochs = cfg.train.num_epochs
 
     model, losses = train(
+        cfg.train,
         key,
         model,
-        optimizer,
         generative_process,
         initial_gen_process_state,
-        num_epochs,
-        batch_size,
-        sequence_len,
         log_every=1,
     )
     print(losses.shape)

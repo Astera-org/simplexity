@@ -6,7 +6,9 @@ import jax
 import jax.numpy as jnp
 import optax
 
+from simplexity.configs.train.config import Config as TrainConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.hydra_helpers import typed_instantiate
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
@@ -72,18 +74,17 @@ def training_epoch(
 
 @eqx.filter_jit
 def train(
+    cfg: TrainConfig,
     key: chex.PRNGKey,
     model: PredictiveModel,
-    optimizer: optax.GradientTransformation,
     gen_process: GenerativeProcess,
     initial_gen_process_state: jax.Array,
-    num_epochs: int,
-    batch_size: int,
-    sequence_len: int,
     log_every: int = 1,
 ) -> tuple[PredictiveModel, jax.Array]:
     """Train a predictive model on a generative process."""
-    gen_process_states = jnp.repeat(initial_gen_process_state[None, :], batch_size, axis=0)
+    gen_process_states = jnp.repeat(initial_gen_process_state[None, :], cfg.batch_size, axis=0)
+
+    optimizer = typed_instantiate(cfg.optimizer.instance, optax.GradientTransformation)
 
     params = eqx.filter(model, eqx.is_array)
     opt_state = optimizer.init(params)
@@ -97,11 +98,11 @@ def train(
     attrs = TrainingAttributes(
         gen_process=gen_process,
         opt_update=opt_update,
-        batch_size=batch_size,
-        sequence_len=sequence_len,
+        batch_size=cfg.batch_size,
+        sequence_len=cfg.sequence_len,
     )
 
-    losses = jnp.zeros(num_epochs // log_every)
+    losses = jnp.zeros(cfg.num_epochs // log_every)
 
     def training_loop(
         i, carry: tuple[TrainingState, jax.Array, chex.PRNGKey]
@@ -112,6 +113,6 @@ def train(
         losses = losses.at[i // log_every].set(loss)
         return state, losses, key
 
-    state, losses, key = jax.lax.fori_loop(0, num_epochs, training_loop, (state, losses, key))
+    state, losses, key = jax.lax.fori_loop(0, cfg.num_epochs, training_loop, (state, losses, key))
 
     return model, losses
