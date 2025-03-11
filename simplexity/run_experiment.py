@@ -29,10 +29,9 @@ def run_experiment(cfg: Config):
         model,
         generative_process,
         initial_gen_process_state,
+        persister,
         log_every=1,
     )
-    if cfg.train.save_weights:
-        persister.save_weights(model, cfg.predictive_model.weights_filename)
     print("Training complete")
 
 

@@ -9,6 +9,7 @@ import optax
 from simplexity.configs.train.config import Config as TrainConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.hydra_helpers import typed_instantiate
+from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
@@ -72,13 +73,13 @@ def training_epoch(
     return update(state, x, y, attrs.opt_update)
 
 
-@eqx.filter_jit
 def train(
     cfg: TrainConfig,
     key: chex.PRNGKey,
     model: PredictiveModel,
     gen_process: GenerativeProcess,
     initial_gen_process_state: jax.Array,
+    persister: ModelPersister,
     log_every: int = 1,
 ) -> tuple[PredictiveModel, jax.Array]:
     """Train a predictive model on a generative process."""
@@ -104,15 +105,12 @@ def train(
 
     losses = jnp.zeros(cfg.num_epochs // log_every)
 
-    def training_loop(
-        i, carry: tuple[TrainingState, jax.Array, chex.PRNGKey]
-    ) -> tuple[TrainingState, jax.Array, chex.PRNGKey]:
-        state, losses, key = carry
+    max_epoch_digits = len(str(cfg.num_epochs))
+    for i in range(1, cfg.num_epochs + 1):
         key, epoch_key = jax.random.split(key)
         state, loss = training_epoch(state, attrs, epoch_key)
         losses = losses.at[i // log_every].set(loss)
-        return state, losses, key
-
-    state, losses, key = jax.lax.fori_loop(0, cfg.num_epochs, training_loop, (state, losses, key))
+        if i % cfg.checkpoint_every == 0:
+            persister.save_weights(model, cfg.checkpoint_name + f"_epoch_{i:0{max_epoch_digits}d}")
 
     return model, losses
