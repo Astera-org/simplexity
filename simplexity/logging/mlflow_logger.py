@@ -1,4 +1,5 @@
 import os
+import tempfile
 import time
 from collections.abc import Mapping
 from typing import Any
@@ -6,6 +7,7 @@ from typing import Any
 import dotenv
 import mlflow
 from mlflow.entities import Metric, Param, RunTag
+from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
 
@@ -35,8 +37,15 @@ class MLFlowLogger(Logger):
         print(f"Logging run {run.info.run_name} of experiment {experiment_name} to MLflow.")
         experiment_url = f"{_DATABRICKS_HOST}/ml/experiments/{experiment_id}"
         run_url = f"{experiment_url}/runs/{self._run_id}"
-        print(f"View run at: {run_url}")
-        print(f"View experiment at: {experiment_url}")
+        print(f"🏃 View run {run.info.run_name} at: {run_url}")
+        print(f"🧪 View experiment at: {experiment_url}")
+
+    def log_config(self, config: DictConfig) -> None:
+        """Log config to MLflow."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = os.path.join(temp_dir, "config.yaml")
+            OmegaConf.save(config, config_path)
+            self._client.log_artifact(self._run_id, config_path)
 
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
         """Log metrics to MLflow."""
