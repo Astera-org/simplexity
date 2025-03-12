@@ -16,6 +16,7 @@ def run_experiment(cfg: Config):
     """Run the experiment."""
     assert isinstance(cfg, DictConfig)
     logger = typed_instantiate(cfg.logging.instance, Logger)
+    logger.log_config(cfg)
     logger.log_params(cfg)
 
     key = jax.random.PRNGKey(cfg.seed)
@@ -38,7 +39,8 @@ def run_experiment(cfg: Config):
         persister,
         logger,
     )
-    print("Training complete")
+
+    logger.close()
 
 
 if __name__ == "__main__":
