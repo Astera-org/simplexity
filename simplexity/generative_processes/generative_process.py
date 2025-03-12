@@ -11,6 +11,12 @@ State = TypeVar("State")
 class GenerativeProcess(eqx.Module, Generic[State]):
     """A generative process is a probabilistic model that can be used to generate data."""
 
+    @property
+    @abstractmethod
+    def num_observations(self) -> int:
+        """The number of distinct observations that can be emitted by the model."""
+        ...
+
     @abstractmethod
     def emit_observation(self, state: State, key: chex.PRNGKey) -> chex.Array:
         """Emit an observation based on the state of the generative process."""

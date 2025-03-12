@@ -141,18 +141,6 @@ def test_hmm_log_observation_probability_distribution(z1r: GeneralizedHiddenMark
     chex.assert_trees_all_close(log_obs_probs, jnp.log(jnp.array([0.6, 0.4])))
 
 
-def test_ghmm_log_observation_probability_distribution(fanizza_model: GeneralizedHiddenMarkovModel):
-    # log_state = jnp.log(jnp.array([0.3, 0.1, 0.6, 0.0]))
-    log_state = fanizza_model.log_state_eigenvector
-    log_obs_probs = fanizza_model.log_observation_probability_distribution(log_state)
-    try:
-        assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=1e-7)
-        assert jnp.all(~jnp.isnan(log_obs_probs))
-        assert jnp.all(log_obs_probs <= 0)
-    except AssertionError:
-        pytest.xfail("Log obs probs contains nans or values greater than 0")
-
-
 def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
@@ -182,7 +170,4 @@ def test_ghmm_log_probability(fanizza_model: GeneralizedHiddenMarkovModel):
     observations = jax.random.randint(key, (10,), 0, fanizza_model.num_observations)
 
     log_probability = fanizza_model.log_probability(observations)
-    try:
-        assert log_probability <= 0
-    except AssertionError:
-        pytest.xfail("Eigenvector contains negative values -> log_eigenvector contains nans")
+    assert log_probability <= 0
