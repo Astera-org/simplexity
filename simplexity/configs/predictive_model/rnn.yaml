@@ -8,4 +8,4 @@ instance:
   seed: 0
 
 weights_filename: rnn
-load_weights: True
+load_weights: False

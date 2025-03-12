@@ -4,6 +4,7 @@
 .vscode/
 __pycache__/
 data/
+multirun/
 outputs/
 .env
 setup_mlflow.py
