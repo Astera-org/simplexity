@@ -19,6 +19,9 @@ jobs:
       - name: ruff format
         run: uv run --extra dev ruff format --check
 
+      - name: ruff notebooks
+        run: uv run --extra dev nbqa ruff notebooks
+
       - name: pyright
         run: uv run --extra dev pyright
 

@@ -11,11 +11,19 @@ version = "0.1"
 description = "Computational Mechanics of sequence prediction models."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "chex",
+    "equinox",
+    "jax[cuda12_pip]",
+    "jupyter",
+    "matplotlib",
+    "pandas",
+]
 
 [project.optional-dependencies]
 dev = [
     "jaxtyping",
+    "nbqa",
     "pyright",
     "pytest",
     "pytest-cov",
