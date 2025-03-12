@@ -34,12 +34,6 @@ class MLFlowLogger(Logger):
         run = self._client.create_run(experiment_id=experiment_id, run_name=run_name)
         self._run_id = run.info.run_id
 
-        print(f"Logging run {run.info.run_name} of experiment {experiment_name} to MLflow.")
-        experiment_url = f"{_DATABRICKS_HOST}/ml/experiments/{experiment_id}"
-        run_url = f"{experiment_url}/runs/{self._run_id}"
-        print(f"🏃 View run {run.info.run_name} at: {run_url}")
-        print(f"🧪 View experiment at: {experiment_url}")
-
     def log_config(self, config: DictConfig) -> None:
         """Log config to MLflow."""
         with tempfile.TemporaryDirectory() as temp_dir:
