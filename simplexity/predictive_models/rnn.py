@@ -75,3 +75,16 @@ class RNN(PredictiveModel):
     def __call__(self, xs: jax.Array) -> jax.Array:
         """Forward pass of the RNN."""
         return self.layers(xs)
+
+
+def build_rnn(
+    in_size: int,
+    out_size: int,
+    hidden_size: int,
+    num_layers: int,
+    *,
+    seed: int,
+) -> RNN:
+    """Build a RNN model."""
+    hidden_sizes = [hidden_size] * num_layers
+    return RNN(in_size, out_size, hidden_sizes, seed=seed)
