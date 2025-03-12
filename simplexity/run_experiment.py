@@ -12,7 +12,7 @@ from simplexity.training.train import train
 
 
 @hydra.main(config_path="configs", config_name="experiment.yaml", version_base="1.2")
-def run_experiment(cfg: Config):
+def run_experiment(cfg: Config) -> float:
     """Run the experiment."""
     assert isinstance(cfg, DictConfig)
     logger = typed_instantiate(cfg.logging.instance, Logger)
@@ -30,7 +30,7 @@ def run_experiment(cfg: Config):
     if cfg.predictive_model.load_weights:
         model = persister.load_weights(model, cfg.predictive_model.weights_filename)
 
-    train(
+    _, loss = train(
         cfg.train,
         key,
         model,
@@ -41,6 +41,8 @@ def run_experiment(cfg: Config):
     )
 
     logger.close()
+
+    return loss
 
 
 if __name__ == "__main__":
