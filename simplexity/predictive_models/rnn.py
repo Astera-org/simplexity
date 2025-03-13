@@ -73,8 +73,8 @@ class RNN(PredictiveModel):
         return self.layers(xs)
 
 
-def build_rnn(num_observations: int, num_layers: int, hidden_size: int, seed: int) -> RNN:
+def build_rnn(vocab_size: int, num_layers: int, hidden_size: int, seed: int) -> RNN:
     """Build a RNN model."""
     hidden_sizes = [hidden_size] * num_layers
     key = jax.random.PRNGKey(seed)
-    return RNN(num_observations, num_observations, hidden_sizes, key=key)
+    return RNN(vocab_size, vocab_size, hidden_sizes, key=key)

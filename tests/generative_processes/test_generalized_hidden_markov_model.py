@@ -19,10 +19,10 @@ def fanizza_model() -> GeneralizedHiddenMarkovModel:
     return build_generalized_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
 
 
-@pytest.mark.parametrize(("model_name", "num_observations", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])
-def test_properties(model_name: str, num_observations: int, num_states: int, request: pytest.FixtureRequest):
+@pytest.mark.parametrize(("model_name", "vocab_size", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])
+def test_properties(model_name: str, vocab_size: int, num_states: int, request: pytest.FixtureRequest):
     model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
-    assert model.num_observations == num_observations
+    assert model.vocab_size == vocab_size
     assert model.num_states == num_states
 
 
@@ -149,7 +149,7 @@ def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
 
 def test_ghmm_probability(fanizza_model: GeneralizedHiddenMarkovModel):
     key = jax.random.PRNGKey(0)
-    observations = jax.random.randint(key, (10,), 0, fanizza_model.num_observations)
+    observations = jax.random.randint(key, (10,), 0, fanizza_model.vocab_size)
 
     probability = fanizza_model.probability(observations)
     assert 0 <= probability <= 1
@@ -165,7 +165,7 @@ def test_hmm_log_probability(z1r: GeneralizedHiddenMarkovModel):
 
 def test_ghmm_log_probability(fanizza_model: GeneralizedHiddenMarkovModel):
     key = jax.random.PRNGKey(0)
-    observations = jax.random.randint(key, (10,), 0, fanizza_model.num_observations)
+    observations = jax.random.randint(key, (10,), 0, fanizza_model.vocab_size)
 
     log_probability = fanizza_model.log_probability(observations)
     assert log_probability <= 0
