@@ -50,12 +50,11 @@ class RNN(PredictiveModel):
 
     layers: eqx.nn.Sequential
 
-    def __init__(self, in_size: int, out_size: int, hidden_sizes: list[int], *, seed: int):
+    def __init__(self, in_size: int, out_size: int, hidden_sizes: list[int], *, key: chex.PRNGKey):
         self.in_size = in_size
         self.out_size = out_size
 
         num_gru_layers = len(hidden_sizes)
-        key = jax.random.PRNGKey(seed)
         linear_key, *cell_keys = jax.random.split(key, num_gru_layers + 1)
 
         layers = []
@@ -72,3 +71,10 @@ class RNN(PredictiveModel):
     def __call__(self, xs: jax.Array) -> jax.Array:
         """Forward pass of the RNN."""
         return self.layers(xs)
+
+
+def build_rnn(vocab_size: int, num_layers: int, hidden_size: int, seed: int) -> RNN:
+    """Build a RNN model."""
+    hidden_sizes = [hidden_size] * num_layers
+    key = jax.random.PRNGKey(seed)
+    return RNN(vocab_size, vocab_size, hidden_sizes, key=key)
