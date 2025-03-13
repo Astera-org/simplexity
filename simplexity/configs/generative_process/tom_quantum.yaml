@@ -1,4 +1,5 @@
 name: tom_quantum
+vocab_size: 4
 instance:
   _target_: simplexity.generative_processes.builder.build_generalized_hidden_markov_model
   process_name: tom_quantum

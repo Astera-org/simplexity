@@ -19,10 +19,10 @@ def fanizza_model() -> GeneralizedHiddenMarkovModel:
     return build_generalized_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
 
 
-@pytest.mark.parametrize(("model_name", "num_observations", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])
-def test_properties(model_name: str, num_observations: int, num_states: int, request: pytest.FixtureRequest):
+@pytest.mark.parametrize(("model_name", "vocab_size", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])
+def test_properties(model_name: str, vocab_size: int, num_states: int, request: pytest.FixtureRequest):
     model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
-    assert model.num_observations == num_observations
+    assert model.vocab_size == vocab_size
     assert model.num_states == num_states
 
 
@@ -139,18 +139,6 @@ def test_hmm_log_observation_probability_distribution(z1r: GeneralizedHiddenMark
     chex.assert_trees_all_close(log_obs_probs, jnp.log(jnp.array([0.6, 0.4])))
 
 
-def test_ghmm_log_observation_probability_distribution(fanizza_model: GeneralizedHiddenMarkovModel):
-    # log_state = jnp.log(jnp.array([0.3, 0.1, 0.6, 0.0]))
-    log_state = fanizza_model.log_state_eigenvector
-    log_obs_probs = fanizza_model.log_observation_probability_distribution(log_state)
-    try:
-        assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=1e-7)
-        assert jnp.all(~jnp.isnan(log_obs_probs))
-        assert jnp.all(log_obs_probs <= 0)
-    except AssertionError:
-        pytest.xfail("Log obs probs contains nans or values greater than 0")
-
-
 def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
@@ -161,7 +149,7 @@ def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
 
 def test_ghmm_probability(fanizza_model: GeneralizedHiddenMarkovModel):
     key = jax.random.PRNGKey(0)
-    observations = jax.random.randint(key, (10,), 0, fanizza_model.num_observations)
+    observations = jax.random.randint(key, (10,), 0, fanizza_model.vocab_size)
 
     probability = fanizza_model.probability(observations)
     assert 0 <= probability <= 1
@@ -177,10 +165,7 @@ def test_hmm_log_probability(z1r: GeneralizedHiddenMarkovModel):
 
 def test_ghmm_log_probability(fanizza_model: GeneralizedHiddenMarkovModel):
     key = jax.random.PRNGKey(0)
-    observations = jax.random.randint(key, (10,), 0, fanizza_model.num_observations)
+    observations = jax.random.randint(key, (10,), 0, fanizza_model.vocab_size)
 
     log_probability = fanizza_model.log_probability(observations)
-    try:
-        assert log_probability <= 0
-    except AssertionError:
-        pytest.xfail("Eigenvector contains negative values -> log_eigenvector contains nans")
+    assert log_probability <= 0

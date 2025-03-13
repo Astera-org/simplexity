@@ -2,8 +2,10 @@ defaults:
   - _self_
   - optimizer: adam
 
+seed: ${seed}
 sequence_len: 8
 batch_size: 4
 num_epochs: 10
 checkpoint_every: 5
+log_every: 1
 checkpoint_name: "small"
