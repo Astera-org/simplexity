@@ -70,7 +70,6 @@ def training_epoch(
     return update(state, x, y, attrs.opt_update)
 
 
-@eqx.filter_jit
 def train(
     cfg: TrainConfig,
     model: PredictiveModel,
@@ -100,16 +99,10 @@ def train(
 
     losses = jnp.zeros(cfg.num_epochs // cfg.log_every)
 
-    def training_loop(
-        i, carry: tuple[TrainingState, jax.Array, chex.PRNGKey]
-    ) -> tuple[TrainingState, jax.Array, chex.PRNGKey]:
-        state, losses, key = carry
+    key = jax.random.PRNGKey(cfg.seed)
+    for i in range(cfg.num_epochs):
         key, epoch_key = jax.random.split(key)
         state, loss = training_epoch(state, attrs, epoch_key)
         losses = losses.at[i // cfg.log_every].set(loss)
-        return state, losses, key
-
-    key = jax.random.PRNGKey(cfg.seed)
-    state, losses, key = jax.lax.fori_loop(0, cfg.num_epochs, training_loop, (state, losses, key))
 
     return model, losses
