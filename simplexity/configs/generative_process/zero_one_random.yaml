@@ -1,4 +1,5 @@
 name: zero_one_random
+vocab_size: 2
 instance:
   _target_: simplexity.generative_processes.builder.build_hidden_markov_model
   process_name: zero_one_random
