@@ -100,7 +100,7 @@ def train(
     losses = jnp.zeros(cfg.num_epochs // cfg.log_every)
 
     key = jax.random.PRNGKey(cfg.seed)
-    for i in range(cfg.num_epochs):
+    for i in range(1, cfg.num_epochs + 1):
         key, epoch_key = jax.random.split(key)
         state, loss = training_epoch(state, attrs, epoch_key)
         losses = losses.at[i // cfg.log_every].set(loss)
