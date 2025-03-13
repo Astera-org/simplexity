@@ -12,8 +12,8 @@ def run_experiment(cfg: Config):
     """Run the experiment."""
     generative_process = typed_instantiate(cfg.generative_process.instance, GenerativeProcess)
     initial_gen_process_state = generative_process.initial_state
-    vocab_size = generative_process.num_observations
-    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, vocab_size=vocab_size)
+    num_observations = generative_process.num_observations
+    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, num_observations=num_observations)
     train(cfg.train, model, generative_process, initial_gen_process_state)
     print("Training complete")
 

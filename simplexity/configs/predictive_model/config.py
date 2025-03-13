@@ -7,7 +7,7 @@ class ModelInstanceConfig:
     """Configuration for the model instance."""
 
     _target_: Literal["simplexity.predictive_models.rnn.build_rnn"]
-    vocab_size: int
+    num_observations: int
 
 
 @dataclass
