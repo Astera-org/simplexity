@@ -50,16 +50,15 @@ class LinearFn(eqx.Module):
 class RNN(PredictiveModel):
     """A simple RNN model."""
 
-    hidden_sizes: list[int]
     layers: eqx.nn.Sequential
 
-    def __init__(self, in_size: int, out_size: int, hidden_sizes: Iterable[int], *, seed: int):
-        hidden_sizes = list(hidden_sizes)
+    def __init__(self, in_size: int, out_size: int, hidden_sizes: list[int], *, key: chex.PRNGKey):
+        self.in_size = in_size
+        self.out_size = out_size
+
         num_gru_layers = len(hidden_sizes)
         key = jax.random.PRNGKey(seed)
         linear_key, *cell_keys = jax.random.split(key, num_gru_layers + 1)
-
-        self.hidden_sizes = hidden_sizes
 
         layers = []
         for hidden_size, cell_key in zip(hidden_sizes, cell_keys, strict=True):
