@@ -6,11 +6,13 @@ A library for exploring sequence prediction models from a Computational Mechanic
 
 ```
 simplexity/
-  ├── data/
-  ├── notebooks/
-  ├── simplexity/
-  │   ├── generative_processes/
-  └── tests/
+  ├── data/                      # generated data
+  ├── notebooks/                 # workflow and analysis examples
+  ├── simplexity/                # core library code
+  │   ├── generative_processes/  # generative process classes
+  │   ├── prediction_models/     # prediction model classes
+  │   ├── training/              # model training functions
+  └── tests/                     # unit tests
 ```
 
 ## Usage
