@@ -2,6 +2,8 @@ defaults:
   - _self_
   - optimizer: adam
 
+seed: 0
 sequence_len: 8
 batch_size: 4
 num_epochs: 3
+log_every: 1

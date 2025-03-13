@@ -73,11 +73,9 @@ def training_epoch(
 @eqx.filter_jit
 def train(
     cfg: TrainConfig,
-    key: chex.PRNGKey,
     model: PredictiveModel,
     gen_process: GenerativeProcess,
     initial_gen_process_state: jax.Array,
-    log_every: int = 1,
 ) -> tuple[PredictiveModel, jax.Array]:
     """Train a predictive model on a generative process."""
     gen_process_states = jnp.repeat(initial_gen_process_state[None, :], cfg.batch_size, axis=0)
@@ -100,7 +98,7 @@ def train(
         sequence_len=cfg.sequence_len,
     )
 
-    losses = jnp.zeros(cfg.num_epochs // log_every)
+    losses = jnp.zeros(cfg.num_epochs // cfg.log_every)
 
     def training_loop(
         i, carry: tuple[TrainingState, jax.Array, chex.PRNGKey]
@@ -108,9 +106,10 @@ def train(
         state, losses, key = carry
         key, epoch_key = jax.random.split(key)
         state, loss = training_epoch(state, attrs, epoch_key)
-        losses = losses.at[i // log_every].set(loss)
+        losses = losses.at[i // cfg.log_every].set(loss)
         return state, losses, key
 
+    key = jax.random.PRNGKey(cfg.seed)
     state, losses, key = jax.lax.fori_loop(0, cfg.num_epochs, training_loop, (state, losses, key))
 
     return model, losses
