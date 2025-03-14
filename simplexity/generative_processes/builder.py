@@ -59,7 +59,7 @@ def build_generalized_hidden_markov_model(process_name: str, **kwargs) -> Genera
     elif process_type == GHMMProcessType.ZERO_ONE_RANDOM:
         transition_matrices = zero_one_random(**kwargs)
         return GeneralizedHiddenMarkovModel(transition_matrices)
-    raise ValueError(f"Unknown process type: {process_type}")
+    raise KeyError(f"Unknown process type: {process_type}")
 
 
 class HMMProcessType(Enum):
@@ -94,4 +94,4 @@ def build_hidden_markov_model(process_name: str, **kwargs) -> HiddenMarkovModel:
     elif process_type == HMMProcessType.ZERO_ONE_RANDOM:
         transition_matrices = zero_one_random(**kwargs)
         return HiddenMarkovModel(transition_matrices)
-    raise ValueError(f"Unknown process type: {process_type}")
+    raise KeyError(f"Unknown process type: {process_type}")

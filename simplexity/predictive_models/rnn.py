@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 import chex
 import equinox as eqx
 import jax
@@ -50,7 +52,7 @@ class RNN(PredictiveModel):
 
     layers: eqx.nn.Sequential
 
-    def __init__(self, in_size: int, out_size: int, hidden_sizes: list[int], *, key: chex.PRNGKey):
+    def __init__(self, in_size: int, out_size: int, hidden_sizes: Sequence[int], *, key: chex.PRNGKey):
         self.in_size = in_size
         self.out_size = out_size
 
