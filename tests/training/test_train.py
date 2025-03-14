@@ -9,11 +9,7 @@ from simplexity.training.train import train
 def test_train():
     generative_process = build_hidden_markov_model("even_ones", p=0.5)
     initial_gen_process_state = generative_process.state_eigenvector
-
-    vocab_size = generative_process.vocab_size
-    num_layers = 2
-    hidden_size = 4
-    model = build_rnn(vocab_size, num_layers, hidden_size, seed=0)
+    model = build_rnn(generative_process.vocab_size, num_layers=2, hidden_size=4, seed=0)
 
     cfg = TrainConfig(
         seed=0,
