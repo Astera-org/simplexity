@@ -110,6 +110,6 @@ def train(
         losses = losses.at[i // log_every].set(loss)
         return state, losses, key
 
-    state, losses, key = jax.lax.fori_loop(0, num_epochs, training_loop, (state, losses, key))
+    state, losses, key = jax.lax.fori_loop(1, num_epochs + 1, training_loop, (state, losses, key))
 
     return model, losses
