@@ -227,19 +227,19 @@ def mess3(x=0.15, a=0.6):
     return jnp.array(
         [
             [
-                [ay, ax, ax],
-                [bx, by, bx],
-                [bx, bx, by],
+                [ay, bx, bx],
+                [ax, by, bx],
+                [ax, bx, by],
             ],
             [
-                [by, bx, bx],
-                [ax, ay, ax],
-                [bx, bx, by],
+                [by, ax, bx],
+                [bx, ay, bx],
+                [bx, ax, by],
             ],
             [
-                [by, bx, bx],
-                [bx, by, bx],
-                [ax, ax, ay],
+                [by, bx, ax],
+                [bx, by, ax],
+                [bx, bx, ay],
             ],
         ]
     )

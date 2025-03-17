@@ -90,9 +90,9 @@ def get_generator_for_process(process_key: str) -> tuple[MixedStateTreeGenerator
         "mess3": {"x": 0.15, "a": 0.6},
         "zero_one_random": {"p": 0.5},
         "rrxor": {"pR1": 0.5, "pR2": 0.5},
-        "fanizza": {"alpha": 2000, "lamb": 0.49},
+        "fanizza": {"alpha": 2000.0, "lamb": 0.49},
         "post_quantum": {"log_alpha": np.log(2.7), "beta": 0.5},
-        "tom_quantum": {"alpha": 1, "beta": 0.5},
+        "tom_quantum": {"alpha": 1.0, "beta": 0.5},
     }
 
     # Check if this is a GHMM version of an HMM process
