@@ -11,6 +11,7 @@ simplexity/
   ├── simplexity/                # core library code
   │   ├── configs/               # hydra configuration files
   │   ├── generative_processes/  # generative process classes
+  │   ├── logging/               # parameter and metric logging
   │   ├── persistence/           # model loading and checkpointing
   │   ├── prediction_models/     # prediction model classes
   │   ├── training/              # model training functions
