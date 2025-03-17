@@ -37,7 +37,7 @@ class TrainingAttributes(eqx.Module):
 def loss_fn(model: PredictiveModel, x: jax.Array, y: jax.Array) -> chex.Array:
     """Compute the loss for a batch of observations and their corresponding states."""
     logits = model(x)
-    losses = optax.softmax_cross_entropy_with_integer_labels(logits, y)
+    losses = optax.softmax_cross_entropy(logits, y)
     return jnp.mean(losses)
 
 
@@ -66,17 +66,14 @@ def training_epoch(
     batch_keys = jax.random.split(key, attrs.batch_size)
     gen_process_states, obs = attrs.gen_process.generate(state.gen_process_states, batch_keys, attrs.sequence_len)
     state = dataclasses.replace(state, gen_process_states=gen_process_states)
-    obs: jax.Array
-    if obs.ndim == 2:
-        obs = obs[:, :, None]
-    x = obs[:, :-1, :]
-    y = obs[:, 1:, :].squeeze()
+    one_hot_obs = jax.nn.one_hot(obs, state.model.out_size)
+    x = one_hot_obs[:, :-1, :]
+    y = one_hot_obs[:, 1:, :].squeeze()
     return update(state, x, y, attrs.opt_update)
 
 
 def train(
     cfg: TrainConfig,
-    key: chex.PRNGKey,
     model: PredictiveModel,
     gen_process: GenerativeProcess,
     initial_gen_process_state: jax.Array,
@@ -104,6 +101,7 @@ def train(
         sequence_len=cfg.sequence_len,
     )
 
+    key = jax.random.PRNGKey(cfg.seed)
     max_epoch_digits = len(str(cfg.num_epochs))
     for i in range(1, cfg.num_epochs + 1):
         key, epoch_key = jax.random.split(key)
@@ -111,6 +109,6 @@ def train(
         if i % cfg.log_every == 0:
             logger.log_metrics(i, {"loss": loss})
         if i % cfg.checkpoint_every == 0:
-            persister.save_weights(model, cfg.checkpoint_name + f"_epoch_{i:0{max_epoch_digits}d}")
+            persister.save_weights(model, cfg.checkpoint_name + f"_{i:0{max_epoch_digits}d}")
 
     return model

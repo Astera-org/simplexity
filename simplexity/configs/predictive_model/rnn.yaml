@@ -1,10 +1,10 @@
 name: rnn
 instance:
-  _target_: simplexity.predictive_models.rnn.RNN
-  in_size: 10
-  hidden_sizes: [64, 64, 64, 64]
-  out_size: 10
-  seed: 0
+  _target_: simplexity.predictive_models.rnn.build_rnn
+  vocab_size: ${generative_process.vocab_size}
+  num_layers: 4
+  hidden_size: 64
+  seed: ${seed}
 
 weights_filename: rnn
 load_weights: True
