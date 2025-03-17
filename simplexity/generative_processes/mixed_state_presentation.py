@@ -29,7 +29,7 @@ class MixedStateNode(eqx.Module):
 
     sequence: jax.Array
     sequence_length: jax.Array
-    log_state: jax.Array
+    log_unnormalized_belief_state: jax.Array
     log_belief_state: jax.Array
     log_probability: jax.Array
 
@@ -247,20 +247,26 @@ class MixedStateTreeGenerator(eqx.Module):
         """The root node of the tree."""
         empty_sequence = jnp.zeros((self.max_sequence_length,), dtype=jnp.int32)
         sequence_length = jnp.array(0)
-        log_state = self.ghmm.log_stationary_state
-        log_belief_state = self.ghmm.normalize_log_belief_state(log_state)
-        log_probability = jax.nn.logsumexp(log_state + self.ghmm.log_normalizing_eigenvector)
-        return MixedStateNode(empty_sequence, sequence_length, log_state, log_belief_state, log_probability)
+        log_unnormalized_belief_state = self.ghmm.log_stationary_state
+        log_belief_state = self.ghmm.normalize_log_belief_state(log_unnormalized_belief_state)
+        log_probability = jax.nn.logsumexp(log_unnormalized_belief_state + self.ghmm.log_normalizing_eigenvector)
+        return MixedStateNode(
+            empty_sequence, sequence_length, log_unnormalized_belief_state, log_belief_state, log_probability
+        )
 
     @eqx.filter_jit
     def get_child(self, node: MixedStateNode, obs: jax.Array) -> MixedStateNode:
         """Get the child of a node."""
         sequence = node.sequence.at[node.sequence_length].set(obs)
         sequence_length = node.sequence_length + 1
-        log_state = jax.nn.logsumexp(node.log_state[:, None] + self.ghmm.log_transition_matrices[obs], axis=0)
-        log_belief_state = self.ghmm.normalize_log_belief_state(log_state)
-        log_probability = jax.nn.logsumexp(log_state + self.ghmm.log_normalizing_eigenvector)
-        return MixedStateNode(sequence, sequence_length, log_state, log_belief_state, log_probability)
+        log_unnormalized_belief_state = jax.nn.logsumexp(
+            node.log_unnormalized_belief_state[:, None] + self.ghmm.log_transition_matrices[obs], axis=0
+        )
+        log_belief_state = self.ghmm.normalize_log_belief_state(log_unnormalized_belief_state)
+        log_probability = jax.nn.logsumexp(log_unnormalized_belief_state + self.ghmm.log_normalizing_eigenvector)
+        return MixedStateNode(
+            sequence, sequence_length, log_unnormalized_belief_state, log_belief_state, log_probability
+        )
 
     @eqx.filter_jit
     def _next_node(self, nodes: Collection[MixedStateNode]) -> tuple[Collection[MixedStateNode], MixedStateNode]:

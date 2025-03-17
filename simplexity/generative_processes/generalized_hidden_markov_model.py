@@ -88,12 +88,12 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         return state / (state @ self.normalizing_eigenvector)
 
     @eqx.filter_jit
-    def normalize_log_belief_state(self, log_state: jax.Array) -> jax.Array:
+    def normalize_log_belief_state(self, log_belief_state: jax.Array) -> jax.Array:
         """Compute the log probability distribution over states from a log state vector.
 
-        NOTE: returns nans when log_state is -infs (state is zeros)
+        NOTE: returns nans when log_belief_state is -infs (state is zeros)
         """
-        return log_state - jax.nn.logsumexp(log_state + self.log_normalizing_eigenvector)
+        return log_belief_state - jax.nn.logsumexp(log_belief_state + self.log_normalizing_eigenvector)
 
     @eqx.filter_jit
     def observation_probability_distribution(self, state: State) -> jax.Array:
@@ -103,10 +103,10 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         )
 
     @eqx.filter_jit
-    def log_observation_probability_distribution(self, log_state: State) -> jax.Array:
+    def log_observation_probability_distribution(self, log_belief_state: State) -> jax.Array:
         """Compute the log probability distribution of the observations that can be emitted by the process."""
         # TODO: fix log math (https://github.com/Astera-org/simplexity/issues/9)
-        state = cast(State, jnp.exp(log_state))
+        state = cast(State, jnp.exp(log_belief_state))
         obs_prob_dist = self.observation_probability_distribution(state)
         return jnp.log(obs_prob_dist)
 

@@ -43,8 +43,8 @@ def test_normalize_log_belief_state(z1r: GeneralizedHiddenMarkovModel):
     log_belief_state = z1r.normalize_log_belief_state(state)
     chex.assert_trees_all_close(log_belief_state, jnp.log(jnp.array([0.25, 0.625, 0.125])))
 
-    log_state = jnp.array([-jnp.inf, -jnp.inf, -jnp.inf])
-    log_belief_state = z1r.normalize_log_belief_state(log_state)
+    log_belief_state = jnp.array([-jnp.inf, -jnp.inf, -jnp.inf])
+    log_belief_state = z1r.normalize_log_belief_state(log_belief_state)
     assert jnp.all(jnp.isnan(log_belief_state))
 
 
@@ -130,13 +130,13 @@ def test_ghmm_observation_probability_distribution(fanizza_model: GeneralizedHid
 
 
 def test_hmm_log_observation_probability_distribution(z1r: GeneralizedHiddenMarkovModel):
-    log_state = jnp.log(jnp.array([0.3, 0.1, 0.6]))
-    log_obs_probs = z1r.log_observation_probability_distribution(log_state)
+    log_belief_state = jnp.log(jnp.array([0.3, 0.1, 0.6]))
+    log_obs_probs = z1r.log_observation_probability_distribution(log_belief_state)
     assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=2e-7)
     chex.assert_trees_all_close(log_obs_probs, jnp.log(jnp.array([0.6, 0.4])))
 
-    log_state = jnp.log(jnp.array([0.5, 0.3, 0.2]))
-    log_obs_probs = z1r.log_observation_probability_distribution(log_state)
+    log_belief_state = jnp.log(jnp.array([0.5, 0.3, 0.2]))
+    log_obs_probs = z1r.log_observation_probability_distribution(log_belief_state)
     assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=2e-7)
     chex.assert_trees_all_close(log_obs_probs, jnp.log(jnp.array([0.6, 0.4])))
 

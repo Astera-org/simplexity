@@ -60,9 +60,9 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         return state / jnp.sum(state)
 
     @eqx.filter_jit
-    def normalize_log_belief_state(self, log_state: jax.Array) -> jax.Array:
+    def normalize_log_belief_state(self, log_belief_state: jax.Array) -> jax.Array:
         """Compute the log probability distribution over states from a log state vector."""
-        return log_state - jax.nn.logsumexp(log_state)
+        return log_belief_state - jax.nn.logsumexp(log_belief_state)
 
     @eqx.filter_jit
     def observation_probability_distribution(self, state: State) -> jax.Array:
@@ -71,9 +71,9 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         return jnp.sum(obs_state_dist, axis=1)
 
     @eqx.filter_jit
-    def log_observation_probability_distribution(self, log_state: State) -> jax.Array:
+    def log_observation_probability_distribution(self, log_belief_state: State) -> jax.Array:
         """Compute the log probability distribution of the observations that can be emitted by the process."""
-        log_obs_state_dist = jax.nn.logsumexp(log_state[:, None] + self.log_transition_matrices, axis=1)
+        log_obs_state_dist = jax.nn.logsumexp(log_belief_state[:, None] + self.log_transition_matrices, axis=1)
         return jax.nn.logsumexp(log_obs_state_dist, axis=1)
 
     @eqx.filter_jit
@@ -90,8 +90,8 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
     def log_probability(self, observations: jax.Array) -> jax.Array:
         """Compute the log probability of the process generating a sequence of observations."""
 
-        def _scan_fn(log_state_vector, observation):
-            return jax.nn.logsumexp(log_state_vector[:, None] + self.log_transition_matrices[observation], axis=0), None
+        def _scan_fn(log_belief_state, observation):
+            return jax.nn.logsumexp(log_belief_state[:, None] + self.log_transition_matrices[observation], axis=0), None
 
-        log_state_vector, _ = jax.lax.scan(_scan_fn, init=self.log_stationary_state, xs=observations)
-        return jax.nn.logsumexp(log_state_vector) - self._log_normalizing_constant
+        log_belief_state, _ = jax.lax.scan(_scan_fn, init=self.log_stationary_state, xs=observations)
+        return jax.nn.logsumexp(log_belief_state) - self._log_normalizing_constant
