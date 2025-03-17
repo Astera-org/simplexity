@@ -47,8 +47,8 @@ class LinearFn(eqx.Module):
         return outs
 
 
-class RNN(PredictiveModel):
-    """A simple RNN model."""
+class GRURNN(PredictiveModel):
+    """A GRU-based RNN model."""
 
     layers: eqx.nn.Sequential
 

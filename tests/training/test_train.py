@@ -3,7 +3,7 @@ import optax
 
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
 from simplexity.generative_processes.transition_matrices import even_ones
-from simplexity.predictive_models.rnn import RNN
+from simplexity.predictive_models.gru_rnn import GRURNN
 from simplexity.training.train import train
 
 
@@ -18,7 +18,7 @@ def test_train():
     hidden_size = 4
     hidden_sizes = [hidden_size] * 2
     key, model_key = jax.random.split(key)
-    model = RNN(in_size=vocab_size, out_size=vocab_size, hidden_sizes=hidden_sizes, key=model_key)
+    model = GRURNN(in_size=vocab_size, out_size=vocab_size, hidden_sizes=hidden_sizes, key=model_key)
     optimizer = optax.adam(learning_rate=0.001)
 
     sequence_len = 4
