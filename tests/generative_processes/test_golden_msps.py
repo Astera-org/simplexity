@@ -34,7 +34,7 @@ HMM_GOLDENS = {
 GHMM_GOLDENS = {
     # Specialized GHMM processes
     "fanizza": golden_file_path / "fanizza_alpha_2000_lamb_0.49.npz",
-    "post_quantum": golden_file_path / "post_quantum_alpha_1_beta_0.5.npz",
+    "post_quantum": golden_file_path / "post_quantum_alpha_2.7_beta_0.5.npz",
     
     # HMM processes represented as GHMM
     "ghmm_mess3": golden_file_path / "mess3_x_0.15_a_0.6.npz",
@@ -94,7 +94,7 @@ def get_generator_for_process(process_key: str) -> tuple[MixedStateTreeGenerator
         "zero_one_random": {"p": 0.5},
         "rrxor": {"pR1": 0.5, "pR2": 0.5},
         "fanizza": {"alpha": 2000, "lamb": 0.49},
-        "post_quantum": {"log_alpha": np.log(1), "beta": 0.5},
+        "post_quantum": {"log_alpha": np.log(2.7), "beta": 0.5},
         "tom_quantum": {"alpha": 1, "beta": 0.5}
     }
     
