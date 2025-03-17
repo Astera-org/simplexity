@@ -15,33 +15,55 @@ from simplexity.generative_processes.transition_matrices import (
 from tests.assertions import assert_proportional
 
 
-def validate_ghmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: float = 1e-6, atol: float = 0):
+def validate_ghmm_transition_matrices(
+    transition_matrices: jnp.ndarray, rtol: float = 1e-6, atol: float = 0
+):
     transition_matrix = jnp.sum(transition_matrices, axis=0)
     num_states = transition_matrix.shape[0]
 
     eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
-    assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
-    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    assert jnp.isclose(jnp.max(eigenvalues), 1.0), (
+        "State transition matrix should have eigenvalue = 1"
+    )
+    normalizing_eigenvector = (
+        right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    )
     assert normalizing_eigenvector.shape == (num_states,)
 
     eigenvalues, left_eigenvectors = jnp.linalg.eig(transition_matrix.T)
-    assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
+    assert jnp.isclose(jnp.max(eigenvalues), 1.0), (
+        "State transition matrix should have eigenvalue = 1"
+    )
     stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
     assert stationary_state.shape == (num_states,)
 
 
-def validate_hmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: float = 1e-6, atol: float = 0):
+def validate_hmm_transition_matrices(
+    transition_matrices: jnp.ndarray, rtol: float = 1e-6, atol: float = 0
+):
     validate_ghmm_transition_matrices(transition_matrices, rtol, atol)
     assert jnp.all(transition_matrices >= 0)
     assert jnp.all(transition_matrices <= 1)
 
     sum_over_obs_and_next = jnp.sum(transition_matrices, axis=(0, 2))
-    chex.assert_trees_all_close(sum_over_obs_and_next, jnp.ones_like(sum_over_obs_and_next), rtol=rtol, atol=atol)
+    chex.assert_trees_all_close(
+        sum_over_obs_and_next,
+        jnp.ones_like(sum_over_obs_and_next),
+        rtol=rtol,
+        atol=atol,
+    )
 
     transition_matrix = jnp.sum(transition_matrices, axis=0)
     eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
-    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
-    assert_proportional(normalizing_eigenvector, jnp.ones_like(normalizing_eigenvector), rtol=rtol, atol=atol)
+    normalizing_eigenvector = (
+        right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    )
+    assert_proportional(
+        normalizing_eigenvector,
+        jnp.ones_like(normalizing_eigenvector),
+        rtol=rtol,
+        atol=atol,
+    )
 
 
 def test_no_consecutive_ones():
@@ -68,8 +90,12 @@ def test_post_quantum():
     validate_ghmm_transition_matrices(transition_matrices)
     # Verify that transition_matrix[0] + transition_matrix[1] + transition_matrix[2] has largest abs eigenvalue = 1
     transition_matrix_sum_normalized = transition_matrices.sum(axis=0)
-    transition_matrix_sum_max_eigval = jnp.abs(jnp.linalg.eigvals(transition_matrix_sum_normalized)).max()
-    assert jnp.isclose(transition_matrix_sum_max_eigval, 1, atol=1e-10), "Largest absolute eigenvalue is not 1"
+    transition_matrix_sum_max_eigval = jnp.abs(
+        jnp.linalg.eigvals(transition_matrix_sum_normalized)
+    ).max()
+    assert jnp.isclose(transition_matrix_sum_max_eigval, 1, atol=1e-10), (
+        "Largest absolute eigenvalue is not 1"
+    )
 
 
 def test_days_of_week():
@@ -89,7 +115,9 @@ def test_fanizza():
     assert transition_matrices.shape == (2, 4, 4)
     validate_ghmm_transition_matrices(transition_matrices)
     tau = jnp.ones(4)
-    assert jnp.allclose(jnp.sum(transition_matrices @ tau, axis=0), tau), "Stochasticity condition not met"
+    assert jnp.allclose(jnp.sum(transition_matrices @ tau, axis=0), tau), (
+        "Stochasticity condition not met"
+    )
 
 
 def test_rrxor():
