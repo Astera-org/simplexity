@@ -29,11 +29,11 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
 
         eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
         state_eigenvector = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
-        self.state_eigenvector = state_eigenvector / jnp.sum(state_eigenvector)
-        self.log_state_eigenvector = jnp.log(self.state_eigenvector)
+        self.stationary_state = state_eigenvector / jnp.sum(state_eigenvector)
+        self.log_stationary_state = jnp.log(self.stationary_state)
 
-        self._normalizing_constant = jnp.sum(self.state_eigenvector)
-        self._log_normalizing_constant = jax.nn.logsumexp(self.log_state_eigenvector)
+        self._normalizing_constant = jnp.sum(self.stationary_state)
+        self._log_normalizing_constant = jax.nn.logsumexp(self.log_stationary_state)
 
     def validate_transition_matrices(self, transition_matrices: jax.Array):
         """Validate the transition matrices."""
@@ -83,7 +83,7 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         def _scan_fn(state_vector, observation):
             return state_vector @ self.transition_matrices[observation], None
 
-        state_vector, _ = jax.lax.scan(_scan_fn, init=self.state_eigenvector, xs=observations)
+        state_vector, _ = jax.lax.scan(_scan_fn, init=self.stationary_state, xs=observations)
         return jnp.sum(state_vector) / self._normalizing_constant
 
     @eqx.filter_jit
@@ -93,5 +93,5 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         def _scan_fn(log_state_vector, observation):
             return jax.nn.logsumexp(log_state_vector[:, None] + self.log_transition_matrices[observation], axis=0), None
 
-        log_state_vector, _ = jax.lax.scan(_scan_fn, init=self.log_state_eigenvector, xs=observations)
+        log_state_vector, _ = jax.lax.scan(_scan_fn, init=self.log_stationary_state, xs=observations)
         return jax.nn.logsumexp(log_state_vector) - self._log_normalizing_constant

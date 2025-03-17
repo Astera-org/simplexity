@@ -117,7 +117,7 @@ def test_hmm_observation_probability_distribution(z1r: GeneralizedHiddenMarkovMo
 
 
 def test_ghmm_observation_probability_distribution(fanizza_model: GeneralizedHiddenMarkovModel):
-    valid_state = fanizza_model.state_eigenvector
+    valid_state = fanizza_model.stationary_state
     obs_probs = fanizza_model.observation_probability_distribution(valid_state)
     assert jnp.isclose(jnp.sum(obs_probs), 1)
     assert jnp.all(obs_probs >= 0)

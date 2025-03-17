@@ -17,8 +17,8 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     log_transition_matrices: jax.Array
     normalizing_eigenvector: jax.Array
     log_normalizing_eigenvector: jax.Array
-    state_eigenvector: jax.Array
-    log_state_eigenvector: jax.Array
+    stationary_state: jax.Array
+    log_stationary_state: jax.Array
     _normalizing_constant: jax.Array
     _log_normalizing_constant: jax.Array
 
@@ -41,11 +41,11 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
 
         eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
         state_eigenvector = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
-        self.state_eigenvector = state_eigenvector / jnp.sum(state_eigenvector)
-        self.log_state_eigenvector = jnp.log(self.state_eigenvector)
+        self.stationary_state = state_eigenvector / jnp.sum(state_eigenvector)
+        self.log_stationary_state = jnp.log(self.stationary_state)
 
-        self._normalizing_constant = self.state_eigenvector @ self.normalizing_eigenvector
-        self._log_normalizing_constant = jax.nn.logsumexp(self.log_state_eigenvector + self.log_normalizing_eigenvector)
+        self._normalizing_constant = self.stationary_state @ self.normalizing_eigenvector
+        self._log_normalizing_constant = jax.nn.logsumexp(self.log_stationary_state + self.log_normalizing_eigenvector)
 
     def validate_transition_matrices(self, transition_matrices: jax.Array):
         """Validate the transition matrices."""
@@ -118,7 +118,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         def _scan_fn(state_vector, observation):
             return state_vector @ self.transition_matrices[observation], None
 
-        state_vector, _ = jax.lax.scan(_scan_fn, init=self.state_eigenvector, xs=observations)
+        state_vector, _ = jax.lax.scan(_scan_fn, init=self.stationary_state, xs=observations)
         return (state_vector @ self.normalizing_eigenvector) / self._normalizing_constant
 
     @eqx.filter_jit

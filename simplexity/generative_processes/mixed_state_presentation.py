@@ -247,7 +247,7 @@ class MixedStateTreeGenerator(eqx.Module):
         """The root node of the tree."""
         empty_sequence = jnp.zeros((self.max_sequence_length,), dtype=jnp.int32)
         sequence_length = jnp.array(0)
-        log_state = self.ghmm.log_state_eigenvector
+        log_state = self.ghmm.log_stationary_state
         log_belief_state = self.ghmm.normalize_log_belief_state(log_state)
         log_probability = jax.nn.logsumexp(log_state + self.ghmm.log_normalizing_eigenvector)
         return MixedStateNode(empty_sequence, sequence_length, log_state, log_belief_state, log_probability)

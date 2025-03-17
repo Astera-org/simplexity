@@ -13,7 +13,7 @@ def test_train():
     transition_matrices = even_ones(p=0.5)
     vocab_size = int(transition_matrices.shape[0])
     gen_process = HiddenMarkovModel(transition_matrices)
-    initial_gen_process_state = gen_process.state_eigenvector
+    initial_gen_process_state = gen_process.stationary_state
 
     hidden_size = 4
     hidden_sizes = [hidden_size] * 2
