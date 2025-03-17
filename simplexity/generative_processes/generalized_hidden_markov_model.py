@@ -85,7 +85,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
 
         NOTE: returns nans when state is zeros
         """
-        return state * self.normalizing_eigenvector / (state @ self.normalizing_eigenvector)
+        return state / (state @ self.normalizing_eigenvector)
 
     @eqx.filter_jit
     def normalize_log_belief_state(self, log_state: jax.Array) -> jax.Array:
@@ -93,8 +93,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
 
         NOTE: returns nans when log_state is -infs (state is zeros)
         """
-        log_prob = log_state + self.log_normalizing_eigenvector
-        return log_prob - jax.nn.logsumexp(log_prob)
+        return log_state - jax.nn.logsumexp(log_state + self.log_normalizing_eigenvector)
 
     @eqx.filter_jit
     def observation_probability_distribution(self, state: State) -> jax.Array:

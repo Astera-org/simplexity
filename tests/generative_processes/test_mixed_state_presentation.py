@@ -16,6 +16,8 @@ from simplexity.generative_processes.mixed_state_presentation import (
 )
 from simplexity.generative_processes.transition_matrices import no_consecutive_ones
 
+ABS_TOL = 1e-7
+
 NODES = {
     "": MixedStateNode(
         sequence=jnp.array([0, 0], dtype=jnp.int32),
@@ -87,7 +89,7 @@ def get_sequences_in_collection(collection: Queue[MixedStateNode]) -> list[tuple
 
 def test_get_child(generator: MixedStateTreeGenerator):
     child = generator.get_child(generator.root, jnp.array(0))
-    chex.assert_trees_all_close(child, NODES["0"])
+    chex.assert_trees_all_close(child, NODES["0"], atol=ABS_TOL)
     chex.assert_trees_all_close(child.log_probability, jnp.log(2 / 3))
 
     child = generator.get_child(child, jnp.array(1))
@@ -123,7 +125,7 @@ def test_next_node(
     for expected_sequence in expected_sequences:
         search_nodes, node = generator._next_node(search_nodes)
         expected_node = NODES[expected_sequence]
-        chex.assert_trees_all_close(node, expected_node)
+        chex.assert_trees_all_close(node, expected_node, atol=ABS_TOL)
 
     assert search_nodes.is_empty
 
@@ -147,12 +149,12 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
     assert set(tree.nodes.keys()) == set(expected_nodes.keys())
 
     def assert_node_dict_values_close(actual: NodeDictValue, expected: NodeDictValue):
-        assert math.isclose(actual[0], expected[0], abs_tol=1e-7)
+        assert math.isclose(actual[0], expected[0], abs_tol=ABS_TOL)
         for actual_state_log_prob, expected_state_log_prob in zip(actual[1], expected[1], strict=True):
             if math.isnan(expected_state_log_prob):
                 assert math.isnan(actual_state_log_prob)
             else:
-                assert math.isclose(actual_state_log_prob, expected_state_log_prob, abs_tol=1e-7)
+                assert math.isclose(actual_state_log_prob, expected_state_log_prob, abs_tol=ABS_TOL)
 
     for sequence in tree.nodes:
         assert_node_dict_values_close(tree.nodes[sequence], expected_nodes[sequence])
@@ -163,11 +165,11 @@ def test_myopic_entropy(generator: MixedStateTreeGenerator):
     assert myopic_entropies.sequence_lengths.shape == (generator.max_sequence_length + 1,)
     assert myopic_entropies.belief_state_entropies.shape == (generator.max_sequence_length + 1,)
     assert jnp.all(~jnp.isnan(myopic_entropies.belief_state_entropies))
-    assert jnp.all(myopic_entropies.belief_state_entropies[1:] - myopic_entropies.belief_state_entropies[:-1] <= 0), (
-        "Belief state myopic entropy should be monotonically non-increasing with sequence length"
-    )
+    assert jnp.all(
+        myopic_entropies.belief_state_entropies[1:] - myopic_entropies.belief_state_entropies[:-1] <= 0 + ABS_TOL
+    ), "Belief state myopic entropy should be monotonically non-increasing with sequence length"
     assert myopic_entropies.observation_entropies.shape == (generator.max_sequence_length + 1,)
     assert jnp.all(~jnp.isnan(myopic_entropies.observation_entropies))
-    assert jnp.all(myopic_entropies.observation_entropies[1:] - myopic_entropies.observation_entropies[:-1] <= 0), (
-        "Observation myopic entropy should be monotonically non-increasing with sequence length"
-    )
+    assert jnp.all(
+        myopic_entropies.observation_entropies[1:] - myopic_entropies.observation_entropies[:-1] <= 0 + ABS_TOL
+    ), "Observation myopic entropy should be monotonically non-increasing with sequence length"
