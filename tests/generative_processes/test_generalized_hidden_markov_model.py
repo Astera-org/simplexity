@@ -94,7 +94,7 @@ def test_generate(model_name: str, request: pytest.FixtureRequest):
     batch_size = 4
     sequence_len = 10
 
-    initial_states = jnp.repeat(model.normalizing_eigenvector[None, :], batch_size, axis=0)
+    initial_states = jnp.repeat(model.stationary_state[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     intermediate_states, intermediate_observations = model.generate(initial_states, keys, sequence_len)
     assert intermediate_states.shape == (batch_size, model.num_states)
