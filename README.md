@@ -11,7 +11,7 @@ simplexity/
   ├── simplexity/                # core library code
   │   ├── configs/               # hydra configuration files
   │   ├── generative_processes/  # generative process classes
-  │   ├── persistence/           # persistent storage classes
+  │   ├── persistence/           # model loading and checkpointing
   │   ├── prediction_models/     # prediction model classes
   │   ├── training/              # model training functions
   │   ├── train_model.py         # entrypoint for training models
