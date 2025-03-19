@@ -5,8 +5,6 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.generative_processes.builder import build_generalized_hidden_markov_model, build_hidden_markov_model
-from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
-from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
 from simplexity.generative_processes.mixed_state_presentation import (
     MixedStateTreeGenerator,
     MixedStateTree,
