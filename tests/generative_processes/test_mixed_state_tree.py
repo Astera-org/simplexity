@@ -5,7 +5,12 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.generative_processes.builder import build_generalized_hidden_markov_model, build_hidden_markov_model
-from simplexity.generative_processes.mixed_state_presentation import MixedStateTreeGenerator, MixedStateTree, TreeData
+from simplexity.generative_processes.mixed_state_presentation import (
+    MixedStateTreeGenerator,
+    MixedStateTree,
+    TreeData,
+    NodeDictValue,
+)
 
 GOLDEN_DIR = Path(__file__).parent / "goldens" / "mixed_state_trees"
 
@@ -59,7 +64,7 @@ def golden_file_name(process_name: str) -> str:
     return f"{process_name}_{params_str}.npz"
 
 
-def load_golden(process_name: str) -> MixedStateTree:
+def load_golden(process_name: str) -> MixedStateTree[TreeData, NodeDictValue]:
     """Load a golden file for a given process."""
     file_name = golden_file_name(process_name)
     golden_file = GOLDEN_DIR / file_name
@@ -72,7 +77,7 @@ def test_hmm_mixed_state_tree(process_name):
     params = PROCESS_PARAMS[process_name]
     model = build_hidden_markov_model(process_name, **params)
     generator = MixedStateTreeGenerator(model, max_sequence_length=4)
-    tree = generator.generate()
+    tree: MixedStateTree[TreeData, NodeDictValue] = generator.generate()
     golden = load_golden(process_name)
 
     sequences = set(sequence for sequence, values in tree.nodes.items() if values.probability > 0)
@@ -94,7 +99,7 @@ def test_ghmm_mixed_state_tree(process_name):
     params = PROCESS_PARAMS[process_name]
     model = build_generalized_hidden_markov_model(process_name, **params)
     generator = MixedStateTreeGenerator(model, max_sequence_length=4)
-    tree = generator.generate()
+    tree: MixedStateTree[TreeData, NodeDictValue] = generator.generate()
     golden = load_golden(process_name)
 
     sequences = set(sequence for sequence, values in tree.nodes.items() if values.probability > 0)
