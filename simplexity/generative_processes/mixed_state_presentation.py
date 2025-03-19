@@ -1,5 +1,6 @@
 import functools
 from enum import Enum
+from pathlib import Path
 from typing import Any, Generic, NamedTuple, TypeVar, cast
 
 import equinox as eqx
@@ -115,6 +116,29 @@ class TreeData(eqx.Module):
     def num_states(self) -> int:
         """The number of states in the tree."""
         return self.belief_states.shape[1]
+
+    def save(self, path: Path) -> None:
+        """Save the tree data to a file."""
+        jnp.savez(
+            path,
+            sequences=self.sequences,
+            sequence_lengths=self.sequence_lengths,
+            belief_states=self.belief_states,
+            probabilities=self.probabilities,
+            size=self.size,
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> "TreeData":
+        """Load the tree data from a file."""
+        data = jnp.load(path)
+        return cls(
+            sequences=data["sequences"],
+            sequence_lengths=data["sequence_lengths"],
+            belief_states=data["belief_states"],
+            probabilities=data["probabilities"],
+            size=data["size"],
+        )
 
 
 class BaseNodeDictValue(NamedTuple):
@@ -395,6 +419,33 @@ class LogTreeData(TreeData):
             size=self.size + 1,
             log_belief_states=self.log_belief_states.at[self.size].set(log_belief_state),
             log_probabilities=self.log_probabilities.at[self.size].set(log_probability),
+        )
+
+    def save(self, path: Path) -> None:
+        """Save the tree data to a file."""
+        jnp.savez(
+            path,
+            sequences=self.sequences,
+            sequence_lengths=self.sequence_lengths,
+            belief_states=self.belief_states,
+            probabilities=self.probabilities,
+            size=self.size,
+            log_belief_states=self.log_belief_states,
+            log_probabilities=self.log_probabilities,
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> "LogTreeData":
+        """Load the tree data from a file."""
+        data = jnp.load(path)
+        return cls(
+            sequences=data["sequences"],
+            sequence_lengths=data["sequence_lengths"],
+            belief_states=data["belief_states"],
+            probabilities=data["probabilities"],
+            size=data["size"],
+            log_belief_states=data["log_belief_states"],
+            log_probabilities=data["log_probabilities"],
         )
 
 
