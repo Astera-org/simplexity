@@ -5,11 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.generative_processes.builder import build_generalized_hidden_markov_model, build_hidden_markov_model
-from simplexity.generative_processes.mixed_state_presentation import (
-    MixedStateTreeGenerator,
-    MixedStateTree,
-    TreeData,
-)
+from simplexity.generative_processes.mixed_state_presentation import MixedStateTreeGenerator, MixedStateTree, TreeData
 
 GOLDEN_DIR = Path(__file__).parent / "goldens" / "mixed_state_trees"
 
