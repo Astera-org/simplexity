@@ -240,8 +240,8 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
     assert set(tree.nodes.keys()) == set(expected_nodes.keys())
 
     def assert_node_dict_values_close(actual: NodeDictValue, expected: NodeDictValue):
-        assert math.isclose(actual[0], expected[0], abs_tol=1e-6)
-        for actual_state_prob, expected_state_prob in zip(actual[1], expected[1], strict=True):
+        assert math.isclose(actual.probability, expected.probability, abs_tol=1e-6)
+        for actual_state_prob, expected_state_prob in zip(actual.belief_state, expected.belief_state, strict=True):
             if math.isnan(expected_state_prob):
                 assert math.isnan(actual_state_prob)
             else:
@@ -273,8 +273,10 @@ def test_log_generate(log_generator: LogMixedStateTreeGenerator, search_algorith
     assert set(tree.nodes.keys()) == set(expected_nodes.keys())
 
     def assert_node_dict_values_close(actual: LogNodeDictValue, expected: LogNodeDictValue):
-        assert math.isclose(actual[0], expected[0], abs_tol=ABS_TOL)
-        for actual_state_log_prob, expected_state_log_prob in zip(actual[1], expected[1], strict=True):
+        assert math.isclose(actual.log_probability, expected.log_probability, abs_tol=ABS_TOL)
+        for actual_state_log_prob, expected_state_log_prob in zip(
+            actual.log_belief_state, expected.log_belief_state, strict=True
+        ):
             if math.isnan(expected_state_log_prob):
                 assert math.isnan(actual_state_log_prob)
             else:
