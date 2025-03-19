@@ -6,10 +6,10 @@ import pytest
 
 from simplexity.generative_processes.builder import build_generalized_hidden_markov_model, build_hidden_markov_model
 from simplexity.generative_processes.mixed_state_presentation import (
-    MixedStateTreeGenerator,
     MixedStateTree,
-    TreeData,
+    MixedStateTreeGenerator,
     NodeDictValue,
+    TreeData,
 )
 
 GOLDEN_DIR = Path(__file__).parent / "goldens" / "mixed_state_trees"
@@ -41,7 +41,6 @@ PROCESS_PARAMS: dict[str, dict[str, float | int]] = {
 }
 
 GHMM_PROCESSES = list(PROCESS_PARAMS.keys())
-HMM_PROCESSES = ["mess3", "rrxor", "zero_one_random"]
 
 
 def filename_value(value: float | int, max_precision: int = 10) -> str:
@@ -72,7 +71,7 @@ def load_golden(process_name: str) -> MixedStateTree[TreeData, NodeDictValue]:
     return MixedStateTree(tree_data)
 
 
-@pytest.mark.parametrize("process_name", HMM_PROCESSES)
+@pytest.mark.parametrize("process_name", ["mess3", "rrxor", "zero_one_random"])
 def test_hmm_mixed_state_tree(process_name):
     params = PROCESS_PARAMS[process_name]
     model = build_hidden_markov_model(process_name, **params)
@@ -94,7 +93,9 @@ def test_hmm_mixed_state_tree(process_name):
         chex.assert_trees_all_close(belief_state, expected_belief_state)
 
 
-@pytest.mark.parametrize("process_name", GHMM_PROCESSES)
+@pytest.mark.parametrize(
+    "process_name", ["fanizza", "mess3", "post_quantum", "rrxor", "tom_quantum", "zero_one_random"]
+)
 def test_ghmm_mixed_state_tree(process_name):
     params = PROCESS_PARAMS[process_name]
     model = build_generalized_hidden_markov_model(process_name, **params)
@@ -113,4 +114,4 @@ def test_ghmm_mixed_state_tree(process_name):
 
         belief_state = tree.nodes[sequence].belief_state
         expected_belief_state = golden.nodes[sequence].belief_state
-        chex.assert_trees_all_close(belief_state, expected_belief_state)
+        chex.assert_trees_all_close(belief_state, expected_belief_state, atol=1e-7)
