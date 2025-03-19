@@ -85,11 +85,11 @@ def test_hmm_mixed_state_tree(process_name):
     assert sequences == expected_sequences
 
     for sequence in sequences:
-        probability = golden.nodes[sequence].probability
+        probability = tree.nodes[sequence].probability
         expected_probability = golden.nodes[sequence].probability
         assert jnp.isclose(probability, expected_probability)
 
-        belief_state = golden.nodes[sequence].belief_state
+        belief_state = tree.nodes[sequence].belief_state
         expected_belief_state = golden.nodes[sequence].belief_state
         chex.assert_trees_all_close(belief_state, expected_belief_state)
 
@@ -107,10 +107,10 @@ def test_ghmm_mixed_state_tree(process_name):
     assert sequences == expected_sequences
 
     for sequence in sequences:
-        probability = golden.nodes[sequence].probability
+        probability = tree.nodes[sequence].probability
         expected_probability = golden.nodes[sequence].probability
         assert jnp.isclose(probability, expected_probability)
 
-        belief_state = golden.nodes[sequence].belief_state
+        belief_state = tree.nodes[sequence].belief_state
         expected_belief_state = golden.nodes[sequence].belief_state
         chex.assert_trees_all_close(belief_state, expected_belief_state)
