@@ -19,8 +19,8 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     log_normalizing_eigenvector: jax.Array
     stationary_state: jax.Array
     log_stationary_state: jax.Array
-    _normalizing_constant: jax.Array
-    _log_normalizing_constant: jax.Array
+    normalizing_constant: jax.Array
+    log_normalizing_constant: jax.Array
 
     def __init__(self, transition_matrices: jax.Array):
         self.validate_transition_matrices(transition_matrices)
@@ -44,8 +44,8 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         self.stationary_state = stationary_state / jnp.sum(stationary_state)
         self.log_stationary_state = jnp.log(self.stationary_state)
 
-        self._normalizing_constant = self.stationary_state @ self.normalizing_eigenvector
-        self._log_normalizing_constant = jax.nn.logsumexp(self.log_stationary_state + self.log_normalizing_eigenvector)
+        self.normalizing_constant = self.stationary_state @ self.normalizing_eigenvector
+        self.log_normalizing_constant = jax.nn.logsumexp(self.log_stationary_state + self.log_normalizing_eigenvector)
 
     def validate_transition_matrices(self, transition_matrices: jax.Array):
         """Validate the transition matrices."""
@@ -118,7 +118,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
             return state_vector @ self.transition_matrices[observation], None
 
         state_vector, _ = jax.lax.scan(_scan_fn, init=self.stationary_state, xs=observations)
-        return (state_vector @ self.normalizing_eigenvector) / self._normalizing_constant
+        return (state_vector @ self.normalizing_eigenvector) / self.normalizing_constant
 
     @eqx.filter_jit
     def log_probability(self, observations: jax.Array) -> jax.Array:

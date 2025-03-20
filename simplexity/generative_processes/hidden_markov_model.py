@@ -32,8 +32,8 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         self.stationary_state = stationary_state / jnp.sum(stationary_state)
         self.log_stationary_state = jnp.log(self.stationary_state)
 
-        self._normalizing_constant = jnp.sum(self.stationary_state)
-        self._log_normalizing_constant = jax.nn.logsumexp(self.log_stationary_state)
+        self.normalizing_constant = jnp.sum(self.stationary_state)
+        self.log_normalizing_constant = jax.nn.logsumexp(self.log_stationary_state)
 
     def validate_transition_matrices(self, transition_matrices: jax.Array):
         """Validate the transition matrices."""
@@ -84,7 +84,7 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
             return state_vector @ self.transition_matrices[observation], None
 
         state_vector, _ = jax.lax.scan(_scan_fn, init=self.stationary_state, xs=observations)
-        return jnp.sum(state_vector) / self._normalizing_constant
+        return jnp.sum(state_vector) / self.normalizing_constant
 
     @eqx.filter_jit
     def log_probability(self, observations: jax.Array) -> jax.Array:
@@ -94,4 +94,4 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
             return jax.nn.logsumexp(log_belief_state[:, None] + self.log_transition_matrices[observation], axis=0), None
 
         log_belief_state, _ = jax.lax.scan(_scan_fn, init=self.log_stationary_state, xs=observations)
-        return jax.nn.logsumexp(log_belief_state) - self._log_normalizing_constant
+        return jax.nn.logsumexp(log_belief_state) - self.log_normalizing_constant

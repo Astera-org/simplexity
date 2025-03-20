@@ -304,7 +304,7 @@ class MixedStateTreeGenerator(eqx.Module, Generic[TNode, TTreeData, TTree]):
         sequence_length = jnp.array(0)
         unnormalized_belief_state = self.ghmm.stationary_state
         belief_state = self.ghmm.normalize_belief_state(unnormalized_belief_state)
-        probability = unnormalized_belief_state @ self.ghmm.normalizing_eigenvector
+        probability = (unnormalized_belief_state @ self.ghmm.normalizing_eigenvector) / self.ghmm.normalizing_constant
         return cast(
             TNode, MixedStateNode(empty_sequence, sequence_length, unnormalized_belief_state, belief_state, probability)
         )
@@ -316,7 +316,7 @@ class MixedStateTreeGenerator(eqx.Module, Generic[TNode, TTreeData, TTree]):
         sequence_length = node.sequence_length + 1
         unnormalized_belief_state = node.unnormalized_belief_state @ self.ghmm.transition_matrices[obs]
         belief_state = self.ghmm.normalize_belief_state(unnormalized_belief_state)
-        probability = unnormalized_belief_state @ self.ghmm.normalizing_eigenvector
+        probability = (unnormalized_belief_state @ self.ghmm.normalizing_eigenvector) / self.ghmm.normalizing_constant
         return cast(
             TNode, MixedStateNode(sequence, sequence_length, unnormalized_belief_state, belief_state, probability)
         )
@@ -518,7 +518,10 @@ class LogMixedStateTreeGenerator(MixedStateTreeGenerator[LogMixedStateNode, LogT
         probability = unnormalized_belief_state @ self.ghmm.normalizing_eigenvector
         log_unnormalized_belief_state = self.ghmm.log_stationary_state
         log_belief_state = self.ghmm.normalize_log_belief_state(log_unnormalized_belief_state)
-        log_probability = jax.nn.logsumexp(log_unnormalized_belief_state + self.ghmm.log_normalizing_eigenvector)
+        log_probability = (
+            jax.nn.logsumexp(log_unnormalized_belief_state + self.ghmm.log_normalizing_eigenvector)
+            - self.ghmm.log_normalizing_constant
+        )
         return LogMixedStateNode(
             empty_sequence,
             sequence_length,
@@ -540,7 +543,10 @@ class LogMixedStateTreeGenerator(MixedStateTreeGenerator[LogMixedStateNode, LogT
             parent_log_unnormalized_belief_state[:, None] + self.ghmm.log_transition_matrices[obs], axis=0
         )
         log_belief_state = self.ghmm.normalize_log_belief_state(log_unnormalized_belief_state)
-        log_probability = jax.nn.logsumexp(log_unnormalized_belief_state + self.ghmm.log_normalizing_eigenvector)
+        log_probability = (
+            jax.nn.logsumexp(log_unnormalized_belief_state + self.ghmm.log_normalizing_eigenvector)
+            - self.ghmm.log_normalizing_constant
+        )
         unnormalized_belief_state = jnp.exp(log_unnormalized_belief_state)
         belief_state = jnp.exp(log_belief_state)
         probability = jnp.exp(log_probability)
