@@ -225,6 +225,7 @@ class MixedStateTreeGenerator(eqx.Module, Generic[TNode, TTreeData, TTree]):
             tree_data, search_nodes = carry
             search_nodes, node = self._next_node(search_nodes)
             tree_data = tree_data.add(node)
+            tree_data = cast(TTreeData, tree_data)
             return tree_data, search_nodes
 
         if self.max_tree_size < 0:
