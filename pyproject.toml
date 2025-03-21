@@ -17,12 +17,16 @@ dependencies = [
     "jax[cuda12_pip]",
     "jupyter",
     "matplotlib",
+    "optax",
     "pandas",
+    "penzai",
+    "treescope",
 ]
 
 [project.optional-dependencies]
 dev = [
     "jaxtyping",
+    "nbqa",
     "nbqa",
     "pyright",
     "pytest",

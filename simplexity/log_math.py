@@ -4,9 +4,12 @@ import jax.numpy as jnp
 
 
 @eqx.filter_jit
-def entropy(log_probs: jax.Array) -> jax.Array:
+def entropy(probs: jax.Array, log: bool = False) -> jax.Array:
     """Compute the entropy of a log probability distribution."""
-    terms = -jnp.exp(log_probs) * log_probs
+    if log:
+        terms = -jnp.exp(probs) * probs
+    else:
+        terms = -probs * jnp.log(probs)
     terms = jnp.where(jnp.isnan(terms), jnp.zeros_like(terms), terms)
     return jnp.sum(terms)
 
