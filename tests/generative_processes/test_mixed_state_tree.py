@@ -24,7 +24,7 @@ PROCESS_PARAMS: dict[str, dict[str, float | int]] = {
         "a": 0.6,
     },
     "post_quantum": {
-        "log_alpha": 1,
+        "log_alpha": float(jnp.log(2.7)),
         "beta": 0.5,
     },
     "rrxor": {
@@ -56,6 +56,8 @@ def filename_value(value: float | int, max_precision: int = 10) -> str:
 
 def golden_file_name(process_name: str) -> str:
     """Generate a filename for a golden file for a given process."""
+    if process_name == "post_quantum":
+        return "post_quantum_alpha_2p7_beta_0p5.npz"
     params = PROCESS_PARAMS[process_name]
     if not params:
         return f"{process_name}.npz"
