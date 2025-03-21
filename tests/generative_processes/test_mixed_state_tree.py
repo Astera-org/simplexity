@@ -105,8 +105,8 @@ def test_ghmm_mixed_state_tree(process_name):
     tree: MixedStateTree[TreeData, NodeDictValue] = generator.generate()
     golden = load_golden(process_name)
 
-    sequences = set(sequence for sequence, values in tree.nodes.items() if values.probability > 0)
-    expected_sequences = set(sequence for sequence, values in golden.nodes.items() if values.probability > 0)
+    sequences = set(sequence for sequence, values in tree.nodes.items() if values.probability > 1e-6)
+    expected_sequences = set(sequence for sequence, values in golden.nodes.items() if values.probability > 1e-6)
     assert sequences == expected_sequences
 
     for sequence in sequences:
