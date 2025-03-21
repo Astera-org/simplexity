@@ -164,21 +164,22 @@ def test_against_golden_with_generator(golden_file, generator):
     )
 
     # Special case for zero_one_random which might have extra sequences
-    is_zero_one_random = str(golden_file).find("zero_one_random") != -1
+    # is_zero_one_random = str(golden_file).find("zero_one_random") != -1
 
-    if is_zero_one_random and extra_sequences:
+    if extra_sequences:
         # For zero_one_random, check that any extra sequences have zero or near-zero probability
         zero_prob_threshold = 1e-10
         for sequence in extra_sequences:
             # Make sure we're using the right type of sequence for the lookup
             tree_seq = sequence  # Use as-is for lookup in tree.nodes
-            generated_log_prob = tree.nodes[tree_seq].log_probability
+            generated_log_prob = jnp.log(tree.nodes[tree_seq].probability)
             generated_prob = math.exp(generated_log_prob) if generated_log_prob != -math.inf else 0
             assert generated_prob < zero_prob_threshold, (
                 f"Extra sequence {sequence} in {golden_file.name} has non-zero probability: {generated_prob}"
             )
     else:
         # For other processes, there should be no extra sequences
+
         assert not extra_sequences, (
             f"Generated tree has extra sequences not in golden data for {golden_file.name}: {extra_sequences}"
         )
@@ -191,7 +192,7 @@ def test_against_golden_with_generator(golden_file, generator):
 
         # Get the generated values (converting from log if needed)
         tree_seq = sequence  # Use as-is for lookup in tree.nodes
-        generated_log_prob = tree.nodes[tree_seq].log_probability
+        generated_log_prob = jnp.log(tree.nodes[tree_seq].probability)
         generated_prob = math.exp(generated_log_prob) if generated_log_prob != -math.inf else 0
 
         # Compare probabilities
@@ -201,16 +202,17 @@ def test_against_golden_with_generator(golden_file, generator):
         )
 
         # Always compare belief states with the fixed tolerance
-        generated_log_belief = tree.nodes[tree_seq].log_belief_state
+        generated_log_belief = tree.nodes[tree_seq].belief_state
         # Convert log belief to regular belief, handling -inf -> 0
         generated_belief = []
         for log_val in generated_log_belief:
-            if math.isnan(log_val):
-                generated_belief.append(math.nan)
-            elif log_val == -math.inf:
-                generated_belief.append(0.0)
-            else:
-                generated_belief.append(math.exp(log_val))
+            # if math.isnan(log_val):
+            #     generated_belief.append(math.nan)
+            # elif log_val == -math.inf:
+            #     generated_belief.append(0.0)
+            # else:
+            #     generated_belief.append(math.exp(log_val))
+            generated_belief.append(log_val)
 
         # Compare belief states
         compare_belief_states(generated_belief, golden_belief, sequence, golden_file.name)
