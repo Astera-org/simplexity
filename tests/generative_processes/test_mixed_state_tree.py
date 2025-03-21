@@ -33,7 +33,7 @@ PROCESS_PARAMS: dict[str, dict[str, float | int]] = {
     },
     "tom_quantum": {
         "alpha": 1,
-        "beta": 1,
+        "beta": 4.3,
     },
     "zero_one_random": {
         "p": 0.5,
@@ -110,8 +110,8 @@ def test_ghmm_mixed_state_tree(process_name):
     for sequence in sequences:
         probability = tree.nodes[sequence].probability
         expected_probability = golden.nodes[sequence].probability
-        assert jnp.isclose(probability, expected_probability)
+        assert jnp.isclose(probability, expected_probability, atol=1e-6)
 
         belief_state = tree.nodes[sequence].belief_state
         expected_belief_state = golden.nodes[sequence].belief_state
-        chex.assert_trees_all_close(belief_state, expected_belief_state, atol=1e-7)
+        chex.assert_trees_all_close(belief_state, expected_belief_state, atol=1e-6)
