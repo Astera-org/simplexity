@@ -11,8 +11,8 @@ class ModelInstanceConfig:
 
 
 @dataclass
-class RNNConfig(ModelInstanceConfig):
-    """Configuration for RNN model."""
+class GRURNNConfig(ModelInstanceConfig):
+    """Configuration for GRU RNN model."""
 
     num_layers: int
     hidden_size: int
@@ -23,5 +23,5 @@ class RNNConfig(ModelInstanceConfig):
 class Config:
     """Base configuration for predictive models."""
 
-    name: Literal["rnn"]
+    name: Literal["gru_rnn"]
     instance: ModelInstanceConfig
