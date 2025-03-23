@@ -15,7 +15,7 @@ def test_train():
         seed=0,
         sequence_len=4,
         batch_size=2,
-        num_epochs=8,
+        num_steps=8,
         log_every=1,
         optimizer=OptimizerConfig(
             name="adam",
@@ -31,4 +31,4 @@ def test_train():
         ),
     )
     model, losses = train(cfg, model, generative_process, initial_gen_process_state)
-    assert losses.shape == (cfg.num_epochs,)
+    assert losses.shape == (cfg.num_steps,)
