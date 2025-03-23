@@ -1,0 +1,9 @@
+defaults:
+  - _self_
+  - optimizer: adam
+
+seed: ${seed}
+sequence_len: 8
+batch_size: 4
+num_steps: 3
+log_every: 1

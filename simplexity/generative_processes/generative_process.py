@@ -13,8 +13,14 @@ class GenerativeProcess(eqx.Module, Generic[State]):
 
     @property
     @abstractmethod
-    def num_observations(self) -> int:
-        """The number of distinct observations that can be emitted by the model."""
+    def vocab_size(self) -> int:
+        """The number of observations that can be emitted by the generative process."""
+        ...
+
+    @property
+    @abstractmethod
+    def initial_state(self) -> State:
+        """The initial state of the generative process."""
         ...
 
     @abstractmethod

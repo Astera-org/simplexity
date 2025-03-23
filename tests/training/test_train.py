@@ -1,30 +1,34 @@
-import jax
-import optax
-
-from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
-from simplexity.generative_processes.transition_matrices import even_ones
-from simplexity.predictive_models.gru_rnn import GRURNN
+from simplexity.configs.train.config import Config as TrainConfig
+from simplexity.configs.train.optimizer.config import AdamConfig
+from simplexity.configs.train.optimizer.config import Config as OptimizerConfig
+from simplexity.generative_processes.builder import build_hidden_markov_model
+from simplexity.predictive_models.gru_rnn import build_gru_rnn
 from simplexity.training.train import train
 
 
 def test_train():
-    key = jax.random.PRNGKey(0)
+    generative_process = build_hidden_markov_model("even_ones", p=0.5)
+    initial_gen_process_state = generative_process.stationary_state
+    model = build_gru_rnn(generative_process.vocab_size, num_layers=2, hidden_size=4, seed=0)
 
-    transition_matrices = even_ones(p=0.5)
-    vocab_size = int(transition_matrices.shape[0])
-    gen_process = HiddenMarkovModel(transition_matrices)
-    initial_gen_process_state = gen_process.stationary_state
-
-    hidden_size = 4
-    hidden_sizes = [hidden_size] * 2
-    key, model_key = jax.random.split(key)
-    model = GRURNN(in_size=vocab_size, out_size=vocab_size, hidden_sizes=hidden_sizes, key=model_key)
-    optimizer = optax.adam(learning_rate=0.001)
-
-    sequence_len = 4
-    batch_size = 2
-    num_epochs = 8
-    _, losses = train(
-        key, model, optimizer, gen_process, initial_gen_process_state, num_epochs, batch_size, sequence_len
+    cfg = TrainConfig(
+        seed=0,
+        sequence_len=4,
+        batch_size=2,
+        num_steps=8,
+        log_every=1,
+        optimizer=OptimizerConfig(
+            name="adam",
+            instance=AdamConfig(
+                _target_="optax.adam",
+                learning_rate=0.001,
+                b1=0.9,
+                b2=0.999,
+                eps=1e-8,
+                eps_root=0.0,
+                nesterov=True,
+            ),
+        ),
     )
-    assert losses.shape == (num_epochs,)
+    model, losses = train(cfg, model, generative_process, initial_gen_process_state)
+    assert losses.shape == (cfg.num_steps,)

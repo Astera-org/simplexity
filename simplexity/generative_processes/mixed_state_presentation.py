@@ -229,20 +229,20 @@ class MixedStateTreeGenerator(eqx.Module, Generic[TNode, TTreeData, TTree]):
             return tree_data, search_nodes
 
         if self.max_tree_size < 0:
-            max_tree_size = int(jnp.sum(self.ghmm.num_observations ** jnp.arange(self.max_sequence_length + 1)))
+            max_tree_size = int(jnp.sum(self.ghmm.vocab_size ** jnp.arange(self.max_sequence_length + 1)))
         else:
             max_tree_size = self.max_tree_size
         tree_data = self._empty_tree_data(max_tree_size)
 
         if search_algorithm == SearchAlgorithm.BREADTH_FIRST:
             if self.max_search_nodes_size < 0:
-                max_size = self.ghmm.num_observations ** (self.max_sequence_length + 1)
+                max_size = self.ghmm.vocab_size ** (self.max_sequence_length + 1)
             else:
                 max_size = self.max_search_nodes_size
             search_nodes = Queue(max_size, default_element=self.root)
         else:  # DEPTH_FIRST
             if self.max_search_nodes_size < 0:
-                max_size = (self.ghmm.num_observations - 1) * self.max_sequence_length + 1
+                max_size = (self.ghmm.vocab_size - 1) * self.max_sequence_length + 1
             else:
                 max_size = self.max_search_nodes_size
             search_nodes = Stack(max_size, default_element=self.root)
@@ -274,7 +274,7 @@ class MixedStateTreeGenerator(eqx.Module, Generic[TNode, TTreeData, TTree]):
             search_nodes = self.get_all_children(search_nodes)
             return belief_state_entropies, observation_entropies, search_nodes
 
-        max_size = self.ghmm.num_observations ** (self.max_sequence_length + 1)
+        max_size = self.ghmm.vocab_size ** (self.max_sequence_length + 1)
         if self.max_search_nodes_size > 0 and self.max_search_nodes_size < max_size:
             raise ValueError(
                 f"max_search_nodes_size ({self.max_search_nodes_size}) not large enough for computing myopic entropy "
@@ -349,7 +349,7 @@ class MixedStateTreeGenerator(eqx.Module, Generic[TNode, TTreeData, TTree]):
                 nodes = jax.lax.cond(child.probability >= self.prob_threshold, add_child, do_nothing, (nodes, child))
                 return nodes, node
 
-            return jax.lax.fori_loop(0, self.ghmm.num_observations, maybe_add_child, nodes_node)
+            return jax.lax.fori_loop(0, self.ghmm.vocab_size, maybe_add_child, nodes_node)
 
         def no_update(
             nodes_node: tuple[Collection[TNode], TNode],

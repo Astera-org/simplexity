@@ -50,10 +50,10 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     def validate_transition_matrices(self, transition_matrices: jax.Array):
         """Validate the transition matrices."""
         if transition_matrices.ndim != 3 or transition_matrices.shape[1] != transition_matrices.shape[2]:
-            raise ValueError("Transition matrices must have shape (num_observations, num_states, num_states)")
+            raise ValueError("Transition matrices must have shape (vocab_size, num_states, num_states)")
 
     @property
-    def num_observations(self) -> int:
+    def vocab_size(self) -> int:
         """The number of distinct observations that can be emitted by the model."""
         return self.transition_matrices.shape[0]
 
@@ -62,11 +62,16 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         """The number of hidden states in the model."""
         return self.transition_matrices.shape[1]
 
+    @property
+    def initial_state(self) -> State:
+        """The initial state of the model."""
+        return cast(State, self.stationary_state)
+
     @eqx.filter_jit
     def emit_observation(self, state: State, key: chex.PRNGKey) -> jax.Array:
         """Emit an observation based on the state of the generative process."""
         obs_probs = self.observation_probability_distribution(state)
-        return jax.random.choice(key, self.num_observations, p=obs_probs)
+        return jax.random.choice(key, self.vocab_size, p=obs_probs)
 
     @eqx.filter_jit
     def transition_states(self, state: State, obs: chex.Array) -> State:

@@ -14,6 +14,7 @@ requires-python = ">=3.12"
 dependencies = [
     "chex",
     "equinox",
+    "hydra-core",
     "jax[cuda12_pip]",
     "jupyter",
     "matplotlib",

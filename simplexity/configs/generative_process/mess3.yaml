@@ -1,0 +1,7 @@
+name: mess3
+vocab_size: 3
+instance:
+  _target_: simplexity.generative_processes.builder.build_hidden_markov_model
+  process_name: mess3
+  x: 0.15
+  a: 0.6

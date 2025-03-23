@@ -71,5 +71,12 @@ class GRURNN(PredictiveModel):
         self.layers = eqx.nn.Sequential(layers)
 
     def __call__(self, xs: jax.Array) -> jax.Array:
-        """Forward pass of the RNN."""
+        """Forward pass of the GRU RNN."""
         return self.layers(xs)
+
+
+def build_gru_rnn(vocab_size: int, num_layers: int, hidden_size: int, seed: int) -> GRURNN:
+    """Build a GRU RNN model."""
+    hidden_sizes = [hidden_size] * num_layers
+    key = jax.random.PRNGKey(seed)
+    return GRURNN(vocab_size, vocab_size, hidden_sizes, key=key)

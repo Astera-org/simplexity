@@ -6,8 +6,7 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.data_structures import Collection, Queue, Stack
-from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
-from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.builder import build_generalized_hidden_markov_model, build_hidden_markov_model
 from simplexity.generative_processes.mixed_state_presentation import (
     LogMixedStateNode,
     LogMixedStateTree,
@@ -20,7 +19,6 @@ from simplexity.generative_processes.mixed_state_presentation import (
     SearchAlgorithm,
     Sequence,
 )
-from simplexity.generative_processes.transition_matrices import no_consecutive_ones
 
 ABS_TOL = 1e-7
 
@@ -152,15 +150,13 @@ LOG_NODES = {
 
 @pytest.fixture
 def generator() -> MixedStateTreeGenerator:
-    transition_matrices = no_consecutive_ones()
-    ghmm = GeneralizedHiddenMarkovModel(transition_matrices)
+    ghmm = build_generalized_hidden_markov_model("no_consecutive_ones", p=0.5)
     return MixedStateTreeGenerator(ghmm, max_sequence_length=2)
 
 
 @pytest.fixture
 def log_generator() -> LogMixedStateTreeGenerator:
-    transition_matrices = no_consecutive_ones()
-    hmm = HiddenMarkovModel(transition_matrices)
+    hmm = build_hidden_markov_model("no_consecutive_ones", p=0.5)
     return LogMixedStateTreeGenerator(hmm, max_sequence_length=2, prob_threshold=-jnp.inf)
 
 

@@ -4,19 +4,18 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
-from simplexity.generative_processes.transition_matrices import zero_one_random
 from tests.assertions import assert_proportional
 
 
 @pytest.fixture
 def z1r() -> HiddenMarkovModel:
-    transition_matrices = zero_one_random()
-    return HiddenMarkovModel(transition_matrices)
+    return build_hidden_markov_model("zero_one_random", p=0.5)
 
 
 def test_properties(z1r: HiddenMarkovModel):
-    assert z1r.num_observations == 2
+    assert z1r.vocab_size == 2
     assert z1r.num_states == 3
     assert_proportional(z1r.normalizing_eigenvector, jnp.ones(3))
     assert_proportional(z1r.stationary_state, jnp.ones(3))

@@ -6,12 +6,14 @@ import jax
 import jax.numpy as jnp
 import optax
 
+from simplexity.configs.train.config import Config as TrainConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.hydra_helpers import typed_instantiate
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
 class TrainingState(eqx.Module):
-    """State for training a model for one epoch."""
+    """State for training a model for one step."""
 
     model: PredictiveModel
     gen_process_states: jax.Array
@@ -55,10 +57,10 @@ def update(
 
 
 @eqx.filter_jit
-def training_epoch(
+def training_step(
     state: TrainingState, attrs: TrainingAttributes, key: chex.PRNGKey
 ) -> tuple[TrainingState, chex.Array]:
-    """Train the model for one epoch."""
+    """Train the model for one step."""
     batch_keys = jax.random.split(key, attrs.batch_size)
     gen_process_states, obs = attrs.gen_process.generate(state.gen_process_states, batch_keys, attrs.sequence_len)
     state = dataclasses.replace(state, gen_process_states=gen_process_states)
@@ -68,20 +70,16 @@ def training_epoch(
     return update(state, x, y, attrs.opt_update)
 
 
-@eqx.filter_jit
 def train(
-    key: chex.PRNGKey,
+    cfg: TrainConfig,
     model: PredictiveModel,
-    optimizer: optax.GradientTransformation,
     gen_process: GenerativeProcess,
     initial_gen_process_state: jax.Array,
-    num_epochs: int,
-    batch_size: int,
-    sequence_len: int,
-    log_every: int = 1,
 ) -> tuple[PredictiveModel, jax.Array]:
     """Train a predictive model on a generative process."""
-    gen_process_states = jnp.repeat(initial_gen_process_state[None, :], batch_size, axis=0)
+    gen_process_states = jnp.repeat(initial_gen_process_state[None, :], cfg.batch_size, axis=0)
+
+    optimizer = typed_instantiate(cfg.optimizer.instance, optax.GradientTransformation)
 
     params = eqx.filter(model, eqx.is_array)
     opt_state = optimizer.init(params)
@@ -95,21 +93,16 @@ def train(
     attrs = TrainingAttributes(
         gen_process=gen_process,
         opt_update=opt_update,
-        batch_size=batch_size,
-        sequence_len=sequence_len,
+        batch_size=cfg.batch_size,
+        sequence_len=cfg.sequence_len,
     )
 
-    losses = jnp.zeros(num_epochs // log_every)
+    losses = jnp.zeros(cfg.num_steps // cfg.log_every)
 
-    def training_loop(
-        i, carry: tuple[TrainingState, jax.Array, chex.PRNGKey]
-    ) -> tuple[TrainingState, jax.Array, chex.PRNGKey]:
-        state, losses, key = carry
-        key, epoch_key = jax.random.split(key)
-        state, loss = training_epoch(state, attrs, epoch_key)
-        losses = losses.at[i // log_every].set(loss)
-        return state, losses, key
-
-    state, losses, key = jax.lax.fori_loop(1, num_epochs + 1, training_loop, (state, losses, key))
+    key = jax.random.PRNGKey(cfg.seed)
+    for i in range(1, cfg.num_steps + 1):
+        key, step_key = jax.random.split(key)
+        state, loss = training_step(state, attrs, step_key)
+        losses = losses.at[i // cfg.log_every].set(loss)
 
     return model, losses
