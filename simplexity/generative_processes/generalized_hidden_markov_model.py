@@ -65,7 +65,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     @property
     def initial_state(self) -> State:
         """The initial state of the model."""
-        return cast(State, self.state_eigenvector)
+        return cast(State, self.stationary_state)
 
     @eqx.filter_jit
     def emit_observation(self, state: State, key: chex.PRNGKey) -> jax.Array:
