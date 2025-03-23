@@ -10,7 +10,7 @@ class Config:
     seed: int
     sequence_len: int
     batch_size: int
-    num_epochs: int
+    num_steps: int
     log_every: int
     optimizer: OptimizerConfig
     checkpoint_every: int

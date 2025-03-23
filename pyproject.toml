@@ -28,6 +28,7 @@ dependencies = [
 dev = [
     "jaxtyping",
     "nbqa",
+    "nbqa",
     "pyright",
     "pytest",
     "pytest-cov",
