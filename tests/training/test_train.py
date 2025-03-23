@@ -5,21 +5,21 @@ from simplexity.configs.train.optimizer.config import AdamConfig
 from simplexity.configs.train.optimizer.config import Config as OptimizerConfig
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.persistence.local_persister import LocalPersister
-from simplexity.predictive_models.rnn import build_rnn
+from simplexity.predictive_models.gru_rnn import build_gru_rnn
 from simplexity.training.train import train
 
 
 def test_train(tmp_path: Path):
     generative_process = build_hidden_markov_model("even_ones", p=0.5)
-    initial_gen_process_state = generative_process.state_eigenvector
-    model = build_rnn(generative_process.vocab_size, num_layers=2, hidden_size=4, seed=0)
+    initial_gen_process_state = generative_process.stationary_state
+    model = build_gru_rnn(generative_process.vocab_size, num_layers=2, hidden_size=4, seed=0)
     persister = LocalPersister(base_dir=str(tmp_path))
 
     cfg = TrainConfig(
         seed=0,
         sequence_len=4,
         batch_size=2,
-        num_epochs=8,
+        num_steps=8,
         log_every=1,
         optimizer=OptimizerConfig(
             name="adam",
@@ -37,4 +37,4 @@ def test_train(tmp_path: Path):
         checkpoint_name="test",
     )
     model, losses = train(cfg, model, generative_process, initial_gen_process_state, persister)
-    assert losses.shape == (cfg.num_epochs,)
+    assert losses.shape == (cfg.num_steps,)
