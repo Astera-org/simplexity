@@ -18,3 +18,5 @@ class Config:
     train: TrainConfig
 
     seed: int
+    experiment_name: str
+    run_name: str

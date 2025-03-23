@@ -7,3 +7,5 @@ defaults:
  - train: small
 
 seed: 0
+experiment_name: ${predictive_model.name}_${generative_process.name}
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}
