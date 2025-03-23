@@ -7,9 +7,11 @@ from simplexity.configs.train.optimizer.config import Config as OptimizerConfig
 class Config:
     """Configuration for the training process."""
 
+    seed: int
     sequence_len: int
     batch_size: int
-    num_epochs: int
+    num_steps: int
+    log_every: int
     optimizer: OptimizerConfig
     log_every: int
     checkpoint_every: int

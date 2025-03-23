@@ -7,17 +7,15 @@ class ModelInstanceConfig:
     """Configuration for the model instance."""
 
     _target_: Literal["simplexity.predictive_models.rnn.build_rnn"]
+    vocab_size: int
 
 
 @dataclass
-class RNNConfig(ModelInstanceConfig):
-    """Configuration for RNN model."""
+class GRURNNConfig(ModelInstanceConfig):
+    """Configuration for GRU RNN model."""
 
-    _target_: Literal["simplexity.predictive_models.rnn.build_rnn"]
-    in_size: int
-    hidden_size: int
     num_layers: int
-    out_size: int
+    hidden_size: int
     seed: int
 
 
@@ -25,7 +23,7 @@ class RNNConfig(ModelInstanceConfig):
 class Config:
     """Base configuration for predictive models."""
 
-    name: Literal["rnn"]
+    name: Literal["gru_rnn"]
     instance: ModelInstanceConfig
     weights_filename: str
     load_weights: bool

@@ -1,0 +1,4 @@
+name: file_logger
+instance:
+  _target_: simplexity.logging.file_logger.FileLogger
+  file_path: logs/${run_name}.log

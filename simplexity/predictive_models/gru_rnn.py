@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Sequence
 
 import chex
 import equinox as eqx
@@ -47,19 +47,17 @@ class LinearFn(eqx.Module):
         return outs
 
 
-class RNN(PredictiveModel):
-    """A simple RNN model."""
+class GRURNN(PredictiveModel):
+    """A GRU-based RNN model."""
 
-    hidden_sizes: list[int]
     layers: eqx.nn.Sequential
 
-    def __init__(self, in_size: int, out_size: int, hidden_sizes: Iterable[int], *, seed: int):
-        hidden_sizes = list(hidden_sizes)
-        num_gru_layers = len(hidden_sizes)
-        key = jax.random.PRNGKey(seed)
-        linear_key, *cell_keys = jax.random.split(key, num_gru_layers + 1)
+    def __init__(self, in_size: int, out_size: int, hidden_sizes: Sequence[int], *, key: chex.PRNGKey):
+        self.in_size = in_size
+        self.out_size = out_size
 
-        self.hidden_sizes = hidden_sizes
+        num_gru_layers = len(hidden_sizes)
+        linear_key, *cell_keys = jax.random.split(key, num_gru_layers + 1)
 
         layers = []
         for hidden_size, cell_key in zip(hidden_sizes, cell_keys, strict=True):
@@ -73,18 +71,12 @@ class RNN(PredictiveModel):
         self.layers = eqx.nn.Sequential(layers)
 
     def __call__(self, xs: jax.Array) -> jax.Array:
-        """Forward pass of the RNN."""
+        """Forward pass of the GRU RNN."""
         return self.layers(xs)
 
 
-def build_rnn(
-    in_size: int,
-    out_size: int,
-    hidden_size: int,
-    num_layers: int,
-    *,
-    seed: int,
-) -> RNN:
-    """Build a RNN model."""
+def build_gru_rnn(vocab_size: int, num_layers: int, hidden_size: int, seed: int) -> GRURNN:
+    """Build a GRU RNN model."""
     hidden_sizes = [hidden_size] * num_layers
-    return RNN(in_size, out_size, hidden_sizes, seed=seed)
+    key = jax.random.PRNGKey(seed)
+    return GRURNN(vocab_size, vocab_size, hidden_sizes, key=key)
