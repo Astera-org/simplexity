@@ -1,14 +1,15 @@
 from pathlib import Path
 
 import chex
+import jax
 import pytest
 
 from simplexity.persistence.local_persister import LocalPersister
-from simplexity.predictive_models.rnn import RNN
+from simplexity.predictive_models.gru_rnn import GRURNN
 
 
-def get_model(seed: int) -> RNN:
-    return RNN(in_size=1, out_size=2, hidden_sizes=[3, 3], seed=seed)
+def get_model(seed: int) -> GRURNN:
+    return GRURNN(in_size=1, out_size=2, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
 
 
 def test_local_persister(tmp_path: Path):
