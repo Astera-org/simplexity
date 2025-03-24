@@ -6,4 +6,3 @@ __pycache__/
 data/
 outputs/
 .env
-setup_mlflow.py
