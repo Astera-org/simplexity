@@ -42,6 +42,8 @@ def test_train(tmp_path: Path):
         batch_size=2,
         num_steps=8,
         log_every=1,
+        checkpoint_every=8,
+        checkpoint_name="test",
         optimizer=OptimizerConfig(
             name="adam",
             instance=AdamConfig(
@@ -54,8 +56,6 @@ def test_train(tmp_path: Path):
                 nesterov=True,
             ),
         ),
-        checkpoint_every=8,
-        checkpoint_name="test",
     )
     model = train(cfg, model, generative_process, initial_gen_process_state, persister, logger)
     losses = extract_losses(log_file_path)

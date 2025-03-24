@@ -7,4 +7,3 @@ data/
 multirun/
 outputs/
 .env
-setup_mlflow.py

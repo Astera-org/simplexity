@@ -8,5 +8,4 @@ batch_size: 4
 num_steps: 10
 log_every: 1
 checkpoint_every: 5
-log_every: 1
-checkpoint_name: "small"
+checkpoint_name: ${run_name}
