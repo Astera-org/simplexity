@@ -108,6 +108,7 @@ def train(
         state, loss = training_step(state, attrs, step_key)
         losses = losses.at[i // cfg.log_every].set(loss)
         if i % cfg.checkpoint_every == 0:
-            persister.save_weights(model, cfg.checkpoint_name + f"_{i:0{max_epoch_digits}d}")
+            full_checkpoint_name = f"{cfg.checkpoint_name}_{i:0{max_epoch_digits}d}"
+            persister.save_weights(model, full_checkpoint_name)
 
     return model, losses
