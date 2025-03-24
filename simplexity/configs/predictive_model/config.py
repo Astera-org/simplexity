@@ -25,5 +25,4 @@ class Config:
 
     name: Literal["gru_rnn"]
     instance: ModelInstanceConfig
-    weights_filename: str
-    load_weights: bool
+    load_checkpoint_name: str

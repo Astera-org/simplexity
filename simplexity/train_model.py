@@ -16,8 +16,8 @@ def run_experiment(cfg: Config):
     vocab_size = generative_process.vocab_size
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, vocab_size=vocab_size)
     persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
-    if cfg.predictive_model.load_weights:
-        model = persister.load_weights(model, cfg.predictive_model.weights_filename)
+    if cfg.predictive_model.load_checkpoint_name:
+        model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_name)
     train(cfg.train, model, generative_process, initial_gen_process_state, persister)
     print("Training complete")
 

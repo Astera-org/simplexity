@@ -12,7 +12,6 @@ class Config:
     batch_size: int
     num_steps: int
     log_every: int
-    optimizer: OptimizerConfig
-    log_every: int
     checkpoint_every: int
     checkpoint_name: str
+    optimizer: OptimizerConfig
