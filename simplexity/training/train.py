@@ -102,13 +102,13 @@ def train(
     losses = jnp.zeros(cfg.num_steps // cfg.log_every)
 
     key = jax.random.PRNGKey(cfg.seed)
-    max_epoch_digits = len(str(cfg.num_steps))
-    for i in range(1, cfg.num_steps + 1):
+    max_steps_digits = len(str(cfg.num_steps))
+    for step in range(1, cfg.num_steps + 1):
         key, step_key = jax.random.split(key)
         state, loss = training_step(state, attrs, step_key)
-        losses = losses.at[i // cfg.log_every].set(loss)
-        if i % cfg.checkpoint_every == 0:
-            full_checkpoint_name = f"{cfg.checkpoint_name}_{i:0{max_epoch_digits}d}"
+        losses = losses.at[step // cfg.log_every].set(loss)
+        if step % cfg.checkpoint_every == 0:
+            full_checkpoint_name = f"{cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
             persister.save_weights(model, full_checkpoint_name)
 
     return model, losses
