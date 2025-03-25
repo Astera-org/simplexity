@@ -79,7 +79,7 @@ def train(
     initial_gen_process_state: jax.Array,
     persister: ModelPersister,
     logger: Logger,
-) -> PredictiveModel:
+) -> tuple[PredictiveModel, float]:
     """Train a predictive model on a generative process."""
     gen_process_states = jnp.repeat(initial_gen_process_state[None, :], cfg.batch_size, axis=0)
 
@@ -103,6 +103,7 @@ def train(
 
     key = jax.random.PRNGKey(cfg.seed)
     max_steps_digits = len(str(cfg.num_steps))
+    loss = jnp.array(0.0)
     for step in range(1, cfg.num_steps + 1):
         key, step_key = jax.random.split(key)
         state, loss = training_step(state, attrs, step_key)
@@ -112,4 +113,4 @@ def train(
             full_checkpoint_name = f"{cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
             persister.save_weights(model, full_checkpoint_name)
 
-    return model
+    return model, float(loss)

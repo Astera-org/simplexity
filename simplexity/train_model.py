@@ -11,7 +11,7 @@ from simplexity.training.train import train
 
 
 @hydra.main(config_path="configs", config_name="train_model.yaml", version_base="1.2")
-def run_experiment(cfg: Config):
+def run_experiment(cfg: Config) -> float:
     """Run the experiment."""
     assert isinstance(cfg, DictConfig)
     logger = typed_instantiate(cfg.logging.instance, Logger)
@@ -24,8 +24,18 @@ def run_experiment(cfg: Config):
     persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
     if cfg.predictive_model.load_checkpoint_name:
         model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_name)
-    train(cfg.train, model, generative_process, initial_gen_process_state, persister, logger)
-    print("Training complete")
+    _, loss = train(
+        cfg.train,
+        model,
+        generative_process,
+        initial_gen_process_state,
+        persister,
+        logger,
+    )
+
+    logger.close()
+
+    return loss
 
 
 if __name__ == "__main__":

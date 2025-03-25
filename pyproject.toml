@@ -16,6 +16,7 @@ dependencies = [
     "dotenv",
     "equinox",
     "hydra-core",
+    "hydra-optuna-sweeper",
     "jax[cuda12_pip]",
     "jupyter",
     "matplotlib",
