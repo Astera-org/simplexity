@@ -9,6 +9,7 @@ import optax
 from simplexity.configs.train.config import Config as TrainConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.hydra_helpers import typed_instantiate
+from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
@@ -75,6 +76,7 @@ def train(
     model: PredictiveModel,
     gen_process: GenerativeProcess,
     initial_gen_process_state: jax.Array,
+    persister: ModelPersister,
 ) -> tuple[PredictiveModel, jax.Array]:
     """Train a predictive model on a generative process."""
     gen_process_states = jnp.repeat(initial_gen_process_state[None, :], cfg.batch_size, axis=0)
@@ -100,9 +102,13 @@ def train(
     losses = jnp.zeros(cfg.num_steps // cfg.log_every)
 
     key = jax.random.PRNGKey(cfg.seed)
-    for i in range(1, cfg.num_steps + 1):
+    max_steps_digits = len(str(cfg.num_steps))
+    for step in range(1, cfg.num_steps + 1):
         key, step_key = jax.random.split(key)
         state, loss = training_step(state, attrs, step_key)
-        losses = losses.at[i // cfg.log_every].set(loss)
+        losses = losses.at[step // cfg.log_every].set(loss)
+        if step % cfg.checkpoint_every == 0:
+            full_checkpoint_name = f"{cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
+            persister.save_weights(model, full_checkpoint_name)
 
     return model, losses

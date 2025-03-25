@@ -2,6 +2,7 @@ defaults:
  - _self_
  - generative_process: mess3
  - predictive_model: gru_rnn
+ - persistence: local_persister
  - train: small
 
 seed: 0

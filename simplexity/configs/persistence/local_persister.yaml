@@ -1,0 +1,5 @@
+name: local_persister
+
+instance:
+  _target_: simplexity.persistence.local_persister.LocalPersister
+  base_dir: ./data/models
