@@ -3,6 +3,9 @@ defaults:
  - generative_process: mess3
  - predictive_model: gru_rnn
  - persistence: local_persister
+ - logging: mlflow_logger
  - train: small
 
 seed: 0
+experiment_name: ${predictive_model.name}_${generative_process.name}
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}
