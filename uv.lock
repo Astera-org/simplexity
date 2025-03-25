@@ -2190,14 +2190,14 @@ wheels = [
 
 [[package]]
 name = "prettytable"
-version = "3.15.1"
+version = "3.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "wcwidth" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/95/78080e58efbdde46cda8d4498737bf9687839ed4a9744b068cc730a073ed/prettytable-3.15.1.tar.gz", hash = "sha256:f0edb38060cb9161b2417939bfd5cd9877da73388fb19d1e8bf7987e8558896e", size = 65907 }
+sdist = { url = "https://files.pythonhosted.org/packages/99/b1/85e18ac92afd08c533603e3393977b6bc1443043115a47bb094f3b98f94f/prettytable-3.16.0.tar.gz", hash = "sha256:3c64b31719d961bf69c9a7e03d0c1e477320906a98da63952bc6698d6164ff57", size = 66276 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/37/f687efd8760c183787ff16a61ec9e3515355178271f33fd7c14bf42e338c/prettytable-3.15.1-py3-none-any.whl", hash = "sha256:1bb0da7437e904ec879d2998aded19abc722719aa3d384a7faa44dcbe4aeb2e9", size = 33781 },
+    { url = "https://files.pythonhosted.org/packages/02/c7/5613524e606ea1688b3bdbf48aa64bafb6d0a4ac3750274c43b6158a390f/prettytable-3.16.0-py3-none-any.whl", hash = "sha256:b5eccfabb82222f5aa46b798ff02a8452cf530a352c31bddfa29be41242863aa", size = 33863 },
 ]
 
 [[package]]
