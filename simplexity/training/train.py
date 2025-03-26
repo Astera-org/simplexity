@@ -84,6 +84,28 @@ def step_model(
     return state, mean_loss
 
 
+@eqx.filter_jit
+def validate_model(
+    state: TrainingState,
+    attrs: TrainingAttributes,
+    key: chex.PRNGKey,
+    num_validation_steps: int,
+) -> tuple[TrainingState, dict[str, jax.Array]]:
+    """Compute the validation loss."""
+
+    def loop_body(_, carry):
+        state, key, total_loss = carry
+        key, step_key = jax.random.split(key)
+        state, loss = step_model(state, attrs, step_key, train=False)
+        total_loss = total_loss + loss
+        return state, key, total_loss
+
+    state, _, total_loss = jax.lax.fori_loop(0, num_validation_steps, loop_body, (state, key, jnp.array(0.0)))
+    mean_loss = total_loss / num_validation_steps
+    metrics = {"validation_loss": mean_loss}
+    return state, metrics
+
+
 def train(
     cfg: TrainConfig,
     model: PredictiveModel,
@@ -129,13 +151,8 @@ def train(
         if step % cfg.log_every == 0:
             logger.log_metrics(step, {"loss": loss})
         if step % cfg.validate_every == 0:
-            total_val_loss = 0.0
-            for _ in range(cfg.num_validation_steps):
-                val_key, step_key = jax.random.split(val_key)
-                state, val_loss = step_model(state, attrs, step_key, train=False)
-                total_val_loss += val_loss
-            val_loss = total_val_loss / cfg.num_validation_steps
-            logger.log_metrics(step, {"val_loss": val_loss})
+            state, val_metrics = validate_model(state, attrs, val_key, cfg.num_validation_steps)
+            logger.log_metrics(step, val_metrics)
         if step % cfg.checkpoint_every == 0:
             full_checkpoint_name = f"{cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
             persister.save_weights(model, full_checkpoint_name)
