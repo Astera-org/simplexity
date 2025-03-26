@@ -50,3 +50,9 @@ Model training is configured using [Hydra](https://hydra.cc/) with config files 
 ```bash
 uv run python simplexity/train_model.py
 ```
+
+An experiment comprised of several runs can be executed to perform a hyperparameter search or otherwise run multiple trials with different parameters using [Optuna](https://optuna.org/). To run an experiment using the configuration specified in `simplexity/configs/experiment.yaml`, run:
+
+```bash
+uv run python simplexity/run_experiment.py --multirun
+```
