@@ -10,16 +10,16 @@ from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train import train
 
 
-@hydra.main(config_path="configs", config_name="train_model.yaml", version_base="1.2")
-def train_model(cfg: Config) -> float:
-    """Train a model."""
+@hydra.main(config_path="configs", config_name="experiment.yaml", version_base="1.2")
+def run_experiment(cfg: Config) -> float:
+    """Run the experiment."""
     assert isinstance(cfg, DictConfig)
     logger = typed_instantiate(cfg.logging.instance, Logger)
     logger.log_config(cfg)
     logger.log_params(cfg)
-    training_data_generator = typed_instantiate(cfg.training_data_generator.instance, GenerativeProcess)
-    validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
-    vocab_size = training_data_generator.vocab_size
+    generative_process = typed_instantiate(cfg.generative_process.instance, GenerativeProcess)
+    initial_gen_process_state = generative_process.initial_state
+    vocab_size = generative_process.vocab_size
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, vocab_size=vocab_size)
     persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
     if cfg.predictive_model.load_checkpoint_name:
@@ -27,8 +27,8 @@ def train_model(cfg: Config) -> float:
     _, loss = train(
         cfg.train,
         model,
-        training_data_generator,
-        validation_data_generator,
+        generative_process,
+        initial_gen_process_state,
         persister,
         logger,
     )
@@ -39,4 +39,4 @@ def train_model(cfg: Config) -> float:
 
 
 if __name__ == "__main__":
-    train_model()
+    run_experiment()

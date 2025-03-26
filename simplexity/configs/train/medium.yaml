@@ -2,11 +2,12 @@ defaults:
   - _self_
   - optimizer: adam
 
+seed: ${seed}
 sequence_len: 64
 batch_size: 128
-num_epochs: 10000
+num_steps: 10000
 log_every: 100
 validate_every: 1000
 num_validation_steps: 100
 checkpoint_every: 5000
-checkpoint_name: "medium"
+checkpoint_name: ${run_name}
