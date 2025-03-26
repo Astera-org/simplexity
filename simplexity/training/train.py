@@ -129,10 +129,13 @@ def train(
         if step % cfg.log_every == 0:
             logger.log_metrics(step, {"loss": loss})
         if step % cfg.validate_every == 0:
+            total_val_loss = 0.0
             for _ in range(cfg.num_validation_steps):
                 val_key, step_key = jax.random.split(val_key)
                 state, val_loss = step_model(state, attrs, step_key, train=False)
-                logger.log_metrics(step, {"val_loss": val_loss})
+                total_val_loss += val_loss
+            val_loss = total_val_loss / cfg.num_validation_steps
+            logger.log_metrics(step, {"val_loss": val_loss})
         if step % cfg.checkpoint_every == 0:
             full_checkpoint_name = f"{cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
             persister.save_weights(model, full_checkpoint_name)
