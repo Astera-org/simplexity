@@ -26,7 +26,7 @@ class S3Client(Protocol):
         ...
 
 
-class S3ModelPersister(ModelPersister):
+class S3Persister(ModelPersister):
     """Persists a model to an S3 bucket."""
 
     bucket: str
@@ -40,8 +40,8 @@ class S3ModelPersister(ModelPersister):
         prefix: str = "models",
         region_name: str | None = None,
         endpoint_url: str | None = None,
-    ) -> "S3ModelPersister":
-        """Creates a new S3ModelPersister from client arguments."""
+    ) -> "S3Persister":
+        """Creates a new S3Persister from client arguments."""
         prefix = prefix.rstrip("/")
         s3_client = boto3.client("s3", region_name=region_name, endpoint_url=endpoint_url)
         return cls(bucket=bucket, prefix=prefix, s3_client=s3_client)  # type: ignore

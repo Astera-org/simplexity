@@ -5,7 +5,7 @@ import chex
 import jax
 import pytest
 
-from simplexity.persistence.s3_persister import S3ModelPersister
+from simplexity.persistence.s3_persister import S3Persister
 from simplexity.predictive_models.gru_rnn import GRURNN
 
 
@@ -36,9 +36,9 @@ def get_model(seed: int = 0) -> GRURNN:
 
 
 def test_s3_persister(tmp_path: Path):
-    """Test S3ModelPersister initialization."""
+    """Test S3Persister initialization."""
     s3_client_mock = LocalS3MockClient(tmp_path)
-    persister = S3ModelPersister(bucket="test-bucket", prefix="models", s3_client=s3_client_mock)
+    persister = S3Persister(bucket="test-bucket", prefix="models", s3_client=s3_client_mock)
     assert persister.bucket == "test-bucket"
     assert persister.prefix == "models"
 
