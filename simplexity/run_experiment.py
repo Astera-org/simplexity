@@ -10,9 +10,9 @@ from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train import train
 
 
-@hydra.main(config_path="configs", config_name="train_model.yaml", version_base="1.2")
-def train_model(cfg: Config) -> float:
-    """Train a model."""
+@hydra.main(config_path="configs", config_name="experiment.yaml", version_base="1.2")
+def run_experiment(cfg: Config) -> float:
+    """Run the experiment."""
     assert isinstance(cfg, DictConfig)
     logger = typed_instantiate(cfg.logging.instance, Logger)
     logger.log_config(cfg)
@@ -39,4 +39,4 @@ def train_model(cfg: Config) -> float:
 
 
 if __name__ == "__main__":
-    train_model()
+    run_experiment()
