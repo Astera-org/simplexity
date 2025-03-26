@@ -18,22 +18,21 @@ class TrainingState(eqx.Module):
     """State for training a model for one step."""
 
     model: PredictiveModel
-    gen_process_states: jax.Array
+    train_gen_states: jax.Array
+    val_gen_states: jax.Array
     opt_state: optax.OptState
 
 
 class TrainingAttributes(eqx.Module):
     """Attributes for training."""
 
-    gen_process: GenerativeProcess
+    train_data_generator: GenerativeProcess
+    val_data_generator: GenerativeProcess
     opt_update: optax.TransformUpdateFn
     batch_size: int
     sequence_len: int
 
 
-@eqx.filter_vmap(in_axes=(None, 0, 0))
-@eqx.filter_jit
-@eqx.filter_value_and_grad
 def loss_fn(model: PredictiveModel, x: jax.Array, y: jax.Array) -> chex.Array:
     """Compute the loss for a batch of observations and their corresponding states."""
     logits = model(x)
@@ -41,47 +40,64 @@ def loss_fn(model: PredictiveModel, x: jax.Array, y: jax.Array) -> chex.Array:
     return jnp.mean(losses)
 
 
+train_loss_fn = eqx.filter_vmap(eqx.filter_jit(eqx.filter_value_and_grad(loss_fn)), in_axes=(None, 0, 0))
+val_loss_fn = eqx.filter_vmap(eqx.filter_jit(loss_fn), in_axes=(None, 0, 0))
+
+
 @eqx.filter_jit
-def update(
+def update_model(
     state: TrainingState,
-    x: jax.Array,
-    y: jax.Array,
+    grads: jax.Array,
     opt_update: optax.TransformUpdateFn,
-) -> tuple[TrainingState, chex.Array]:
+) -> TrainingState:
     """Update the model parameters."""
-    loss, grads = loss_fn(state.model, x, y)
-    mean_loss = jnp.mean(loss)
     mean_grads = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
     params = eqx.filter(state.model, eqx.is_array)
     updates, opt_state = opt_update(mean_grads, state.opt_state, params)
     model = eqx.apply_updates(state.model, updates)
-    return dataclasses.replace(state, model=model, opt_state=opt_state), mean_loss
+    return dataclasses.replace(state, model=model, opt_state=opt_state)
 
 
 @eqx.filter_jit
-def training_step(
-    state: TrainingState, attrs: TrainingAttributes, key: chex.PRNGKey
+def step_model(
+    state: TrainingState, attrs: TrainingAttributes, key: chex.PRNGKey, *, train: bool = True
 ) -> tuple[TrainingState, chex.Array]:
     """Train the model for one step."""
     batch_keys = jax.random.split(key, attrs.batch_size)
-    gen_process_states, obs = attrs.gen_process.generate(state.gen_process_states, batch_keys, attrs.sequence_len)
-    state = dataclasses.replace(state, gen_process_states=gen_process_states)
+    if train:
+        train_gen_states, obs = attrs.train_data_generator.generate(
+            state.train_gen_states, batch_keys, attrs.sequence_len
+        )
+        state = dataclasses.replace(state, train_gen_states=train_gen_states)
+    else:
+        val_gen_states, obs = attrs.val_data_generator.generate(state.val_gen_states, batch_keys, attrs.sequence_len)
+        state = dataclasses.replace(state, val_gen_states=val_gen_states)
     one_hot_obs = jax.nn.one_hot(obs, state.model.out_size)
     x = one_hot_obs[:, :-1, :]
     y = one_hot_obs[:, 1:, :].squeeze()
-    return update(state, x, y, attrs.opt_update)
+    if train:
+        losses, grads = train_loss_fn(state.model, x, y)
+        state = update_model(state, grads, attrs.opt_update)
+    else:
+        losses = val_loss_fn(state.model, x, y)
+    mean_loss = jnp.mean(losses)
+    return state, mean_loss
 
 
 def train(
     cfg: TrainConfig,
     model: PredictiveModel,
-    gen_process: GenerativeProcess,
-    initial_gen_process_state: jax.Array,
+    training_data_generator: GenerativeProcess,
+    validation_data_generator: GenerativeProcess,
     persister: ModelPersister,
     logger: Logger,
 ) -> tuple[PredictiveModel, float]:
     """Train a predictive model on a generative process."""
-    gen_process_states = jnp.repeat(initial_gen_process_state[None, :], cfg.batch_size, axis=0)
+    train_gen_state = training_data_generator.initial_state
+    train_gen_states = jnp.repeat(train_gen_state[None, :], cfg.batch_size, axis=0)
+
+    val_gen_state = validation_data_generator.initial_state
+    val_gen_states = jnp.repeat(val_gen_state[None, :], cfg.batch_size, axis=0)
 
     optimizer = typed_instantiate(cfg.optimizer.instance, optax.GradientTransformation)
 
@@ -91,24 +107,32 @@ def train(
 
     state = TrainingState(
         model=model,
-        gen_process_states=gen_process_states,
+        train_gen_states=train_gen_states,
+        val_gen_states=val_gen_states,
         opt_state=opt_state,
     )
     attrs = TrainingAttributes(
-        gen_process=gen_process,
+        train_data_generator=training_data_generator,
+        val_data_generator=validation_data_generator,
         opt_update=opt_update,
         batch_size=cfg.batch_size,
         sequence_len=cfg.sequence_len,
     )
 
     key = jax.random.PRNGKey(cfg.seed)
+    train_key, val_key = jax.random.split(key)
     max_steps_digits = len(str(cfg.num_steps))
     loss = jnp.array(0.0)
     for step in range(1, cfg.num_steps + 1):
-        key, step_key = jax.random.split(key)
-        state, loss = training_step(state, attrs, step_key)
+        train_key, step_key = jax.random.split(train_key)
+        state, loss = step_model(state, attrs, step_key, train=True)
         if step % cfg.log_every == 0:
             logger.log_metrics(step, {"loss": loss})
+        if step % cfg.validate_every == 0:
+            for _ in range(cfg.num_validation_steps):
+                val_key, step_key = jax.random.split(val_key)
+                state, val_loss = step_model(state, attrs, step_key, train=False)
+                logger.log_metrics(step, {"val_loss": val_loss})
         if step % cfg.checkpoint_every == 0:
             full_checkpoint_name = f"{cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
             persister.save_weights(model, full_checkpoint_name)

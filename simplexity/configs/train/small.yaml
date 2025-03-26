@@ -7,5 +7,7 @@ sequence_len: 8
 batch_size: 4
 num_steps: 10
 log_every: 1
+validate_every: 2
+num_validation_steps: 1
 checkpoint_every: 5
 checkpoint_name: ${run_name}

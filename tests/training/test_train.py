@@ -30,7 +30,6 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 
 def test_train(tmp_path: Path):
     generative_process = build_hidden_markov_model("even_ones", p=0.5)
-    initial_gen_process_state = generative_process.stationary_state
     model = build_gru_rnn(generative_process.vocab_size, num_layers=2, hidden_size=4, seed=0)
     persister = LocalPersister(base_dir=str(tmp_path))
     log_file_path = tmp_path / "test.log"
@@ -42,6 +41,8 @@ def test_train(tmp_path: Path):
         batch_size=2,
         num_steps=8,
         log_every=1,
+        validate_every=1,
+        num_validation_steps=1,
         checkpoint_every=8,
         checkpoint_name="test",
         optimizer=OptimizerConfig(
@@ -57,6 +58,6 @@ def test_train(tmp_path: Path):
             ),
         ),
     )
-    model = train(cfg, model, generative_process, initial_gen_process_state, persister, logger)
+    model = train(cfg, model, generative_process, generative_process, persister, logger)
     losses = extract_losses(log_file_path)
     assert losses.shape == (cfg.num_steps,)
