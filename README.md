@@ -56,3 +56,7 @@ An experiment comprised of several runs can be executed to perform a hyperparame
 ```bash
 uv run python simplexity/run_experiment.py --multirun
 ```
+
+### Model Checkpointing
+
+The `ModelPersister` classes are responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket.
