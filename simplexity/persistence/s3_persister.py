@@ -1,9 +1,10 @@
 import tempfile
+from configparser import ConfigParser
 from pathlib import Path
 from typing import Protocol
 
-import boto3
 import equinox as eqx
+from boto3.session import Session
 from botocore.exceptions import ClientError
 
 from simplexity.persistence.model_persister import ModelPersister
@@ -34,16 +35,15 @@ class S3Persister(ModelPersister):
     s3_client: S3Client
 
     @classmethod
-    def from_client_args(
-        cls,
-        bucket: str,
-        prefix: str = "models",
-        region_name: str | None = None,
-        endpoint_url: str | None = None,
-    ) -> "S3Persister":
+    def from_config(cls, filename: str) -> "S3Persister":
         """Creates a new S3Persister from client arguments."""
-        prefix = prefix.rstrip("/")
-        s3_client = boto3.client("s3", region_name=region_name, endpoint_url=endpoint_url)
+        config = ConfigParser()
+        config.read(filename)
+        bucket = config["s3"]["bucket"]
+        prefix = config["s3"]["prefix"]
+        profile_name = config["aws"]["profile_name"]
+        session = Session(profile_name=profile_name)
+        s3_client = session.client("s3")
         return cls(bucket=bucket, prefix=prefix, s3_client=s3_client)  # type: ignore
 
     def save_weights(self, model: PredictiveModel, name: str) -> None:

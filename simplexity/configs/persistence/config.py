@@ -6,8 +6,10 @@ from typing import Literal
 class PersistenceInstanceConfig:
     """Configuration for the persistence instance."""
 
-    _target_: Literal["simplexity.persistence.local_persister.LocalPersister", 
-                       "simplexity.persistence.s3_persister.S3Persister.from_client_args"]
+    _target_: Literal[
+        "simplexity.persistence.local_persister.LocalPersister",
+        "simplexity.persistence.s3_persister.S3Persister.from_client_args",
+    ]
 
 
 @dataclass
@@ -21,10 +23,7 @@ class LocalPersisterConfig(PersistenceInstanceConfig):
 class S3PersisterConfig(PersistenceInstanceConfig):
     """Configuration for S3 persister."""
 
-    bucket: str
-    prefix: str = "models"
-    region_name: str | None = None
-    endpoint_url: str | None = None
+    config_file: str
 
 
 @dataclass

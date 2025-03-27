@@ -59,4 +59,13 @@ uv run python simplexity/run_experiment.py --multirun
 
 ### Model Checkpointing
 
-The `ModelPersister` classes are responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket.
+The `ModelPersister` classes are responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket. The `S3Persister`, can be configured using an `.ini` file, which should have the following structure:
+
+```ini
+[aws]
+profile_name = default
+
+[s3]
+bucket = your_s3_bucket_name
+prefix = your_s3_prefix
+```

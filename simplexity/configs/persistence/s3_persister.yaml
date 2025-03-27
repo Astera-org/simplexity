@@ -1,9 +1,5 @@
 name: s3_persister
 
 instance:
-  _target_: simplexity.persistence.s3_persister.S3Persister.from_client_args
-  bucket: "obelisk-simplex"  # Replace with your actual bucket name
-  prefix: "test_models"
-  # Optionally set region_name and endpoint_url if needed
-  # region_name: "us-east-1"
-  # endpoint_url: null
+  _target_: simplexity.persistence.s3_persister.S3Persister.from_config
+  config_file: "config.ini"
