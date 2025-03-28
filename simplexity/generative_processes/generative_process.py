@@ -48,7 +48,6 @@ class GenerativeProcess(eqx.Module, Generic[State]):
         Inputs:
             state: (batch_size, num_states)
             key: (batch_size, 2)
-            
         Returns: tuple of (belief_states, observations) where:
         if return_all_states is True:
             belief_states is the sequence of belief states of shape:
@@ -76,7 +75,6 @@ class GenerativeProcess(eqx.Module, Generic[State]):
             return states, obs
 
         return jax.lax.scan(gen_obs, state, keys)
-
 
     @abstractmethod
     def observation_probability_distribution(self, state: State) -> jax.Array:
