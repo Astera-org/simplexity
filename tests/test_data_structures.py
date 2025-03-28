@@ -7,34 +7,34 @@ import pytest
 from simplexity.data_structures import Collection, Queue, Stack
 
 
-class TestElement(eqx.Module):
+class Element(eqx.Module):
     x: jax.Array
     y: jax.Array
     z: jax.Array
 
 
 @pytest.fixture
-def default_element() -> TestElement:
-    return TestElement(x=jnp.zeros(4), y=jnp.zeros((2, 3)), z=jnp.array(0))
+def default_element() -> Element:
+    return Element(x=jnp.zeros(4), y=jnp.zeros((2, 3)), z=jnp.array(0))
 
 
 @pytest.fixture
-def stack(default_element: TestElement) -> Stack:
+def stack(default_element: Element) -> Stack:
     return Stack(max_size=2, default_element=default_element)
 
 
 @pytest.fixture
-def queue(default_element: TestElement) -> Queue:
+def queue(default_element: Element) -> Queue:
     return Queue(max_size=2, default_element=default_element)
 
 
 @pytest.fixture
-def elements() -> list[TestElement]:
+def elements() -> list[Element]:
     num_elements = 3
     key = jax.random.PRNGKey(0)
     keys = jax.random.split(key, 3 * num_elements)
     return [
-        TestElement(
+        Element(
             x=jax.random.uniform(keys[3 * i], (4,)),
             y=jax.random.uniform(keys[3 * i + 1], (2, 3)),
             z=jax.random.randint(keys[3 * i + 2], (), 0, 10),
@@ -83,12 +83,12 @@ def test_remove(
 
     data_structure, val = data_structure.remove()
     assert data_structure.size == 1
-    assert isinstance(val, TestElement)
+    assert isinstance(val, Element)
     chex.assert_trees_all_equal(val, elements[remove_order[0]])
 
     data_structure, val = data_structure.remove()
     assert data_structure.size == 0
-    assert isinstance(val, TestElement)
+    assert isinstance(val, Element)
     chex.assert_trees_all_equal(val, elements[remove_order[1]])
 
 
