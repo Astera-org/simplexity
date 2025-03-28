@@ -10,6 +10,6 @@ class PredictiveModel(Protocol):
     in_size: int
     out_size: int
 
-    def __call__(self, x: jax.Array) -> jax.Array:
+    def __call__(self, x: jax.Array, /) -> jax.Array:
         """Predict the next state given the current state."""
         ...

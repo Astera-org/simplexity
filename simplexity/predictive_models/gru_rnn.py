@@ -70,9 +70,9 @@ class GRURNN(eqx.Module):
         layers.append(linear_layer)
         self.layers = eqx.nn.Sequential(layers)
 
-    def __call__(self, x: jax.Array) -> jax.Array:
+    def __call__(self, xs: jax.Array) -> jax.Array:
         """Forward pass of the GRU RNN."""
-        return self.layers(x)
+        return self.layers(xs)
 
 
 def build_gru_rnn(vocab_size: int, num_layers: int, hidden_size: int, seed: int) -> GRURNN:
