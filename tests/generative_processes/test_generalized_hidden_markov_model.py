@@ -105,23 +105,21 @@ def test_generate(model_name: str, request: pytest.FixtureRequest):
 
 
 @pytest.mark.parametrize("model_name", ["z1r", "fanizza_model"])
-def test_generate_full(model_name: str, request: pytest.FixtureRequest):
+def test_generate_with_intermediate_states(model_name: str, request: pytest.FixtureRequest):
     model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
     batch_size = 4
     sequence_len = 10
 
     initial_states = jnp.repeat(model.stationary_state[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
-    keys, first_states, intermediate_observations = model.generate_full(initial_states, keys, sequence_len)
-    assert keys.shape == (batch_size, 2)
-    assert first_states.shape == (batch_size, sequence_len, model.num_states)
-    assert intermediate_observations.shape == (batch_size, sequence_len)
-    intermediate_states = first_states[:, -1, :]
+    intermediate_states, observations = model.generate(initial_states, keys, sequence_len, True)
+    assert intermediate_states.shape == (batch_size, sequence_len, model.num_states)
+    assert observations.shape == (batch_size, sequence_len)
+    last_intermediate_states = intermediate_states[:, -1, :]
 
-    keys, final_states, final_observations = model.generate_full(intermediate_states, keys, sequence_len)
-    assert keys.shape == (batch_size, 2)
+    final_states, observations = model.generate(last_intermediate_states, keys, sequence_len, True)
     assert final_states.shape == (batch_size, sequence_len, model.num_states)
-    assert final_observations.shape == (batch_size, sequence_len)
+    assert observations.shape == (batch_size, sequence_len)
 
 
 def test_hmm_observation_probability_distribution(z1r: GeneralizedHiddenMarkovModel):

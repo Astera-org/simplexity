@@ -38,50 +38,28 @@ class GenerativeProcess(eqx.Module, Generic[State]):
         """
         ...
 
-    @eqx.filter_vmap(in_axes=(None, 0, 0, None))
-    def generate(self, state: State, key: chex.PRNGKey, sequence_len: int) -> tuple[State, chex.Array]:
-        """Generate a batch of sequences of observations from the generative process.
-
-        Returns:
-            A tuple of (final_states, observations) where:
-            - observations has shape (batch_size, sequence_len, observation_dim)
-            - final_states has shape (batch_size,) + state_shape
-        """
+    @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
+    def generate(
+        self, state: State, key: chex.PRNGKey, sequence_len: int, return_intermediate_states: bool = False
+    ) -> tuple[State, chex.Array]:
+        """Generate a batch of sequences of observations from the generative process."""
         keys = jax.random.split(key, sequence_len)
 
-        def scan_fn(carry: State, key: chex.PRNGKey) -> tuple[State, chex.Array]:
-            obs = self.emit_observation(carry, key)
-            carry = self.transition_states(carry, obs)
-            return carry, obs
-
-        return jax.lax.scan(scan_fn, state, keys)
-
-    @eqx.filter_vmap(in_axes=(None, 0, 0, None))
-    def generate_full(
-        self, state: State, key: chex.PRNGKey, sequence_len: int
-    ) -> tuple[chex.PRNGKey, State, chex.Array]:
-        """Generate a batch of sequences of hidden states and observations from the generative process.
-
-        Returns:
-            A tuple of (keys, belief_states, observations) where:
-            - keys has shape (batch_size, 2) (the resulting successor keys)
-            - belief_states has shape (batch_size, sequence_len, num_states)
-            - observations has shape (batch_size, sequence_len)
-        """
-
-        # scan :: (c -> a -> (c, b)) -> c -> [a] -> (c, [b])
-        def scan_fn(
-            carry: tuple[State, chex.PRNGKey], _x
-        ) -> tuple[tuple[State, chex.PRNGKey], tuple[State, chex.Array]]:
-            state, key = carry
+        def gen_obs(state: State, key: chex.PRNGKey) -> tuple[State, chex.Array]:
             obs = self.emit_observation(state, key)
-            new_state = self.transition_states(state, obs)
-            key, _ = jax.random.split(key)
-            carry = new_state, key
-            return carry, (state, obs)
+            state = self.transition_states(state, obs)
+            return state, obs
 
-        (state, key), (states, obs) = jax.lax.scan(scan_fn, (state, key), length=sequence_len)
-        return key, states, obs
+        def gen_states_and_obs(state: State, key: chex.PRNGKey) -> tuple[State, tuple[State, chex.Array]]:
+            obs = self.emit_observation(state, key)
+            state = self.transition_states(state, obs)
+            return state, (state, obs)
+
+        if return_intermediate_states:
+            _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, keys)
+            return states, obs
+
+        return jax.lax.scan(gen_obs, state, keys)
 
     @abstractmethod
     def observation_probability_distribution(self, state: State) -> jax.Array:
