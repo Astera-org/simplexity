@@ -41,9 +41,24 @@ class GenerativeProcess(eqx.Module, Generic[State]):
 
     @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
     def generate(
-        self, state: State, key: chex.PRNGKey, sequence_len: int, return_intermediate_states: bool
+        self, state: State, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
     ) -> tuple[State, chex.Array]:
-        """Generate a batch of sequences of observations from the generative process."""
+        """
+        Generate a batch of sequences of observations from the generative process.
+        Inputs:
+            state: (batch_size, num_states)
+            key: (batch_size, 2)
+            
+        Returns: tuple of (belief_states, observations) where:
+        if return_all_states is True:
+            belief_states is the sequence of belief states of shape:
+                (batch_size, sequence_len, num_states)
+        otherwise:
+            belief_states is the state of the final step:
+                (batch_size, num_states)
+
+        observations is (batch_size, sequence_len)
+        """
         keys = jax.random.split(key, sequence_len)
 
         def gen_obs(state: State, key: chex.PRNGKey) -> tuple[State, chex.Array]:
@@ -56,7 +71,7 @@ class GenerativeProcess(eqx.Module, Generic[State]):
             new_state = self.transition_states(state, obs)
             return new_state, (state, obs)
 
-        if return_intermediate_states:
+        if return_all_states:
             _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, keys)
             return states, obs
 
