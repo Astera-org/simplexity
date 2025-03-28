@@ -2,4 +2,4 @@ name: s3_persister
 
 instance:
   _target_: simplexity.persistence.s3_persister.S3Persister.from_config
-  config_file: "config.ini"
+  filename: "config.ini"
