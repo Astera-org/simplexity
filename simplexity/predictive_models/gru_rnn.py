@@ -5,8 +5,6 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.predictive_models.predictive_model import PredictiveModel
-
 
 class GRUFn(eqx.Module):
     """Apply a GRU cell to each element of the input sequence."""
@@ -47,9 +45,11 @@ class LinearFn(eqx.Module):
         return outs
 
 
-class GRURNN(PredictiveModel):
+class GRURNN(eqx.Module):
     """A GRU-based RNN model."""
 
+    in_size: int = eqx.field(static=True)
+    out_size: int = eqx.field(static=True)
     layers: eqx.nn.Sequential
 
     def __init__(self, in_size: int, out_size: int, hidden_sizes: Sequence[int], *, key: chex.PRNGKey):
@@ -70,9 +70,9 @@ class GRURNN(PredictiveModel):
         layers.append(linear_layer)
         self.layers = eqx.nn.Sequential(layers)
 
-    def __call__(self, xs: jax.Array) -> jax.Array:
+    def __call__(self, x: jax.Array) -> jax.Array:
         """Forward pass of the GRU RNN."""
-        return self.layers(xs)
+        return self.layers(x)
 
 
 def build_gru_rnn(vocab_size: int, num_layers: int, hidden_size: int, seed: int) -> GRURNN:

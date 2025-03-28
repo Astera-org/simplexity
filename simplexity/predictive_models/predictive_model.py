@@ -1,16 +1,16 @@
-from abc import abstractmethod
+from typing import Protocol, runtime_checkable
 
-import equinox as eqx
 import jax
+from jaxtyping import PyTree
 
 
-class PredictiveModel(eqx.Module):
+@runtime_checkable
+class PredictiveModel(PyTree, Protocol):
     """A predictive model that takes observations and returns a logit distribution over observations."""
 
-    in_size: int = eqx.field(static=True)
-    out_size: int = eqx.field(static=True)
+    in_size: int
+    out_size: int
 
-    @abstractmethod
     def __call__(self, x: jax.Array) -> jax.Array:
         """Predict the next state given the current state."""
         ...
