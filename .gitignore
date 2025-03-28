@@ -6,4 +6,4 @@ __pycache__/
 data/
 multirun/
 outputs/
-.env
+config.ini
