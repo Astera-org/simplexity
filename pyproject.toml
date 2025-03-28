@@ -28,6 +28,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+aws = [
+    "boto3",
+]
 dev = [
     "jaxtyping",
     "nbqa",

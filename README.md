@@ -56,3 +56,22 @@ An experiment comprised of several runs can be executed to perform a hyperparame
 ```bash
 uv run python simplexity/run_experiment.py --multirun
 ```
+
+### Model Checkpointing
+
+The `ModelPersister` classes are responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket.
+
+#### Using S3 Storage
+
+The `S3Persister`, can be configured using an `.ini` file, which should have the following structure:
+
+```ini
+[aws]
+profile_name = default
+
+[s3]
+bucket = your_s3_bucket_name
+prefix = your_s3_prefix
+```
+
+[AWS configuration and credential files](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) can be used for authentication and settings. Authentication credentials should be specified in `~/.aws/credentials`. Settings like `region`, `output`, `endpoint_url` should be specified in `~/.aws/config`. Multiple different profiles can be defined and the specific profile to use can be specified in the `aws` section of the `.ini` file.
