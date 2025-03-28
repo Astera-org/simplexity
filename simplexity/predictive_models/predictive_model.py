@@ -1,11 +1,10 @@
 from typing import Protocol, runtime_checkable
 
 import jax
-from jaxtyping import PyTree
 
 
 @runtime_checkable
-class PredictiveModel(PyTree, Protocol):
+class PredictiveModel(Protocol):
     """A predictive model that takes observations and returns a logit distribution over observations."""
 
     in_size: int
