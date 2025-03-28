@@ -59,18 +59,20 @@ class GenerativeProcess(eqx.Module, Generic[State]):
     @eqx.filter_vmap(in_axes=(None, 0, 0, None))
     def generate_full(
         self, state: State, key: chex.PRNGKey, sequence_len: int
-    ) -> tuple[chex.Array, chex.Array, chex.PRNGKey]:
+    ) -> tuple[chex.PRNGKey, State, chex.Array]:
         """Generate a batch of sequences of hidden states and observations from the generative process.
 
         Returns:
-            A tuple of (belief_states, observations, keys) where:
+            A tuple of (keys, belief_states, observations) where:
+            - keys has shape (batch_size, 2) (the resulting successor keys)
             - belief_states has shape (batch_size, sequence_len, num_states)
             - observations has shape (batch_size, sequence_len)
-            - keys has shape (batch_size, 2) (the resulting successor keys)
         """
 
         # scan :: (c -> a -> (c, b)) -> c -> [a] -> (c, [b])
-        def scan_fn(carry: tuple[State, chex.PRNGKey], _x) -> tuple[tuple[State, chex.PRNGKey], chex.Array]:
+        def scan_fn(
+            carry: tuple[State, chex.PRNGKey], _x
+        ) -> tuple[tuple[State, chex.PRNGKey], tuple[State, chex.Array]]:
             state, key = carry
             obs = self.emit_observation(state, key)
             new_state = self.transition_states(state, obs)
