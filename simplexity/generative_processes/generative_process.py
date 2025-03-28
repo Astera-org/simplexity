@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from functools import partial
 from typing import Generic, TypeVar
 
 import chex
@@ -43,8 +42,8 @@ class GenerativeProcess(eqx.Module, Generic[State]):
     def generate(
         self, state: State, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
     ) -> tuple[State, chex.Array]:
-        """
-        Generate a batch of sequences of observations from the generative process.
+        """Generate a batch of sequences of observations from the generative process.
+
         Inputs:
             state: (batch_size, num_states)
             key: (batch_size, 2)
