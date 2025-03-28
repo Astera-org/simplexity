@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from functools import partial
 from typing import Generic, TypeVar
 
 import chex
@@ -40,7 +41,7 @@ class GenerativeProcess(eqx.Module, Generic[State]):
 
     @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
     def generate(
-        self, state: State, key: chex.PRNGKey, sequence_len: int, return_intermediate_states: bool = False
+        self, state: State, key: chex.PRNGKey, sequence_len: int, return_intermediate_states: bool
     ) -> tuple[State, chex.Array]:
         """Generate a batch of sequences of observations from the generative process."""
         keys = jax.random.split(key, sequence_len)
@@ -52,14 +53,15 @@ class GenerativeProcess(eqx.Module, Generic[State]):
 
         def gen_states_and_obs(state: State, key: chex.PRNGKey) -> tuple[State, tuple[State, chex.Array]]:
             obs = self.emit_observation(state, key)
-            state = self.transition_states(state, obs)
-            return state, (state, obs)
+            new_state = self.transition_states(state, obs)
+            return new_state, (state, obs)
 
         if return_intermediate_states:
             _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, keys)
             return states, obs
 
         return jax.lax.scan(gen_obs, state, keys)
+
 
     @abstractmethod
     def observation_probability_distribution(self, state: State) -> jax.Array:
