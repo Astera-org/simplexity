@@ -103,6 +103,7 @@ def test_generate(model_name: str, request: pytest.FixtureRequest):
     assert final_states.shape == (batch_size, model.num_states)
     assert final_observations.shape == (batch_size, sequence_len)
 
+
 @pytest.mark.parametrize("model_name", ["z1r", "fanizza_model"])
 def test_generate_full(model_name: str, request: pytest.FixtureRequest):
     model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
@@ -115,10 +116,10 @@ def test_generate_full(model_name: str, request: pytest.FixtureRequest):
     assert keys.shape == (batch_size, 2)
     assert first_states.shape == (batch_size, sequence_len, model.num_states)
     assert intermediate_observations.shape == (batch_size, sequence_len)
-    intermediate_states = first_states[:,-1,:]
+    intermediate_states = first_states[:, -1, :]
 
     keys, final_states, final_observations = model.generate_full(intermediate_states, keys, sequence_len)
-    assert keys.shape == (batch_size, 2), '4'
+    assert keys.shape == (batch_size, 2)
     assert final_states.shape == (batch_size, sequence_len, model.num_states)
     assert final_observations.shape == (batch_size, sequence_len)
 
