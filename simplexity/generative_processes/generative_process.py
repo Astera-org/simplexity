@@ -38,23 +38,42 @@ class GenerativeProcess(eqx.Module, Generic[State]):
         """
         ...
 
-    @eqx.filter_vmap(in_axes=(None, 0, 0, None))
-    def generate(self, state: State, key: chex.PRNGKey, sequence_len: int) -> tuple[State, chex.Array]:
+    @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
+    def generate(
+        self, state: State, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
+    ) -> tuple[State, chex.Array]:
         """Generate a batch of sequences of observations from the generative process.
 
-        Returns:
-            A tuple of (final_states, observations) where:
-            - observations has shape (batch_size, sequence_len, observation_dim)
-            - final_states has shape (batch_size,) + state_shape
+        Inputs:
+            state: (batch_size, num_states)
+            key: (batch_size, 2)
+        Returns: tuple of (belief_states, observations) where:
+        if return_all_states is True:
+            belief_states is the sequence of belief states of shape:
+                (batch_size, sequence_len, num_states)
+        otherwise:
+            belief_states is the state of the final step:
+                (batch_size, num_states)
+
+        observations is (batch_size, sequence_len)
         """
         keys = jax.random.split(key, sequence_len)
 
-        def scan_fn(carry: State, key: chex.PRNGKey) -> tuple[State, chex.Array]:
-            obs = self.emit_observation(carry, key)
-            carry = self.transition_states(carry, obs)
-            return carry, obs
+        def gen_obs(state: State, key: chex.PRNGKey) -> tuple[State, chex.Array]:
+            obs = self.emit_observation(state, key)
+            state = self.transition_states(state, obs)
+            return state, obs
 
-        return jax.lax.scan(scan_fn, state, keys)
+        def gen_states_and_obs(state: State, key: chex.PRNGKey) -> tuple[State, tuple[State, chex.Array]]:
+            obs = self.emit_observation(state, key)
+            new_state = self.transition_states(state, obs)
+            return new_state, (state, obs)
+
+        if return_all_states:
+            _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, keys)
+            return states, obs
+
+        return jax.lax.scan(gen_obs, state, keys)
 
     @abstractmethod
     def observation_probability_distribution(self, state: State) -> jax.Array:

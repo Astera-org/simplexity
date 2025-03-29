@@ -64,7 +64,9 @@ def training_step(
 ) -> tuple[TrainingState, chex.Array]:
     """Train the model for one step."""
     batch_keys = jax.random.split(key, attrs.batch_size)
-    gen_process_states, obs = attrs.gen_process.generate(state.gen_process_states, batch_keys, attrs.sequence_len)
+    gen_process_states, obs = attrs.gen_process.generate(
+        state.gen_process_states, batch_keys, attrs.sequence_len, False
+    )
     state = dataclasses.replace(state, gen_process_states=gen_process_states)
     one_hot_obs = jax.nn.one_hot(obs, state.model.out_size)
     x = one_hot_obs[:, :-1, :]
