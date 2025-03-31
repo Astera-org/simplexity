@@ -24,7 +24,7 @@ def calculate_llamalike_transformer_parameter_count(config: LlamalikeTransformer
 
 
 def get_parameter_count(x: Struct | list[Any] | Parameter) -> int:
-    """Recursively count the number of parameters in a Penzai structure."""
+    """Count the total number of parameters in a Penzai structure."""
     if isinstance(x, Struct):
         children = x.tree_flatten()[0]
         if not isinstance(children, Struct | list | Parameter):
@@ -49,7 +49,7 @@ class ParameterTree:
 
 
 def get_parameter_tree(x: Struct | list[Any] | Parameter) -> ParameterTree:
-    """Recursively count the number of parameters in a Penzai structure."""
+    """Construct a parameter tree from a Penzai structure."""
     if isinstance(x, Struct):
         children = x.tree_flatten()[0]
         if not isinstance(children, Struct | list | Parameter):
