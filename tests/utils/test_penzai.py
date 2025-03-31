@@ -2,7 +2,7 @@ import jax
 import pytest
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 
-from simplexity.penzai_utils import (
+from simplexity.utils.penzai import (
     NamedParameters,
     ParameterTree,
     calculate_llamalike_transformer_parameter_count,

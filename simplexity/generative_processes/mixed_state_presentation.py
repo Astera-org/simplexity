@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from simplexity.data_structures import Collection, Queue, Stack
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
-from simplexity.log_math import entropy
+from simplexity.utils.jnp import entropy
 
 Sequence = tuple[int, ...]
 
