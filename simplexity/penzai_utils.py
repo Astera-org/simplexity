@@ -16,8 +16,8 @@ def calculate_llamalike_transformer_parameter_count(config: LlamalikeTransformer
         + 2 * config.vocab_size  # embedding table and LM head weights
         + (  # decoder block
             2  # layer norms before attention and MLP
-            + 2 * config.num_kv_heads * (1 + config.query_head_multiplier) * config.projection_dim  # attention weights
-            + 3 * config.mlp_hidden_dim  # MLP weights
+            + 2 * config.num_kv_heads * (1 + config.query_head_multiplier) * config.projection_dim  # QKV+output weights
+            + 3 * config.mlp_hidden_dim  # gating, value, and output weights
         )
         * config.num_decoder_blocks
     ) * config.embedding_dim
