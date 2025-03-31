@@ -36,9 +36,13 @@ PARAMS["mlp_value"] = PARAMS["embedding_dim"] * PARAMS["mlp_hidden_dim"]
 PARAMS["mlp_output"] = PARAMS["mlp_hidden_dim"] * PARAMS["embedding_dim"]
 PARAMS["mlp"] = PARAMS["mlp_gate"] + PARAMS["mlp_value"] + PARAMS["mlp_output"]
 PARAMS["decoder_block"] = PARAMS["layer_norm"] + PARAMS["attention"] + PARAMS["layer_norm"] + PARAMS["mlp"]
-PARAMS["decoder"] = PARAMS["decoder_block"] * PARAMS["num_decoder_blocks"]
 PARAMS["lm_head"] = PARAMS["embedding_dim"] * PARAMS["vocab_size"]
-PARAMS["total"] = PARAMS["embeddings"] + PARAMS["decoder"] + PARAMS["layer_norm"] + PARAMS["lm_head"]
+PARAMS["total"] = (
+    PARAMS["embeddings"]
+    + PARAMS["decoder_block"] * PARAMS["num_decoder_blocks"]
+    + PARAMS["layer_norm"]
+    + PARAMS["lm_head"]
+)
 
 
 @pytest.fixture
