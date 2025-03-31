@@ -24,12 +24,12 @@ def get_parameter_count_tree(struct: Struct) -> ParamCountNode:
         label = str(param.label)
         label_parts = label.split("/")
         current = root
-        for part in label_parts:
-            children_parts = [i.name for i in current.children]
+        for name in label_parts:
+            children_names = [i.name for i in current.children]
             try:
-                i = children_parts.index(part)
+                i = children_names.index(name)
             except ValueError:
-                current.children.append(ParamCountNode(name=part, param_count=0, children=[]))
+                current.children.append(ParamCountNode(name=name, param_count=0, children=[]))
                 i = len(current.children) - 1
             current.param_count += param_count
             current = current.children[i]
