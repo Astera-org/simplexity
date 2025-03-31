@@ -9,7 +9,7 @@ from penzai.core.variables import Parameter
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig
 
 
-def get_parameter_count_from_config(config: LlamalikeTransformerConfig) -> int:
+def calculate_llamalike_transformer_parameter_count(config: LlamalikeTransformerConfig) -> int:
     """Calculate the number of parameters in a Penzai transformer."""
     return (
         1  # final layer norm
@@ -51,10 +51,10 @@ class ParameterTree:
 def get_parameter_tree(x: Struct | list[Any] | Parameter) -> ParameterTree:
     """Recursively count the number of parameters in a Penzai structure."""
     if isinstance(x, Struct):
-        subtrees = x.tree_flatten()[0]
-        if not isinstance(subtrees, Struct | list | Parameter):
+        children = x.tree_flatten()[0]
+        if not isinstance(children, Struct | list | Parameter):
             return ParameterTree()
-        subtree = get_parameter_tree(subtrees)
+        subtree = get_parameter_tree(children)
         if subtree == ParameterTree():
             return ParameterTree()
         name = x.__class__.__name__
@@ -67,23 +67,23 @@ def get_parameter_tree(x: Struct | list[Any] | Parameter) -> ParameterTree:
         )
 
     if isinstance(x, list):
-        subtrees = [get_parameter_tree(i) for i in x if isinstance(i, Struct | list | Parameter)]
-        subtrees = [subtree for subtree in subtrees if subtree != ParameterTree()]
-        parameters = sum(subtree.parameters for subtree in subtrees)
+        children = [get_parameter_tree(i) for i in x if isinstance(i, Struct | list | Parameter)]
+        children = [child for child in children if child != ParameterTree()]
+        parameters = sum(child.parameters for child in children)
         if parameters == 0:
             return ParameterTree()
         name = x.__class__.__name__
-        if len(subtrees) == 1:
-            child_name = subtrees[0].name
+        if len(children) == 1:
+            child_name = children[0].name
             if name == list.__name__:
                 name = child_name
             elif child_name not in (list.__name__, Parameter.__name__):
                 name = f"{name}.{child_name}"
-            subtrees = subtrees[0].children
+            children = children[0].children
         return ParameterTree(
             name=name,
             parameters=parameters,
-            children=subtrees,
+            children=children,
         )
 
     assert isinstance(x, Parameter)

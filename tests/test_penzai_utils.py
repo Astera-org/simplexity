@@ -5,8 +5,8 @@ from penzai.models.transformer.variants.llamalike_common import LlamalikeTransfo
 from simplexity.penzai_utils import (
     NamedParameters,
     ParameterTree,
+    calculate_llamalike_transformer_parameter_count,
     get_parameter_count,
-    get_parameter_count_from_config,
     get_parameter_list,
     get_parameter_tree,
 )
@@ -53,7 +53,7 @@ def transformer():
 
 
 def test_get_parameter_count_from_config():
-    assert get_parameter_count_from_config(CONFIG) == PARAMS["total"]
+    assert calculate_llamalike_transformer_parameter_count(CONFIG) == PARAMS["total"]
 
 
 def test_get_parameter_count(transformer):
