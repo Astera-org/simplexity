@@ -12,12 +12,12 @@ from penzai.models.transformer.variants.llamalike_common import LlamalikeTransfo
 def get_parameter_count_from_config(config: LlamalikeTransformerConfig) -> int:
     """Calculate the number of parameters in a Penzai transformer."""
     return (
-        1
-        + 2 * config.vocab_size
-        + (
-            2
-            + 3 * config.mlp_hidden_dim
-            + 2 * config.num_kv_heads * (1 + config.query_head_multiplier) * config.projection_dim
+        1  # final layer norm
+        + 2 * config.vocab_size  # embedding table and LM head weights
+        + (  # decoder block
+            2  # layer norms before attention and MLP
+            + 2 * config.num_kv_heads * (1 + config.query_head_multiplier) * config.projection_dim  # attention weights
+            + 3 * config.mlp_hidden_dim  # MLP weights
         )
         * config.num_decoder_blocks
     ) * config.embedding_dim
