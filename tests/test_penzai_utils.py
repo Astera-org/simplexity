@@ -6,6 +6,7 @@ from simplexity.penzai_utils import (
     NamedParameters,
     ParameterTree,
     get_parameter_count,
+    get_parameter_count_from_config,
     get_parameter_list,
     get_parameter_tree,
 )
@@ -49,6 +50,10 @@ PARAMS["total"] = (
 def transformer():
     base_rng = jax.random.PRNGKey(0)
     return build_llamalike_transformer(CONFIG, init_base_rng=base_rng)
+
+
+def test_get_parameter_count_from_config():
+    assert get_parameter_count_from_config(CONFIG) == PARAMS["total"]
 
 
 def test_get_parameter_count(transformer):

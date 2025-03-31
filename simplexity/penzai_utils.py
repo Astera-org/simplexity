@@ -6,6 +6,21 @@ from typing import Any
 from penzai.core.named_axes import NamedArray
 from penzai.core.struct import Struct
 from penzai.core.variables import Parameter
+from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig
+
+
+def get_parameter_count_from_config(config: LlamalikeTransformerConfig) -> int:
+    """Calculate the number of parameters in a Penzai transformer."""
+    return (
+        1
+        + 2 * config.vocab_size
+        + (
+            2
+            + 3 * config.mlp_hidden_dim
+            + 2 * config.num_kv_heads * (1 + config.query_head_multiplier) * config.projection_dim
+        )
+        * config.num_decoder_blocks
+    ) * config.embedding_dim
 
 
 def get_parameter_count(x: Struct | list[Any] | Parameter) -> int:
