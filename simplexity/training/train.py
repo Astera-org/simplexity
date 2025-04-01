@@ -68,7 +68,7 @@ def training_step(
         state.gen_process_states, batch_keys, attrs.sequence_len, False
     )
     state = dataclasses.replace(state, gen_process_states=gen_process_states)
-    one_hot_obs = jax.nn.one_hot(obs, state.model.out_size)
+    one_hot_obs = jax.nn.one_hot(obs, attrs.gen_process.vocab_size)
     x = one_hot_obs[:, :-1, :]
     y = one_hot_obs[:, 1:, :].squeeze()
     return update(state, x, y, attrs.opt_update)
