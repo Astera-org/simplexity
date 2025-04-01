@@ -66,13 +66,17 @@ def step_model(
     batch_keys = jax.random.split(key, attrs.batch_size)
     if train:
         train_gen_states, obs = attrs.train_data_generator.generate(
-            state.train_gen_states, batch_keys, attrs.sequence_len
+            state.train_gen_states, batch_keys, attrs.sequence_len, False
         )
+        vocab_size = attrs.train_data_generator.vocab_size
         state = dataclasses.replace(state, train_gen_states=train_gen_states)
     else:
-        val_gen_states, obs = attrs.val_data_generator.generate(state.val_gen_states, batch_keys, attrs.sequence_len)
+        val_gen_states, obs = attrs.val_data_generator.generate(
+            state.val_gen_states, batch_keys, attrs.sequence_len, False
+        )
+        vocab_size = attrs.val_data_generator.vocab_size
         state = dataclasses.replace(state, val_gen_states=val_gen_states)
-    one_hot_obs = jax.nn.one_hot(obs, state.model.out_size)
+    one_hot_obs = jax.nn.one_hot(obs, vocab_size)
     x = one_hot_obs[:, :-1, :]
     y = one_hot_obs[:, 1:, :].squeeze()
     if train:
