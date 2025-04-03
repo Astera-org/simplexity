@@ -78,7 +78,7 @@ def step_model(
         state = dataclasses.replace(state, val_gen_states=val_gen_states)
     one_hot_obs = jax.nn.one_hot(obs, vocab_size)
     x = one_hot_obs[:, :-1, :]
-    y = one_hot_obs[:, 1:, :].squeeze()
+    y = one_hot_obs[:, 1:, :]
     if train:
         losses, grads = train_loss_fn(state.model, x, y)
         state = update_model(state, grads, attrs.opt_update)
