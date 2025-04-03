@@ -40,8 +40,8 @@ def loss_fn(model: PredictiveModel, x: jax.Array, y: jax.Array) -> chex.Array:
     return jnp.mean(losses)
 
 
-train_loss_fn = eqx.filter_vmap(eqx.filter_jit(eqx.filter_value_and_grad(loss_fn)), in_axes=(None, 0, 0))
-val_loss_fn = eqx.filter_vmap(eqx.filter_jit(loss_fn), in_axes=(None, 0, 0))
+train_loss_fn = eqx.filter_jit(eqx.filter_vmap(eqx.filter_value_and_grad(loss_fn), in_axes=(None, 0, 0)))
+val_loss_fn = eqx.filter_jit(eqx.filter_vmap(loss_fn, in_axes=(None, 0, 0)))
 
 
 @eqx.filter_jit
