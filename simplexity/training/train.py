@@ -14,8 +14,8 @@ from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
-class TrainingState(eqx.Module):
-    """State for training a model for one step."""
+class State(eqx.Module):
+    """State that evolves over the training process."""
 
     model: PredictiveModel
     train_gen_states: jax.Array
@@ -23,7 +23,7 @@ class TrainingState(eqx.Module):
     opt_state: optax.OptState
 
 
-class TrainingAttributes(eqx.Module):
+class Attributes(eqx.Module):
     """Attributes for training."""
 
     train_data_generator: GenerativeProcess
@@ -46,10 +46,10 @@ val_loss_fn = eqx.filter_jit(eqx.filter_vmap(loss_fn, in_axes=(None, 0, 0)))
 
 @eqx.filter_jit
 def update_model(
-    state: TrainingState,
+    state: State,
     grads: jax.Array,
     opt_update: optax.TransformUpdateFn,
-) -> TrainingState:
+) -> State:
     """Update the model parameters."""
     mean_grads = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
     params = eqx.filter(state.model, eqx.is_array)
@@ -59,9 +59,7 @@ def update_model(
 
 
 @eqx.filter_jit
-def step_model(
-    state: TrainingState, attrs: TrainingAttributes, key: chex.PRNGKey, *, train: bool = True
-) -> tuple[TrainingState, chex.Array]:
+def step_model(state: State, attrs: Attributes, key: chex.PRNGKey, *, train: bool = True) -> tuple[State, chex.Array]:
     """Train the model for one step."""
     batch_keys = jax.random.split(key, attrs.batch_size)
     if train:
@@ -90,11 +88,11 @@ def step_model(
 
 @eqx.filter_jit
 def validate_model(
-    state: TrainingState,
-    attrs: TrainingAttributes,
+    state: State,
+    attrs: Attributes,
     key: chex.PRNGKey,
     num_validation_steps: int,
-) -> tuple[TrainingState, dict[str, jax.Array]]:
+) -> tuple[State, dict[str, jax.Array]]:
     """Compute the validation loss."""
 
     def loop_body(_, carry):
@@ -131,13 +129,13 @@ def train(
     opt_state = optimizer.init(params)
     opt_update = eqx.filter_jit(optimizer.update)
 
-    state = TrainingState(
+    state = State(
         model=model,
         train_gen_states=train_gen_states,
         val_gen_states=val_gen_states,
         opt_state=opt_state,
     )
-    attrs = TrainingAttributes(
+    attrs = Attributes(
         train_data_generator=training_data_generator,
         val_data_generator=validation_data_generator,
         opt_update=opt_update,
