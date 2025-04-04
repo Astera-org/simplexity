@@ -13,7 +13,6 @@ class Config:
     num_steps: int
     log_every: int
     validate_every: int
-    num_validation_steps: int
     checkpoint_every: int
     checkpoint_name: str
     optimizer: OptimizerConfig

@@ -43,7 +43,6 @@ def test_train(tmp_path: Path):
         num_steps=8,
         log_every=1,
         validate_every=1,
-        num_validation_steps=1,
         checkpoint_every=8,
         checkpoint_name="test",
         optimizer=OptimizerConfig(

@@ -8,6 +8,5 @@ batch_size: 128
 num_steps: 10000
 log_every: 100
 validate_every: 1000
-num_validation_steps: 100
 checkpoint_every: 5000
 checkpoint_name: ${run_name}
