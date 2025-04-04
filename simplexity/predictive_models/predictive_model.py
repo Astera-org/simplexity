@@ -1,16 +1,12 @@
-from abc import abstractmethod
+from typing import Protocol, runtime_checkable
 
-import equinox as eqx
 import jax
 
 
-class PredictiveModel(eqx.Module):
+@runtime_checkable
+class PredictiveModel(Protocol):
     """A predictive model that takes observations and returns a logit distribution over observations."""
 
-    in_size: int = eqx.field(static=True)
-    out_size: int = eqx.field(static=True)
-
-    @abstractmethod
-    def __call__(self, x: jax.Array) -> jax.Array:
+    def __call__(self, x: jax.Array, /) -> jax.Array:
         """Predict the next state given the current state."""
         ...
