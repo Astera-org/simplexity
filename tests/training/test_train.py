@@ -7,6 +7,7 @@ import jax.numpy as jnp
 from simplexity.configs.training.config import Config as TrainingConfig
 from simplexity.configs.training.optimizer.config import AdamConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
+from simplexity.configs.validation.config import Config as ValidationConfig
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_persister import LocalPersister
@@ -35,7 +36,7 @@ def test_train(tmp_path: Path):
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    cfg = TrainingConfig(
+    training_cfg = TrainingConfig(
         seed=0,
         sequence_len=4,
         batch_size=2,
@@ -58,6 +59,22 @@ def test_train(tmp_path: Path):
             ),
         ),
     )
-    model = train(cfg, model, generative_process, generative_process, persister, logger)
+    validation_cfg = ValidationConfig(
+        seed=0,
+        sequence_len=4,
+        batch_size=2,
+        num_steps=8,
+        log_every=1,
+    )
+    model, loss = train(
+        model,
+        training_cfg,
+        generative_process,
+        logger,
+        validation_cfg,
+        generative_process,
+        persister,
+    )
+    assert loss > 0.0
     losses = extract_losses(log_file_path)
-    assert losses.shape == (cfg.num_steps,)
+    assert losses.shape == (training_cfg.num_steps,)

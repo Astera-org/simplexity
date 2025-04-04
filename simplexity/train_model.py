@@ -25,12 +25,13 @@ def train_model(cfg: Config) -> float:
     if cfg.predictive_model.load_checkpoint_name:
         model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_name)
     _, loss = train(
-        cfg.train,
         model,
+        cfg.training,
         training_data_generator,
+        logger,
+        cfg.validation,
         validation_data_generator,
         persister,
-        logger,
     )
 
     logger.close()
