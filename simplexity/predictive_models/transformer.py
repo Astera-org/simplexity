@@ -17,7 +17,7 @@ class AttentionProfile(pz.nn.Layer):
 
     wrapped: pz.nn.Layer
     horizon: int
-    target_profile: pz.StateVariable[jax.Array] = dataclasses.field(
+    target_profile: pz.StateVariable[Any] = dataclasses.field(
         default_factory=lambda: pz.StateVariable(None),
         init=False,
     )
@@ -31,7 +31,7 @@ class AttentionProfile(pz.nn.Layer):
                 f"Received input with named axes: ({', '.join(input_axes)}), but expected ({', '.join(check_axes)})"
             )
         attention_QK = attention_probs.untag("head_groups", "batch", "query_heads").mean()  # [seq, kv_seq]
-        attention_QK = attention_QK.untag("seq", "kv_seq")
+        attention_QK = attention_QK.unwrap("seq", "kv_seq")
         self.target_profile.value = attention_profile(attention_QK, self.horizon)
         return attention_probs
 
@@ -44,7 +44,7 @@ def attention_profile(attention_QK: jax.Array, horizon: int) -> jax.Array:
     Returns:
       profile_H, where H is Q-horizon
     """
-    Q, K = attention_QK.positional_shape
+    Q, K = attention_QK.shape
     assert horizon <= Q, f"{horizon=} must be less than query length {Q=}"
     assert Q == K, f"{Q=} must be equal to {K=}"
     seq_inds = jnp.arange(horizon, Q)[:, None]
