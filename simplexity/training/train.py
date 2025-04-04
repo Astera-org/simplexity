@@ -8,10 +8,10 @@ import optax
 
 from simplexity.configs.train.config import Config as TrainConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.hydra_helpers import typed_instantiate
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
+from simplexity.utils.hydra import typed_instantiate
 
 
 class TrainingState(eqx.Module):

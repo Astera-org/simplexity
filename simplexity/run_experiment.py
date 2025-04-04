@@ -3,11 +3,11 @@ from omegaconf import DictConfig
 
 from simplexity.configs.config import Config
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.hydra_helpers import typed_instantiate
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train import train
+from simplexity.utils.hydra import typed_instantiate
 
 
 @hydra.main(config_path="configs", config_name="experiment.yaml", version_base="1.2")
