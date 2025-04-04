@@ -6,113 +6,141 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from simplexity.configs.train.config import Config as TrainConfig
+from simplexity.configs.training.config import Config as TrainingConfig
+from simplexity.configs.validation.config import Config as ValidationConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.utils.hydra import typed_instantiate
+from simplexity.validation.validate import validate
 
 
-class TrainingState(eqx.Module):
-    """State for training a model for one step."""
+class State(eqx.Module):
+    """State that evolves over the training process."""
 
     model: PredictiveModel
-    gen_process_states: jax.Array
+    gen_states: jax.Array
     opt_state: optax.OptState
 
 
-class TrainingAttributes(eqx.Module):
+class Attributes(eqx.Module):
     """Attributes for training."""
 
-    gen_process: GenerativeProcess
+    data_generator: GenerativeProcess
     opt_update: optax.TransformUpdateFn
     batch_size: int
     sequence_len: int
 
 
-@eqx.filter_vmap(in_axes=(None, 0, 0))
 @eqx.filter_jit
+def generate_data_batch(
+    gen_states: jax.Array,
+    data_generator: GenerativeProcess,
+    batch_size: int,
+    sequence_len: int,
+    key: jax.Array,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Generate a batch of data."""
+    batch_keys = jax.random.split(key, batch_size)
+    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, False)
+    inputs = jax.nn.one_hot(obs[:, :-1], data_generator.vocab_size)
+    labels = obs[:, 1:]
+    return gen_states, inputs, labels
+
+
+@eqx.filter_jit
+@eqx.filter_vmap(in_axes=(None, 0, 0))
 @eqx.filter_value_and_grad
-def loss_fn(model: PredictiveModel, x: jax.Array, y: jax.Array) -> chex.Array:
+def loss_fn(model: PredictiveModel, inputs: jax.Array, labels: jax.Array) -> chex.Array:
     """Compute the loss for a batch of observations and their corresponding states."""
-    logits = model(x)
-    losses = optax.softmax_cross_entropy(logits, y)
+    logits = model(inputs)
+    losses = optax.softmax_cross_entropy_with_integer_labels(logits, labels)
     return jnp.mean(losses)
 
 
 @eqx.filter_jit
-def update(
-    state: TrainingState,
-    x: jax.Array,
-    y: jax.Array,
+def update_model(
+    state: State,
+    grads: jax.Array,
     opt_update: optax.TransformUpdateFn,
-) -> tuple[TrainingState, chex.Array]:
+) -> State:
     """Update the model parameters."""
-    loss, grads = loss_fn(state.model, x, y)
-    mean_loss = jnp.mean(loss)
     mean_grads = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
     params = eqx.filter(state.model, eqx.is_array)
     updates, opt_state = opt_update(mean_grads, state.opt_state, params)
     model = eqx.apply_updates(state.model, updates)
-    return dataclasses.replace(state, model=model, opt_state=opt_state), mean_loss
+    return dataclasses.replace(state, model=model, opt_state=opt_state)
 
 
 @eqx.filter_jit
 def training_step(
-    state: TrainingState, attrs: TrainingAttributes, key: chex.PRNGKey
-) -> tuple[TrainingState, chex.Array]:
+    state: State,
+    attrs: Attributes,
+    inputs: jax.Array,
+    labels: jax.Array,
+) -> tuple[State, dict[str, jax.Array]]:
     """Train the model for one step."""
-    batch_keys = jax.random.split(key, attrs.batch_size)
-    gen_process_states, obs = attrs.gen_process.generate(
-        state.gen_process_states, batch_keys, attrs.sequence_len, False
-    )
-    state = dataclasses.replace(state, gen_process_states=gen_process_states)
-    one_hot_obs = jax.nn.one_hot(obs, attrs.gen_process.vocab_size)
-    x = one_hot_obs[:, :-1, :]
-    y = one_hot_obs[:, 1:, :].squeeze()
-    return update(state, x, y, attrs.opt_update)
+    losses, grads = loss_fn(state.model, inputs, labels)
+    state = update_model(state, grads, attrs.opt_update)
+    mean_loss = jnp.mean(losses)
+    metrics = {"loss": mean_loss}
+    return state, metrics
 
 
 def train(
-    cfg: TrainConfig,
     model: PredictiveModel,
-    gen_process: GenerativeProcess,
-    initial_gen_process_state: jax.Array,
-    persister: ModelPersister,
-    logger: Logger,
+    training_cfg: TrainingConfig,
+    training_data_generator: GenerativeProcess,
+    logger: Logger | None = None,
+    validation_cfg: ValidationConfig | None = None,
+    validation_data_generator: GenerativeProcess | None = None,
+    persister: ModelPersister | None = None,
 ) -> tuple[PredictiveModel, float]:
     """Train a predictive model on a generative process."""
-    gen_process_states = jnp.repeat(initial_gen_process_state[None, :], cfg.batch_size, axis=0)
+    key = jax.random.PRNGKey(training_cfg.seed)
 
-    optimizer = typed_instantiate(cfg.optimizer.instance, optax.GradientTransformation)
-
+    optimizer = typed_instantiate(training_cfg.optimizer.instance, optax.GradientTransformation)
     params = eqx.filter(model, eqx.is_array)
     opt_state = optimizer.init(params)
     opt_update = eqx.filter_jit(optimizer.update)
 
-    state = TrainingState(
+    gen_state = training_data_generator.initial_state
+    gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
+    state = State(
         model=model,
-        gen_process_states=gen_process_states,
+        gen_states=gen_states,
         opt_state=opt_state,
     )
-    attrs = TrainingAttributes(
-        gen_process=gen_process,
+    attrs = Attributes(
+        data_generator=training_data_generator,
         opt_update=opt_update,
-        batch_size=cfg.batch_size,
-        sequence_len=cfg.sequence_len,
+        batch_size=training_cfg.batch_size,
+        sequence_len=training_cfg.sequence_len,
     )
+    max_steps_digits = len(str(training_cfg.num_steps))
+    metrics = {"loss": jnp.array(0.0)}
 
-    key = jax.random.PRNGKey(cfg.seed)
-    max_steps_digits = len(str(cfg.num_steps))
-    loss = jnp.array(0.0)
-    for step in range(1, cfg.num_steps + 1):
-        key, step_key = jax.random.split(key)
-        state, loss = training_step(state, attrs, step_key)
-        if step % cfg.log_every == 0:
-            logger.log_metrics(step, {"loss": loss})
-        if step % cfg.checkpoint_every == 0:
-            full_checkpoint_name = f"{cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
+    for step in range(1, training_cfg.num_steps + 1):
+        key, gen_key = jax.random.split(key)
+        gen_states, inputs, labels = generate_data_batch(
+            gen_states,
+            training_data_generator,
+            training_cfg.batch_size,
+            training_cfg.sequence_len,
+            gen_key,
+        )
+        state, metrics = training_step(state, attrs, inputs, labels)
+        if logger:
+            if step % training_cfg.log_every == 0:
+                logger.log_metrics(step, metrics)
+            if validation_cfg and validation_data_generator and step % training_cfg.validate_every == 0:
+                validation_metrics = validate(model, validation_cfg, validation_data_generator)
+                validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
+                logger.log_metrics(step, validation_metrics)
+        if persister and step % training_cfg.checkpoint_every == 0:
+            full_checkpoint_name = f"{training_cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
             persister.save_weights(model, full_checkpoint_name)
 
-    return model, float(loss)
+    loss = float(metrics["loss"])
+    return model, loss

@@ -4,9 +4,10 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 
-from simplexity.configs.train.config import Config as TrainConfig
-from simplexity.configs.train.optimizer.config import AdamConfig
-from simplexity.configs.train.optimizer.config import Config as OptimizerConfig
+from simplexity.configs.training.config import Config as TrainingConfig
+from simplexity.configs.training.optimizer.config import AdamConfig
+from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
+from simplexity.configs.validation.config import Config as ValidationConfig
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_persister import LocalPersister
@@ -30,18 +31,18 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 
 def test_train(tmp_path: Path):
     generative_process = build_hidden_markov_model("even_ones", p=0.5)
-    initial_gen_process_state = generative_process.stationary_state
     model = build_gru_rnn(generative_process.vocab_size, num_layers=2, hidden_size=4, seed=0)
     persister = LocalPersister(base_dir=str(tmp_path))
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    cfg = TrainConfig(
+    training_cfg = TrainingConfig(
         seed=0,
         sequence_len=4,
         batch_size=2,
         num_steps=8,
         log_every=1,
+        validate_every=1,
         checkpoint_every=8,
         checkpoint_name="test",
         optimizer=OptimizerConfig(
@@ -57,6 +58,22 @@ def test_train(tmp_path: Path):
             ),
         ),
     )
-    model = train(cfg, model, generative_process, initial_gen_process_state, persister, logger)
+    validation_cfg = ValidationConfig(
+        seed=0,
+        sequence_len=4,
+        batch_size=2,
+        num_steps=8,
+        log_every=1,
+    )
+    model, loss = train(
+        model,
+        training_cfg,
+        generative_process,
+        logger,
+        validation_cfg,
+        generative_process,
+        persister,
+    )
+    assert loss > 0.0
     losses = extract_losses(log_file_path)
-    assert losses.shape == (cfg.num_steps,)
+    assert losses.shape == (training_cfg.num_steps,)
