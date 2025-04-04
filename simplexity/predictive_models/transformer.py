@@ -10,7 +10,7 @@ from penzai.models.transformer.variants import llamalike_common as llamalike_tra
 @pz.pytree_dataclass
 class AttentionProfile(pz.nn.Layer):
     """Compute the average attention profile over the target positions relative to
-    the query.  Only averages over query positions >= horizon.  
+    the query.  Only averages over query positions >= horizon.
     Insert this layer at the end of the pz.nn.Attention's query_key_to_attn
     layer to profile the aggregate attention patterns.
     """
@@ -86,10 +86,6 @@ def build_transformer(
             .at_instances_of(pz.nn.Attention)
             .at(lambda x: x.query_key_to_attn)
             .at_instances_of(pz.nn.Softmax)
-            .apply(lambda softmax: AttentionProfile(
-                wrapped=softmax, 
-                horizon=attention_profile_horizon
-                )
-            )
+            .apply(lambda softmax: AttentionProfile(wrapped=softmax, horizon=attention_profile_horizon))
         )
     return transformer
