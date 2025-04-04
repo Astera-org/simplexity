@@ -13,7 +13,7 @@ from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.utils.hydra import typed_instantiate
-from simplexity.validation.validate import validate
+from simplexity.validation.validate_equinox_model import validate
 
 
 class State(eqx.Module):

@@ -12,7 +12,7 @@ from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
-from simplexity.training.train import train
+from simplexity.training.train_equinox_model import train
 
 
 def extract_losses(log_file_path: Path) -> jax.Array:

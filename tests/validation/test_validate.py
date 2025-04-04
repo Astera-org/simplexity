@@ -1,7 +1,7 @@
 from simplexity.configs.validation.config import Config as ValidateConfig
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
-from simplexity.validation.validate import validate
+from simplexity.validation.validate_equinox_model import validate
 
 
 def test_validate():

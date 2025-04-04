@@ -6,7 +6,7 @@ from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
-from simplexity.training.train import train
+from simplexity.training.train_equinox_model import train
 from simplexity.utils.hydra import typed_instantiate
 
 
