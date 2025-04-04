@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from simplexity.configs.train.config import Config as TrainConfig
+from simplexity.configs.training.config import Config as TrainingConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.hydra_helpers import typed_instantiate
 from simplexity.logging.logger import Logger
@@ -109,7 +109,7 @@ def validate_model(
 
 
 def train(
-    cfg: TrainConfig,
+    cfg: TrainingConfig,
     model: PredictiveModel,
     training_data_generator: GenerativeProcess,
     validation_data_generator: GenerativeProcess,

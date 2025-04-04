@@ -4,9 +4,9 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 
-from simplexity.configs.train.config import Config as TrainConfig
-from simplexity.configs.train.optimizer.config import AdamConfig
-from simplexity.configs.train.optimizer.config import Config as OptimizerConfig
+from simplexity.configs.training.config import Config as TrainingConfig
+from simplexity.configs.training.optimizer.config import AdamConfig
+from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_persister import LocalPersister
@@ -35,7 +35,7 @@ def test_train(tmp_path: Path):
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    cfg = TrainConfig(
+    cfg = TrainingConfig(
         seed=0,
         sequence_len=4,
         batch_size=2,

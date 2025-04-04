@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from simplexity.configs.train.optimizer.config import Config as OptimizerConfig
+from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 
 
 @dataclass
