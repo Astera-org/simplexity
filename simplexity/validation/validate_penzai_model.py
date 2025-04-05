@@ -1,10 +1,8 @@
 from collections import defaultdict
 
-import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import optax
 from penzai import pz
 from penzai.core.named_axes import NamedArray
 from penzai.nn.layer import Layer
@@ -12,6 +10,7 @@ from penzai.nn.layer import Layer
 from simplexity.configs.validation.config import Config as ValidateConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
+from simplexity.validation.metric_functions import accuracy_fn, loss_fn
 
 
 @eqx.filter_jit
@@ -30,21 +29,6 @@ def generate_data_batch(
     return gen_states, named_inputs, labels
 
 
-@eqx.filter_jit
-def loss_fn(logits: jax.Array, labels: jax.Array) -> chex.Array:
-    """Compute the loss for a batch of observations and their corresponding states."""
-    losses = optax.softmax_cross_entropy_with_integer_labels(logits, labels)
-    return jnp.mean(losses)
-
-
-@eqx.filter_jit
-def accuracy_fn(logits: jax.Array, labels: jax.Array) -> chex.Array:
-    """Compute the loss for a batch of observations and their corresponding states."""
-    preds = jnp.argmax(logits)
-    accuracies = preds == labels
-    return jnp.mean(accuracies)
-
-
 def validation_step(model: Layer, named_inputs: NamedArray, labels: jax.Array) -> dict[str, jax.Array]:
     """Cross entropy loss for a penzai model.
 
@@ -53,11 +37,11 @@ def validation_step(model: Layer, named_inputs: NamedArray, labels: jax.Array) -
     named_logits = model(named_inputs)
     assert isinstance(named_logits, NamedArray)
     logits = named_logits.data_array
-    losses = loss_fn(logits, labels)
-    mean_loss = jnp.mean(losses)
-    accuracies = accuracy_fn(logits, labels)
-    accuracy = jnp.mean(accuracies)
-    return {"loss": mean_loss, "accuracy": accuracy}
+    token_losses = loss_fn(logits, labels)
+    mean_batch_loss = jnp.mean(token_losses)
+    token_accuracies = accuracy_fn(logits, labels)
+    mean_batch_accuracy = jnp.mean(token_accuracies)
+    return {"loss": mean_batch_loss, "accuracy": mean_batch_accuracy}
 
 
 def validate(
@@ -82,9 +66,9 @@ def validate(
             cfg.sequence_len,
             gen_key,
         )
-        metrics = validation_step(model, named_inputs, labels)
-        for k, v in metrics.items():
-            metrics[k] += v
+        step_metrics = validation_step(model, named_inputs, labels)
+        for metric_name, metric_value in step_metrics.items():
+            metrics[metric_name] += metric_value
         if logger and step % cfg.log_every == 0:
             logger.log_metrics(step, metrics)
 
