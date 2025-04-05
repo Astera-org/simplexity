@@ -31,13 +31,18 @@ def generate_data_batch(
 
 
 @eqx.filter_jit
-def loss_fn(model: Layer, named_inputs: NamedArray, labels: jax.Array) -> chex.Array:
+def loss_fn(logits: jax.Array, labels: jax.Array) -> chex.Array:
     """Compute the loss for a batch of observations and their corresponding states."""
-    named_logits = model(named_inputs)
-    assert isinstance(named_logits, NamedArray)
-    logits = named_logits.data_array
     losses = optax.softmax_cross_entropy_with_integer_labels(logits, labels)
     return jnp.mean(losses)
+
+
+@eqx.filter_jit
+def accuracy_fn(logits: jax.Array, labels: jax.Array) -> chex.Array:
+    """Compute the loss for a batch of observations and their corresponding states."""
+    preds = jnp.argmax(logits)
+    accuracies = preds == labels
+    return jnp.mean(accuracies)
 
 
 def validation_step(model: Layer, named_inputs: NamedArray, labels: jax.Array) -> dict[str, jax.Array]:
@@ -45,9 +50,14 @@ def validation_step(model: Layer, named_inputs: NamedArray, labels: jax.Array) -
 
     https://penzai.readthedocs.io/en/v0.2.1/_autosummary/leaf/penzai.toolshed.basic_training.LossFunction.html
     """
-    losses = loss_fn(model, named_inputs, labels)
+    named_logits = model(named_inputs)
+    assert isinstance(named_logits, NamedArray)
+    logits = named_logits.data_array
+    losses = loss_fn(logits, labels)
     mean_loss = jnp.mean(losses)
-    return {"loss": mean_loss}
+    accuracies = accuracy_fn(logits, labels)
+    accuracy = jnp.mean(accuracies)
+    return {"loss": mean_loss, "accuracy": accuracy}
 
 
 def validate(
