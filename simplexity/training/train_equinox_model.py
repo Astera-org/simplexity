@@ -143,4 +143,4 @@ def train(
             persister.save_weights(model, full_checkpoint_name)
 
     loss = float(metrics["loss"])
-    return model, loss
+    return state.model, loss

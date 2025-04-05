@@ -3,6 +3,7 @@ from pathlib import Path
 
 import jax
 import jax.numpy as jnp
+import pytest
 
 from simplexity.configs.training.config import Config as TrainingConfig
 from simplexity.configs.training.optimizer.config import AdamConfig
@@ -30,6 +31,7 @@ def extract_losses(log_file_path: Path) -> jax.Array:
     return jnp.array(losses)
 
 
+@pytest.mark.slow
 def test_train(tmp_path: Path):
     data_generator = build_hidden_markov_model("even_ones", p=0.5)
     model = build_gru_rnn(data_generator.vocab_size, num_layers=2, hidden_size=4, seed=0)
@@ -38,11 +40,11 @@ def test_train(tmp_path: Path):
     training_cfg = TrainingConfig(
         seed=0,
         sequence_len=4,
-        batch_size=2,
-        num_steps=8,
-        log_every=1,
-        validate_every=1,
-        checkpoint_every=8,
+        batch_size=128,
+        num_steps=100,
+        log_every=10,
+        validate_every=80,
+        checkpoint_every=80,
         checkpoint_name="test",
         optimizer=OptimizerConfig(
             name="adam",
@@ -60,7 +62,7 @@ def test_train(tmp_path: Path):
     validation_cfg = ValidationConfig(
         seed=0,
         sequence_len=4,
-        batch_size=2,
+        batch_size=128,
         num_steps=8,
         log_every=1,
     )
