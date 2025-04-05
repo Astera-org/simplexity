@@ -10,3 +10,5 @@ def test_validate():
     model = build_gru_rnn(data_generator.vocab_size, num_layers=2, hidden_size=4, seed=0)
     metrics = validate(model, cfg, data_generator)
     assert metrics["loss"] > 0.0
+    assert metrics["accuracy"] >= 0.0
+    assert metrics["accuracy"] <= 1.0
