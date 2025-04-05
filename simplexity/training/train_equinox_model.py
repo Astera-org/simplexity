@@ -1,5 +1,3 @@
-import dataclasses
-
 import chex
 import equinox as eqx
 import jax
@@ -14,23 +12,6 @@ from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.utils.hydra import typed_instantiate
 from simplexity.validation.validate_equinox_model import validate
-
-
-class State(eqx.Module):
-    """State that evolves over the training process."""
-
-    model: PredictiveModel
-    gen_states: jax.Array
-    opt_state: optax.OptState
-
-
-class Attributes(eqx.Module):
-    """Attributes for training."""
-
-    data_generator: GenerativeProcess
-    opt_update: optax.TransformUpdateFn
-    batch_size: int
-    sequence_len: int
 
 
 @eqx.filter_jit
@@ -61,31 +42,33 @@ def loss_fn(model: PredictiveModel, inputs: jax.Array, labels: jax.Array) -> che
 
 @eqx.filter_jit
 def update_model(
-    state: State,
+    model: PredictiveModel,
+    opt_state: optax.OptState,
     grads: jax.Array,
     opt_update: optax.TransformUpdateFn,
-) -> State:
+) -> tuple[PredictiveModel, optax.OptState]:
     """Update the model parameters."""
     mean_grads = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
-    params = eqx.filter(state.model, eqx.is_array)
-    updates, opt_state = opt_update(mean_grads, state.opt_state, params)
-    model = eqx.apply_updates(state.model, updates)
-    return dataclasses.replace(state, model=model, opt_state=opt_state)
+    params = eqx.filter(model, eqx.is_array)
+    updates, opt_state = opt_update(mean_grads, opt_state, params)
+    model = eqx.apply_updates(model, updates)
+    return model, opt_state
 
 
 @eqx.filter_jit
 def training_step(
-    state: State,
-    attrs: Attributes,
+    model: PredictiveModel,
+    opt_state: optax.OptState,
     inputs: jax.Array,
     labels: jax.Array,
-) -> tuple[State, dict[str, jax.Array]]:
+    opt_update: optax.TransformUpdateFn,
+) -> tuple[PredictiveModel, optax.OptState, dict[str, jax.Array]]:
     """Train the model for one step."""
-    losses, grads = loss_fn(state.model, inputs, labels)
-    state = update_model(state, grads, attrs.opt_update)
+    losses, grads = loss_fn(model, inputs, labels)
+    model, opt_state = update_model(model, opt_state, grads, opt_update)
     mean_loss = jnp.mean(losses)
     metrics = {"loss": mean_loss}
-    return state, metrics
+    return model, opt_state, metrics
 
 
 def train(
@@ -107,17 +90,7 @@ def train(
 
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
-    state = State(
-        model=model,
-        gen_states=gen_states,
-        opt_state=opt_state,
-    )
-    attrs = Attributes(
-        data_generator=training_data_generator,
-        opt_update=opt_update,
-        batch_size=training_cfg.batch_size,
-        sequence_len=training_cfg.sequence_len,
-    )
+
     max_steps_digits = len(str(training_cfg.num_steps))
     metrics = {"loss": jnp.array(0.0)}
 
@@ -130,7 +103,7 @@ def train(
             training_cfg.sequence_len,
             gen_key,
         )
-        state, metrics = training_step(state, attrs, inputs, labels)
+        model, opt_state, metrics = training_step(model, opt_state, inputs, labels, opt_update)
         if logger:
             if step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)
@@ -143,4 +116,4 @@ def train(
             persister.save_weights(model, full_checkpoint_name)
 
     loss = float(metrics["loss"])
-    return state.model, loss
+    return model, loss
