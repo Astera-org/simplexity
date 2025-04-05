@@ -81,7 +81,9 @@ def test_train(tmp_path: Path):
     persister = LocalPersister(base_dir=str(tmp_path))
 
     original_metrics = validate(model, validation_cfg, data_generator)
-    original_loss = original_metrics["loss"]
+    assert original_metrics["loss"] > 0.0
+    assert original_metrics["accuracy"] >= 0.0
+    assert original_metrics["accuracy"] <= 1.0
     model, loss = train(
         model,
         training_cfg,
@@ -95,5 +97,6 @@ def test_train(tmp_path: Path):
     losses = extract_losses(log_file_path)
     assert losses.shape == (training_cfg.num_steps // training_cfg.log_every,)
     final_metrics = validate(model, validation_cfg, data_generator)
-    final_loss = final_metrics["loss"]
-    assert final_loss < original_loss
+    assert final_metrics["loss"] < original_metrics["loss"]
+    assert final_metrics["accuracy"] >= original_metrics["accuracy"]
+    assert final_metrics["accuracy"] <= 1.0
