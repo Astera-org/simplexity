@@ -11,11 +11,11 @@ from penzai.toolshed.basic_training import InternalTrainerState
 
 from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.configs.validation.config import Config as ValidateConfig
+from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.utils.hydra import typed_instantiate
-from simplexity.validation.validate_penzai_model import validate
 
 
 @eqx.filter_jit
@@ -94,7 +94,7 @@ def train(
             if step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)
             if validation_cfg and validation_data_generator and step % training_cfg.validate_every == 0:
-                validation_metrics = validate(model, validation_cfg, validation_data_generator)
+                validation_metrics = evaluate(model, validation_cfg, validation_data_generator)
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
         if persister and step % training_cfg.checkpoint_every == 0:

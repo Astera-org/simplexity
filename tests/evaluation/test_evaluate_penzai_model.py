@@ -2,11 +2,11 @@ import jax
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 
 from simplexity.configs.validation.config import Config as ValidateConfig
+from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
-from simplexity.validation.validate_penzai_model import validate
 
 
-def test_validate():
+def test_evaluate():
     cfg = ValidateConfig(seed=0, sequence_len=4, batch_size=2, num_steps=3, log_every=5)
     data_generator = build_hidden_markov_model("even_ones", p=0.5)
     config = LlamalikeTransformerConfig(
@@ -21,7 +21,7 @@ def test_validate():
         tie_embedder_and_logits=False,
     )
     model = build_llamalike_transformer(config, init_base_rng=jax.random.PRNGKey(0))
-    metrics = validate(model, cfg, data_generator)
+    metrics = evaluate(model, cfg, data_generator)
     assert metrics["loss"] > 0.0
     assert metrics["accuracy"] >= 0.0
     assert metrics["accuracy"] <= 1.0

@@ -10,11 +10,11 @@ from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.configs.training.optimizer.config import AdamConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.configs.validation.config import Config as ValidateConfig
+from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.training.train_penzai_model import train
-from simplexity.validation.validate_penzai_model import validate
 
 
 def extract_losses(log_file_path: Path) -> jax.Array:
@@ -80,7 +80,7 @@ def test_train(tmp_path: Path):
     )
     persister = LocalPersister(base_dir=str(tmp_path))
 
-    original_metrics = validate(model, validation_cfg, data_generator)
+    original_metrics = evaluate(model, validation_cfg, data_generator)
     assert original_metrics["loss"] > 0.0
     assert original_metrics["accuracy"] >= 0.0
     assert original_metrics["accuracy"] <= 1.0
@@ -96,7 +96,7 @@ def test_train(tmp_path: Path):
     assert loss > 0.0
     losses = extract_losses(log_file_path)
     assert losses.shape == (training_cfg.num_steps // training_cfg.log_every,)
-    final_metrics = validate(model, validation_cfg, data_generator)
+    final_metrics = evaluate(model, validation_cfg, data_generator)
     assert final_metrics["loss"] < original_metrics["loss"]
     assert final_metrics["accuracy"] >= original_metrics["accuracy"]
     assert final_metrics["accuracy"] <= 1.0
