@@ -76,11 +76,12 @@ def test_train(tmp_path: Path):
         sequence_len=32,
         batch_size=64,
         num_steps=10,
-        log_every=5,
+        log_every=-1,
     )
     persister = LocalPersister(base_dir=str(tmp_path))
 
-    original_loss = validate(model, validation_cfg, data_generator)["loss"]
+    original_metrics = validate(model, validation_cfg, data_generator)
+    original_loss = original_metrics["loss"]
     model, loss = train(
         model,
         training_cfg,
@@ -93,5 +94,6 @@ def test_train(tmp_path: Path):
     assert loss > 0.0
     losses = extract_losses(log_file_path)
     assert losses.shape == (training_cfg.num_steps // training_cfg.log_every,)
-    final_loss = validate(model, validation_cfg, data_generator)["loss"]
+    final_metrics = validate(model, validation_cfg, data_generator)
+    final_loss = final_metrics["loss"]
     assert final_loss < original_loss
