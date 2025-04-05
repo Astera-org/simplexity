@@ -7,7 +7,7 @@ from penzai import pz
 from penzai.core.named_axes import NamedArray
 from penzai.nn.layer import Layer
 
-from simplexity.configs.validation.config import Config as ValidateConfig
+from simplexity.configs.evaluation.config import Config
 from simplexity.evaluation.metric_functions import accuracy_fn, loss_fn
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
@@ -46,7 +46,7 @@ def evaluation_step(model: Layer, named_inputs: NamedArray, labels: jax.Array) -
 
 def evaluate(
     model: Layer,
-    cfg: ValidateConfig,
+    cfg: Config,
     data_generator: GenerativeProcess,
     logger: Logger | None = None,
 ) -> dict[str, jax.Array]:

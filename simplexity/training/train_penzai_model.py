@@ -9,8 +9,8 @@ from penzai.nn.layer import Layer as PenzaiModel
 from penzai.toolshed import basic_training
 from penzai.toolshed.basic_training import InternalTrainerState
 
+from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.configs.validation.config import Config as ValidateConfig
 from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger

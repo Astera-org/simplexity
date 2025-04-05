@@ -4,7 +4,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.configs.validation.config import Config as ValidationConfig
+from simplexity.configs.evaluation.config import Config
 from simplexity.evaluation.metric_functions import accuracy_fn, loss_fn
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
@@ -44,7 +44,7 @@ def evaluation_step(model: PredictiveModel, inputs: jax.Array, labels: jax.Array
 
 def evaluate(
     model: PredictiveModel,
-    cfg: ValidationConfig,
+    cfg: Config,
     data_generator: GenerativeProcess,
     logger: Logger | None = None,
 ) -> dict[str, jax.Array]:

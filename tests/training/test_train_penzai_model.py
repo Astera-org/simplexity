@@ -6,10 +6,10 @@ import jax.numpy as jnp
 import pytest
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 
+from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.configs.training.optimizer.config import AdamConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
-from simplexity.configs.validation.config import Config as ValidateConfig
 from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger

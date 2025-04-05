@@ -4,8 +4,8 @@ import jax
 import jax.numpy as jnp
 import optax
 
+from simplexity.configs.evaluation.config import Config as ValidationConfig
 from simplexity.configs.training.config import Config as TrainingConfig
-from simplexity.configs.validation.config import Config as ValidationConfig
 from simplexity.evaluation.evaluate_equinox_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
