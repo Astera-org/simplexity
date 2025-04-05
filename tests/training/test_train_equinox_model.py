@@ -13,6 +13,7 @@ from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
 from simplexity.training.train_equinox_model import train
+from simplexity.validation.validate_equinox_model import validate
 
 
 def extract_losses(log_file_path: Path) -> jax.Array:
@@ -30,12 +31,10 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 
 
 def test_train(tmp_path: Path):
-    generative_process = build_hidden_markov_model("even_ones", p=0.5)
-    model = build_gru_rnn(generative_process.vocab_size, num_layers=2, hidden_size=4, seed=0)
-    persister = LocalPersister(base_dir=str(tmp_path))
+    data_generator = build_hidden_markov_model("even_ones", p=0.5)
+    model = build_gru_rnn(data_generator.vocab_size, num_layers=2, hidden_size=4, seed=0)
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
-
     training_cfg = TrainingConfig(
         seed=0,
         sequence_len=4,
@@ -65,15 +64,19 @@ def test_train(tmp_path: Path):
         num_steps=8,
         log_every=1,
     )
+    persister = LocalPersister(base_dir=str(tmp_path))
+    original_loss = validate(model, validation_cfg, data_generator)["loss"]
     model, loss = train(
         model,
         training_cfg,
-        generative_process,
+        data_generator,
         logger,
         validation_cfg,
-        generative_process,
+        data_generator,
         persister,
     )
     assert loss > 0.0
     losses = extract_losses(log_file_path)
-    assert losses.shape == (training_cfg.num_steps,)
+    assert losses.shape == (training_cfg.num_steps // training_cfg.log_every,)
+    final_loss = validate(model, validation_cfg, data_generator)["loss"]
+    assert final_loss < original_loss
