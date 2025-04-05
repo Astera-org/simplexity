@@ -29,6 +29,7 @@ def generate_data_batch(
     return gen_states, named_inputs, labels
 
 
+@eqx.filter_jit
 def evaluation_step(model: Layer, named_inputs: NamedArray, labels: jax.Array) -> dict[str, jax.Array]:
     """Cross entropy loss for a penzai model.
 
