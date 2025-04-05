@@ -23,3 +23,5 @@ def test_validate():
     model = build_llamalike_transformer(config, init_base_rng=jax.random.PRNGKey(0))
     metrics = validate(model, cfg, data_generator)
     assert metrics["loss"] > 0.0
+    assert metrics["accuracy"] >= 0.0
+    assert metrics["accuracy"] <= 1.0
