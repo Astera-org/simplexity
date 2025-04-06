@@ -63,6 +63,7 @@ class VariableValueClass(StrEnum):
 
 def deconstruct_variables(variable_values: tuple[AbstractVariableValue, ...]) -> Mapping[str, Any]:
     """Decompose a tree into a mapping of items orbax can save."""
+    data_arrays: list[jax.Array] = []
     variable_value_classes: list[VariableValueClass] = []
     variable_labels: list[VariableLabel] = []
     axis_names: list[tuple[AxisName, ...]] = []
@@ -73,9 +74,11 @@ def deconstruct_variables(variable_values: tuple[AbstractVariableValue, ...]) ->
         assert isinstance(variable_value, LabeledVariableValue)
         variable_labels.append(variable_value.label)
         if isinstance(variable_value.value, NamedArray):
+            data_arrays.append(variable_value.value.data_array)
             axis_names.append(tuple(variable_value.value.named_axes.keys()))
             axis_sizes.append(tuple(variable_value.value.named_axes.values()))
         else:
+            data_arrays.append(variable_value.value)
             axis_names.append(())
             axis_sizes.append(())
         if isinstance(variable_value, ParameterValue):
@@ -87,7 +90,7 @@ def deconstruct_variables(variable_values: tuple[AbstractVariableValue, ...]) ->
         metadata.append(variable_value.metadata)
 
     return {
-        "data_arrays": tuple(variable_values),
+        "data_arrays": tuple(data_arrays),
         "axis_names": tuple(axis_names),
         "axis_sizes": tuple(axis_sizes),
         "variable_value_classes": tuple(variable_value_classes),
