@@ -13,7 +13,7 @@ from simplexity.configs.training.optimizer.config import Config as OptimizerConf
 from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
-from simplexity.persistence.local_persister import LocalPersister
+from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.training.train_penzai_model import train
 
 
@@ -78,7 +78,7 @@ def test_train(tmp_path: Path):
         num_steps=10,
         log_every=-1,
     )
-    persister = LocalPersister(base_dir=str(tmp_path))
+    persister = LocalEquinoxPersister(directory=str(tmp_path))
 
     original_metrics = evaluate(model, validation_cfg, data_generator)
     assert original_metrics["loss"] > 0.0
