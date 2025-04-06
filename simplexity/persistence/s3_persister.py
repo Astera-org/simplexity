@@ -56,7 +56,7 @@ class S3Persister(ModelPersister):
     local_persister: LocalEquinoxPersister | LocalPenzaiPersister
 
     @classmethod
-    def from_config(cls, filename: str, model_framework: ModelFramework | None = None) -> "S3Persister":
+    def from_config(cls, filename: str, model_framework: ModelFramework = ModelFramework.Equinox) -> "S3Persister":
         """Creates a new S3Persister from client arguments."""
         config = ConfigParser()
         config.read(filename)
@@ -70,8 +70,6 @@ class S3Persister(ModelPersister):
             local_persister = LocalEquinoxPersister(directory=temp_dir.name)
         elif model_framework == ModelFramework.Penzai:
             local_persister = LocalPenzaiPersister(directory=temp_dir.name)
-        else:
-            raise ValueError(f"Invalid model framework: {model_framework}")
         return cls(
             bucket=bucket,
             prefix=prefix,
