@@ -25,20 +25,20 @@ def generate_data_batch(
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
-) -> tuple[jax.Array, NamedArray, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Generate a batch of data."""
     batch_keys = jax.random.split(key, batch_size)
     gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, False)
-    named_inputs = pz.nx.wrap(obs[:, :-1], "batch", "seq")
+    inputs = obs[:, :-1]
     labels = obs[:, 1:]
-    return gen_states, named_inputs, labels
+    return gen_states, inputs, labels
 
 
 def loss_fn(
     model: PenzaiModel,
     state: InternalTrainerState | None,
     rng: chex.PRNGKey,
-    named_inputs: NamedArray,
+    inputs: jax.Array,
     labels: jax.Array,
     **kwargs,
 ) -> tuple[jax.Array, InternalTrainerState | None, dict[str, jax.Array]]:
@@ -46,9 +46,10 @@ def loss_fn(
 
     https://penzai.readthedocs.io/en/v0.2.1/_autosummary/leaf/penzai.toolshed.basic_training.LossFunction.html
     """
+    named_inputs = pz.nx.wrap(inputs, "batch", "seq")
     named_logits = model(named_inputs)
     assert isinstance(named_logits, NamedArray)
-    logits = named_logits.data_array
+    logits = named_logits.unwrap("batch", "seq", "vocabulary")
     losses = optax.softmax_cross_entropy_with_integer_labels(logits, labels)
     loss = jnp.mean(losses)
     return loss, state, {"loss": loss}
