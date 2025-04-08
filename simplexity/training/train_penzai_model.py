@@ -83,14 +83,14 @@ def train(
 
     for step in range(1, training_cfg.num_steps + 1):
         key, gen_key = jax.random.split(key)
-        gen_states, named_inputs, labels = generate_data_batch(
+        gen_states, inputs, labels = generate_data_batch(
             gen_states,
             training_data_generator,
             training_cfg.batch_size,
             training_cfg.sequence_len,
             gen_key,
         )
-        metrics = trainer.step(named_inputs=named_inputs, labels=labels)
+        metrics = trainer.step(inputs=inputs, labels=labels)
         if logger:
             if step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)

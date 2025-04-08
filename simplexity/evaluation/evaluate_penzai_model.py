@@ -60,14 +60,14 @@ def evaluate(
 
     for step in range(1, cfg.num_steps + 1):
         key, gen_key = jax.random.split(key)
-        gen_states, named_inputs, labels = generate_data_batch(
+        gen_states, inputs, labels = generate_data_batch(
             gen_states,
             data_generator,
             cfg.batch_size,
             cfg.sequence_len,
             gen_key,
         )
-        step_metrics = evaluation_step(model, named_inputs, labels)
+        step_metrics = evaluation_step(model, inputs, labels)
         for metric_name, metric_value in step_metrics.items():
             metrics[metric_name] += metric_value
         if logger and step % cfg.log_every == 0:
