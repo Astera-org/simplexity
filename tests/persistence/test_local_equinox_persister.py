@@ -14,13 +14,15 @@ def get_model(seed: int) -> GRURNN:
 
 def test_local_persister(tmp_path: Path):
     directory = tmp_path
-    persister = LocalEquinoxPersister(directory)
+    filename = "test_model.eqx"
+    persister = LocalEquinoxPersister(directory, filename)
     assert persister.directory == directory
+    assert persister.filename == filename
 
     model = get_model(0)
-    assert not (tmp_path / "0" / "model.eqx").exists()
+    assert not (tmp_path / "0" / filename).exists()
     persister.save_weights(model, 0)
-    assert (tmp_path / "0" / "model.eqx").exists()
+    assert (tmp_path / "0" / filename).exists()
 
     new_model = get_model(1)
     with pytest.raises(AssertionError):

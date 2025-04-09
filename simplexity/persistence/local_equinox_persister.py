@@ -11,8 +11,9 @@ class LocalEquinoxPersister(ModelPersister):
 
     directory: Path
 
-    def __init__(self, directory: str | Path):
+    def __init__(self, directory: str | Path, filename: str = "model.eqx"):
         self.directory = Path(directory)
+        self.filename = filename
 
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
         """Saves a model to the local filesystem."""
@@ -26,4 +27,4 @@ class LocalEquinoxPersister(ModelPersister):
         return eqx.tree_deserialise_leaves(path, model)
 
     def _get_path(self, step: int) -> Path:
-        return self.directory / str(step) / "model.eqx"
+        return self.directory / str(step) / self.filename
