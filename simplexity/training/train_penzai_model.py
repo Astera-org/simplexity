@@ -25,20 +25,20 @@ def generate_data_batch(
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
-) -> tuple[jax.Array, NamedArray, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Generate a batch of data."""
     batch_keys = jax.random.split(key, batch_size)
     gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, False)
-    named_inputs = pz.nx.wrap(obs[:, :-1], "batch", "seq")
+    inputs = obs[:, :-1]
     labels = obs[:, 1:]
-    return gen_states, named_inputs, labels
+    return gen_states, inputs, labels
 
 
 def loss_fn(
     model: PenzaiModel,
     state: InternalTrainerState | None,
     rng: chex.PRNGKey,
-    named_inputs: NamedArray,
+    inputs: jax.Array,
     labels: jax.Array,
     **kwargs,
 ) -> tuple[jax.Array, InternalTrainerState | None, dict[str, jax.Array]]:
@@ -46,9 +46,10 @@ def loss_fn(
 
     https://penzai.readthedocs.io/en/v0.2.1/_autosummary/leaf/penzai.toolshed.basic_training.LossFunction.html
     """
+    named_inputs = pz.nx.wrap(inputs, "batch", "seq")
     named_logits = model(named_inputs)
     assert isinstance(named_logits, NamedArray)
-    logits = named_logits.data_array
+    logits = named_logits.unwrap("batch", "seq", "vocabulary")
     losses = optax.softmax_cross_entropy_with_integer_labels(logits, labels)
     loss = jnp.mean(losses)
     return loss, state, {"loss": loss}
@@ -77,19 +78,18 @@ def train(
 
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
-    max_steps_digits = len(str(training_cfg.num_steps))
     metrics = {"loss": jnp.array(0.0)}
 
     for step in range(1, training_cfg.num_steps + 1):
         key, gen_key = jax.random.split(key)
-        gen_states, named_inputs, labels = generate_data_batch(
+        gen_states, inputs, labels = generate_data_batch(
             gen_states,
             training_data_generator,
             training_cfg.batch_size,
             training_cfg.sequence_len,
             gen_key,
         )
-        metrics = trainer.step(named_inputs=named_inputs, labels=labels)
+        metrics = trainer.step(inputs=inputs, labels=labels)
         if logger:
             if step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)
@@ -98,8 +98,7 @@ def train(
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
         if persister and step % training_cfg.checkpoint_every == 0:
-            full_checkpoint_name = f"{training_cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
-            persister.save_weights(model, full_checkpoint_name)
+            persister.save_weights(model, step)
 
     loss = float(metrics["loss"])
     return model, loss
