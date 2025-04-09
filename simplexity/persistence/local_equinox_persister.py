@@ -2,14 +2,12 @@ from pathlib import Path
 
 import equinox as eqx
 
-from simplexity.persistence.model_persister import ModelPersister
+from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
-class LocalEquinoxPersister(ModelPersister):
+class LocalEquinoxPersister(LocalPersister):
     """Persists a model to the local filesystem."""
-
-    directory: Path
 
     def __init__(self, directory: str | Path, filename: str = "model.eqx"):
         self.directory = Path(directory)

@@ -9,6 +9,7 @@ from botocore.exceptions import ClientError
 
 from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
+from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
@@ -53,7 +54,7 @@ class S3Persister(ModelPersister):
     prefix: str
     s3_client: S3Client
     temp_dir: tempfile.TemporaryDirectory
-    local_persister: LocalEquinoxPersister | LocalPenzaiPersister
+    local_persister: LocalPersister
 
     @classmethod
     def from_config(cls, filename: str, model_framework: ModelFramework = ModelFramework.Equinox) -> "S3Persister":

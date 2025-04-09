@@ -3,15 +3,14 @@ from pathlib import Path
 import orbax.checkpoint as ocp
 from penzai import pz
 
-from simplexity.persistence.model_persister import ModelPersister
+from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.utils.penzai import deconstruct_variables, reconstruct_variables
 
 
-class LocalPenzaiPersister(ModelPersister):
+class LocalPenzaiPersister(LocalPersister):
     """Persists a model to the local filesystem."""
 
-    directory: Path
     mngr: ocp.CheckpointManager
 
     def __init__(self, directory: str | Path):
