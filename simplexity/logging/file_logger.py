@@ -1,9 +1,9 @@
 from collections.abc import Mapping
 from typing import Any
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-from simplexity.logging.logger import Logger
+from simplexity.logging.logger import config_to_yaml_string, Logger
 
 
 class FileLogger(Logger):
@@ -15,7 +15,8 @@ class FileLogger(Logger):
     def log_config(self, config: DictConfig) -> None:
         """Log config to the file."""
         with open(self.file_path, "a") as f:
-            print(f"Config: {config}", file=f)
+            yaml_str = config_to_yaml_string(config)
+            print(yaml_str, file=f)
 
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
         """Log metrics to the file."""

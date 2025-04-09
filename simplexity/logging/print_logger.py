@@ -4,7 +4,7 @@ from typing import Any
 
 from omegaconf import DictConfig
 
-from simplexity.logging.logger import Logger
+from simplexity.logging.logger import config_to_yaml_string, Logger
 
 
 class PrintLogger(Logger):
@@ -12,7 +12,8 @@ class PrintLogger(Logger):
 
     def log_config(self, config: DictConfig) -> None:
         """Log config to the console."""
-        pprint(f"Config: {config}")
+        yaml_str = config_to_yaml_string(config)
+        print(yaml_str)
 
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
         """Log metrics to the console."""
