@@ -42,7 +42,7 @@ def test_s3_persister(tmp_path: Path):
     chex.assert_trees_all_equal(loaded_model, model)
 
 
-def test_s3_persister_from_config(tmp_path: Path, monkeypatch):
+def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Test S3Persister.from_config with mocked Boto3 session."""
     # Create a config file
     config_file = tmp_path / "config.ini"
