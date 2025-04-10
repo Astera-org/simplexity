@@ -25,4 +25,4 @@ class Config:
 
     name: Literal["gru_rnn"]
     instance: ModelInstanceConfig
-    load_checkpoint_name: str
+    load_checkpoint_step: int

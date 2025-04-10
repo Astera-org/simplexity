@@ -12,7 +12,7 @@ from simplexity.configs.training.optimizer.config import Config as OptimizerConf
 from simplexity.evaluation.evaluate_equinox_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
-from simplexity.persistence.local_persister import LocalPersister
+from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
 from simplexity.training.train_equinox_model import train
 
@@ -66,7 +66,7 @@ def test_train(tmp_path: Path):
         num_steps=8,
         log_every=1,
     )
-    persister = LocalPersister(base_dir=str(tmp_path))
+    persister = LocalEquinoxPersister(directory=str(tmp_path))
     original_metrics = evaluate(model, validation_cfg, data_generator)
     assert original_metrics["loss"] > 0.0
     assert original_metrics["accuracy"] >= 0.0

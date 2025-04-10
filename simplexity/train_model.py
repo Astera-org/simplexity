@@ -21,18 +21,18 @@ def train_model(cfg: Config) -> float:
     validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
     vocab_size = training_data_generator.vocab_size
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, vocab_size=vocab_size)
-    persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
-    if cfg.predictive_model.load_checkpoint_name:
-        model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_name)
-    _, loss = train(
-        model,
-        cfg.training,
-        training_data_generator,
-        logger,
-        cfg.validation,
-        validation_data_generator,
-        persister,
-    )
+    with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
+        if cfg.predictive_model.load_checkpoint_step:
+            model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_step)
+        _, loss = train(
+            model,
+            cfg.training,
+            training_data_generator,
+            logger,
+            cfg.validation,
+            validation_data_generator,
+            persister,
+        )
 
     logger.close()
 
