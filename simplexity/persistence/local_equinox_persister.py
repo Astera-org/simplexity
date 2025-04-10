@@ -9,6 +9,8 @@ from simplexity.predictive_models.predictive_model import PredictiveModel
 class LocalEquinoxPersister(LocalPersister):
     """Persists a model to the local filesystem."""
 
+    filename: str = "model.eqx"
+
     def __init__(self, directory: str | Path, filename: str = "model.eqx"):
         self.directory = Path(directory)
         self.filename = filename
