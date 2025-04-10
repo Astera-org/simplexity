@@ -8,7 +8,7 @@ class PersistenceInstanceConfig:
 
     _target_: Literal[
         "simplexity.persistence.local_persister.LocalPersister",
-        "simplexity.persistence.s3_persister.S3Persister.from_client_args",
+        "simplexity.persistence.s3_persister.S3Persister.from_config",
     ]
 
 
@@ -23,7 +23,7 @@ class LocalPersisterConfig(PersistenceInstanceConfig):
 class S3PersisterConfig(PersistenceInstanceConfig):
     """Configuration for S3 persister."""
 
-    config_file: str
+    filename: str
 
 
 @dataclass
