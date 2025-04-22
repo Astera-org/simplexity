@@ -11,8 +11,9 @@ from simplexity.utils.penzai import deconstruct_variables, reconstruct_variables
 
 class LocalPenzaiPersister(LocalPersister):
     """Persists a model to the local filesystem."""
+
     directory: Path
-    registry: DefaultCheckpointHandlerRegistry 
+    registry: DefaultCheckpointHandlerRegistry
 
     def __init__(self, directory: str | Path):
         self.directory = Path(directory)
