@@ -5,7 +5,7 @@ import equinox as eqx
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
-class ModelPersister(eqx.Module):
+class ModelPersister:
     """Persists a model to a file."""
 
     @abstractmethod

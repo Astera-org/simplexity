@@ -81,6 +81,7 @@ class WrapAndSummarize(pz.nn.Layer):
     def __post_init__(self):
         """this allows the get_state_vars to work"""
         self.summary.metadata["tag"] = self.tag
+        self.summary.label = f"{self.tag}_{id(self)}"
 
 def get_state_vars(model: pz.nn.Layer, *tags: List[str]) -> Tuple[pz.StateVariableValue]:
     _, state_vars = pz.unbind_state_vars(model, lambda x: x.metadata.get("tag") in tags)

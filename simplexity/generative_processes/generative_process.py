@@ -38,9 +38,11 @@ class GenerativeProcess(eqx.Module, Generic[State]):
         """
         ...
 
-    @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
+    @eqx.filter_vmap(in_axes=(None, 0, 0, None, None, None))
     def generate(
-        self, state: State, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
+        self, state: State, key: chex.PRNGKey, sequence_len: int, 
+        return_all_states: bool,
+        return_dist: bool,
     ) -> tuple[State, chex.Array]:
         """Generate a batch of sequences of observations from the generative process.
 
@@ -65,9 +67,19 @@ class GenerativeProcess(eqx.Module, Generic[State]):
             return new_state, obs
 
         def gen_states_and_obs(state: State, key: chex.PRNGKey) -> tuple[State, tuple[State, chex.Array]]:
-            obs = self.emit_observation(state, key)
-            new_state = self.transition_states(state, obs)
-            return new_state, (new_state, obs)
+            new_obs = self.emit_observation(state, key)
+            new_state = self.transition_states(state, new_obs)
+            return new_state, (new_state, new_obs)
+
+        def gen_states_obs_dist(state: State, key: chex.PRNGKey) -> tuple[State, tuple[State, chex.Array]]:
+            obs_dist = self.observation_probability_distribution(state)
+            new_obs = jax.random.choice(key, self.vocab_size, p=obs_dist)
+            new_state = self.transition_states(state, new_obs)
+            return new_state, (new_state, new_obs, obs_dist)
+
+        if return_dist:
+            _, ret = jax.lax.scan(gen_states_obs_dist, state, keys)
+            return ret
 
         if return_all_states:
             _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, keys)
