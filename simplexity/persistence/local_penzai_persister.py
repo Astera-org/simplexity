@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import orbax.checkpoint as ocp
+from orbax.checkpoint.handlers import DefaultCheckpointHandlerRegistry
 from penzai import pz
 
 from simplexity.persistence.local_persister import LocalPersister
@@ -10,6 +11,8 @@ from simplexity.utils.penzai import deconstruct_variables, reconstruct_variables
 
 class LocalPenzaiPersister(LocalPersister):
     """Persists a model to the local filesystem."""
+    directory: Path
+    registry: DefaultCheckpointHandlerRegistry 
 
     def __init__(self, directory: str | Path):
         self.directory = Path(directory)
