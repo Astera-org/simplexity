@@ -87,7 +87,6 @@ def deconstruct_variables(variable_values: tuple[AbstractVariableValue, ...]) ->
         elif isinstance(variable_value.label, AutoStateVarLabel):
             variable_labels.append(str(variable_value.label.var_id))
             variable_label_classes.append(VariableLabelClass.AUTO_STATE_VAR_LABEL)
-        # print(f"{type(variable_value.label)=}, {variable_value.label=}")
         if isinstance(variable_value.value, NamedArray):
             data_arrays.append(variable_value.value.data_array)
             axis_names.append(tuple(variable_value.value.named_axes.keys()))
