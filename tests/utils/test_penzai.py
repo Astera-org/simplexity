@@ -234,6 +234,20 @@ DECONSTRUCTED_VARIABLES = {
         "transformer/final_norm/scale.weights",
         "transformer/lm_head.weights",
     ),
+    "variable_label_classes": (
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+    ),
     "metadata": tuple({} for _ in range(12)),
 }
 
