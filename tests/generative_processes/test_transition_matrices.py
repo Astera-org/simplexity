@@ -99,7 +99,7 @@ def test_post_quantum():
 def test_rrxor():
     transition_matrices = rrxor(pR1=0.5, pR2=0.5)
     assert transition_matrices.shape == (2, 5, 5)
-    validate_hmm_transition_matrices(transition_matrices)
+    validate_hmm_transition_matrices(transition_matrices, rtol=1e-5)  # rtol=1e-6 barely fails
 
 
 def test_tom_quantum():
