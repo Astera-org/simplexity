@@ -25,8 +25,7 @@ def build_hidden_markov_model(process_name: str, **kwargs) -> HiddenMarkovModel:
         return HiddenMarkovModel(func(**kwargs))
     except TypeError as e:
         params = ", ".join(f"{k}: {v.annotation}" for k, v in sig.parameters.items())
-        raise TypeError(f"Invalid arguments for {process_name}: {e}.  "
-                        f"Signature is: {params}") from e
+        raise TypeError(f"Invalid arguments for {process_name}: {e}.  Signature is: {params}") from e
 
 
 def build_generalized_hidden_markov_model(process_name: str, **kwargs) -> GeneralizedHiddenMarkovModel:
@@ -44,5 +43,4 @@ def build_generalized_hidden_markov_model(process_name: str, **kwargs) -> Genera
         return GeneralizedHiddenMarkovModel(func(**kwargs))
     except TypeError as e:
         params = ", ".join(f"{k}: {v.annotation}" for k, v in sig.parameters.items())
-        raise TypeError(f"Invalid arguments for {process_name}: {e}.  "
-                        f"Signature is {params}") from e
+        raise TypeError(f"Invalid arguments for {process_name}: {e}.  Signature is {params}") from e
