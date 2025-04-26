@@ -1,11 +1,13 @@
 defaults:
  - _self_
- - generative_process: mess3
+ - generative_process@training_data_generator: mess3
+ - generative_process@validation_data_generator: mess3
  - predictive_model: gru_rnn
  - persistence: local_persister
  - logging: mlflow_logger
- - train: small
+ - training: small
+ - evaluation@validation: small
 
 seed: 0
-experiment_name: ${predictive_model.name}_${generative_process.name}
+experiment_name: ${predictive_model.name}_${training_data_generator.name}
 run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}

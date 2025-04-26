@@ -1,5 +1,12 @@
+from enum import Enum
+
 import jax
 import jax.numpy as jnp
+
+"""
+Each process defines P(cur_obs, cur_state | prev_state) with a tensor of shape
+[cur_obs, cur_state, prev_state]
+"""
 
 
 def days_of_week() -> jax.Array:
@@ -35,6 +42,7 @@ def days_of_week() -> jax.Array:
 def even_ones(p: float) -> jax.Array:
     """Creates a transition matrix for the Even Ones Process.
 
+    Defined in:  https://arxiv.org/pdf/1412.2859 Fig 3. using p = 0.5
     Steady-state distribution = [2, 1] / 3
     """
     assert 0 <= p <= 1
@@ -51,6 +59,30 @@ def even_ones(p: float) -> jax.Array:
             ],
         ]
     )
+
+
+def sns(p: float, q: float):
+    """Creates a transition matrix for the Simple Nonunifilar Source Process.
+
+    Defined in https://arxiv.org/pdf/1702.08565 Fig 2.
+    """
+    return jnp.array(
+        [
+            [
+                [1 - p, p],
+                [0, 1 - q],
+            ],
+            [
+                [0, 0],
+                [q, 0],
+            ],
+        ]
+    )
+
+
+def coin(p: float):
+    """Create a transition matrix for a simple coin-flip Process."""
+    return jnp.array([[[p]], [[1 - p]]])
 
 
 def fanizza(alpha: float, lamb: float) -> jax.Array:
@@ -244,3 +276,55 @@ def zero_one_random(p: float) -> jax.Array:
             ],
         ]
     )
+
+
+class HMMProcessType(Enum):
+    """The type of generative process to build."""
+
+    DAYS_OF_WEEK = "days_of_week"
+    EVEN_ONES = "even_ones"
+    SNS = "sns"
+    COIN = "coin"
+    MESS3 = "mess3"
+    NO_CONSECUTIVE_ONES = "no_consecutive_ones"
+    RRXOR = "rrxor"
+    ZERO_ONE_RANDOM = "zero_one_random"
+
+
+ALL_HMMS = {
+    HMMProcessType.DAYS_OF_WEEK: days_of_week,
+    HMMProcessType.EVEN_ONES: even_ones,
+    HMMProcessType.SNS: sns,
+    HMMProcessType.COIN: coin,
+    HMMProcessType.MESS3: mess3,
+    HMMProcessType.NO_CONSECUTIVE_ONES: no_consecutive_ones,
+    HMMProcessType.RRXOR: rrxor,
+    HMMProcessType.ZERO_ONE_RANDOM: zero_one_random,
+}
+
+
+class GHMMProcessType(Enum):
+    """The type of generative process to build."""
+
+    DAYS_OF_WEEK = "days_of_week"
+    EVEN_ONES = "even_ones"
+    FANIZZA = "fanizza"
+    MESS3 = "mess3"
+    NO_CONSECUTIVE_ONES = "no_consecutive_ones"
+    POST_QUANTUM = "post_quantum"
+    RRXOR = "rrxor"
+    TOM_QUANTUM = "tom_quantum"
+    ZERO_ONE_RANDOM = "zero_one_random"
+
+
+ALL_GHMMS = {
+    GHMMProcessType.DAYS_OF_WEEK: days_of_week,
+    GHMMProcessType.EVEN_ONES: even_ones,
+    GHMMProcessType.FANIZZA: fanizza,
+    GHMMProcessType.MESS3: mess3,
+    GHMMProcessType.NO_CONSECUTIVE_ONES: no_consecutive_ones,
+    GHMMProcessType.POST_QUANTUM: post_quantum,
+    GHMMProcessType.RRXOR: rrxor,
+    GHMMProcessType.TOM_QUANTUM: tom_quantum,
+    GHMMProcessType.ZERO_ONE_RANDOM: zero_one_random,
+}
