@@ -91,7 +91,6 @@ def train(
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
 
-    max_steps_digits = len(str(training_cfg.num_steps))
     metrics = {"loss": jnp.array(0.0)}
 
     for step in range(1, training_cfg.num_steps + 1):
@@ -112,8 +111,7 @@ def train(
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
         if persister and step % training_cfg.checkpoint_every == 0:
-            full_checkpoint_name = f"{training_cfg.checkpoint_name}_{step:0{max_steps_digits}d}"
-            persister.save_weights(model, full_checkpoint_name)
+            persister.save_weights(model, step)
 
     loss = float(metrics["loss"])
     return model, loss
