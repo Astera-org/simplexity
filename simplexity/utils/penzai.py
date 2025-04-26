@@ -10,11 +10,11 @@ from penzai.core.named_axes import AxisName, NamedArray
 from penzai.core.struct import Struct
 from penzai.core.variables import (
     AbstractVariableValue,
+    AutoStateVarLabel,
     LabeledVariableValue,
     ParameterValue,
     StateVariableValue,
     VariableLabel,
-    AutoStateVarLabel,
 )
 
 
@@ -61,7 +61,10 @@ class VariableValueClass(StrEnum):
     PARAMETER = "parameter"
     STATE_VARIABLE = "state_variable"
 
+
 class VariableLabelClass(StrEnum):
+    """The class of a penzai variable label."""
+
     STR = "str"
     AUTO_STATE_VAR_LABEL = "auto_state_var_label"
 
@@ -84,7 +87,8 @@ def deconstruct_variables(variable_values: tuple[AbstractVariableValue, ...]) ->
         elif isinstance(variable_value.label, AutoStateVarLabel):
             variable_labels.append(str(variable_value.label.var_id))
             variable_label_classes.append(VariableLabelClass.AUTO_STATE_VAR_LABEL)
-        # print(f"{type(variable_value.label)=}, {variable_value.label=}")
+        else:
+            raise ValueError(f"Unknown variable label: {type(variable_value.label)}")
         if isinstance(variable_value.value, NamedArray):
             data_arrays.append(variable_value.value.data_array)
             axis_names.append(tuple(variable_value.value.named_axes.keys()))
@@ -123,7 +127,15 @@ def reconstruct_variables(items: Mapping[str, Any]) -> tuple[LabeledVariableValu
     metadata: tuple[dict[Any, Any], ...] = items["metadata"]
 
     loaded_variables: list[LabeledVariableValue] = []
-    for data_array, variable_value_class, variable_label, variable_label_class, axis_names_, axis_sizes_, metadata_ in zip(
+    for (
+        data_array,
+        variable_value_class,
+        variable_label,
+        variable_label_class,
+        axis_names_,
+        axis_sizes_,
+        metadata_,
+    ) in zip(
         data_arrays,
         variable_value_classes,
         variable_labels,
@@ -138,11 +150,9 @@ def reconstruct_variables(items: Mapping[str, Any]) -> tuple[LabeledVariableValu
             value = NamedArray(named_axes, data_array)
         else:
             value = data_array
-        if variable_label_class == VariableLabelClass.STR:
-            pass
-        elif variable_label_class == VariableLabelClass.AUTO_STATE_VAR_LABEL:
+        if variable_label_class == VariableLabelClass.AUTO_STATE_VAR_LABEL:
             variable_label = AutoStateVarLabel(var_id=int(variable_label))
-        else:
+        elif variable_label_class != VariableLabelClass.STR:
             raise ValueError(f"Unknown variable label class: {variable_label_class}")
         if variable_value_class == VariableValueClass.PARAMETER:
             variable = ParameterValue(variable_label, value, metadata_)
