@@ -4,8 +4,8 @@ import jax
 import jax.numpy as jnp
 
 """
-Processes are defined by a tensor T_kij parameterizing P(X_k, S_j | \\hat{S}_i).
-X, S, \\hat{S} are respectively: current observed, current state, previous state. 
+Each process defines P(cur_obs, cur_state | prev_state) with a tensor of shape
+[cur_obs, cur_state, prev_state]
 """
 
 
@@ -55,7 +55,7 @@ def even_ones(p: float) -> jax.Array:
             ],
             [
                 [0, p],
-                [0, 1],
+                [1, 0],
             ],
         ]
     )
@@ -66,7 +66,7 @@ def sns(p: float, q: float):
 
     Defined in https://arxiv.org/pdf/1702.08565 Fig 2.
     """
-    T_kij = jnp.array(
+    return jnp.array(
         [
             [
                 [1 - p, p],
@@ -78,13 +78,11 @@ def sns(p: float, q: float):
             ],
         ]
     )
-    return T_kij
 
 
 def coin(p: float):
     """Create a transition matrix for a simple coin-flip Process."""
-    T_kij = jnp.array([[[p]], [[1 - p]]])
-    return T_kij
+    return jnp.array([[[p]], [[1 - p]]])
 
 
 def fanizza(alpha: float, lamb: float) -> jax.Array:
@@ -203,29 +201,23 @@ def post_quantum(log_alpha: float, beta: float) -> jax.Array:
 
 
 def rrxor(pR1: float, pR2: float) -> jax.Array:
-    """Random-random Exclusive-Or Process."""
-    p, q = pR1, 1 - pR1
-    x, y = pR2, 1 - pR2
+    """Creates a transition matrix for the RRXOR Process.
 
-    T_kij = jnp.array(
-        [
-            [
-                [0, p, 0, 0, 0],
-                [0, 0, 0, 0, x],
-                [0, 0, 0, x, 0],
-                [0, 0, 0, 0, 0],
-                [1, 0, 0, 0, 0],
-            ],
-            [
-                [0, 0, q, 0, 0],
-                [0, 0, 0, y, 0],
-                [0, 0, 0, 0, y],
-                [1, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
-            ],
-        ]
-    )
-    return T_kij
+    Steady-state distribution = [2, 1, 1, 1, 1] / 6
+    """
+    s = {"S": 0, "0": 1, "1": 2, "T": 3, "F": 4}
+
+    transition_matrices = jnp.zeros((2, 5, 5))
+    transition_matrices = transition_matrices.at[0, s["S"], s["0"]].set(pR1)
+    transition_matrices = transition_matrices.at[1, s["S"], s["1"]].set(1 - pR1)
+    transition_matrices = transition_matrices.at[0, s["0"], s["F"]].set(pR2)
+    transition_matrices = transition_matrices.at[1, s["0"], s["T"]].set(1 - pR2)
+    transition_matrices = transition_matrices.at[0, s["1"], s["T"]].set(pR2)
+    transition_matrices = transition_matrices.at[1, s["1"], s["F"]].set(1 - pR2)
+    transition_matrices = transition_matrices.at[1, s["T"], s["S"]].set(1.0)
+    transition_matrices = transition_matrices.at[0, s["F"], s["S"]].set(1.0)
+
+    return transition_matrices
 
 
 def tom_quantum(alpha: float, beta: float) -> jax.Array:
