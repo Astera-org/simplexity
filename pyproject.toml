@@ -23,6 +23,7 @@ dependencies = [
     "matplotlib",
     "mlflow",
     "optax",
+    "orbax-checkpoint",
     "pandas",
     "penzai",
     "treescope",
