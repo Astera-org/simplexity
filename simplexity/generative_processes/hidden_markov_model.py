@@ -28,7 +28,8 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         self.log_normalizing_eigenvector = jnp.zeros(self.num_states)
 
         eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
-        stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
+        stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)]
+        stationary_state = stationary_state[:,0].real
         self.stationary_state = stationary_state / jnp.sum(stationary_state)
         self.log_stationary_state = jnp.log(self.stationary_state)
 
