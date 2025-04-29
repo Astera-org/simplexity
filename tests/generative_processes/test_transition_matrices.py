@@ -11,6 +11,7 @@ from simplexity.generative_processes.transition_matrices import (
     rrxor,
     tom_quantum,
     zero_one_random,
+    matching_parens,
 )
 from tests.assertions import assert_proportional
 
@@ -111,4 +112,10 @@ def test_tom_quantum():
 def test_zero_one_random():
     transition_matrices = zero_one_random(p=0.5)
     assert transition_matrices.shape == (2, 3, 3)
+    validate_hmm_transition_matrices(transition_matrices)
+
+
+def test_matching_parens():
+    transition_matrices = matching_parens(open_probs=[1.0, 0.5, 0.3, 0.2])
+    assert transition_matrices.shape == (2, 5, 5)
     validate_hmm_transition_matrices(transition_matrices)
