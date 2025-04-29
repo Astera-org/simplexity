@@ -5,13 +5,13 @@ from simplexity.generative_processes.transition_matrices import (
     days_of_week,
     even_ones,
     fanizza,
+    matching_parens,
     mess3,
     no_consecutive_ones,
     post_quantum,
     rrxor,
     tom_quantum,
     zero_one_random,
-    matching_parens,
 )
 from tests.assertions import assert_proportional
 

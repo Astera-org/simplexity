@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import chex
 import equinox as eqx
@@ -46,7 +46,7 @@ class GenerativeProcess(eqx.Module, Generic[State]):
         sequence_len: int,
         return_all_states: bool,
         return_dist: bool,
-    ) -> tuple[State, chex.Array]:
+    ) -> Any:
         """Generate a batch of sequences of observations from the generative process.
 
         Inputs:

@@ -1,7 +1,8 @@
-from typing import Callable, Tuple, Any, List
 import dataclasses
+from collections.abc import Callable
+from typing import Any
+
 from penzai import pz
-import jax
 
 
 @pz.pytree_dataclass
@@ -13,10 +14,11 @@ class ConcatInputs(pz.nn.Layer):
     """
 
     model: pz.nn.Sequential
-    target_layer_types: Tuple[Any]
+    target_layer_types: tuple[Any]
     stack_axis: str
 
     def __call__(self, x, /, **side_inputs):
+        """The 'forward' call method."""
         activations = []
         for layer in self.model.sublayers:
             if isinstance(layer, self.target_layer_types):
@@ -39,12 +41,13 @@ class SaveInput(pz.nn.Layer):
         metadata={"pytree_node": False},
     )
 
-    def __call__(self, input: pz.nx.NamedArray, /, **side_inputs):
-        self.saved.value = input
-        return input
+    def __call__(self, x: pz.nx.NamedArray, /, **side_inputs):
+        """The 'forward' call method."""
+        self.saved.value = x
+        return x 
 
     def __post_init__(self):
-        """this allows the get_state_vars to work"""
+        """This allows the get_state_vars to work."""
         self.saved.metadata["tag"] = self.tag
 
 
@@ -53,7 +56,6 @@ class WrapAndSummarize(pz.nn.Layer):
     """A layer that wraps another layer, caching a custom summarization of its output.
 
     Example:
-
     layer = WrapAndSummarize(wrapped_layer, summary_fn, tag)
     filter_fn = WrapAndSummarize.get_select_fn(tag)
     pz.select(...).where(filter_fn)
@@ -80,11 +82,12 @@ class WrapAndSummarize(pz.nn.Layer):
         return output
 
     def __post_init__(self):
-        """this allows the get_state_vars to work"""
+        """This allows the get_state_vars to work."""
         self.summary.metadata["tag"] = self.tag
         self.summary.label = f"{self.tag}_{id(self)}"
 
 
-def get_state_vars(model: pz.nn.Layer, *tags: List[str]) -> Tuple[pz.StateVariableValue]:
+def get_state_vars(model: pz.nn.Layer, *tags: list[str]) -> tuple[pz.StateVariableValue]:
+    """Retrieves all StateVariableValue's with a metadata "tag" matching `tags`."""
     _, state_vars = pz.unbind_state_vars(model, lambda x: x.metadata.get("tag") in tags)
     return pz.freeze_state_vars(state_vars)

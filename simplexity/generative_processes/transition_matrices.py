@@ -1,4 +1,3 @@
-from typing import List
 from enum import Enum
 
 import jax
@@ -279,17 +278,17 @@ def zero_one_random(p: float) -> jax.Array:
     )
 
 
-def matching_parens(open_probs: List[float]) -> jax.Array:
+def matching_parens(open_probs: list[float]) -> jax.Array:
     """Creates a model for generating Matching Parentheses.
 
     open_probs:
     """
     if len(open_probs) < 1:
-        raise TypeError(f"Must provide a list of at least one open_probability")
+        raise TypeError("Must provide a list of at least one open_probability")
     if any(p <= 0 or p > 1 for p in open_probs):
         raise TypeError(f"`open_probs` elements must all be in (0, 1].  Got: {open_probs}")
     if open_probs[0] != 1.0:
-        raise ValueError(f"First open_prob must equal 1.0")
+        raise ValueError("First open_prob must equal 1.0")
     open_probs = jnp.array(open_probs + [0.0])
     return jnp.stack([jnp.diag(open_probs[:-1], k=1), jnp.diag(1.0 - open_probs[1:], k=-1)])
 
