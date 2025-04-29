@@ -44,7 +44,7 @@ class SaveInput(pz.nn.Layer):
     def __call__(self, x: pz.nx.NamedArray, /, **side_inputs):
         """The 'forward' call method."""
         self.saved.value = x
-        return x 
+        return x
 
     def __post_init__(self):
         """This allows the get_state_vars to work."""
