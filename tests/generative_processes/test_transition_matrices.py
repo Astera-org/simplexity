@@ -2,7 +2,7 @@ import chex
 import jax.numpy as jnp
 
 from simplexity.generative_processes.transition_matrices import (
-    coin
+    coin,
     days_of_week,
     even_ones,
     fanizza,
