@@ -23,7 +23,9 @@ def generate_data_batch(
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Generate a batch of data."""
     batch_keys = jax.random.split(key, batch_size)
-    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, False, False)
+    return_all_states = False
+    return_distribution = False
+    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, return_all_states, return_distribution)
     inputs = obs[:, :-1]
     labels = obs[:, 1:]
     return gen_states, inputs, labels
