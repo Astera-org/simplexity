@@ -65,13 +65,13 @@ class GenerativeProcess(eqx.Module, Generic[State]):
 
         def gen_obs(state: State, key: chex.PRNGKey) -> tuple[State, chex.Array]:
             obs = self.emit_observation(state, key)
-            new_state = self.transition_states(state, obs)
-            return new_state, obs
+            state = self.transition_states(state, obs)
+            return state, obs
 
         def gen_states_and_obs(state: State, key: chex.PRNGKey) -> tuple[State, tuple[State, chex.Array]]:
-            new_obs = self.emit_observation(state, key)
-            new_state = self.transition_states(state, new_obs)
-            return new_state, (new_state, new_obs)
+            obs = self.emit_observation(state, key)
+            state = self.transition_states(state, obs)
+            return state, (state, obs)
 
         if return_all_states:
             _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, keys)
