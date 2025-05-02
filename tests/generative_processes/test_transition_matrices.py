@@ -24,12 +24,12 @@ def validate_ghmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: fl
 
     eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
     assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
-    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze(axis=-1).real
     assert normalizing_eigenvector.shape == (num_states,)
 
     eigenvalues, left_eigenvectors = jnp.linalg.eig(transition_matrix.T)
     assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
-    stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze(axis=-1).real
     assert stationary_state.shape == (num_states,)
 
 
@@ -48,7 +48,7 @@ def validate_hmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: flo
 
     transition_matrix = jnp.sum(transition_matrices, axis=0)
     eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
-    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze(axis=-1).real
     assert_proportional(
         normalizing_eigenvector,
         jnp.ones_like(normalizing_eigenvector),
