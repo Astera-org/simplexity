@@ -8,10 +8,8 @@ from simplexity.generative_processes.builder import build_generalized_hidden_mar
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from tests.assertions import assert_proportional
 
-
 RETURN_ALL_STATES = True
 DO_NOT_RETURN_ALL_STATES = False
-DO_NOT_RETURN_DISTRIBUTION = False
 
 
 @pytest.fixture
@@ -61,20 +59,20 @@ def test_hmm_single_transition(z1r: GeneralizedHiddenMarkovModel):
     key = jax.random.PRNGKey(0)[None, :]
     single_transition = 1
 
-    next_state, observation = z1r.generate(zero_state, key, single_transition, DO_NOT_RETURN_ALL_STATES, DO_NOT_RETURN_DISTRIBUTION)
+    next_state, observation = z1r.generate(zero_state, key, single_transition, DO_NOT_RETURN_ALL_STATES)
     assert_proportional(probability(next_state), one_state)
     assert observation == jnp.array(0)
 
-    next_state, observation = z1r.generate(one_state, key, single_transition, DO_NOT_RETURN_ALL_STATES, DO_NOT_RETURN_DISTRIBUTION)
+    next_state, observation = z1r.generate(one_state, key, single_transition, DO_NOT_RETURN_ALL_STATES)
     assert_proportional(probability(next_state), random_state)
     assert observation == jnp.array(1)
 
-    next_state, observation = z1r.generate(random_state, key, single_transition, DO_NOT_RETURN_ALL_STATES, DO_NOT_RETURN_DISTRIBUTION)
+    next_state, observation = z1r.generate(random_state, key, single_transition, DO_NOT_RETURN_ALL_STATES)
     assert_proportional(probability(next_state), zero_state)
 
     mixed_state = jnp.array([[0.4, 0.4, 0.2]])
 
-    next_state, observation = z1r.generate(mixed_state, key, single_transition, DO_NOT_RETURN_ALL_STATES, DO_NOT_RETURN_DISTRIBUTION)
+    next_state, observation = z1r.generate(mixed_state, key, single_transition, DO_NOT_RETURN_ALL_STATES)
     # P(next=0 | obs=x) = P(prev=2 | obs=x)
     # P(next=1 | obs=x) = P(prev=0 | obs=x)
     # P(next=2 | obs=x) = P(prev=1 | obs=x)
@@ -99,12 +97,14 @@ def test_generate(model_name: str, request: pytest.FixtureRequest):
 
     initial_states = jnp.repeat(model.stationary_state[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
-    intermediate_states, intermediate_observations = model.generate(initial_states, keys, sequence_len, DO_NOT_RETURN_ALL_STATES, DO_NOT_RETURN_DISTRIBUTION)
+    intermediate_states, intermediate_observations = model.generate(
+        initial_states, keys, sequence_len, DO_NOT_RETURN_ALL_STATES
+    )
     assert intermediate_states.shape == (batch_size, model.num_states)
     assert intermediate_observations.shape == (batch_size, sequence_len)
 
     keys = jax.random.split(jax.random.PRNGKey(1), batch_size)
-    final_states, final_observations = model.generate(intermediate_states, keys, sequence_len, DO_NOT_RETURN_ALL_STATES, DO_NOT_RETURN_DISTRIBUTION)
+    final_states, final_observations = model.generate(intermediate_states, keys, sequence_len, DO_NOT_RETURN_ALL_STATES)
     assert final_states.shape == (batch_size, model.num_states)
     assert final_observations.shape == (batch_size, sequence_len)
 
@@ -117,12 +117,12 @@ def test_generate_with_intermediate_states(model_name: str, request: pytest.Fixt
 
     initial_states = jnp.repeat(model.stationary_state[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
-    intermediate_states, observations = model.generate(initial_states, keys, sequence_len, RETURN_ALL_STATES, DO_NOT_RETURN_DISTRIBUTION)
+    intermediate_states, observations = model.generate(initial_states, keys, sequence_len, RETURN_ALL_STATES)
     assert intermediate_states.shape == (batch_size, sequence_len, model.num_states)
     assert observations.shape == (batch_size, sequence_len)
     last_intermediate_states = intermediate_states[:, -1, :]
 
-    final_states, observations = model.generate(last_intermediate_states, keys, sequence_len, RETURN_ALL_STATES, DO_NOT_RETURN_DISTRIBUTION)
+    final_states, observations = model.generate(last_intermediate_states, keys, sequence_len, RETURN_ALL_STATES)
     assert final_states.shape == (batch_size, sequence_len, model.num_states)
     assert observations.shape == (batch_size, sequence_len)
 

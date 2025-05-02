@@ -25,8 +25,7 @@ def generate_data_batch(
     """Generate a batch of data."""
     batch_keys = jax.random.split(key, batch_size)
     return_all_states = False
-    return_distribution = False
-    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, return_all_states, return_distribution)
+    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, return_all_states)
     inputs = jax.nn.one_hot(obs[:, :-1], data_generator.vocab_size)
     labels = obs[:, 1:]
     return gen_states, inputs, labels
