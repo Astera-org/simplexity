@@ -2,6 +2,7 @@ import chex
 import jax.numpy as jnp
 
 from simplexity.generative_processes.transition_matrices import (
+    coin,
     days_of_week,
     even_ones,
     fanizza,
@@ -10,6 +11,7 @@ from simplexity.generative_processes.transition_matrices import (
     no_consecutive_ones,
     post_quantum,
     rrxor,
+    sns,
     tom_quantum,
     zero_one_random,
 )
@@ -22,12 +24,12 @@ def validate_ghmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: fl
 
     eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
     assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
-    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze(axis=-1).real
     assert normalizing_eigenvector.shape == (num_states,)
 
     eigenvalues, left_eigenvectors = jnp.linalg.eig(transition_matrix.T)
     assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
-    stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze(axis=-1).real
     assert stationary_state.shape == (num_states,)
 
 
@@ -46,13 +48,19 @@ def validate_hmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: flo
 
     transition_matrix = jnp.sum(transition_matrices, axis=0)
     eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
-    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze(axis=-1).real
     assert_proportional(
         normalizing_eigenvector,
         jnp.ones_like(normalizing_eigenvector),
         rtol=rtol,
         atol=atol,
     )
+
+
+def test_coin():
+    transition_matrices = coin(p=0.5)
+    assert transition_matrices.shape == (2, 1, 1)
+    validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_days_of_week():
@@ -73,6 +81,12 @@ def test_fanizza():
     validate_ghmm_transition_matrices(transition_matrices)
     tau = jnp.ones(4)
     assert jnp.allclose(jnp.sum(transition_matrices @ tau, axis=0), tau), "Stochasticity condition not met"
+
+
+def test_matching_parens():
+    transition_matrices = matching_parens(open_probs=[1.0, 0.5, 0.3, 0.2])
+    assert transition_matrices.shape == (2, 5, 5)
+    validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_mess3():
@@ -103,6 +117,12 @@ def test_rrxor():
     validate_hmm_transition_matrices(transition_matrices, rtol=1e-5)  # rtol=1e-6 barely fails
 
 
+def test_sns():
+    transition_matrices = sns(p=0.5, q=0.5)
+    assert transition_matrices.shape == (2, 2, 2)
+    validate_hmm_transition_matrices(transition_matrices)
+
+
 def test_tom_quantum():
     transition_matrices = tom_quantum(alpha=1.0, beta=1.0)
     assert transition_matrices.shape == (4, 3, 3)
@@ -112,10 +132,4 @@ def test_tom_quantum():
 def test_zero_one_random():
     transition_matrices = zero_one_random(p=0.5)
     assert transition_matrices.shape == (2, 3, 3)
-    validate_hmm_transition_matrices(transition_matrices)
-
-
-def test_matching_parens():
-    transition_matrices = matching_parens(open_probs=[1.0, 0.5, 0.3, 0.2])
-    assert transition_matrices.shape == (2, 5, 5)
     validate_hmm_transition_matrices(transition_matrices)

@@ -35,12 +35,14 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
             self.transition_matrices = transition_matrices / principal_eigenvalue
         self.log_transition_matrices = jnp.log(transition_matrices)
 
-        normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
+        normalizing_eigenvector = (
+            right_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze(axis=-1).real
+        )
         self.normalizing_eigenvector = normalizing_eigenvector / jnp.sum(normalizing_eigenvector) * self.num_states
         self.log_normalizing_eigenvector = jnp.log(self.normalizing_eigenvector)
 
         eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
-        stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
+        stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze(axis=-1).real
         self.stationary_state = stationary_state / jnp.sum(stationary_state)
         self.log_stationary_state = jnp.log(self.stationary_state)
 

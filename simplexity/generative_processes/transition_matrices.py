@@ -9,6 +9,11 @@ Each process defines P(cur_obs, cur_state | prev_state) with a tensor of shape
 """
 
 
+def coin(p: float):
+    """Create a transition matrix for a simple coin-flip Process."""
+    return jnp.array([[[p]], [[1 - p]]])
+
+
 def days_of_week() -> jax.Array:
     """Creates a transition matrix for the Days of the Week Process."""
     d = {"M": 0, "Tu": 1, "W": 2, "Th": 3, "F": 4, "Sa": 5, "Su": 6, "Tmrw": 7, "Yest": 8, "Wknd": 9, "Wkdy": 10}
@@ -61,30 +66,6 @@ def even_ones(p: float) -> jax.Array:
     )
 
 
-def sns(p: float, q: float):
-    """Creates a transition matrix for the Simple Nonunifilar Source Process.
-
-    Defined in https://arxiv.org/pdf/1702.08565 Fig 2.
-    """
-    return jnp.array(
-        [
-            [
-                [1 - p, p],
-                [0, 1 - q],
-            ],
-            [
-                [0, 0],
-                [q, 0],
-            ],
-        ]
-    )
-
-
-def coin(p: float):
-    """Create a transition matrix for a simple coin-flip Process."""
-    return jnp.array([[[p]], [[1 - p]]])
-
-
 def fanizza(alpha: float, lamb: float) -> jax.Array:
     """Creates a transition matrix for the Faniza Process."""
     a_la = (1 - lamb * jnp.cos(alpha) + lamb * jnp.sin(alpha)) / (1 - 2 * lamb * jnp.cos(alpha) + lamb**2)
@@ -109,6 +90,20 @@ def fanizza(alpha: float, lamb: float) -> jax.Array:
     )
 
     return jnp.stack([Da, Db], axis=0)
+
+
+def matching_parens(open_probs: list[float]) -> jax.Array:
+    """Creates a model for generating Matching Parentheses."""
+    if len(open_probs) < 1:
+        raise TypeError("Must provide a list of at least one open_probability")
+    if any(p <= 0 or p > 1 for p in open_probs):
+        raise TypeError(f"`open_probs` elements must all be in (0, 1].  Got: {open_probs}")
+    if open_probs[0] != 1.0:
+        raise ValueError("First open_prob must equal 1.0")
+    if open_probs[-1] != 0.0:
+        open_probs = open_probs + [0.0]
+    prob_array = jnp.array(open_probs)
+    return jnp.stack([jnp.diag(prob_array[:-1], k=1), jnp.diag(1.0 - prob_array[1:], k=-1)])
 
 
 def mess3(x: float, a: float) -> jax.Array:
@@ -220,6 +215,25 @@ def rrxor(pR1: float, pR2: float) -> jax.Array:
     return transition_matrices
 
 
+def sns(p: float, q: float):
+    """Creates a transition matrix for the Simple Nonunifilar Source Process.
+
+    Defined in https://arxiv.org/pdf/1702.08565 Fig 2.
+    """
+    return jnp.array(
+        [
+            [
+                [1 - p, p],
+                [0, 1 - q],
+            ],
+            [
+                [0, 0],
+                [q, 0],
+            ],
+        ]
+    )
+
+
 def tom_quantum(alpha: float, beta: float) -> jax.Array:
     """Creates a transition matrix for the Tom Quantum Process."""
     gamma2 = 1 / (4 * (alpha**2 + beta**2))
@@ -278,70 +292,61 @@ def zero_one_random(p: float) -> jax.Array:
     )
 
 
-def matching_parens(open_probs: list[float]) -> jax.Array:
-    """Creates a model for generating Matching Parentheses.
-
-    open_probs:
-    """
-    if len(open_probs) < 1:
-        raise TypeError("Must provide a list of at least one open_probability")
-    if any(p <= 0 or p > 1 for p in open_probs):
-        raise TypeError(f"`open_probs` elements must all be in (0, 1].  Got: {open_probs}")
-    if open_probs[0] != 1.0:
-        raise ValueError("First open_prob must equal 1.0")
-    open_probs = jnp.array(open_probs + [0.0])
-    return jnp.stack([jnp.diag(open_probs[:-1], k=1), jnp.diag(1.0 - open_probs[1:], k=-1)])
-
-
 class HMMProcessType(Enum):
     """The type of generative process to build."""
 
+    COIN = "coin"
     DAYS_OF_WEEK = "days_of_week"
     EVEN_ONES = "even_ones"
-    SNS = "sns"
-    COIN = "coin"
+    MATCHING_PARENS = "matching_parens"
     MESS3 = "mess3"
     NO_CONSECUTIVE_ONES = "no_consecutive_ones"
     RRXOR = "rrxor"
+    SNS = "sns"
     ZERO_ONE_RANDOM = "zero_one_random"
-    MATCHING_PARENS = "matching_parens"
 
 
 ALL_HMMS = {
+    HMMProcessType.COIN: coin,
     HMMProcessType.DAYS_OF_WEEK: days_of_week,
     HMMProcessType.EVEN_ONES: even_ones,
-    HMMProcessType.SNS: sns,
-    HMMProcessType.COIN: coin,
+    HMMProcessType.MATCHING_PARENS: matching_parens,
     HMMProcessType.MESS3: mess3,
     HMMProcessType.NO_CONSECUTIVE_ONES: no_consecutive_ones,
     HMMProcessType.RRXOR: rrxor,
+    HMMProcessType.SNS: sns,
     HMMProcessType.ZERO_ONE_RANDOM: zero_one_random,
-    HMMProcessType.MATCHING_PARENS: matching_parens,
 }
 
 
 class GHMMProcessType(Enum):
     """The type of generative process to build."""
 
+    COIN = "coin"
     DAYS_OF_WEEK = "days_of_week"
     EVEN_ONES = "even_ones"
     FANIZZA = "fanizza"
+    MATCHING_PARENS = "matching_parens"
     MESS3 = "mess3"
     NO_CONSECUTIVE_ONES = "no_consecutive_ones"
     POST_QUANTUM = "post_quantum"
     RRXOR = "rrxor"
+    SNS = "sns"
     TOM_QUANTUM = "tom_quantum"
     ZERO_ONE_RANDOM = "zero_one_random"
 
 
 ALL_GHMMS = {
+    GHMMProcessType.COIN: coin,
     GHMMProcessType.DAYS_OF_WEEK: days_of_week,
     GHMMProcessType.EVEN_ONES: even_ones,
     GHMMProcessType.FANIZZA: fanizza,
+    GHMMProcessType.MATCHING_PARENS: matching_parens,
     GHMMProcessType.MESS3: mess3,
     GHMMProcessType.NO_CONSECUTIVE_ONES: no_consecutive_ones,
     GHMMProcessType.POST_QUANTUM: post_quantum,
     GHMMProcessType.RRXOR: rrxor,
+    GHMMProcessType.SNS: sns,
     GHMMProcessType.TOM_QUANTUM: tom_quantum,
     GHMMProcessType.ZERO_ONE_RANDOM: zero_one_random,
 }
