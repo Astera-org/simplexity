@@ -16,23 +16,29 @@ from simplexity.generative_processes.transition_matrices import (
 from tests.assertions import assert_proportional
 
 
-def validate_ghmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: float = 1e-6, atol: float = 0):
+def validate_ghmm_transition_matrices(
+    transition_matrices: jnp.ndarray, ergodic: bool = True, rtol: float = 1e-6, atol: float = 0
+):
     transition_matrix = jnp.sum(transition_matrices, axis=0)
     num_states = transition_matrix.shape[0]
 
     eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
     assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
     normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
-    assert normalizing_eigenvector.shape == (num_states,)
+    if ergodic:
+        assert normalizing_eigenvector.shape == (num_states,)
 
     eigenvalues, left_eigenvectors = jnp.linalg.eig(transition_matrix.T)
     assert jnp.isclose(jnp.max(eigenvalues), 1.0), "State transition matrix should have eigenvalue = 1"
     stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
-    assert stationary_state.shape == (num_states,)
+    if ergodic:
+        assert stationary_state.shape == (num_states,)
 
 
-def validate_hmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: float = 1e-6, atol: float = 0):
-    validate_ghmm_transition_matrices(transition_matrices, rtol, atol)
+def validate_hmm_transition_matrices(
+    transition_matrices: jnp.ndarray, ergodic: bool = True, rtol: float = 1e-6, atol: float = 0
+):
+    validate_ghmm_transition_matrices(transition_matrices, ergodic, rtol, atol)
     assert jnp.all(transition_matrices >= 0)
     assert jnp.all(transition_matrices <= 1)
 
@@ -44,15 +50,16 @@ def validate_hmm_transition_matrices(transition_matrices: jnp.ndarray, rtol: flo
         atol=atol,
     )
 
-    transition_matrix = jnp.sum(transition_matrices, axis=0)
-    eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
-    normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
-    assert_proportional(
-        normalizing_eigenvector,
-        jnp.ones_like(normalizing_eigenvector),
-        rtol=rtol,
-        atol=atol,
-    )
+    if ergodic:
+        transition_matrix = jnp.sum(transition_matrices, axis=0)
+        eigenvalues, right_eigenvectors = jnp.linalg.eig(transition_matrix)
+        normalizing_eigenvector = right_eigenvectors[:, jnp.isclose(eigenvalues, 1)].squeeze().real
+        assert_proportional(
+            normalizing_eigenvector,
+            jnp.ones_like(normalizing_eigenvector),
+            rtol=rtol,
+            atol=atol,
+        )
 
 
 def test_days_of_week():
@@ -90,7 +97,7 @@ def test_no_consecutive_ones():
 def test_nonergodic():
     transition_matrices = nonergodic(p=0.5, q=0.5)
     assert transition_matrices.shape == (5, 8, 8)
-    validate_hmm_transition_matrices(transition_matrices)
+    validate_hmm_transition_matrices(transition_matrices, ergodic=False)
 
 
 def test_post_quantum():

@@ -168,60 +168,59 @@ def nonergodic(p: float, q: float) -> jax.Array:
     assert 0 <= p <= 1
     assert 0 <= q <= 1
     assert 0 <= 1 - p - q <= 1
-    d = {"Mr.": 0}
+    shared_vocab = ["Mr.", "Something", "Blah"]
+    d = {word: i for i, word in enumerate(shared_vocab)}
     names = ["Dursley", "Wonka"]
     for name in names:
         d[name] = len(d)
-    other_vocab = ["Something", "Blah"]
-    for other_word in other_vocab:
-        d[other_word] = len(d)
-    component_size = len(d) + 2
+    name_state = len(shared_vocab)
+    component_size = len(shared_vocab) + 1
     total_size = len(names) * component_size
     transition_matrices = jnp.zeros((len(d), total_size, total_size))
     for component, name in enumerate(names):
         offset = component * component_size
         transition_matrices = transition_matrices.at[
-            d[name] + offset,
-            d[name] + offset,
+            d[name],
+            name_state + offset,
             d["Mr."] + offset,
         ].set(1)
         transition_matrices = transition_matrices.at[
+            d["Something"],
             d["Something"] + offset,
-            d["Something"] + offset,
-            d[name] + offset,
+            name_state + offset,
         ].set(0.5)
         transition_matrices = transition_matrices.at[
+            d["Blah"],
             d["Blah"] + offset,
-            d["Blah"] + offset,
-            d[name] + offset,
+            name_state + offset,
         ].set(0.5)
         transition_matrices = transition_matrices.at[
-            d["Mr."] + offset,
+            d["Mr."],
             d["Mr."] + offset,
             d["Something"] + offset,
         ].set(q)
         transition_matrices = transition_matrices.at[
-            d["Something"] + offset,
+            d["Something"],
             d["Something"] + offset,
             d["Something"] + offset,
         ].set(1 - p - q)
         transition_matrices = transition_matrices.at[
-            d["Blah"] + offset,
+            d["Blah"],
             d["Blah"] + offset,
             d["Something"] + offset,
         ].set(p)
         transition_matrices = transition_matrices.at[
-            d["Mr."] + offset,
+            d["Mr."],
             d["Mr."] + offset,
             d["Blah"] + offset,
         ].set(q)
         transition_matrices = transition_matrices.at[
-            d["Something"] + offset,
+            d["Something"],
             d["Something"] + offset,
             d["Blah"] + offset,
         ].set(p)
         transition_matrices = transition_matrices.at[
-            d["Blah"] + offset,
+            d["Blah"],
             d["Blah"] + offset,
             d["Blah"] + offset,
         ].set(1 - p - q)
