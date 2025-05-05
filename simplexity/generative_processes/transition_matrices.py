@@ -346,24 +346,26 @@ def zero_one_random(p: float) -> jax.Array:
 class HMMProcessType(Enum):
     """The type of generative process to build."""
 
+    COIN = "coin"
     DAYS_OF_WEEK = "days_of_week"
     EVEN_ONES = "even_ones"
-    SNS = "sns"
-    COIN = "coin"
     MESS3 = "mess3"
     NO_CONSECUTIVE_ONES = "no_consecutive_ones"
+    NONERGODIC = "nonergodic"
     RRXOR = "rrxor"
+    SNS = "sns"
     ZERO_ONE_RANDOM = "zero_one_random"
 
 
 ALL_HMMS = {
+    HMMProcessType.COIN: coin,
     HMMProcessType.DAYS_OF_WEEK: days_of_week,
     HMMProcessType.EVEN_ONES: even_ones,
-    HMMProcessType.SNS: sns,
-    HMMProcessType.COIN: coin,
     HMMProcessType.MESS3: mess3,
     HMMProcessType.NO_CONSECUTIVE_ONES: no_consecutive_ones,
+    HMMProcessType.NONERGODIC: nonergodic,
     HMMProcessType.RRXOR: rrxor,
+    HMMProcessType.SNS: sns,
     HMMProcessType.ZERO_ONE_RANDOM: zero_one_random,
 }
 
@@ -371,25 +373,31 @@ ALL_HMMS = {
 class GHMMProcessType(Enum):
     """The type of generative process to build."""
 
+    COIN = "coin"
     DAYS_OF_WEEK = "days_of_week"
     EVEN_ONES = "even_ones"
     FANIZZA = "fanizza"
     MESS3 = "mess3"
     NO_CONSECUTIVE_ONES = "no_consecutive_ones"
+    NONERGODIC = "nonergodic"
     POST_QUANTUM = "post_quantum"
     RRXOR = "rrxor"
+    SNS = "sns"
     TOM_QUANTUM = "tom_quantum"
     ZERO_ONE_RANDOM = "zero_one_random"
 
 
 ALL_GHMMS = {
+    GHMMProcessType.COIN: coin,
     GHMMProcessType.DAYS_OF_WEEK: days_of_week,
     GHMMProcessType.EVEN_ONES: even_ones,
     GHMMProcessType.FANIZZA: fanizza,
     GHMMProcessType.MESS3: mess3,
     GHMMProcessType.NO_CONSECUTIVE_ONES: no_consecutive_ones,
+    GHMMProcessType.NONERGODIC: nonergodic,
     GHMMProcessType.POST_QUANTUM: post_quantum,
     GHMMProcessType.RRXOR: rrxor,
+    GHMMProcessType.SNS: sns,
     GHMMProcessType.TOM_QUANTUM: tom_quantum,
     GHMMProcessType.ZERO_ONE_RANDOM: zero_one_random,
 }
