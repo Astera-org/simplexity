@@ -8,6 +8,7 @@ from simplexity.generative_processes.transition_matrices import (
     fanizza,
     mess3,
     no_consecutive_ones,
+    nonergodic,
     post_quantum,
     rrxor,
     tom_quantum,
@@ -23,6 +24,7 @@ class GHMMProcessType(Enum):
     FANIZZA = "fanizza"
     MESS3 = "mess3"
     NO_CONSECUTIVE_ONES = "no_consecutive_ones"
+    NONERGODIC = "nonergodic"
     POST_QUANTUM = "post_quantum"
     RRXOR = "rrxor"
     TOM_QUANTUM = "tom_quantum"
@@ -47,6 +49,9 @@ def build_generalized_hidden_markov_model(process_name: str, **kwargs) -> Genera
     elif process_type == GHMMProcessType.NO_CONSECUTIVE_ONES:
         transition_matrices = no_consecutive_ones(**kwargs)
         return GeneralizedHiddenMarkovModel(transition_matrices)
+    elif process_type == GHMMProcessType.NONERGODIC:
+        transition_matrices = nonergodic(**kwargs)
+        return GeneralizedHiddenMarkovModel(transition_matrices)
     elif process_type == GHMMProcessType.POST_QUANTUM:
         transition_matrices = post_quantum(**kwargs)
         return GeneralizedHiddenMarkovModel(transition_matrices)
@@ -69,6 +74,7 @@ class HMMProcessType(Enum):
     EVEN_ONES = "even_ones"
     MESS3 = "mess3"
     NO_CONSECUTIVE_ONES = "no_consecutive_ones"
+    NONERGODIC = "nonergodic"
     RRXOR = "rrxor"
     ZERO_ONE_RANDOM = "zero_one_random"
 
@@ -87,6 +93,9 @@ def build_hidden_markov_model(process_name: str, **kwargs) -> HiddenMarkovModel:
         return HiddenMarkovModel(transition_matrices)
     elif process_type == HMMProcessType.NO_CONSECUTIVE_ONES:
         transition_matrices = no_consecutive_ones(**kwargs)
+        return HiddenMarkovModel(transition_matrices)
+    elif process_type == HMMProcessType.NONERGODIC:
+        transition_matrices = nonergodic(**kwargs)
         return HiddenMarkovModel(transition_matrices)
     elif process_type == HMMProcessType.RRXOR:
         transition_matrices = rrxor(**kwargs)
