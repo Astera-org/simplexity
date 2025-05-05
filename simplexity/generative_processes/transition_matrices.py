@@ -163,24 +163,22 @@ def no_consecutive_ones(p: float) -> jax.Array:
     )
 
 
-def nonergodic(p: float, q: float) -> jax.Array:
+def nonergodic(n: int, p: float, q: float) -> jax.Array:
     """Creates a transition matrix for the Nonergodic Process."""
     assert 0 <= p <= 1
     assert 0 <= q <= 1
     assert 0 <= 1 - p - q <= 1
     shared_vocab = ["Mr.", "Something", "Blah"]
     d = {word: i for i, word in enumerate(shared_vocab)}
-    names = ["Dursley", "Wonka"]
-    for name in names:
-        d[name] = len(d)
     name_state = len(shared_vocab)
     component_size = len(shared_vocab) + 1
-    total_size = len(names) * component_size
-    transition_matrices = jnp.zeros((len(d), total_size, total_size))
-    for component, name in enumerate(names):
+    vocab_size = n + len(shared_vocab)
+    total_size = n * component_size
+    transition_matrices = jnp.zeros((vocab_size, total_size, total_size))
+    for component in range(n):
         offset = component * component_size
         transition_matrices = transition_matrices.at[
-            d[name],
+            name_state + component,
             name_state + offset,
             d["Mr."] + offset,
         ].set(1)

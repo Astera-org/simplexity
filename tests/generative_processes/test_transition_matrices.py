@@ -95,7 +95,7 @@ def test_no_consecutive_ones():
 
 
 def test_nonergodic():
-    transition_matrices = nonergodic(p=0.5, q=0.5)
+    transition_matrices = nonergodic(n=2, p=0.5, q=0.5)
     assert transition_matrices.shape == (5, 8, 8)
     validate_hmm_transition_matrices(transition_matrices, ergodic=False)
 
