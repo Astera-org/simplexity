@@ -6,4 +6,4 @@ instance:
   hidden_size: 64
   seed: ${seed}
 
-load_checkpoint_name:
+load_checkpoint_step:
