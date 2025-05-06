@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel, State
+from simplexity.generative_processes.transition_matrices import stationary_state
 
 
 class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
@@ -28,11 +29,7 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         self.log_normalizing_eigenvector = jnp.zeros(self.num_states)
 
         if initial_state is None:
-            eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
-            stationary_state = (
-                left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze(axis=-1).real
-            )
-            initial_state = stationary_state / jnp.sum(stationary_state)
+            initial_state = stationary_state(state_transition_matrix.T)
         self._initial_state = initial_state
         self.log_initial_state = jnp.log(self._initial_state)
 
