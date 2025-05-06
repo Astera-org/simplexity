@@ -7,6 +7,11 @@ Each process defines P(cur_obs, cur_state | prev_state) with a tensor of shape
 """
 
 
+def coin(p: float):
+    """Create a transition matrix for a simple coin-flip Process."""
+    return jnp.array([[[p]], [[1 - p]]])
+
+
 def days_of_week() -> jax.Array:
     """Creates a transition matrix for the Days of the Week Process."""
     d = {"M": 0, "Tu": 1, "W": 2, "Th": 3, "F": 4, "Sa": 5, "Su": 6, "Tmrw": 7, "Yest": 8, "Wknd": 9, "Wkdy": 10}
@@ -57,30 +62,6 @@ def even_ones(p: float) -> jax.Array:
             ],
         ]
     )
-
-
-def sns(p: float, q: float):
-    """Creates a transition matrix for the Simple Nonunifilar Source Process.
-
-    Defined in https://arxiv.org/pdf/1702.08565 Fig 2.
-    """
-    return jnp.array(
-        [
-            [
-                [1 - p, p],
-                [0, 1 - q],
-            ],
-            [
-                [0, 0],
-                [q, 0],
-            ],
-        ]
-    )
-
-
-def coin(p: float):
-    """Create a transition matrix for a simple coin-flip Process."""
-    return jnp.array([[[p]], [[1 - p]]])
 
 
 def fanizza(alpha: float, lamb: float) -> jax.Array:
@@ -278,6 +259,25 @@ def rrxor(pR1: float, pR2: float) -> jax.Array:
     transition_matrices = transition_matrices.at[0, s["F"], s["S"]].set(1.0)
 
     return transition_matrices
+
+
+def sns(p: float, q: float):
+    """Creates a transition matrix for the Simple Nonunifilar Source Process.
+
+    Defined in https://arxiv.org/pdf/1702.08565 Fig 2.
+    """
+    return jnp.array(
+        [
+            [
+                [1 - p, p],
+                [0, 1 - q],
+            ],
+            [
+                [0, 0],
+                [q, 0],
+            ],
+        ]
+    )
 
 
 def tom_quantum(alpha: float, beta: float) -> jax.Array:
