@@ -92,7 +92,7 @@ def test_generate(model_name: str, request: pytest.FixtureRequest):
     batch_size = 4
     sequence_len = 10
 
-    initial_states = jnp.repeat(model.stationary_state[None, :], batch_size, axis=0)
+    initial_states = jnp.repeat(model.initial_state[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     intermediate_states, intermediate_observations = model.generate(initial_states, keys, sequence_len, False)
     assert intermediate_states.shape == (batch_size, model.num_states)
@@ -110,7 +110,7 @@ def test_generate_with_intermediate_states(model_name: str, request: pytest.Fixt
     batch_size = 4
     sequence_len = 10
 
-    initial_states = jnp.repeat(model.stationary_state[None, :], batch_size, axis=0)
+    initial_states = jnp.repeat(model.initial_state[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     intermediate_states, observations = model.generate(initial_states, keys, sequence_len, True)
     assert intermediate_states.shape == (batch_size, sequence_len, model.num_states)
@@ -133,7 +133,7 @@ def test_hmm_observation_probability_distribution(z1r: GeneralizedHiddenMarkovMo
 
 
 def test_ghmm_observation_probability_distribution(fanizza_model: GeneralizedHiddenMarkovModel):
-    valid_state = fanizza_model.stationary_state
+    valid_state = fanizza_model.initial_state
     obs_probs = fanizza_model.observation_probability_distribution(valid_state)
     assert jnp.isclose(jnp.sum(obs_probs), 1)
     assert jnp.all(obs_probs >= 0)

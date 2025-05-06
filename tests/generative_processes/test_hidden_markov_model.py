@@ -18,7 +18,7 @@ def test_properties(z1r: HiddenMarkovModel):
     assert z1r.vocab_size == 2
     assert z1r.num_states == 3
     assert_proportional(z1r.normalizing_eigenvector, jnp.ones(3))
-    assert_proportional(z1r.stationary_state, jnp.ones(3))
+    assert_proportional(z1r.initial_state, jnp.ones(3))
 
 
 def test_normalize_belief_state(z1r: HiddenMarkovModel):
