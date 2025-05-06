@@ -76,7 +76,7 @@ def load_golden(process_name: str) -> MixedStateTree[TreeData, NodeDictValue]:
 @pytest.mark.parametrize("process_name", ["mess3", "rrxor", "zero_one_random"])
 def test_hmm_mixed_state_tree(process_name):
     params = PROCESS_PARAMS[process_name]
-    model = build_hidden_markov_model(process_name, **params)
+    model = build_hidden_markov_model(process_name, initial_state=None, **params)
     generator = MixedStateTreeGenerator(model, max_sequence_length=4)
     tree: MixedStateTree[TreeData, NodeDictValue] = generator.generate()
     golden = load_golden(process_name)
