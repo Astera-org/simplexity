@@ -17,12 +17,12 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     log_transition_matrices: jax.Array
     normalizing_eigenvector: jax.Array
     log_normalizing_eigenvector: jax.Array
-    stationary_state: jax.Array
-    log_stationary_state: jax.Array
+    _initial_state: jax.Array
+    log_initial_state: jax.Array
     normalizing_constant: jax.Array
     log_normalizing_constant: jax.Array
 
-    def __init__(self, transition_matrices: jax.Array):
+    def __init__(self, transition_matrices: jax.Array, initial_state: jax.Array | None = None):
         self.validate_transition_matrices(transition_matrices)
 
         state_transition_matrix = jnp.sum(transition_matrices, axis=0)
@@ -39,13 +39,15 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         self.normalizing_eigenvector = normalizing_eigenvector / jnp.sum(normalizing_eigenvector) * self.num_states
         self.log_normalizing_eigenvector = jnp.log(self.normalizing_eigenvector)
 
-        eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
-        stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
-        self.stationary_state = stationary_state / jnp.sum(stationary_state)
-        self.log_stationary_state = jnp.log(self.stationary_state)
+        if initial_state is None:
+            eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
+            stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
+            initial_state = stationary_state / jnp.sum(stationary_state)
+        self._initial_state = initial_state
+        self.log_initial_state = jnp.log(self._initial_state)
 
-        self.normalizing_constant = self.stationary_state @ self.normalizing_eigenvector
-        self.log_normalizing_constant = jax.nn.logsumexp(self.log_stationary_state + self.log_normalizing_eigenvector)
+        self.normalizing_constant = self._initial_state @ self.normalizing_eigenvector
+        self.log_normalizing_constant = jax.nn.logsumexp(self.log_initial_state + self.log_normalizing_eigenvector)
 
     def validate_transition_matrices(self, transition_matrices: jax.Array):
         """Validate the transition matrices."""
@@ -65,7 +67,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     @property
     def initial_state(self) -> State:
         """The initial state of the model."""
-        return cast(State, self.stationary_state)
+        return cast(State, self._initial_state)
 
     @eqx.filter_jit
     def emit_observation(self, state: State, key: chex.PRNGKey) -> jax.Array:
@@ -122,7 +124,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         def _scan_fn(state_vector, observation):
             return state_vector @ self.transition_matrices[observation], None
 
-        state_vector, _ = jax.lax.scan(_scan_fn, init=self.stationary_state, xs=observations)
+        state_vector, _ = jax.lax.scan(_scan_fn, init=self._initial_state, xs=observations)
         return (state_vector @ self.normalizing_eigenvector) / self.normalizing_constant
 
     @eqx.filter_jit

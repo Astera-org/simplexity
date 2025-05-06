@@ -1,5 +1,3 @@
-from enum import Enum
-
 import jax
 import jax.numpy as jnp
 
@@ -7,6 +5,11 @@ import jax.numpy as jnp
 Each process defines P(cur_obs, cur_state | prev_state) with a tensor of shape
 [cur_obs, cur_state, prev_state]
 """
+
+
+def coin(p: float):
+    """Create a transition matrix for a simple coin-flip Process."""
+    return jnp.array([[[p]], [[1 - p]]])
 
 
 def days_of_week() -> jax.Array:
@@ -59,30 +62,6 @@ def even_ones(p: float) -> jax.Array:
             ],
         ]
     )
-
-
-def sns(p: float, q: float):
-    """Creates a transition matrix for the Simple Nonunifilar Source Process.
-
-    Defined in https://arxiv.org/pdf/1702.08565 Fig 2.
-    """
-    return jnp.array(
-        [
-            [
-                [1 - p, p],
-                [0, 1 - q],
-            ],
-            [
-                [0, 0],
-                [q, 0],
-            ],
-        ]
-    )
-
-
-def coin(p: float):
-    """Create a transition matrix for a simple coin-flip Process."""
-    return jnp.array([[[p]], [[1 - p]]])
 
 
 def fanizza(alpha: float, lamb: float) -> jax.Array:
@@ -163,6 +142,68 @@ def no_consecutive_ones(p: float) -> jax.Array:
     )
 
 
+def nonergodic(n: int, p: float, q: float) -> jax.Array:
+    """Creates a transition matrix for the Nonergodic Process."""
+    assert 0 <= p <= 1
+    assert 0 <= q <= 1
+    assert 0 <= 1 - p - q <= 1
+    shared_vocab = ["Mr.", "Something", "Blah"]
+    d = {word: i for i, word in enumerate(shared_vocab)}
+    name_state = len(shared_vocab)
+    component_size = len(shared_vocab) + 1
+    vocab_size = n + len(shared_vocab)
+    total_size = n * component_size
+    transition_matrices = jnp.zeros((vocab_size, total_size, total_size))
+    for component in range(n):
+        offset = component * component_size
+        transition_matrices = transition_matrices.at[
+            name_state + component,
+            name_state + offset,
+            d["Mr."] + offset,
+        ].set(1)
+        transition_matrices = transition_matrices.at[
+            d["Something"],
+            d["Something"] + offset,
+            name_state + offset,
+        ].set(0.5)
+        transition_matrices = transition_matrices.at[
+            d["Blah"],
+            d["Blah"] + offset,
+            name_state + offset,
+        ].set(0.5)
+        transition_matrices = transition_matrices.at[
+            d["Mr."],
+            d["Mr."] + offset,
+            d["Something"] + offset,
+        ].set(q)
+        transition_matrices = transition_matrices.at[
+            d["Something"],
+            d["Something"] + offset,
+            d["Something"] + offset,
+        ].set(1 - p - q)
+        transition_matrices = transition_matrices.at[
+            d["Blah"],
+            d["Blah"] + offset,
+            d["Something"] + offset,
+        ].set(p)
+        transition_matrices = transition_matrices.at[
+            d["Mr."],
+            d["Mr."] + offset,
+            d["Blah"] + offset,
+        ].set(q)
+        transition_matrices = transition_matrices.at[
+            d["Something"],
+            d["Something"] + offset,
+            d["Blah"] + offset,
+        ].set(p)
+        transition_matrices = transition_matrices.at[
+            d["Blah"],
+            d["Blah"] + offset,
+            d["Blah"] + offset,
+        ].set(1 - p - q)
+    return transition_matrices
+
+
 def _validate_post_quantum_conditions(alpha: jax.Array, beta: float) -> None:
     if not (alpha > 1 > beta > 0):
         raise ValueError("Condition alpha > 1 > beta > 0 not satisfied")
@@ -218,6 +259,25 @@ def rrxor(pR1: float, pR2: float) -> jax.Array:
     transition_matrices = transition_matrices.at[0, s["F"], s["S"]].set(1.0)
 
     return transition_matrices
+
+
+def sns(p: float, q: float):
+    """Creates a transition matrix for the Simple Nonunifilar Source Process.
+
+    Defined in https://arxiv.org/pdf/1702.08565 Fig 2.
+    """
+    return jnp.array(
+        [
+            [
+                [1 - p, p],
+                [0, 1 - q],
+            ],
+            [
+                [0, 0],
+                [q, 0],
+            ],
+        ]
+    )
 
 
 def tom_quantum(alpha: float, beta: float) -> jax.Array:
@@ -278,53 +338,20 @@ def zero_one_random(p: float) -> jax.Array:
     )
 
 
-class HMMProcessType(Enum):
-    """The type of generative process to build."""
-
-    DAYS_OF_WEEK = "days_of_week"
-    EVEN_ONES = "even_ones"
-    SNS = "sns"
-    COIN = "coin"
-    MESS3 = "mess3"
-    NO_CONSECUTIVE_ONES = "no_consecutive_ones"
-    RRXOR = "rrxor"
-    ZERO_ONE_RANDOM = "zero_one_random"
-
-
-ALL_HMMS = {
-    HMMProcessType.DAYS_OF_WEEK: days_of_week,
-    HMMProcessType.EVEN_ONES: even_ones,
-    HMMProcessType.SNS: sns,
-    HMMProcessType.COIN: coin,
-    HMMProcessType.MESS3: mess3,
-    HMMProcessType.NO_CONSECUTIVE_ONES: no_consecutive_ones,
-    HMMProcessType.RRXOR: rrxor,
-    HMMProcessType.ZERO_ONE_RANDOM: zero_one_random,
+HMM_MATRIX_FUNCTIONS = {
+    "coin": coin,
+    "days_of_week": days_of_week,
+    "even_ones": even_ones,
+    "mess3": mess3,
+    "no_consecutive_ones": no_consecutive_ones,
+    "nonergodic": nonergodic,
+    "rrxor": rrxor,
+    "sns": sns,
+    "zero_one_random": zero_one_random,
 }
 
-
-class GHMMProcessType(Enum):
-    """The type of generative process to build."""
-
-    DAYS_OF_WEEK = "days_of_week"
-    EVEN_ONES = "even_ones"
-    FANIZZA = "fanizza"
-    MESS3 = "mess3"
-    NO_CONSECUTIVE_ONES = "no_consecutive_ones"
-    POST_QUANTUM = "post_quantum"
-    RRXOR = "rrxor"
-    TOM_QUANTUM = "tom_quantum"
-    ZERO_ONE_RANDOM = "zero_one_random"
-
-
-ALL_GHMMS = {
-    GHMMProcessType.DAYS_OF_WEEK: days_of_week,
-    GHMMProcessType.EVEN_ONES: even_ones,
-    GHMMProcessType.FANIZZA: fanizza,
-    GHMMProcessType.MESS3: mess3,
-    GHMMProcessType.NO_CONSECUTIVE_ONES: no_consecutive_ones,
-    GHMMProcessType.POST_QUANTUM: post_quantum,
-    GHMMProcessType.RRXOR: rrxor,
-    GHMMProcessType.TOM_QUANTUM: tom_quantum,
-    GHMMProcessType.ZERO_ONE_RANDOM: zero_one_random,
+GHMM_MATRIX_FUNCTIONS = HMM_MATRIX_FUNCTIONS | {
+    "fanizza": fanizza,
+    "post_quantum": post_quantum,
+    "tom_quantum": tom_quantum,
 }
