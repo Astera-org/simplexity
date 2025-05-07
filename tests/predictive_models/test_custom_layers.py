@@ -33,8 +33,8 @@ def test_save_input():
     model = GRURNN(in_size=in_size, out_size=out_size, hidden_sizes=hidden_sizes, key=key)
 
     # activations = pz.StateVariable(value=[], label="activations")
-    saving_model = pz.select(model).at_instances_of(eqx.nn.Lambda).apply_and_inline(
-        lambda x: (x, SaveInput("activations"))
+    saving_model = (
+        pz.select(model).at_instances_of(eqx.nn.Lambda).apply_and_inline(lambda x: (x, SaveInput("activations")))
     )
 
     sequence_len = 16
