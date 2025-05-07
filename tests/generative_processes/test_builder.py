@@ -84,7 +84,6 @@ def test_build_nonergodic_hidden_markov_model():
     )
     assert hmm.vocab_size == 3
     assert hmm.num_states == 2
-    assert hmm.initial_state.shape == (2,)
     expected_transition_matrices = jnp.array(
         [
             [
@@ -102,5 +101,5 @@ def test_build_nonergodic_hidden_markov_model():
         ]
     )
     chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
-    expected_initial_state = jnp.array([0.8, 0.2])
-    chex.assert_trees_all_close(hmm.initial_state, expected_initial_state)
+    assert hmm.initial_state.shape == (2,)
+    chex.assert_trees_all_close(hmm.initial_state, jnp.array([0.8, 0.2]))
