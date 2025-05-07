@@ -129,6 +129,64 @@ def mess3(x: float, a: float) -> jax.Array:
     )
 
 
+def mr_name(p: float, q: float) -> jax.Array:
+    """Creates a transition matrix for the Nonergodic Process."""
+    assert 0 <= p <= 1
+    assert 0 <= q <= 1
+    assert 0 <= 1 - p - q <= 1
+    vocab = ["Mr.", "Something", "Blah", "name"]
+    d = {word: i for i, word in enumerate(vocab)}
+    vocab_size = len(vocab)
+    num_states = len(vocab)
+    transition_matrices = jnp.zeros((vocab_size, num_states, num_states))
+    transition_matrices = transition_matrices.at[
+        d["name"],
+        d["Mr."],
+        d["name"],
+    ].set(1)
+    transition_matrices = transition_matrices.at[
+        d["Something"],
+        d["name"],
+        d["Something"],
+    ].set(0.5)
+    transition_matrices = transition_matrices.at[
+        d["Blah"],
+        d["name"],
+        d["Blah"],
+    ].set(0.5)
+    transition_matrices = transition_matrices.at[
+        d["Mr."],
+        d["Something"],
+        d["Mr."],
+    ].set(q)
+    transition_matrices = transition_matrices.at[
+        d["Something"],
+        d["Something"],
+        d["Something"],
+    ].set(1 - p - q)
+    transition_matrices = transition_matrices.at[
+        d["Blah"],
+        d["Something"],
+        d["Blah"],
+    ].set(p)
+    transition_matrices = transition_matrices.at[
+        d["Mr."],
+        d["Blah"],
+        d["Mr."],
+    ].set(q)
+    transition_matrices = transition_matrices.at[
+        d["Something"],
+        d["Blah"],
+        d["Something"],
+    ].set(p)
+    transition_matrices = transition_matrices.at[
+        d["Blah"],
+        d["Blah"],
+        d["Blah"],
+    ].set(1 - p - q)
+    return transition_matrices
+
+
 def no_consecutive_ones(p: float) -> jax.Array:
     """Creates a transition matrix for the No Consecutive Ones Process.
 
@@ -351,6 +409,7 @@ HMM_MATRIX_FUNCTIONS = {
     "days_of_week": days_of_week,
     "even_ones": even_ones,
     "mess3": mess3,
+    "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,
     "nonergodic": nonergodic,
     "rrxor": rrxor,
