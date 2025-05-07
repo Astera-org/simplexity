@@ -6,12 +6,13 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel, State
+from simplexity.generative_processes.transition_matrices import stationary_state
 
 
 class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
     """A Hidden Markov Model."""
 
-    def __init__(self, transition_matrices: jax.Array):
+    def __init__(self, transition_matrices: jax.Array, initial_state: jax.Array | None = None):
         self.validate_transition_matrices(transition_matrices)
 
         state_transition_matrix = jnp.sum(transition_matrices, axis=0)
@@ -27,13 +28,13 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         self.normalizing_eigenvector = jnp.ones(self.num_states)
         self.log_normalizing_eigenvector = jnp.zeros(self.num_states)
 
-        eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix.T)
-        stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
-        self.stationary_state = stationary_state / jnp.sum(stationary_state)
-        self.log_stationary_state = jnp.log(self.stationary_state)
+        if initial_state is None:
+            initial_state = stationary_state(state_transition_matrix.T)
+        self._initial_state = initial_state
+        self.log_initial_state = jnp.log(self._initial_state)
 
-        self.normalizing_constant = jnp.sum(self.stationary_state)
-        self.log_normalizing_constant = jax.nn.logsumexp(self.log_stationary_state)
+        self.normalizing_constant = jnp.sum(self._initial_state)
+        self.log_normalizing_constant = jax.nn.logsumexp(self.log_initial_state)
 
     def validate_transition_matrices(self, transition_matrices: jax.Array):
         """Validate the transition matrices."""
@@ -83,7 +84,7 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         def _scan_fn(state_vector, observation):
             return state_vector @ self.transition_matrices[observation], None
 
-        state_vector, _ = jax.lax.scan(_scan_fn, init=self.stationary_state, xs=observations)
+        state_vector, _ = jax.lax.scan(_scan_fn, init=self._initial_state, xs=observations)
         return jnp.sum(state_vector) / self.normalizing_constant
 
     @eqx.filter_jit
@@ -93,5 +94,5 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         def _scan_fn(log_belief_state, observation):
             return jax.nn.logsumexp(log_belief_state[:, None] + self.log_transition_matrices[observation], axis=0), None
 
-        log_belief_state, _ = jax.lax.scan(_scan_fn, init=self.log_stationary_state, xs=observations)
+        log_belief_state, _ = jax.lax.scan(_scan_fn, init=self.log_initial_state, xs=observations)
         return jax.nn.logsumexp(log_belief_state) - self.log_normalizing_constant
