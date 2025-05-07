@@ -10,7 +10,7 @@ from simplexity.generative_processes.builder import (
     build_nonergodic_transition_matrices,
     build_transition_matrices,
 )
-from simplexity.generative_processes.transition_matrices import HMM_MATRIX_FUNCTIONS
+from simplexity.generative_processes.transition_matrices import HMM_MATRIX_FUNCTIONS, nonergodic
 
 
 def test_build_transition_matrices():
@@ -103,3 +103,17 @@ def test_build_nonergodic_hidden_markov_model():
     chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
     assert hmm.initial_state.shape == (2,)
     chex.assert_trees_all_close(hmm.initial_state, jnp.array([0.8, 0.2]))
+
+
+def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
+    kwargs = {"p": 0.4, "q": 0.25}
+    hmm = build_nonergodic_hidden_markov_model(
+        process_names=["mr_name", "mr_name"],
+        process_kwargs=[kwargs, kwargs],
+        mixture_weights=jnp.array([0.8, 0.2]),
+        vocab_maps=[[0, 1, 2, 3], [0, 1, 2, 4]],
+    )
+    assert hmm.vocab_size == 5
+    assert hmm.num_states == 8
+    expected_transition_matrices = nonergodic(n=2, **kwargs)
+    chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
