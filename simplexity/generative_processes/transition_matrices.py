@@ -166,23 +166,23 @@ def nonergodic(n: int, p: float, q: float) -> jax.Array:
         offset = component * component_size
         transition_matrices = transition_matrices.at[
             name_state + component,
-            name_state + offset,
             d["Mr."] + offset,
+            name_state + offset,
         ].set(1)
         transition_matrices = transition_matrices.at[
             d["Something"],
-            d["Something"] + offset,
             name_state + offset,
+            d["Something"] + offset,
         ].set(0.5)
         transition_matrices = transition_matrices.at[
             d["Blah"],
-            d["Blah"] + offset,
             name_state + offset,
+            d["Blah"] + offset,
         ].set(0.5)
         transition_matrices = transition_matrices.at[
             d["Mr."],
-            d["Mr."] + offset,
             d["Something"] + offset,
+            d["Mr."] + offset,
         ].set(q)
         transition_matrices = transition_matrices.at[
             d["Something"],
@@ -191,18 +191,18 @@ def nonergodic(n: int, p: float, q: float) -> jax.Array:
         ].set(1 - p - q)
         transition_matrices = transition_matrices.at[
             d["Blah"],
-            d["Blah"] + offset,
             d["Something"] + offset,
+            d["Blah"] + offset,
         ].set(p)
         transition_matrices = transition_matrices.at[
             d["Mr."],
-            d["Mr."] + offset,
             d["Blah"] + offset,
+            d["Mr."] + offset,
         ].set(q)
         transition_matrices = transition_matrices.at[
             d["Something"],
-            d["Something"] + offset,
             d["Blah"] + offset,
+            d["Something"] + offset,
         ].set(p)
         transition_matrices = transition_matrices.at[
             d["Blah"],
