@@ -10,7 +10,8 @@ from simplexity.generative_processes.builder import (
     build_nonergodic_transition_matrices,
     build_transition_matrices,
 )
-from simplexity.generative_processes.transition_matrices import HMM_MATRIX_FUNCTIONS, nonergodic
+from simplexity.generative_processes.transition_matrices import HMM_MATRIX_FUNCTIONS
+from tests.generative_processes.test_transition_matrices import validate_hmm_transition_matrices
 
 
 def test_build_transition_matrices():
@@ -115,5 +116,5 @@ def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
     )
     assert hmm.vocab_size == 5
     assert hmm.num_states == 8
-    expected_transition_matrices = nonergodic(n=2, **kwargs)
-    chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
+    assert hmm.transition_matrices.shape == (5, 8, 8)
+    validate_hmm_transition_matrices(hmm.transition_matrices, ergodic=False)

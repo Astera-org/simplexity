@@ -9,7 +9,6 @@ from simplexity.generative_processes.transition_matrices import (
     mess3,
     mr_name,
     no_consecutive_ones,
-    nonergodic,
     post_quantum,
     rrxor,
     sns,
@@ -127,12 +126,6 @@ def test_no_consecutive_ones():
     state_transition_matrix = jnp.sum(transition_matrices, axis=0)
     stationary_distribution = stationary_state(state_transition_matrix.T)
     assert jnp.allclose(stationary_distribution, jnp.array([2, 1]) / 3)
-
-
-def test_nonergodic():
-    transition_matrices = nonergodic(n=2, p=0.4, q=0.25)
-    assert transition_matrices.shape == (5, 8, 8)
-    validate_hmm_transition_matrices(transition_matrices, ergodic=False)
 
 
 def test_post_quantum():

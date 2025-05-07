@@ -130,7 +130,7 @@ def mess3(x: float, a: float) -> jax.Array:
 
 
 def mr_name(p: float, q: float) -> jax.Array:
-    """Creates a transition matrix for the Nonergodic Process."""
+    """Creates a transition matrix for the Mr. Dursley/Wonka Process."""
     assert 0 <= p <= 1
     assert 0 <= q <= 1
     assert 0 <= 1 - p - q <= 1
@@ -206,68 +206,6 @@ def no_consecutive_ones(p: float) -> jax.Array:
             ],
         ]
     )
-
-
-def nonergodic(n: int, p: float, q: float) -> jax.Array:
-    """Creates a transition matrix for the Nonergodic Process."""
-    assert 0 <= p <= 1
-    assert 0 <= q <= 1
-    assert 0 <= 1 - p - q <= 1
-    shared_vocab = ["Mr.", "Something", "Blah"]
-    d = {word: i for i, word in enumerate(shared_vocab)}
-    name_state = len(shared_vocab)
-    component_size = len(shared_vocab) + 1
-    vocab_size = n + len(shared_vocab)
-    total_size = n * component_size
-    transition_matrices = jnp.zeros((vocab_size, total_size, total_size))
-    for component in range(n):
-        offset = component * component_size
-        transition_matrices = transition_matrices.at[
-            name_state + component,
-            d["Mr."] + offset,
-            name_state + offset,
-        ].set(1)
-        transition_matrices = transition_matrices.at[
-            d["Something"],
-            name_state + offset,
-            d["Something"] + offset,
-        ].set(0.5)
-        transition_matrices = transition_matrices.at[
-            d["Blah"],
-            name_state + offset,
-            d["Blah"] + offset,
-        ].set(0.5)
-        transition_matrices = transition_matrices.at[
-            d["Mr."],
-            d["Something"] + offset,
-            d["Mr."] + offset,
-        ].set(q)
-        transition_matrices = transition_matrices.at[
-            d["Something"],
-            d["Something"] + offset,
-            d["Something"] + offset,
-        ].set(1 - p - q)
-        transition_matrices = transition_matrices.at[
-            d["Blah"],
-            d["Something"] + offset,
-            d["Blah"] + offset,
-        ].set(p)
-        transition_matrices = transition_matrices.at[
-            d["Mr."],
-            d["Blah"] + offset,
-            d["Mr."] + offset,
-        ].set(q)
-        transition_matrices = transition_matrices.at[
-            d["Something"],
-            d["Blah"] + offset,
-            d["Something"] + offset,
-        ].set(p)
-        transition_matrices = transition_matrices.at[
-            d["Blah"],
-            d["Blah"] + offset,
-            d["Blah"] + offset,
-        ].set(1 - p - q)
-    return transition_matrices
 
 
 def _validate_post_quantum_conditions(alpha: jax.Array, beta: float) -> None:
@@ -411,7 +349,6 @@ HMM_MATRIX_FUNCTIONS = {
     "mess3": mess3,
     "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,
-    "nonergodic": nonergodic,
     "rrxor": rrxor,
     "sns": sns,
     "zero_one_random": zero_one_random,
