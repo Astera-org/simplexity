@@ -2,11 +2,7 @@ import equinox as eqx
 import jax
 from penzai import pz
 
-from simplexity.predictive_models.custom_layers import (
-    SaveInputs, 
-    SaveInput,
-    get_state_vars
-)
+from simplexity.predictive_models.custom_layers import SaveInput, SaveInputs, get_state_vars
 from simplexity.predictive_models.gru_rnn import GRURNN
 
 
