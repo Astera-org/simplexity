@@ -96,7 +96,7 @@ class WrapAndSummarize(pz.nn.Layer):
         return output
 
 
-def get_state_vars(model: pz.nn.Layer, *tags: list[str]) -> tuple[pz.StateVariableValue]:
+def get_state_vars(model: pz.nn.Layer, *tags: str) -> tuple[pz.StateVariableValue]:
     """Retrieves all StateVariableValue's with a metadata "tag" matching `tags`."""
     _, state_vars = pz.unbind_state_vars(model, lambda x: x.metadata.get("tag") in tags)
     return pz.freeze_state_vars(state_vars)
