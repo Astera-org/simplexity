@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 import chex
 import equinox as eqx
@@ -40,12 +40,8 @@ class GenerativeProcess(eqx.Module, Generic[State]):
 
     @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
     def generate(
-        self,
-        state: State,
-        key: chex.PRNGKey,
-        sequence_len: int,
-        return_all_states: bool,
-    ) -> Any:
+        self, state: State, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
+    ) -> tuple[State, chex.Array]:
         """Generate a batch of sequences of observations from the generative process.
 
         Inputs:
@@ -70,8 +66,8 @@ class GenerativeProcess(eqx.Module, Generic[State]):
 
         def gen_states_and_obs(state: State, key: chex.PRNGKey) -> tuple[State, tuple[State, chex.Array]]:
             obs = self.emit_observation(state, key)
-            state = self.transition_states(state, obs)
-            return state, (state, obs)
+            new_state = self.transition_states(state, obs)
+            return new_state, (state, obs)
 
         if return_all_states:
             _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, keys)
