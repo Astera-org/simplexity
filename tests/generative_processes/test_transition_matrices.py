@@ -2,6 +2,7 @@ import chex
 import jax.numpy as jnp
 
 from simplexity.generative_processes.transition_matrices import (
+    coin,
     days_of_week,
     even_ones,
     fanizza,
@@ -10,10 +11,19 @@ from simplexity.generative_processes.transition_matrices import (
     nonergodic,
     post_quantum,
     rrxor,
+    sns,
+    stationary_state,
     tom_quantum,
     zero_one_random,
 )
 from tests.assertions import assert_proportional
+
+
+def test_stationary_state():
+    transition_matrix = jnp.array([[0.5, 0.5], [0.5, 0.5]])
+    actual = stationary_state(transition_matrix)
+    expected = jnp.array([0.5, 0.5])
+    assert jnp.allclose(actual, expected)
 
 
 def validate_ghmm_transition_matrices(
@@ -62,6 +72,15 @@ def validate_hmm_transition_matrices(
         )
 
 
+def test_coin():
+    transition_matrices = coin(p=0.5)
+    assert transition_matrices.shape == (2, 1, 1)
+    validate_hmm_transition_matrices(transition_matrices)
+    state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+    stationary_distribution = stationary_state(state_transition_matrix.T)
+    assert jnp.allclose(stationary_distribution, jnp.array([1]))
+
+
 def test_days_of_week():
     transition_matrices = days_of_week()
     assert transition_matrices.shape == (11, 7, 7)
@@ -72,6 +91,9 @@ def test_even_ones():
     transition_matrices = even_ones(p=0.5)
     assert transition_matrices.shape == (2, 2, 2)
     validate_hmm_transition_matrices(transition_matrices)
+    state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+    stationary_distribution = stationary_state(state_transition_matrix.T)
+    assert jnp.allclose(stationary_distribution, jnp.array([2, 1]) / 3)
 
 
 def test_fanizza():
@@ -92,6 +114,9 @@ def test_no_consecutive_ones():
     transition_matrices = no_consecutive_ones(p=0.5)
     assert transition_matrices.shape == (2, 2, 2)
     validate_hmm_transition_matrices(transition_matrices)
+    state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+    stationary_distribution = stationary_state(state_transition_matrix.T)
+    assert jnp.allclose(stationary_distribution, jnp.array([2, 1]) / 3)
 
 
 def test_nonergodic():
@@ -114,6 +139,15 @@ def test_rrxor():
     transition_matrices = rrxor(pR1=0.5, pR2=0.5)
     assert transition_matrices.shape == (2, 5, 5)
     validate_hmm_transition_matrices(transition_matrices, rtol=1e-5)  # rtol=1e-6 barely fails
+    state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+    stationary_distribution = stationary_state(state_transition_matrix.T)
+    assert jnp.allclose(stationary_distribution, jnp.array([2, 1, 1, 1, 1]) / 6)
+
+
+def test_sns():
+    transition_matrices = sns(p=0.5, q=0.5)
+    assert transition_matrices.shape == (2, 2, 2)
+    validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_tom_quantum():
@@ -126,3 +160,6 @@ def test_zero_one_random():
     transition_matrices = zero_one_random(p=0.5)
     assert transition_matrices.shape == (2, 3, 3)
     validate_hmm_transition_matrices(transition_matrices)
+    state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+    stationary_distribution = stationary_state(state_transition_matrix.T)
+    assert jnp.allclose(stationary_distribution, jnp.array([1, 1, 1]) / 3)

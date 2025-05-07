@@ -10,11 +10,14 @@ simplexity/
   ├── notebooks/                 # workflow and analysis examples
   ├── simplexity/                # core library code
   │   ├── configs/               # hydra configuration files
+  │   ├── data_structures/       # data structures
+  │   ├── evaluation/            # functions for model eval/validation
   │   ├── generative_processes/  # generative process classes
   │   ├── logging/               # parameter and metric logging
   │   ├── persistence/           # model loading and checkpointing
-  │   ├── prediction_models/     # prediction model classes
+  │   ├── predictive_models/     # predictive model classes
   │   ├── training/              # model training functions
+  │   ├── utils/                 # utils
   │   ├── train_model.py         # entrypoint for training models
   └── tests/                     # unit tests
 ```

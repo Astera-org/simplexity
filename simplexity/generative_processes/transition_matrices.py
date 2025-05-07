@@ -7,6 +7,14 @@ Each process defines P(cur_obs, cur_state | prev_state) with a tensor of shape
 """
 
 
+def stationary_state(state_transition_matrix: jax.Array) -> jax.Array:
+    """Compute the stationary distribution of a transition matrix."""
+    eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix)
+    stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].real
+    assert stationary_state.shape == (state_transition_matrix.shape[1], 1)
+    return stationary_state.squeeze(axis=-1) / jnp.sum(stationary_state)
+
+
 def coin(p: float):
     """Create a transition matrix for a simple coin-flip Process."""
     return jnp.array([[[p]], [[1 - p]]])

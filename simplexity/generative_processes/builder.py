@@ -1,12 +1,17 @@
 import inspect
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
-from simplexity.generative_processes.transition_matrices import GHMM_MATRIX_FUNCTIONS, HMM_MATRIX_FUNCTIONS
+from simplexity.generative_processes.transition_matrices import (
+    GHMM_MATRIX_FUNCTIONS,
+    HMM_MATRIX_FUNCTIONS,
+    stationary_state,
+)
 
 
 def build_transition_matrices(matrix_functions: dict[str, Callable], process_name: str, **kwargs) -> jax.Array:
@@ -71,3 +76,22 @@ def build_nonergodic_initial_state(
     return jnp.concatenate(
         [w * state for w, state in zip(mixture_weights, component_initial_states, strict=True)], axis=0
     )
+
+
+def build_nonergodic_hidden_markov_model(
+    process_names: list[str],
+    process_kwargs: Sequence[Mapping[str, Any]],
+    mixture_weights: jax.Array,
+    vocab_maps: Sequence[Sequence[int]] | None = None,
+) -> HiddenMarkovModel:
+    """Build a hidden Markov model from a list of process names and their corresponding keyword arguments."""
+    component_transition_matrices = [
+        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, **kwargs)
+        for process_name, kwargs in zip(process_names, process_kwargs, strict=True)
+    ]
+    composite_transition_matrix = build_nonergodic_transition_matrices(component_transition_matrices, vocab_maps)
+    component_initial_states = [
+        stationary_state(transition_matrix.sum(axis=0).T) for transition_matrix in component_transition_matrices
+    ]
+    initial_state = build_nonergodic_initial_state(component_initial_states, mixture_weights)
+    return HiddenMarkovModel(composite_transition_matrix, initial_state)
