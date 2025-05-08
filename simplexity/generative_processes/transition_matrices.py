@@ -98,6 +98,20 @@ def fanizza(alpha: float, lamb: float) -> jax.Array:
     return jnp.stack([Da, Db], axis=0)
 
 
+def matching_parens(open_probs: list[float]) -> jax.Array:
+    """Creates a model for generating Matching Parentheses."""
+    if len(open_probs) < 1:
+        raise TypeError("Must provide a list of at least one open_probability")
+    if any(p <= 0 or p > 1 for p in open_probs):
+        raise TypeError(f"`open_probs` elements must all be in (0, 1].  Got: {open_probs}")
+    if open_probs[0] != 1.0:
+        raise ValueError("First open_prob must equal 1.0")
+    if open_probs[-1] != 0.0:
+        open_probs = open_probs + [0.0]
+    prob_array = jnp.array(open_probs)
+    return jnp.stack([jnp.diag(prob_array[:-1], k=1), jnp.diag(1.0 - prob_array[1:], k=-1)])
+
+
 def mess3(x: float, a: float) -> jax.Array:
     """Creates a transition matrix for the Mess3 Process."""
     b = (1 - a) / 2
