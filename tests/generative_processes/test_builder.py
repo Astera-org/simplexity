@@ -11,6 +11,7 @@ from simplexity.generative_processes.builder import (
     build_transition_matrices,
 )
 from simplexity.generative_processes.transition_matrices import HMM_MATRIX_FUNCTIONS
+from tests.generative_processes.test_transition_matrices import validate_hmm_transition_matrices
 
 
 def test_build_transition_matrices():
@@ -84,7 +85,6 @@ def test_build_nonergodic_hidden_markov_model():
     )
     assert hmm.vocab_size == 3
     assert hmm.num_states == 2
-    assert hmm.initial_state.shape == (2,)
     expected_transition_matrices = jnp.array(
         [
             [
@@ -102,5 +102,19 @@ def test_build_nonergodic_hidden_markov_model():
         ]
     )
     chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
-    expected_initial_state = jnp.array([0.8, 0.2])
-    chex.assert_trees_all_close(hmm.initial_state, expected_initial_state)
+    assert hmm.initial_state.shape == (2,)
+    chex.assert_trees_all_close(hmm.initial_state, jnp.array([0.8, 0.2]))
+
+
+def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
+    kwargs = {"p": 0.4, "q": 0.25}
+    hmm = build_nonergodic_hidden_markov_model(
+        process_names=["mr_name", "mr_name"],
+        process_kwargs=[kwargs, kwargs],
+        mixture_weights=jnp.array([0.8, 0.2]),
+        vocab_maps=[[0, 1, 2, 3], [0, 1, 2, 4]],
+    )
+    assert hmm.vocab_size == 5
+    assert hmm.num_states == 8
+    assert hmm.transition_matrices.shape == (5, 8, 8)
+    validate_hmm_transition_matrices(hmm.transition_matrices, ergodic=False)
