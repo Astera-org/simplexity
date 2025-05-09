@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.builder import build_nonergodic_hidden_markov_model
-from simplexity.generative_processes.non_ergodic_state_sampler import NonergodicStateSampler
+from simplexity.generative_processes.nonergodic_state_sampler import NonergodicStateSampler
 
 
 def test_nonergodic_state_sampler():
