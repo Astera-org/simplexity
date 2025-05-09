@@ -1,23 +1,11 @@
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal
-
-ProcessName = Literal[
-    "days_of_week",
-    "even_ones",
-    "fanizza",
-    "mess3",
-    "no_consecutive_ones",
-    "post_quantum",
-    "rrxor",
-    "tom_quantum",
-    "zero_one_random",
-]
+from typing import Any, Literal
 
 ProcessBuilder = Literal[
     "simplexity.generative_processes.builder.build_generalized_hidden_markov_model",
     "simplexity.generative_processes.builder.build_hidden_markov_model",
 ]
-ProcessType = ProcessName
 
 
 @dataclass
@@ -25,7 +13,7 @@ class ProcessInstanceConfig:
     """Configuration for the generative process."""
 
     _target_: ProcessBuilder
-    process_name: ProcessType
+    process_name: str
 
 
 @dataclass
@@ -114,9 +102,20 @@ class ZeroOneRandomConfig(ProcessInstanceConfig):
 
 
 @dataclass
+class NonergodicInstanceConfig:
+    """Configuration for Nonergodic model."""
+
+    _target_: Literal["simplexity.generative_processes.builder.build_nonergodic_hidden_markov_model"]
+    process_names: Sequence[str]
+    process_kwargs: Sequence[Mapping[str, Any]]
+    process_weights: Sequence[float]
+    vocab_maps: Sequence[Sequence[int]]
+
+
+@dataclass
 class Config:
     """Base configuration for predictive models."""
 
-    name: ProcessName
+    name: str
     vocab_size: int
-    instance: ProcessInstanceConfig
+    instance: ProcessInstanceConfig | NonergodicInstanceConfig
