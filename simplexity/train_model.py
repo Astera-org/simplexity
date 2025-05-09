@@ -34,8 +34,7 @@ def train_model(cfg: Config) -> float:
         validation_state_sampler = typed_instantiate(cfg.validation_state_sampler.instance, StateSampler)
     else:
         validation_state_sampler = None
-    vocab_size = training_data_generator.vocab_size
-    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, vocab_size=vocab_size)
+    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel)
     if cfg.persistence:
         with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
             if cfg.predictive_model.load_checkpoint_step:

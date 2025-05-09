@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 
 @dataclass
@@ -23,6 +23,6 @@ class GRURNNConfig(ModelInstanceConfig):
 class Config:
     """Base configuration for predictive models."""
 
-    name: Literal["gru_rnn"]
-    instance: ModelInstanceConfig
+    name: str
+    instance: Any
     load_checkpoint_step: int
