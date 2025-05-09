@@ -7,6 +7,7 @@ import jax.numpy as jnp
 from simplexity.configs.evaluation.config import Config
 from simplexity.evaluation.metric_functions import accuracy_fn, loss_fn
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.state_sampler import StateSampler
 from simplexity.logging.logger import Logger
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
@@ -46,6 +47,7 @@ def evaluate(
     model: PredictiveModel,
     cfg: Config,
     data_generator: GenerativeProcess,
+    state_sampler: StateSampler | None = None,
     logger: Logger | None = None,
 ) -> dict[str, jax.Array]:
     """Train a predictive model on a generative process."""
@@ -53,10 +55,20 @@ def evaluate(
 
     gen_state = data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], cfg.batch_size, axis=0)
+    if state_sampler:
+        sample_states = eqx.filter_jit(eqx.filter_vmap(state_sampler.sample))
+    else:
+
+        def sample_states(keys: jax.Array) -> jax.Array:
+            return gen_states
+
     metrics = defaultdict(lambda: jnp.array(0.0))
 
     for step in range(1, cfg.num_steps + 1):
-        key, gen_key = jax.random.split(key)
+        key, state_key, gen_key = jax.random.split(key, 3)
+        if state_sampler:
+            state_keys = jax.random.split(state_key, cfg.batch_size)
+            gen_states = sample_states(state_keys)
         gen_states, inputs, labels = generate_data_batch(
             gen_states,
             data_generator,

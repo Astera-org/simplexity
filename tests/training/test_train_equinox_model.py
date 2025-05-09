@@ -11,6 +11,7 @@ from simplexity.configs.training.optimizer.config import AdamConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.evaluation.evaluate_equinox_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
+from simplexity.generative_processes.fixed_state_sampler import FixedStateSampler
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
@@ -34,6 +35,7 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 @pytest.mark.slow
 def test_train(tmp_path: Path):
     data_generator = build_hidden_markov_model("even_ones", p=0.5)
+    state_sampler = FixedStateSampler(data_generator.initial_state)
     model = build_gru_rnn(data_generator.vocab_size, num_layers=2, hidden_size=4, seed=0)
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
@@ -75,9 +77,11 @@ def test_train(tmp_path: Path):
         model,
         training_cfg,
         data_generator,
+        state_sampler,
         logger,
         validation_cfg,
         data_generator,
+        state_sampler,
         persister,
     )
     assert loss > 0.0

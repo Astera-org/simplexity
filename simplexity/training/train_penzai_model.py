@@ -13,6 +13,7 @@ from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.state_sampler import StateSampler
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.utils.hydra import typed_instantiate
@@ -59,9 +60,11 @@ def train(
     model: PenzaiModel,
     training_cfg: TrainConfig,
     training_data_generator: GenerativeProcess,
+    training_state_sampler: StateSampler | None = None,
     logger: Logger | None = None,
     validation_cfg: ValidateConfig | None = None,
     validation_data_generator: GenerativeProcess | None = None,
+    validation_state_sampler: StateSampler | None = None,
     persister: ModelPersister | None = None,
 ) -> tuple[PenzaiModel, float]:
     """Train a predictive model on a generative process."""
@@ -78,10 +81,20 @@ def train(
 
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
+    if training_state_sampler:
+        sample_states = eqx.filter_jit(eqx.filter_vmap(training_state_sampler.sample))
+    else:
+
+        def sample_states(keys: jax.Array) -> jax.Array:
+            return gen_states
+
     metrics = {"loss": jnp.array(0.0)}
 
     for step in range(1, training_cfg.num_steps + 1):
-        key, gen_key = jax.random.split(key)
+        key, state_key, gen_key = jax.random.split(key, 3)
+        if training_state_sampler:
+            state_keys = jax.random.split(state_key, training_cfg.batch_size)
+            gen_states = sample_states(state_keys)
         gen_states, inputs, labels = generate_data_batch(
             gen_states,
             training_data_generator,
@@ -94,11 +107,16 @@ def train(
             if step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)
             if validation_cfg and validation_data_generator and step % training_cfg.validate_every == 0:
-                validation_metrics = evaluate(model, validation_cfg, validation_data_generator)
+                validation_metrics = evaluate(
+                    model,
+                    validation_cfg,
+                    validation_data_generator,
+                    validation_state_sampler,
+                )
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
         if persister and step % training_cfg.checkpoint_every == 0:
-            persister.save_weights(model, step)
+            persister.save_weights(model, step, overwrite_existing=True)  # type: ignore
 
     loss = float(metrics["loss"])
     return model, loss

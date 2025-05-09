@@ -12,6 +12,7 @@ from simplexity.configs.training.optimizer.config import AdamConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
+from simplexity.generative_processes.fixed_state_sampler import FixedStateSampler
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 from simplexity.training.train_penzai_model import train
@@ -34,6 +35,7 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 @pytest.mark.slow
 def test_train(tmp_path: Path):
     data_generator = build_hidden_markov_model("zero_one_random", p=0.5)
+    state_sampler = FixedStateSampler(data_generator.initial_state)
     model_cfg = LlamalikeTransformerConfig(
         num_kv_heads=1,
         query_head_multiplier=1,
@@ -88,9 +90,11 @@ def test_train(tmp_path: Path):
         model,
         training_cfg,
         data_generator,
+        state_sampler,
         logger,
         validation_cfg,
         data_generator,
+        state_sampler,
         persister,
     )
     assert loss > 0.0
