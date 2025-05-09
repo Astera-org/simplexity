@@ -1,6 +1,6 @@
 name: dursley_wonka
 instance:
-  _target_: in_context_learning.nonergodic_state_sampler.NonergodicStateSampler
+  _target_: simplexity.generative_processes.nonergodic_state_sampler.NonergodicStateSampler
   process_names: [mr_name, mr_name]
   process_kwargs:
   - p: 0.4
