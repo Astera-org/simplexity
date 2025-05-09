@@ -4,7 +4,7 @@ defaults:
  - generative_process@training_data_generator: dursley_wonka
  - generative_process@validation_data_generator: dursley_wonka
  - predictive_model: small_transformer
- - persistence: local_penzai_persister
+ - persistence: s3_persister
  - logging: mlflow_logger
  - training: medium
  - evaluation@validation: small
