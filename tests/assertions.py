@@ -1,6 +1,12 @@
+from collections.abc import Iterable, Mapping
+from typing import Any
+
 import chex
 import jax
 import jax.numpy as jnp
+import pytest
+
+Tree = jax.Array | jnp.ndarray | bool | jnp.number | Iterable[chex.ArrayTree] | Mapping[Any, chex.ArrayTree]
 
 
 def assert_proportional(a: jax.Array, b: jax.Array, rtol: float = 1e-6, atol: float = 0):
@@ -23,3 +29,9 @@ def assert_proportional(a: jax.Array, b: jax.Array, rtol: float = 1e-6, atol: fl
             else:
                 e = e1
             raise AssertionError(f"Arrays are not proportional: {a} and {b}.\n{e}") from e
+
+
+def assert_trees_different(a: Tree, b: Tree, rtol: float = 1e-6, atol: float = 0):
+    """Assert that two arrays are different."""
+    with pytest.raises(AssertionError):
+        chex.assert_trees_all_close(a, b, rtol=rtol, atol=atol)

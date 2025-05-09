@@ -83,9 +83,9 @@ class S3Persister(ModelPersister):
         """Cleans up the temporary directory."""
         self.temp_dir.cleanup()
 
-    def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
+    def save_weights(self, model: PredictiveModel, step: int = 0, overwrite_existing: bool = False) -> None:
         """Saves a model to S3."""
-        self.local_persister.save_weights(model, step)
+        self.local_persister.save_weights(model, step, overwrite_existing)
         directory = self.local_persister.directory / str(step)
         self._upload_local_directory(directory)
 

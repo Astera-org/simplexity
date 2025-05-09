@@ -15,9 +15,14 @@ class LocalEquinoxPersister(LocalPersister):
         self.directory = Path(directory)
         self.filename = filename
 
-    def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
+    def save_weights(self, model: PredictiveModel, step: int = 0, overwrite_existing: bool = False) -> None:
         """Saves a model to the local filesystem."""
         path = self._get_path(step)
+        if path.exists():
+            if overwrite_existing:
+                path.unlink()
+            else:
+                raise FileExistsError(f"File {path} already exists")
         path.parent.mkdir(parents=True, exist_ok=True)
         eqx.tree_serialise_leaves(path, model)
 

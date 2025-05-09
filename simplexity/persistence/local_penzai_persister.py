@@ -25,8 +25,11 @@ class LocalPenzaiPersister(LocalPersister):
         _, variable_values = pz.unbind_variables(model, freeze=True)
         items = deconstruct_variables(variable_values)
         mngr = ocp.CheckpointManager(self.directory, handler_registry=self.registry)
-        if overwrite_existing and step in mngr.all_steps():
-            mngr.delete(step)
+        if step in mngr.all_steps():
+            if overwrite_existing:
+                mngr.delete(step)
+            else:
+                raise FileExistsError(f"Checkpoint {step} already exists.")
         mngr.save(step=step, args=ocp.args.PyTreeSave(item=items))  # pyright: ignore
         mngr.wait_until_finished()
 

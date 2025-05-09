@@ -20,7 +20,7 @@ class ModelPersister(eqx.Module):
         ...
 
     @abstractmethod
-    def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
+    def save_weights(self, model: PredictiveModel, step: int = 0, overwrite_existing: bool = False) -> None:
         """Saves a model."""
         ...
 

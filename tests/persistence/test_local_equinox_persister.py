@@ -6,6 +6,7 @@ import pytest
 
 from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.predictive_models.gru_rnn import GRURNN
+from tests.assertions import assert_trees_different
 
 
 def get_model(seed: int) -> GRURNN:
@@ -19,13 +20,34 @@ def test_local_persister(tmp_path: Path):
     assert persister.directory == directory
     assert persister.filename == filename
 
-    model = get_model(0)
+    # Saving creates a new file in the directory
+    model_0 = get_model(0)
     assert not (tmp_path / "0" / filename).exists()
-    persister.save_weights(model, 0)
+    persister.save_weights(model_0, 0)
     assert (tmp_path / "0" / filename).exists()
 
-    new_model = get_model(1)
-    with pytest.raises(AssertionError):
-        chex.assert_trees_all_close(new_model, model)
-    loaded_model = persister.load_weights(new_model, 0)
-    chex.assert_trees_all_equal(loaded_model, model)
+    # Attempting to save with overwrite=False fails if the file already exists
+    # and the original file still exists
+    with pytest.raises(FileExistsError):
+        persister.save_weights(model_0, 0, overwrite_existing=False)
+    assert (tmp_path / "0" / filename).exists()
+
+    # Loading a checkpoint successfully replicates the original model
+    model_1 = get_model(1)
+    assert_trees_different(model_1, model_0)  # pyright: ignore
+    loaded_model = persister.load_weights(model_1, 0)
+    chex.assert_trees_all_equal(loaded_model, model_0)
+
+    # Saving a checkpoint when the file already exists will overwrite if
+    # overwrite_existing=True
+    model_1 = get_model(1)
+    assert_trees_different(model_1, model_0)  # pyright: ignore
+    assert (tmp_path / "0" / filename).exists()
+    persister.save_weights(model_1, 0, overwrite_existing=True)
+    assert (tmp_path / "0" / filename).exists()
+
+    # The saved checkpoint now replicates the new model
+    model_2 = get_model(2)
+    assert_trees_different(model_2, model_1)  # pyright: ignore
+    loaded_model = persister.load_weights(model_2, 0)
+    chex.assert_trees_all_equal(loaded_model, model_1)
