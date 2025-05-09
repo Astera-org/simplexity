@@ -45,9 +45,9 @@ def evaluation_step(model: Layer, inputs: jax.Array, labels: jax.Array) -> dict[
     mean_batch_accuracy = jnp.mean(token_accuracies)
     metrics = {"loss": mean_batch_loss, "accuracy": mean_batch_accuracy}
     for i, token_loss in enumerate(token_losses):
-        metrics[f"token_loss_{i}"] = token_loss
+        metrics[f"token_loss_{i}"] = token_loss.item()
     for i, token_accuracy in enumerate(token_accuracies):
-        metrics[f"token_accuracy_{i}"] = token_accuracy
+        metrics[f"token_accuracy_{i}"] = token_accuracy.item()
     return metrics
 
 
