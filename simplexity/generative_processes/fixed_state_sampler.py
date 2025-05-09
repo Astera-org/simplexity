@@ -7,7 +7,7 @@ from simplexity.generative_processes.state_sampler import StateSampler
 class FixedStateSampler(StateSampler):
     """A sampler for a fixed state."""
 
-    states: jax.Array
+    state: jax.Array
 
     def __init__(self, state: jax.Array):
         self.state = state
