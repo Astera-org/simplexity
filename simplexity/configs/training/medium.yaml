@@ -3,10 +3,10 @@ defaults:
   - optimizer: adam
 
 seed: ${seed}
-sequence_len: 64
-batch_size: 128
+sequence_len: 100
+batch_size: 640
 num_steps: 10000
-log_every: 100
-validate_every: 1000
-checkpoint_every: 5000
+log_every: 20
+validate_every: 100
+checkpoint_every: 1000
 checkpoint_name: ${run_name}

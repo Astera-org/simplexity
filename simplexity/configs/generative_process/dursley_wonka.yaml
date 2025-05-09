@@ -1,0 +1,14 @@
+name: dursley_wonka
+vocab_size: 5
+instance:
+  _target_: simplexity.generative_processes.builder.build_nonergodic_hidden_markov_model
+  process_names: [mr_name, mr_name]
+  process_kwargs:
+    - p: 0.4
+      q: 0.25
+    - p: 0.4
+      q: 0.25
+  process_weights: [ 0.5, 0.5 ]
+  vocab_maps:
+    - [ 0, 1, 2, 3 ]
+    - [ 0, 1, 2, 4 ]
