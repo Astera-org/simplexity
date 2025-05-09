@@ -66,22 +66,21 @@ def build_nonergodic_transition_matrices(
 
 
 def build_nonergodic_initial_state(
-    component_initial_states: Sequence[jax.Array], mixture_weights: jax.Array
+    component_initial_states: Sequence[jax.Array], process_weights: jax.Array
 ) -> jax.Array:
     """Build initial state for a nonergodic process from component initial states."""
-    assert mixture_weights.shape == (len(component_initial_states),)
-    assert jnp.all(mixture_weights >= 0)
-    assert jnp.all(mixture_weights <= 1)
-    assert jnp.isclose(jnp.sum(mixture_weights), 1)
+    assert process_weights.shape == (len(component_initial_states),)
+    assert jnp.all(process_weights >= 0)
+    process_probabilities = process_weights / jnp.sum(process_weights)
     return jnp.concatenate(
-        [w * state for w, state in zip(mixture_weights, component_initial_states, strict=True)], axis=0
+        [p * state for p, state in zip(process_probabilities, component_initial_states, strict=True)], axis=0
     )
 
 
 def build_nonergodic_hidden_markov_model(
     process_names: list[str],
     process_kwargs: Sequence[Mapping[str, Any]],
-    mixture_weights: jax.Array,
+    process_weights: Sequence[float],
     vocab_maps: Sequence[Sequence[int]] | None = None,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model from a list of process names and their corresponding keyword arguments."""
@@ -93,5 +92,5 @@ def build_nonergodic_hidden_markov_model(
     component_initial_states = [
         stationary_state(transition_matrix.sum(axis=0).T) for transition_matrix in component_transition_matrices
     ]
-    initial_state = build_nonergodic_initial_state(component_initial_states, mixture_weights)
+    initial_state = build_nonergodic_initial_state(component_initial_states, jnp.array(process_weights))
     return HiddenMarkovModel(composite_transition_matrix, initial_state)
