@@ -5,8 +5,8 @@ defaults:
 seed: ${seed}
 sequence_len: 100
 batch_size: 512
-num_steps: 10000
-log_every: 20
-validate_every: 100
-checkpoint_every: 1000
+num_steps: 1000
+log_every: 1
+validate_every: 10
+checkpoint_every: -1
 checkpoint_name: ${run_name}
