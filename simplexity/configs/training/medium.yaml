@@ -4,7 +4,7 @@ defaults:
 
 seed: ${seed}
 sequence_len: 100
-batch_size: 640
+batch_size: 512
 num_steps: 10000
 log_every: 20
 validate_every: 100
