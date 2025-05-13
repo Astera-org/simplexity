@@ -1,0 +1,12 @@
+defaults:
+  - _self_
+  - optimizer: adam
+
+seed: ${seed}
+sequence_len: 100
+batch_size: 512
+num_steps: 120
+log_every: 1
+validate_every: 1
+checkpoint_every: -1
+checkpoint_name: ${run_name}

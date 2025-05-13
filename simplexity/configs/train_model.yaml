@@ -7,8 +7,8 @@ defaults:
  - predictive_model: small_transformer
  - persistence: s3_persister
  - logging: mlflow_logger
- - training: medium
- - evaluation@validation: large
+ - training: phase_change
+ - evaluation@validation: phase_change
 
 seed: 0
 experiment_name: ${predictive_model.name}_${training_data_generator.name}
