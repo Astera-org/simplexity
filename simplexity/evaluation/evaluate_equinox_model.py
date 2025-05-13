@@ -40,7 +40,10 @@ def evaluation_step(model: PredictiveModel, inputs: jax.Array, labels: jax.Array
     mean_sequence_loss = jnp.mean(token_losses)
     token_accuracies = accuracy_fn(logits, labels)
     mean_sequence_accuracy = jnp.mean(token_accuracies)
-    return {"loss": mean_sequence_loss, "accuracy": mean_sequence_accuracy}
+    metrics = {"loss": mean_sequence_loss, "accuracy": mean_sequence_accuracy}
+    for i in range(token_losses.shape[0]):
+        metrics[f"token_loss_{i}"] = jnp.mean(token_losses[i])
+    return metrics
 
 
 def evaluate(
