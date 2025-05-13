@@ -1,6 +1,5 @@
 import hydra
 from omegaconf import DictConfig
-from penzai.nn.layer import Layer as PenzaiModel
 
 from simplexity.configs.config import Config
 from simplexity.generative_processes.generative_process import GenerativeProcess
@@ -8,11 +7,11 @@ from simplexity.generative_processes.state_sampler import StateSampler
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
-from simplexity.training.train_penzai_model import train
+from simplexity.training.train_equinox_model import train
 from simplexity.utils.hydra import typed_instantiate
 
 
-@hydra.main(config_path="configs", config_name="train_model.yaml", version_base="1.2")
+@hydra.main(config_path="configs", config_name="train_rnn.yaml", version_base="1.2")
 def train_model(cfg: Config) -> float:
     """Train a model."""
     assert isinstance(cfg, DictConfig)
@@ -40,7 +39,6 @@ def train_model(cfg: Config) -> float:
         with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
             if cfg.predictive_model.load_checkpoint_step:
                 model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_step)
-            assert isinstance(model, PenzaiModel)
             model, loss = train(
                 model,
                 cfg.training,
@@ -54,7 +52,6 @@ def train_model(cfg: Config) -> float:
             )
             persister.save_weights(model, cfg.training.num_steps, overwrite_existing=True)
     else:
-        assert isinstance(model, PenzaiModel)
         _, loss = train(
             model,
             cfg.training,
