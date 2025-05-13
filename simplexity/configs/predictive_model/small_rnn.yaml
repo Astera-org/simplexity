@@ -1,0 +1,9 @@
+name: gru_rnn
+instance:
+  _target_: simplexity.predictive_models.gru_rnn.build_gru_rnn
+  vocab_size: ${training_data_generator.vocab_size}
+  num_layers: 2
+  hidden_size: 16
+  seed: ${seed}
+
+load_checkpoint_step:
