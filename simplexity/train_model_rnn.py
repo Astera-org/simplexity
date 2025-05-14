@@ -28,8 +28,12 @@ def train_model(cfg: Config) -> float:
         training_state_sampler = None
     if cfg.validation_data_generator:
         validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
+        validation_bos_token = cfg.validation_data_generator.bos_token
+        validation_eos_token = cfg.validation_data_generator.eos_token
     else:
         validation_data_generator = None
+        validation_bos_token = None
+        validation_eos_token = None
     if cfg.validation_state_sampler:
         validation_state_sampler = typed_instantiate(cfg.validation_state_sampler.instance, StateSampler)
     else:
@@ -49,6 +53,10 @@ def train_model(cfg: Config) -> float:
                 validation_data_generator,
                 validation_state_sampler,
                 persister,
+                training_bos_token=cfg.training_data_generator.bos_token,
+                training_eos_token=cfg.training_data_generator.eos_token,
+                validation_bos_token=validation_bos_token,
+                validation_eos_token=validation_eos_token,
             )
             persister.save_weights(model, cfg.training.num_steps, overwrite_existing=True)
     else:
@@ -61,6 +69,10 @@ def train_model(cfg: Config) -> float:
             cfg.validation,
             validation_data_generator,
             validation_state_sampler,
+            training_bos_token=cfg.training_data_generator.bos_token,
+            training_eos_token=cfg.training_data_generator.eos_token,
+            validation_bos_token=validation_bos_token,
+            validation_eos_token=validation_eos_token,
         )
     if logger:
         logger.close()
