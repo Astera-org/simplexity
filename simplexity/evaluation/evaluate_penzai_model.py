@@ -1,6 +1,5 @@
 from collections import defaultdict
 
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 from penzai import pz
@@ -10,23 +9,8 @@ from penzai.nn.layer import Layer
 from simplexity.configs.evaluation.config import Config
 from simplexity.evaluation.metric_functions import accuracy_fn, loss_fn
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
-
-
-@eqx.filter_jit
-def generate_data_batch(
-    gen_states: jax.Array,
-    data_generator: GenerativeProcess,
-    batch_size: int,
-    sequence_len: int,
-    key: jax.Array,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Generate a batch of data."""
-    batch_keys = jax.random.split(key, batch_size)
-    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, False)
-    inputs = obs[:, :-1]
-    labels = obs[:, 1:]
-    return gen_states, inputs, labels
 
 
 def evaluation_step(model: Layer, inputs: jax.Array, labels: jax.Array) -> dict[str, jax.Array]:

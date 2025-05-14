@@ -1,5 +1,4 @@
 import chex
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optax
@@ -13,25 +12,10 @@ from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.utils.hydra import typed_instantiate
-
-
-@eqx.filter_jit
-def generate_data_batch(
-    gen_states: jax.Array,
-    data_generator: GenerativeProcess,
-    batch_size: int,
-    sequence_len: int,
-    key: jax.Array,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Generate a batch of data."""
-    batch_keys = jax.random.split(key, batch_size)
-    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, False)
-    inputs = obs[:, :-1]
-    labels = obs[:, 1:]
-    return gen_states, inputs, labels
 
 
 def loss_fn(

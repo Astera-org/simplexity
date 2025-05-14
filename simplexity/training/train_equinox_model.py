@@ -8,26 +8,11 @@ from simplexity.configs.evaluation.config import Config as ValidationConfig
 from simplexity.configs.training.config import Config as TrainingConfig
 from simplexity.evaluation.evaluate_equinox_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.utils.hydra import typed_instantiate
-
-
-@eqx.filter_jit
-def generate_data_batch(
-    gen_states: jax.Array,
-    data_generator: GenerativeProcess,
-    batch_size: int,
-    sequence_len: int,
-    key: jax.Array,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Generate a batch of data."""
-    batch_keys = jax.random.split(key, batch_size)
-    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, False)
-    inputs = jax.nn.one_hot(obs[:, :-1], data_generator.vocab_size)
-    labels = obs[:, 1:]
-    return gen_states, inputs, labels
 
 
 @eqx.filter_jit
@@ -102,6 +87,7 @@ def train(
             training_cfg.sequence_len,
             gen_key,
         )
+        inputs = jax.nn.one_hot(inputs, training_data_generator.vocab_size)
         model, opt_state, metrics = training_step(model, opt_state, inputs, labels, opt_update)
         if logger:
             if step % training_cfg.log_every == 0:
