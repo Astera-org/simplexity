@@ -1,0 +1,8 @@
+defaults:
+ - _self_
+ - generative_process: dursley_wonka
+ - state_sampler: dursley_wonka
+ - predictive_model: small_transformer
+ - persistence: local_penzai_persister
+
+seed: 0
