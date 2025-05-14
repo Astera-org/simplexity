@@ -1,5 +1,5 @@
 seed: ${seed}
 sequence_len: 100
-batch_size: 2048
+batch_size: 512
 num_steps: 1000
-log_every: 1000
+log_every:
