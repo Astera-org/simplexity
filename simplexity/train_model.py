@@ -64,6 +64,10 @@ def train_model(cfg: Config) -> float:
             cfg.validation,
             validation_data_generator,
             validation_state_sampler,
+            training_bos_token=cfg.training_data_generator.bos_token,
+            training_eos_token=cfg.training_data_generator.eos_token,
+            validation_bos_token=cfg.validation_data_generator.bos_token,
+            validation_eos_token=cfg.validation_data_generator.eos_token,
         )
     if logger:
         logger.close()

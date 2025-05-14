@@ -119,3 +119,5 @@ class Config:
     name: str
     vocab_size: int
     instance: ProcessInstanceConfig | NonergodicInstanceConfig
+    bos_token: int | None
+    eos_token: int | None
