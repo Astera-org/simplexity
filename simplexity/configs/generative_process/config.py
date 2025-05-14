@@ -120,3 +120,5 @@ class Config:
     name: ProcessName
     vocab_size: int
     instance: ProcessInstanceConfig
+    bos_token: int | None
+    eos_token: int | None

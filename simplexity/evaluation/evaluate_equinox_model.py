@@ -32,6 +32,8 @@ def evaluate(
     cfg: Config,
     data_generator: GenerativeProcess,
     logger: Logger | None = None,
+    bos_token: int | None = None,
+    eos_token: int | None = None,
 ) -> dict[str, jax.Array]:
     """Train a predictive model on a generative process."""
     key = jax.random.PRNGKey(cfg.seed)
@@ -48,6 +50,8 @@ def evaluate(
             cfg.batch_size,
             cfg.sequence_len,
             gen_key,
+            bos_token=bos_token,
+            eos_token=eos_token,
         )
         inputs = jax.nn.one_hot(inputs, data_generator.vocab_size)
         step_metrics: dict[str, jax.Array] = evaluation_step(model, inputs, labels)

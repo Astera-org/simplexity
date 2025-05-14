@@ -47,6 +47,10 @@ def train(
     validation_cfg: ValidateConfig | None = None,
     validation_data_generator: GenerativeProcess | None = None,
     persister: ModelPersister | None = None,
+    training_bos_token: int | None = None,
+    training_eos_token: int | None = None,
+    validation_bos_token: int | None = None,
+    validation_eos_token: int | None = None,
 ) -> tuple[PenzaiModel, float]:
     """Train a predictive model on a generative process."""
     key = jax.random.PRNGKey(training_cfg.seed)
@@ -72,13 +76,21 @@ def train(
             training_cfg.batch_size,
             training_cfg.sequence_len,
             gen_key,
+            bos_token=training_bos_token,
+            eos_token=training_eos_token,
         )
         metrics = trainer.step(inputs=inputs, labels=labels)
         if logger:
             if step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)
             if validation_cfg and validation_data_generator and step % training_cfg.validate_every == 0:
-                validation_metrics = evaluate(model, validation_cfg, validation_data_generator)
+                validation_metrics = evaluate(
+                    model,
+                    validation_cfg,
+                    validation_data_generator,
+                    bos_token=validation_bos_token,
+                    eos_token=validation_eos_token,
+                )
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
         if persister and step % training_cfg.checkpoint_every == 0:
