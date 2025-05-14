@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from penzai import pz
