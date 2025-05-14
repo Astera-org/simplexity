@@ -13,3 +13,4 @@ instance:
     - [ 0, 1, 2, 3 ]
     - [ 0, 1, 2, 4 ]
 bos_token: 5
+eos_token:
