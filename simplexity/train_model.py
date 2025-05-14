@@ -27,6 +27,10 @@ def train_model(cfg: Config) -> float:
         training_state_sampler = typed_instantiate(cfg.training_state_sampler.instance, StateSampler)
     else:
         training_state_sampler = None
+    if cfg.validation:
+        validation_cfg = cfg.validation
+    else:
+        validation_cfg = None
     if cfg.validation_data_generator:
         validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
         validation_bos_token = cfg.validation_data_generator.bos_token
@@ -51,7 +55,7 @@ def train_model(cfg: Config) -> float:
                 training_data_generator,
                 training_state_sampler,
                 logger,
-                cfg.validation,
+                validation_cfg,
                 validation_data_generator,
                 validation_state_sampler,
                 persister,
@@ -69,7 +73,7 @@ def train_model(cfg: Config) -> float:
             training_data_generator,
             training_state_sampler,
             logger,
-            cfg.validation,
+            validation_cfg,
             validation_data_generator,
             validation_state_sampler,
             training_bos_token=cfg.training_data_generator.bos_token,
