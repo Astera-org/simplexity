@@ -56,20 +56,15 @@ def even_ones(p: float) -> jax.Array:
     Defined in:  https://arxiv.org/pdf/1412.2859 Fig 3. using p = 0.5
     Steady-state distribution = [2, 1] / 3
     """
-    assert 0 <= p <= 1
-    q = 1 - p
-    return jnp.array(
-        [
-            [
-                [q, 0],
-                [0, 0],
-            ],
-            [
-                [0, p],
-                [1, 0],
-            ],
-        ]
-    )
+    if p <= 0 or p >= 1:
+        raise RuntimeError("p must be in (0, 1).  Received {p=}")
+    A, B = 0, 1
+    d0, d1 = 0, 1
+    mat = jnp.zeros((2, 2, 2), dtype=jnp.float32)
+    mat = mat.at[d0,A,A].set(1-p)
+    mat = mat.at[d1,A,B].set(p)
+    mat = mat.at[d1,B,A].set(1)
+    return mat
 
 
 def fanizza(alpha: float, lamb: float) -> jax.Array:
@@ -98,7 +93,39 @@ def fanizza(alpha: float, lamb: float) -> jax.Array:
     return jnp.stack([Da, Db], axis=0)
 
 
-def matching_parens(open_probs: list[float]) -> jax.Array:
+def golden_mean(p: float) -> jax.Array:
+    """The golden mean process from https://arxiv.org/pdf/1507.00672 Figure 5(a)."""
+    if p <= 0 or p >= 1:
+        raise RuntimeError("p must be in (0, 1).  Received {p=}")
+    sA, sB = 0, 1
+    d0, d1 = 0, 1
+    mat = jnp.zeros((2, 2, 2), dtype=jnp.float32)
+    mat = mat.at[d0,sB,sA].set(1.0)
+    mat = mat.at[d0,sA,sA].set(1-p)
+    mat = mat.at[d1,sA,sB].set(p)
+    return mat
+
+
+def golden_mean_5_3(p: float) -> jax.Array:
+    """The 5-3 golden mean process from TODO: find source."""
+    if p <= 0 or p >= 1:
+        raise RuntimeError("p must be in (0, 1).  Received {p=}")
+    A, B, C, D, E, F, G, H = range(8)
+    d0, d1 = 0, 1
+    mat = jnp.zeros((2, 8, 8), dtype=jnp.float32)
+    mat = mat.at[d1,A,B].set(p)
+    mat = mat.at[d1,B,C].set(1.0)
+    mat = mat.at[d1,C,D].set(1.0)
+    mat = mat.at[d1,D,E].set(1.0)
+    mat = mat.at[d1,E,F].set(1.0)
+    mat = mat.at[d0,F,G].set(1.0)
+    mat = mat.at[d0,G,H].set(1.0)
+    mat = mat.at[d0,H,A].set(1.0)
+    mat = mat.at[d0,A,A].set(1-p)
+    return mat
+
+
+def matching_parens_only(open_probs: list[float]) -> jax.Array:
     """Creates a model for generating Matching Parentheses."""
     if len(open_probs) < 1:
         raise TypeError("Must provide a list of at least one open_probability")
@@ -110,6 +137,30 @@ def matching_parens(open_probs: list[float]) -> jax.Array:
         open_probs = open_probs + [0.0]
     prob_array = jnp.array(open_probs)
     return jnp.stack([jnp.diag(prob_array[:-1], k=1), jnp.diag(1.0 - prob_array[1:], k=-1)])
+
+
+def matching_parens(p: float, q: float, n: int) -> jax.Array:
+    """The parenthesis matching process from ...
+
+    p: probability of first open parenthesis
+    q: probability of subsequent open parenthesis
+    n: maximum number of open parentheses (nesting depth), >= 1
+    """
+    if p > 1 or p < 0 or q > 1 or q < 0:
+        raise RuntimeError(f"p and q must be in [0, 1],  Got {p=}, {q=}")
+    if n < 1: 
+        raise RuntimeError(f"n must be >= 1.  Got {n=}")
+
+    mat = jnp.zeros((3, n+1, n+1), dtype=jnp.float32)
+    d = {"!": 0, "(": 1, ")": 2}
+    mat = mat.at[d["!"],0,0].set(1-p)
+    mat = mat.at[d["("],0,1].set(p)
+    for s in range(1, n+1):
+        mat = mat.at[d["("],s,s+1].set(q)
+    for s in range(n):
+        mat = mat.at[d[")"],s+1,s].set(1-q)
+    mat = mat.at[d[")"],n,n-1].set(1.0)
+    return mat
 
 
 def mess3(x: float, a: float) -> jax.Array:
@@ -298,6 +349,31 @@ def sns(p: float, q: float):
     )
 
 
+def teddy_bear(p: float, q: float) -> jax.Array:
+    """Create the teddy bear process from TODO: find source."""
+    if p <= 0 or p >= 1:
+        raise RuntimeError("p must be in (0, 1).  Received {p=}")
+    if q <= 0 or q >= 1:
+        raise RuntimeError("q must be in (0, 1).  Received {q=}")
+    if p + q > 1:
+        raise RuntimeError("p + q must be <= 1.  Received {p=}, {q=}, {p+q=}")
+
+    A, B, C, D, E, F, G = range(7)
+    d0, d1, d2 = 0, 1, 2
+    mat = jnp.zeros((3, 7, 7), dtype=jnp.float32)
+    mat = mat.at[d0,A,A].set(1-p-q)
+    mat = mat.at[d1,A,B].set(p)
+    mat = mat.at[d1,B,C].set(1)
+    mat = mat.at[d1,C,A].set(1)
+    mat = mat.at[d2,A,D].set(q)
+    mat = mat.at[d2,D,E].set(1)
+    mat = mat.at[d2,E,F].set(1)
+    mat = mat.at[d0,F,G].set(1)
+    mat = mat.at[d0,G,A].set(1)
+    return mat
+
+
+
 def tom_quantum(alpha: float, beta: float) -> jax.Array:
     """Creates a transition matrix for the Tom Quantum Process."""
     gamma2 = 1 / (4 * (alpha**2 + beta**2))
@@ -360,11 +436,16 @@ HMM_MATRIX_FUNCTIONS = {
     "coin": coin,
     "days_of_week": days_of_week,
     "even_ones": even_ones,
+    "golden_mean": golden_mean,
+    "golden_mean_5_3": golden_mean_5_3,
+    "matching_parens": matching_parens,
+    "matching_parens_only": matching_parens_only,
     "mess3": mess3,
     "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,
     "rrxor": rrxor,
     "sns": sns,
+    "teddy_bear": teddy_bear,
     "zero_one_random": zero_one_random,
 }
 
