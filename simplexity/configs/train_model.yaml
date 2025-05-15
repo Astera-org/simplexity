@@ -5,7 +5,7 @@ defaults:
  - state_sampler@training_state_sampler: dursley_wonka
  - state_sampler@validation_state_sampler: dursley_wonka
  - predictive_model: small_transformer
- - persistence: s3_persister
+ - persistence: local_penzai_persister
  - logging: mlflow_logger
  - training: medium
  - evaluation@validation: large

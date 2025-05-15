@@ -3,6 +3,6 @@ defaults:
  - generative_process: dursley_wonka
  - state_sampler: dursley_wonka
  - predictive_model: small_transformer
- - persistence: local_penzai_persister
+ - persistence: s3_persister
 
 seed: 0

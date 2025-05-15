@@ -2,4 +2,4 @@ name: local_penzai_persister
 
 instance:
   _target_: simplexity.persistence.local_penzai_persister.LocalPenzaiPersister
-  directory: ./data/models
+  directory: /workspaces/simplexity/data/models
