@@ -82,6 +82,7 @@ def test_build_nonergodic_hidden_markov_model():
         process_kwargs=[{"p": 0.6}, {"p": 0.3}],
         mixture_weights=jnp.array([0.8, 0.2]),
         vocab_maps=[[0, 1], [0, 2]],
+        add_bos_token=False
     )
     assert hmm.vocab_size == 3
     assert hmm.num_states == 2
@@ -106,6 +107,44 @@ def test_build_nonergodic_hidden_markov_model():
     chex.assert_trees_all_close(hmm.initial_state, jnp.array([0.8, 0.2]))
 
 
+def test_build_nonergodic_hidden_markov_model_bos():
+    hmm = build_nonergodic_hidden_markov_model(
+        process_names=["coin", "coin"],
+        process_kwargs=[{"p": 0.6}, {"p": 0.3}],
+        mixture_weights=jnp.array([0.8, 0.2]),
+        vocab_maps=[[0, 1], [0, 2]],
+        add_bos_token=True
+    )
+    assert hmm.vocab_size == 4
+    assert hmm.num_states == 3
+    expected_transition_matrices = jnp.array(
+        [
+            [
+                [0.6, 0, 0],
+                [0, 0.3, 0],
+                [0, 0, 0],
+            ],
+            [
+                [0.4, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+            ],
+            [
+                [0, 0, 0],
+                [0, 0.7, 0],
+                [0, 0, 0],
+            ],
+            [
+                [0, 0, 0],
+                [0, 0, 0],
+                [0.8, 0.2, 0],
+            ],
+        ]
+    )
+    chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
+    assert hmm.initial_state.shape == (3,)
+    chex.assert_trees_all_close(hmm.initial_state, jnp.array([0, 0, 1.0]))
+
 def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
     kwargs = {"p": 0.4, "q": 0.25}
     hmm = build_nonergodic_hidden_markov_model(
@@ -113,6 +152,7 @@ def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
         process_kwargs=[kwargs, kwargs],
         mixture_weights=jnp.array([0.8, 0.2]),
         vocab_maps=[[0, 1, 2, 3], [0, 1, 2, 4]],
+        add_bos_token=False,
     )
     assert hmm.vocab_size == 5
     assert hmm.num_states == 8

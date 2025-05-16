@@ -1,6 +1,6 @@
 import inspect
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any
+from typing import Any, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -78,11 +78,36 @@ def build_nonergodic_initial_state(
     )
 
 
+def add_begin_of_sequence_token(
+    transition_matrix_KIJ: jax.Array,
+    initial_state_I: jax.Array,
+) -> Tuple[jax.Array, jax.Array]:
+    """Produces a matrix with an additional BOS token.
+    This adds a BOS hidden state and a BOS symbol to the conceptual HMM.
+    The transition matrix is augmented by 1 in every dimension, 
+    and the initial state becomes one-hot with density all on the BOS state.
+
+    Inputs:
+     - transition_matrix_KIJ: the existing transition matrix
+
+    Returns:
+     - new transition matrix
+     - new initial state
+    """
+    K, I, J = transition_matrix_KIJ.shape
+    bmat_KIJ = jnp.zeros((K+1,I+1,J+1), dtype=jnp.float32)
+    bmat_KIJ = bmat_KIJ.at[:K,:I,:J].set(transition_matrix_KIJ)
+    bmat_KIJ = bmat_KIJ.at[K,I,:J].set(initial_state_I)
+    initial_I = (jnp.arange(I+1) == I).astype(jnp.float32)
+    return bmat_KIJ, initial_I
+
+
 def build_nonergodic_hidden_markov_model(
     process_names: list[str],
     process_kwargs: Sequence[Mapping[str, Any]],
     mixture_weights: jax.Array,
     vocab_maps: Sequence[Sequence[int]] | None = None,
+    add_bos_token: bool = False,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model from a list of process names and their corresponding keyword arguments."""
     component_transition_matrices = [
@@ -94,4 +119,9 @@ def build_nonergodic_hidden_markov_model(
         stationary_state(transition_matrix.sum(axis=0).T) for transition_matrix in component_transition_matrices
     ]
     initial_state = build_nonergodic_initial_state(component_initial_states, mixture_weights)
+    if add_bos_token:
+        composite_transition_matrix, initial_state = add_begin_of_sequence_token(
+            composite_transition_matrix,
+            initial_state
+        )
     return HiddenMarkovModel(composite_transition_matrix, initial_state)
