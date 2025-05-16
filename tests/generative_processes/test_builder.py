@@ -82,7 +82,7 @@ def test_build_nonergodic_hidden_markov_model():
         process_kwargs=[{"p": 0.6}, {"p": 0.3}],
         mixture_weights=jnp.array([0.8, 0.2]),
         vocab_maps=[[0, 1], [0, 2]],
-        add_bos_token=False
+        add_bos_token=False,
     )
     assert hmm.vocab_size == 3
     assert hmm.num_states == 2
@@ -113,7 +113,7 @@ def test_build_nonergodic_hidden_markov_model_bos():
         process_kwargs=[{"p": 0.6}, {"p": 0.3}],
         mixture_weights=jnp.array([0.8, 0.2]),
         vocab_maps=[[0, 1], [0, 2]],
-        add_bos_token=True
+        add_bos_token=True,
     )
     assert hmm.vocab_size == 4
     assert hmm.num_states == 3
@@ -144,6 +144,7 @@ def test_build_nonergodic_hidden_markov_model_bos():
     chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
     assert hmm.initial_state.shape == (3,)
     chex.assert_trees_all_close(hmm.initial_state, jnp.array([0, 0, 1.0]))
+
 
 def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
     kwargs = {"p": 0.4, "q": 0.25}

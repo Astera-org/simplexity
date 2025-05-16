@@ -84,7 +84,7 @@ def add_begin_of_sequence_token(
 ) -> Tuple[jax.Array, jax.Array]:
     """Produces a matrix with an additional BOS token.
     This adds a BOS hidden state and a BOS symbol to the conceptual HMM.
-    The transition matrix is augmented by 1 in every dimension, 
+    The transition matrix is augmented by 1 in every dimension,
     and the initial state becomes one-hot with density all on the BOS state.
 
     Inputs:
@@ -95,10 +95,10 @@ def add_begin_of_sequence_token(
      - new initial state
     """
     K, I, J = transition_matrix_KIJ.shape
-    bmat_KIJ = jnp.zeros((K+1,I+1,J+1), dtype=jnp.float32)
-    bmat_KIJ = bmat_KIJ.at[:K,:I,:J].set(transition_matrix_KIJ)
-    bmat_KIJ = bmat_KIJ.at[K,I,:J].set(initial_state_I)
-    initial_I = (jnp.arange(I+1) == I).astype(jnp.float32)
+    bmat_KIJ = jnp.zeros((K + 1, I + 1, J + 1), dtype=jnp.float32)
+    bmat_KIJ = bmat_KIJ.at[:K, :I, :J].set(transition_matrix_KIJ)
+    bmat_KIJ = bmat_KIJ.at[K, I, :J].set(initial_state_I)
+    initial_I = (jnp.arange(I + 1) == I).astype(jnp.float32)
     return bmat_KIJ, initial_I
 
 
@@ -121,7 +121,6 @@ def build_nonergodic_hidden_markov_model(
     initial_state = build_nonergodic_initial_state(component_initial_states, mixture_weights)
     if add_bos_token:
         composite_transition_matrix, initial_state = add_begin_of_sequence_token(
-            composite_transition_matrix,
-            initial_state
+            composite_transition_matrix, initial_state
         )
     return HiddenMarkovModel(composite_transition_matrix, initial_state)
