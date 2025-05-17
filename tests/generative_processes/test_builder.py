@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.generative_processes.builder import (
+    add_begin_of_sequence_token,
     build_generalized_hidden_markov_model,
     build_hidden_markov_model,
     build_nonergodic_hidden_markov_model,
@@ -19,6 +20,44 @@ def test_build_transition_matrices():
     assert transition_matrices.shape == (2, 1, 1)
     expected = jnp.array([[[0.6]], [[0.4]]])
     chex.assert_trees_all_close(transition_matrices, expected)
+
+
+def test_add_begin_of_sequence_token():
+    transition_matrix = jnp.array(
+        [
+            [
+                [0.10, 0.20],
+                [0.35, 0.25],
+            ],
+            [
+                [0.30, 0.40],
+                [0.25, 0.15],
+            ],
+        ]
+    )
+    initial_state = jnp.array([0.45, 0.55])
+    augmented_matrix = add_begin_of_sequence_token(transition_matrix, initial_state)
+    assert augmented_matrix.shape == (3, 3, 3)
+    expected = jnp.array(
+        [
+            [
+                [0.10, 0.20, 0.00],
+                [0.35, 0.25, 0.00],
+                [0.00, 0.00, 0.00],
+            ],
+            [
+                [0.30, 0.40, 0.00],
+                [0.25, 0.15, 0.00],
+                [0.00, 0.00, 0.00],
+            ],
+            [
+                [0.00, 0.00, 0.00],
+                [0.00, 0.00, 0.00],
+                [0.45, 0.55, 0.00],
+            ],
+        ]
+    )
+    chex.assert_trees_all_close(augmented_matrix, expected)
 
 
 def test_build_hidden_markov_model():
@@ -107,6 +146,21 @@ def test_build_nonergodic_hidden_markov_model():
     chex.assert_trees_all_close(hmm.initial_state, jnp.array([0.8, 0.2]))
 
 
+def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
+    kwargs = {"p": 0.4, "q": 0.25}
+    hmm = build_nonergodic_hidden_markov_model(
+        process_names=["mr_name", "mr_name"],
+        process_kwargs=[kwargs, kwargs],
+        mixture_weights=jnp.array([0.8, 0.2]),
+        vocab_maps=[[0, 1, 2, 3], [0, 1, 2, 4]],
+        add_bos_token=False,
+    )
+    assert hmm.vocab_size == 5
+    assert hmm.num_states == 8
+    assert hmm.transition_matrices.shape == (5, 8, 8)
+    validate_hmm_transition_matrices(hmm.transition_matrices, ergodic=False)
+
+
 def test_build_nonergodic_hidden_markov_model_bos():
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["coin", "coin"],
@@ -144,18 +198,3 @@ def test_build_nonergodic_hidden_markov_model_bos():
     chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
     assert hmm.initial_state.shape == (3,)
     chex.assert_trees_all_close(hmm.initial_state, jnp.array([0, 0, 1.0]))
-
-
-def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
-    kwargs = {"p": 0.4, "q": 0.25}
-    hmm = build_nonergodic_hidden_markov_model(
-        process_names=["mr_name", "mr_name"],
-        process_kwargs=[kwargs, kwargs],
-        mixture_weights=jnp.array([0.8, 0.2]),
-        vocab_maps=[[0, 1, 2, 3], [0, 1, 2, 4]],
-        add_bos_token=False,
-    )
-    assert hmm.vocab_size == 5
-    assert hmm.num_states == 8
-    assert hmm.transition_matrices.shape == (5, 8, 8)
-    validate_hmm_transition_matrices(hmm.transition_matrices, ergodic=False)

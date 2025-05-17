@@ -1,6 +1,6 @@
 import inspect
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Tuple
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -30,6 +30,16 @@ def build_transition_matrices(matrix_functions: dict[str, Callable], process_nam
         params = ", ".join(f"{k}: {v.annotation}" for k, v in sig.parameters.items())
         raise TypeError(f"Invalid arguments for {process_name}: {e}.  Signature is: {params}") from e
     return transition_matrices
+
+
+def add_begin_of_sequence_token(transition_matrix: jax.Array, initial_state: jax.Array | None = None) -> jax.Array:
+    """Augments transition matrices with a BOS token."""
+    vocab_size, num_states, _ = transition_matrix.shape
+    augmented_matrix = jnp.zeros((vocab_size + 1, num_states + 1, num_states + 1), dtype=transition_matrix.dtype)
+    augmented_matrix = augmented_matrix.at[:vocab_size, :num_states, :num_states].set(transition_matrix)
+    if initial_state is None:
+        initial_state = stationary_state(transition_matrix.sum(axis=0).T)
+    return augmented_matrix.at[vocab_size, num_states, :num_states].set(initial_state)
 
 
 def build_hidden_markov_model(process_name: str, initial_state: jax.Array | None = None, **kwargs) -> HiddenMarkovModel:
@@ -78,30 +88,6 @@ def build_nonergodic_initial_state(
     )
 
 
-def add_begin_of_sequence_token(
-    transition_matrix_KIJ: jax.Array,
-    initial_state_I: jax.Array,
-) -> Tuple[jax.Array, jax.Array]:
-    """Produces a matrix with an additional BOS token.
-    This adds a BOS hidden state and a BOS symbol to the conceptual HMM.
-    The transition matrix is augmented by 1 in every dimension,
-    and the initial state becomes one-hot with density all on the BOS state.
-
-    Inputs:
-     - transition_matrix_KIJ: the existing transition matrix
-
-    Returns:
-     - new transition matrix
-     - new initial state
-    """
-    K, I, J = transition_matrix_KIJ.shape
-    bmat_KIJ = jnp.zeros((K + 1, I + 1, J + 1), dtype=jnp.float32)
-    bmat_KIJ = bmat_KIJ.at[:K, :I, :J].set(transition_matrix_KIJ)
-    bmat_KIJ = bmat_KIJ.at[K, I, :J].set(initial_state_I)
-    initial_I = (jnp.arange(I + 1) == I).astype(jnp.float32)
-    return bmat_KIJ, initial_I
-
-
 def build_nonergodic_hidden_markov_model(
     process_names: list[str],
     process_kwargs: Sequence[Mapping[str, Any]],
@@ -120,7 +106,8 @@ def build_nonergodic_hidden_markov_model(
     ]
     initial_state = build_nonergodic_initial_state(component_initial_states, mixture_weights)
     if add_bos_token:
-        composite_transition_matrix, initial_state = add_begin_of_sequence_token(
-            composite_transition_matrix, initial_state
-        )
+        composite_transition_matrix = add_begin_of_sequence_token(composite_transition_matrix, initial_state)
+        num_states = composite_transition_matrix.shape[1]
+        initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
+        initial_state = initial_state.at[num_states - 1].set(1)
     return HiddenMarkovModel(composite_transition_matrix, initial_state)
