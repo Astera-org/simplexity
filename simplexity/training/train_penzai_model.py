@@ -1,5 +1,4 @@
 import chex
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optax
@@ -13,25 +12,10 @@ from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.evaluation.evaluate_penzai_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.utils.hydra import typed_instantiate
-
-
-@eqx.filter_jit
-def generate_data_batch(
-    gen_states: jax.Array,
-    data_generator: GenerativeProcess,
-    batch_size: int,
-    sequence_len: int,
-    key: jax.Array,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Generate a batch of data."""
-    batch_keys = jax.random.split(key, batch_size)
-    gen_states, obs = data_generator.generate(gen_states, batch_keys, sequence_len, False)
-    inputs = obs[:, :-1]
-    labels = obs[:, 1:]
-    return gen_states, inputs, labels
 
 
 def loss_fn(
@@ -63,6 +47,10 @@ def train(
     validation_cfg: ValidateConfig | None = None,
     validation_data_generator: GenerativeProcess | None = None,
     persister: ModelPersister | None = None,
+    training_bos_token: int | None = None,
+    training_eos_token: int | None = None,
+    validation_bos_token: int | None = None,
+    validation_eos_token: int | None = None,
 ) -> tuple[PenzaiModel, float]:
     """Train a predictive model on a generative process."""
     key = jax.random.PRNGKey(training_cfg.seed)
@@ -88,13 +76,21 @@ def train(
             training_cfg.batch_size,
             training_cfg.sequence_len,
             gen_key,
+            bos_token=training_bos_token,
+            eos_token=training_eos_token,
         )
         metrics = trainer.step(inputs=inputs, labels=labels)
         if logger:
             if step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)
             if validation_cfg and validation_data_generator and step % training_cfg.validate_every == 0:
-                validation_metrics = evaluate(model, validation_cfg, validation_data_generator)
+                validation_metrics = evaluate(
+                    model,
+                    validation_cfg,
+                    validation_data_generator,
+                    bos_token=validation_bos_token,
+                    eos_token=validation_eos_token,
+                )
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
         if persister and step % training_cfg.checkpoint_every == 0:

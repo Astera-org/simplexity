@@ -32,6 +32,10 @@ def run_experiment(cfg: Config) -> float:
             cfg.validation,
             validation_data_generator,
             persister,
+            training_bos_token=cfg.training_data_generator.bos_token,
+            training_eos_token=cfg.training_data_generator.eos_token,
+            validation_bos_token=cfg.validation_data_generator.bos_token,
+            validation_eos_token=cfg.validation_data_generator.eos_token,
         )
 
     logger.close()
