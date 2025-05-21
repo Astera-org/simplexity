@@ -6,14 +6,75 @@ from penzai import pz
 from penzai.core.variables import UnboundVariableError
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 
+from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.utils.penzai import (
     ParamCountNode,
+    PenzaiWrapper,
     VariableLabelClass,
     VariableValueClass,
     deconstruct_variables,
     get_parameter_count_tree,
     reconstruct_variables,
+    use_penzai_model,
 )
+
+
+def test_penzai_wrapper():
+    vocab_size = 4
+    batch_size = 2
+    seq_length = 16
+
+    config = LlamalikeTransformerConfig(
+        embedding_dim=8,
+        num_decoder_blocks=1,
+        num_kv_heads=1,
+        projection_dim=8,
+        query_head_multiplier=1,
+        mlp_hidden_dim=8,
+        vocab_size=vocab_size,
+        mlp_variant="geglu_approx",
+        tie_embedder_and_logits=False,
+    )
+    base_rng = jax.random.PRNGKey(0)
+    transformer = build_llamalike_transformer(config, init_base_rng=base_rng)
+
+    wrapped_model = PenzaiWrapper(transformer)
+    inputs = jax.random.randint(jax.random.key(0), (batch_size, seq_length), 0, vocab_size)
+    assert isinstance(inputs, jax.Array)
+    outputs = wrapped_model(inputs)
+    assert isinstance(outputs, jax.Array)
+    assert outputs.shape == (batch_size, seq_length, vocab_size)
+
+
+def test_use_penzai_model():
+    vocab_size = 4
+    batch_size = 2
+    seq_length = 16
+
+    config = LlamalikeTransformerConfig(
+        embedding_dim=8,
+        num_decoder_blocks=1,
+        num_kv_heads=1,
+        projection_dim=8,
+        query_head_multiplier=1,
+        mlp_hidden_dim=8,
+        vocab_size=vocab_size,
+        mlp_variant="geglu_approx",
+        tie_embedder_and_logits=False,
+    )
+    base_rng = jax.random.PRNGKey(0)
+    transformer = build_llamalike_transformer(config, init_base_rng=base_rng)
+
+    inputs = jax.random.randint(jax.random.key(0), (batch_size, seq_length), 0, vocab_size)
+    assert isinstance(inputs, jax.Array)
+
+    @use_penzai_model
+    def f(model: PredictiveModel, inputs: jax.Array) -> jax.Array:
+        return model(inputs)
+
+    outputs = f(model=transformer, inputs=inputs)
+    assert isinstance(outputs, jax.Array)
+    assert outputs.shape == (batch_size, seq_length, vocab_size)
 
 
 def test_get_parameter_count_tree():
