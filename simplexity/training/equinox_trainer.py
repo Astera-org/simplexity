@@ -34,7 +34,6 @@ def _equinox_trainer_step(
     root_rng: chex.PRNGKey,
     state: InternalTrainerState,
     model: PredictiveModel,
-    trainable_params: Any,  # TODO: type this
     loss_fn: LossFunction,
     optimizer_def: optax.GradientTransformation,
     kwargs: dict[str, Any],
@@ -46,16 +45,14 @@ def _equinox_trainer_step(
     """Implementation of the training step for StatefulTrainer."""
     step_rng = jax.random.fold_in(root_rng, state.step)
 
-    def compute_loss_and_updates(trainable_params):
-        new_model = eqx.combine(trainable_params, eqx.filter(model, lambda x: not eqx.is_array(x)))
-        loss, new_loss_fn_state, aux_outputs = loss_fn(
-            model=new_model, state=state.loss_fn_state, rng=step_rng, **kwargs
-        )
+    def compute_loss_and_updates(model):
+        loss, new_loss_fn_state, aux_outputs = loss_fn(model=model, state=state.loss_fn_state, rng=step_rng, **kwargs)
         return loss, (new_loss_fn_state, aux_outputs)
 
     grad_fn = jax.grad(compute_loss_and_updates, has_aux=True)
-    grads, (new_loss_fn_state, aux_outputs) = grad_fn(trainable_params)
-    model_updates, new_opt_state = optimizer_def.update(grads, state.opt_state, trainable_params)
+    grads, (new_loss_fn_state, aux_outputs) = grad_fn(model)
+    params = eqx.filter(model, eqx.is_array)
+    model_updates, new_opt_state = optimizer_def.update(grads, state.opt_state, params)
     return (
         aux_outputs,
         model_updates,
@@ -104,7 +101,6 @@ class EquinoxTrainer(eqx.Module):
             root_rng=self.root_rng,
             state=self.state.value,
             model=self.model.value,
-            trainable_params=eqx.filter(self.model.value, eqx.is_array),
             loss_fn=self.loss_fn,
             optimizer_def=self.optimizer_def,
             kwargs=kwargs,
