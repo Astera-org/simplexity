@@ -29,3 +29,9 @@ class Config:
     name: str
     instance: ModelInstanceConfig
     load_checkpoint_step: int | None
+
+
+def validate_config(cfg: Config) -> None:
+    """Validate the configuration."""
+    if cfg.load_checkpoint_step is not None:
+        assert cfg.load_checkpoint_step >= 0, "Load checkpoint step must be non-negative"
