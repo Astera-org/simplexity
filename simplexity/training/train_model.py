@@ -101,9 +101,14 @@ def train(
         )
         metrics = trainer.step(inputs=inputs, labels=labels)
         if logger:
-            if step % training_cfg.log_every == 0:
+            if training_cfg.log_every and step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)
-            if validation_cfg and validation_data_generator and step % training_cfg.validate_every == 0:
+            if (
+                validation_cfg
+                and validation_data_generator
+                and training_cfg.validate_every
+                and step % training_cfg.validate_every == 0
+            ):
                 validation_metrics = validate(
                     model=get_model(),
                     cfg=validation_cfg,
@@ -113,7 +118,7 @@ def train(
                 )
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
-        if persister and step % training_cfg.checkpoint_every == 0:
+        if persister and training_cfg.checkpoint_every and step % training_cfg.checkpoint_every == 0:
             persister.save_weights(get_model(), step)
 
     loss = float(metrics["loss"])

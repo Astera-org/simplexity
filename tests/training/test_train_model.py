@@ -120,6 +120,7 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
     )
     assert loss > 0.0
     losses = extract_losses(log_file_path)
+    assert training_cfg.log_every is not None
     assert losses.shape == (training_cfg.num_steps // training_cfg.log_every,)
     final_metrics = evaluate_model(model=model, cfg=validation_cfg, data_generator=data_generator)
     assert final_metrics["loss"] < original_metrics["loss"]
