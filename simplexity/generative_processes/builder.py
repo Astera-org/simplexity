@@ -81,10 +81,9 @@ def build_nonergodic_initial_state(
     """Build initial state for a nonergodic process from component initial states."""
     assert process_weights.shape == (len(component_initial_states),)
     assert jnp.all(process_weights >= 0)
-    assert jnp.all(process_weights <= 1)
-    assert jnp.isclose(jnp.sum(process_weights), 1)
+    process_probabilities = process_weights / process_weights.sum()
     return jnp.concatenate(
-        [w * state for w, state in zip(process_weights, component_initial_states, strict=True)], axis=0
+        [p * state for p, state in zip(process_probabilities, component_initial_states, strict=True)], axis=0
     )
 
 
