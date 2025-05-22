@@ -28,4 +28,4 @@ class Config:
 
     name: str
     instance: ModelInstanceConfig
-    load_checkpoint_step: int
+    load_checkpoint_step: int | None
