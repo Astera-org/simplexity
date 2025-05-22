@@ -15,7 +15,7 @@ class MetricFunction(Protocol):
 
 
 @eqx.filter_jit
-def loss_fn(logits: jax.Array, labels: jax.Array) -> jax.Array:
+def cross_entropy_fn(logits: jax.Array, labels: jax.Array) -> jax.Array:
     """Compute loss."""
     return jnp.array(optax.softmax_cross_entropy_with_integer_labels(logits, labels))
 
@@ -25,3 +25,9 @@ def accuracy_fn(logits: jax.Array, labels: jax.Array) -> jax.Array:
     """Compute accuracy."""
     preds = jnp.argmax(logits)
     return preds == labels
+
+
+METRIC_FUNCTIONS = {
+    "loss": cross_entropy_fn,
+    "accuracy": accuracy_fn,
+}
