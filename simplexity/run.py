@@ -14,16 +14,46 @@ from simplexity.utils.hydra import typed_instantiate
 def train_model(cfg: Config) -> float:
     """Train a model."""
     assert isinstance(cfg, DictConfig)
-    logger = typed_instantiate(cfg.logging.instance, Logger)
-    logger.log_config(cfg)
-    logger.log_params(cfg)
+
+    if cfg.logging:
+        logger = typed_instantiate(cfg.logging.instance, Logger)
+        logger.log_config(cfg)
+        logger.log_params(cfg)
+    else:
+        logger = None
+
     training_data_generator = typed_instantiate(cfg.training_data_generator.instance, GenerativeProcess)
-    validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
+
+    if cfg.validation_data_generator:
+        validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
+        validation_bos_token = cfg.validation_data_generator.bos_token
+        validation_eos_token = cfg.validation_data_generator.eos_token
+    else:
+        validation_data_generator = None
+        validation_bos_token = None
+        validation_eos_token = None
+
     vocab_size = training_data_generator.vocab_size
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, vocab_size=vocab_size)
-    with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
-        if cfg.predictive_model.load_checkpoint_step:
-            model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_step)
+
+    if cfg.persistence:
+        with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
+            if cfg.predictive_model.load_checkpoint_step:
+                model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_step)
+            _, loss = train(
+                model,
+                cfg.training,
+                training_data_generator,
+                logger,
+                cfg.validation,
+                validation_data_generator,
+                persister,
+                training_bos_token=cfg.training_data_generator.bos_token,
+                training_eos_token=cfg.training_data_generator.eos_token,
+                validation_bos_token=validation_bos_token,
+                validation_eos_token=validation_eos_token,
+            )
+    else:
         _, loss = train(
             model,
             cfg.training,
@@ -31,14 +61,15 @@ def train_model(cfg: Config) -> float:
             logger,
             cfg.validation,
             validation_data_generator,
-            persister,
+            None,
             training_bos_token=cfg.training_data_generator.bos_token,
             training_eos_token=cfg.training_data_generator.eos_token,
-            validation_bos_token=cfg.validation_data_generator.bos_token,
-            validation_eos_token=cfg.validation_data_generator.eos_token,
+            validation_bos_token=validation_bos_token,
+            validation_eos_token=validation_eos_token,
         )
 
-    logger.close()
+    if logger:
+        logger.close()
 
     return loss
 

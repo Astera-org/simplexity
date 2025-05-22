@@ -13,12 +13,12 @@ class Config:
     """Configuration for the experiment."""
 
     training_data_generator: DataGeneratorConfig
-    validation_data_generator: DataGeneratorConfig
+    validation_data_generator: DataGeneratorConfig | None
     predictive_model: ModelConfig
-    persistence: PersistenceConfig
-    logging: LoggingConfig
+    persistence: PersistenceConfig | None
+    logging: LoggingConfig | None
     training: TrainingConfig
-    validation: ValidationConfig
+    validation: ValidationConfig | None
 
     seed: int
     experiment_name: str
