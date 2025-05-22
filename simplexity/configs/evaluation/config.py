@@ -9,4 +9,4 @@ class Config:
     sequence_len: int
     batch_size: int
     num_steps: int
-    log_every: int
+    log_every: int | None

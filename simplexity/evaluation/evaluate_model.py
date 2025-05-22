@@ -53,7 +53,7 @@ def evaluate(
         step_metrics = evaluation_step(model, inputs, labels)
         for metric_name, metric_value in step_metrics.items():
             metrics[metric_name] += metric_value
-        if logger and step % cfg.log_every == 0:
+        if logger and cfg.log_every and step % cfg.log_every == 0:
             logger.log_metrics(step, metrics)
 
     return {k: v / cfg.num_steps for k, v in metrics.items()}
