@@ -82,7 +82,6 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
         log_every=50,
         validate_every=75,
         checkpoint_every=100,
-        checkpoint_name="test",
         optimizer=OptimizerConfig(
             name="adam",
             instance=AdamConfig(
