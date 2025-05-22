@@ -5,7 +5,7 @@ import equinox as eqx
 
 
 def vmap_model(f: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorate a function to use a penzai model."""
+    """Vmap a model with a function."""
 
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         if "model" not in kwargs:
