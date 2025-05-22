@@ -14,5 +14,4 @@ class Config:
     log_every: int | None
     validate_every: int | None
     checkpoint_every: int | None
-    checkpoint_name: str | None
     optimizer: OptimizerConfig
