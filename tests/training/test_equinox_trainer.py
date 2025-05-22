@@ -11,7 +11,7 @@ from simplexity.training.equinox_trainer import EquinoxTrainer, loss_fn
 def generate_data_batch(batch_size: int, sequence_len: int, vocab_size: int, seed: int) -> tuple[jax.Array, jax.Array]:
     key = jax.random.PRNGKey(seed)
     data = jax.random.randint(key, (batch_size, sequence_len), 0, vocab_size)
-    inputs = jax.nn.one_hot(data[:, :-1], vocab_size)
+    inputs = data[:, :-1]
     labels = data[:, 1:]
     return inputs, labels
 
@@ -22,8 +22,8 @@ def test_equinox_trainer():
     sequence_len = 10
 
     model = GRURNN(
-        in_size=vocab_size,
-        out_size=vocab_size,
+        vocab_size=vocab_size,
+        embedding_size=16,
         hidden_sizes=(10,),
         key=jax.random.PRNGKey(0),
     )

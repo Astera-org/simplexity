@@ -9,7 +9,7 @@ from simplexity.predictive_models.gru_rnn import GRURNN
 
 
 def get_model(seed: int) -> GRURNN:
-    return GRURNN(in_size=1, out_size=2, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
+    return GRURNN(vocab_size=2, embedding_size=4, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
 
 
 def test_local_persister(tmp_path: Path):

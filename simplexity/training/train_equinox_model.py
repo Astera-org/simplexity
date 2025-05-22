@@ -93,7 +93,6 @@ def train(
             bos_token=training_bos_token,
             eos_token=training_eos_token,
         )
-        inputs = jax.nn.one_hot(inputs, training_data_generator.vocab_size)
         model, opt_state, metrics = training_step(model, opt_state, inputs, labels, opt_update)
         if logger:
             if step % training_cfg.log_every == 0:

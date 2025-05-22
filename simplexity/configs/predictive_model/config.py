@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from typing import Literal
 
+TARGETS = Literal["simplexity.predictive_models.rnn.build_rnn"]
+
 
 @dataclass
 class ModelInstanceConfig:
     """Configuration for the model instance."""
 
-    _target_: Literal["simplexity.predictive_models.rnn.build_rnn"]
+    _target_: TARGETS
+    framework: Literal["penzai", "equinox"]
     vocab_size: int
 
 
@@ -14,6 +17,7 @@ class ModelInstanceConfig:
 class GRURNNConfig(ModelInstanceConfig):
     """Configuration for GRU RNN model."""
 
+    embedding_size: int
     num_layers: int
     hidden_size: int
     seed: int
@@ -23,6 +27,6 @@ class GRURNNConfig(ModelInstanceConfig):
 class Config:
     """Base configuration for predictive models."""
 
-    name: Literal["gru_rnn"]
+    name: str
     instance: ModelInstanceConfig
     load_checkpoint_step: int

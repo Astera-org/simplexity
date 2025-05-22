@@ -34,7 +34,7 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 @pytest.mark.slow
 def test_train(tmp_path: Path):
     data_generator = build_hidden_markov_model("even_ones", p=0.5)
-    model = build_gru_rnn(data_generator.vocab_size, num_layers=2, hidden_size=4, seed=0)
+    model = build_gru_rnn(data_generator.vocab_size, embedding_size=16, num_layers=2, hidden_size=4, seed=0)
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
     training_cfg = TrainingConfig(
