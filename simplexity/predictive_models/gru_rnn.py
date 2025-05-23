@@ -16,13 +16,7 @@ class EmbeddingFn(eqx.Module):
 
     def __call__(self, xs: jax.Array, **kwargs) -> jax.Array:
         """Forward pass of the linear model."""
-
-        def process_element(_, x):
-            out = self.embedding(x)
-            return None, out
-
-        _, outs = jax.lax.scan(process_element, None, xs)
-        return outs
+        return eqx.filter_vmap(self.embedding)(xs)
 
 
 class GRUFn(eqx.Module):
@@ -55,13 +49,7 @@ class LinearFn(eqx.Module):
 
     def __call__(self, xs: jax.Array) -> jax.Array:
         """Forward pass of the linear model."""
-
-        def process_element(_, x):
-            out = self.linear(x)
-            return None, out
-
-        _, outs = jax.lax.scan(process_element, None, xs)
-        return outs
+        return eqx.filter_vmap(self.linear)(xs)
 
 
 class GRURNN(eqx.Module):
