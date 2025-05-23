@@ -97,6 +97,44 @@ def test_generate(z1r: HiddenMarkovModel):
     assert final_observations.shape == (batch_size, sequence_len)
 
 
+def test_generate_with_intermediate_states(z1r: HiddenMarkovModel):
+    batch_size = 4
+    sequence_len = 10
+
+    initial_states = jnp.repeat(z1r.normalizing_eigenvector[None, :], batch_size, axis=0)
+    keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
+    intermediate_states, intermediate_observations = z1r.generate(initial_states, keys, sequence_len, True)
+    assert intermediate_states.shape == (batch_size, sequence_len, z1r.num_states)
+    assert intermediate_observations.shape == (batch_size, sequence_len)
+    last_intermediate_states = intermediate_states[:, -1, :]
+
+    final_states, final_observations = z1r.generate(last_intermediate_states, keys, sequence_len, True)
+    assert final_states.shape == (batch_size, sequence_len, z1r.num_states)
+    assert final_observations.shape == (batch_size, sequence_len)
+
+
+def test_generate_with_obs_dist(z1r: HiddenMarkovModel):
+    batch_size = 4
+    sequence_len = 10
+
+    initial_states = jnp.repeat(z1r.normalizing_eigenvector[None, :], batch_size, axis=0)
+    keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
+    intermediate_states, intermediate_observations, intermediate_obs_probs = z1r.generate_with_obs_dist(
+        initial_states, keys, sequence_len
+    )
+    assert intermediate_states.shape == (batch_size, sequence_len, z1r.num_states)
+    assert intermediate_observations.shape == (batch_size, sequence_len)
+    assert intermediate_obs_probs.shape == (batch_size, sequence_len, z1r.vocab_size)
+    last_intermediate_states = intermediate_states[:, -1, :]
+
+    final_states, final_observations, final_obs_probs = z1r.generate_with_obs_dist(
+        last_intermediate_states, keys, sequence_len
+    )
+    assert final_states.shape == (batch_size, sequence_len, z1r.num_states)
+    assert final_observations.shape == (batch_size, sequence_len)
+    assert final_obs_probs.shape == (batch_size, sequence_len, z1r.vocab_size)
+
+
 def test_observation_probability_distribution(z1r: HiddenMarkovModel):
     state = jnp.array([0.3, 0.1, 0.6])
     obs_probs = z1r.observation_probability_distribution(state)

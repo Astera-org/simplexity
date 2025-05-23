@@ -68,6 +68,31 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         """The initial state of the model."""
         return cast(State, self._initial_state)
 
+    @eqx.filter_vmap(in_axes=(None, 0, 0, None))
+    def generate_with_obs_dist(
+        self, state: State, key: chex.PRNGKey, sequence_len: int
+    ) -> tuple[State, chex.Array, chex.Array]:
+        """Generate a batch of sequences of observations from the generative process.
+
+        Inputs:
+            state: (batch_size, num_states)
+            key: (batch_size, 2)
+        Returns: tuple of (belief states, observations, observation probabilities) where:
+            states: (batch_size, sequence_len, num_states)
+            obs: (batch_size, sequence_len)
+            obs_probs: (batch_size, sequence_len, vocab_size)
+        """
+        keys = jax.random.split(key, sequence_len)
+
+        def gen_sequences(state: State, key: chex.PRNGKey) -> tuple[State, tuple[State, chex.Array, chex.Array]]:
+            obs_probs = self.observation_probability_distribution(state)
+            obs = jax.random.choice(key, self.vocab_size, p=obs_probs)
+            new_state = self.transition_states(state, obs)
+            return new_state, (state, obs, obs_probs)
+
+        _, (states, obs, obs_probs) = jax.lax.scan(gen_sequences, state, keys)
+        return states, obs, obs_probs
+
     @eqx.filter_jit
     def emit_observation(self, state: State, key: chex.PRNGKey) -> jax.Array:
         """Emit an observation based on the state of the generative process."""
