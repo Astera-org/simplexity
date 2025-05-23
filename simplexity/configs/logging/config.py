@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from omegaconf import DictConfig
-
 
 @dataclass
-class LoggingInstanceConfig(DictConfig):
+class LoggingInstanceConfig:
     """Configuration for the logging instance."""
 
     _target_: Literal[
@@ -41,7 +39,7 @@ class PrintLoggerConfig(LoggingInstanceConfig):
 
 
 @dataclass
-class Config(DictConfig):
+class Config:
     """Base configuration for logging."""
 
     name: Literal["file_logger", "mlflow_logger", "print_logger"]

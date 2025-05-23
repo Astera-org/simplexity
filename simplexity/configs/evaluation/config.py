@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from omegaconf import DictConfig
 
 
 @dataclass
-class Config(DictConfig):
+class Config:
     """Configuration for the validation."""
 
     seed: int

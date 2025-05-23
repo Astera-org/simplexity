@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 
-from omegaconf import DictConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 
 
 @dataclass
-class Config(DictConfig):
+class Config:
     """Configuration for the training process."""
 
     seed: int

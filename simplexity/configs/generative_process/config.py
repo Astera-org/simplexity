@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from omegaconf import DictConfig
 from typing import Literal
 
 ProcessName = Literal[
@@ -22,7 +21,7 @@ ProcessType = ProcessName
 
 
 @dataclass
-class ProcessInstanceConfig(DictConfig):
+class ProcessInstanceConfig:
     """Configuration for the generative process."""
 
     _target_: ProcessBuilder
@@ -115,7 +114,7 @@ class ZeroOneRandomConfig(ProcessInstanceConfig):
 
 
 @dataclass
-class Config(DictConfig):
+class Config:
     """Base configuration for predictive models."""
 
     name: ProcessName
