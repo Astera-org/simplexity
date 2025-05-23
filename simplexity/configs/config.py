@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from omegaconf import DictConfig
 
 from simplexity.configs.evaluation.config import (
     Config as ValidationConfig,
@@ -16,7 +17,7 @@ from simplexity.configs.training.config import validate_config as validate_train
 
 
 @dataclass
-class Config:
+class Config(DictConfig):
     """Configuration for the experiment."""
 
     training_data_generator: DataGeneratorConfig

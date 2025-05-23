@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from omegaconf import DictConfig
+
 
 @dataclass
-class PersistenceInstanceConfig:
+class PersistenceInstanceConfig(DictConfig):
     """Configuration for the persistence instance."""
 
     _target_: Literal[
@@ -37,7 +39,7 @@ class S3PersisterConfig(PersistenceInstanceConfig):
 
 
 @dataclass
-class Config:
+class Config(DictConfig):
     """Base configuration for persistence."""
 
     name: Literal["local_equinox_persister", "local_penzai_persister", "s3_persister"]

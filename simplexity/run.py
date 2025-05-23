@@ -1,5 +1,4 @@
 import hydra
-from omegaconf import DictConfig
 
 from simplexity.configs.config import Config, validate_config
 from simplexity.generative_processes.generative_process import GenerativeProcess
@@ -13,7 +12,6 @@ from simplexity.utils.hydra import typed_instantiate
 @hydra.main(config_path="configs", config_name="train_model.yaml", version_base="1.2")
 def train_model(cfg: Config) -> float:
     """Train a model."""
-    assert isinstance(cfg, DictConfig)
     validate_config(cfg)
 
     if cfg.logging:

@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from omegaconf import DictConfig
+
 TARGETS = Literal["simplexity.predictive_models.gru_rnn.build_gru_rnn"]
 
 
 @dataclass
-class ModelInstanceConfig:
+class ModelInstanceConfig(DictConfig):
     """Configuration for the model instance."""
 
     _target_: TARGETS
@@ -23,7 +25,7 @@ class GRURNNConfig(ModelInstanceConfig):
 
 
 @dataclass
-class Config:
+class Config(DictConfig):
     """Base configuration for predictive models."""
 
     name: str
