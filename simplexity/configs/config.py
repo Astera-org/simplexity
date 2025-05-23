@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+
 from omegaconf import DictConfig
 
 from simplexity.configs.evaluation.config import (
