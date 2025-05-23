@@ -119,7 +119,7 @@ def test_build_nonergodic_hidden_markov_model():
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["coin", "coin"],
         process_kwargs=[{"p": 0.6}, {"p": 0.3}],
-        mixture_weights=jnp.array([0.8, 0.2]),
+        process_weights=jnp.array([0.8, 0.2]),
         vocab_maps=[[0, 1], [0, 2]],
         add_bos_token=False,
     )
@@ -151,7 +151,7 @@ def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["mr_name", "mr_name"],
         process_kwargs=[kwargs, kwargs],
-        mixture_weights=jnp.array([0.8, 0.2]),
+        process_weights=jnp.array([0.8, 0.2]),
         vocab_maps=[[0, 1, 2, 3], [0, 1, 2, 4]],
         add_bos_token=False,
     )
@@ -165,7 +165,7 @@ def test_build_nonergodic_hidden_markov_model_bos():
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["coin", "coin"],
         process_kwargs=[{"p": 0.6}, {"p": 0.3}],
-        mixture_weights=jnp.array([0.8, 0.2]),
+        process_weights=jnp.array([0.8, 0.2]),
         vocab_maps=[[0, 1], [0, 2]],
         add_bos_token=True,
     )

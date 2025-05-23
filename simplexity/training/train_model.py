@@ -1,46 +1,44 @@
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optax
-from penzai import pz
-from penzai.core.named_axes import NamedArray
 from penzai.nn.layer import Layer as PenzaiModel
-from penzai.toolshed import basic_training
 from penzai.toolshed.basic_training import InternalTrainerState
+from penzai.toolshed.basic_training import StatefulTrainer as PenzaiTrainer
 
 from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.evaluation.evaluate_penzai_model import evaluate
+from simplexity.evaluation.evaluate_model import evaluate
+from simplexity.evaluation.metric_functions import cross_entropy_fn
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
+from simplexity.predictive_models.predictive_model import PredictiveModel
+from simplexity.training.equinox_trainer import EquinoxTrainer
+from simplexity.utils.equinox import vmap_model
 from simplexity.utils.hydra import typed_instantiate
+from simplexity.utils.penzai import use_penzai_model
 
 
 def loss_fn(
-    model: PenzaiModel,
+    model: PredictiveModel,
     state: InternalTrainerState | None,
     rng: chex.PRNGKey,
     inputs: jax.Array,
     labels: jax.Array,
     **kwargs,
 ) -> tuple[jax.Array, InternalTrainerState | None, dict[str, jax.Array]]:
-    """Cross entropy loss for a penzai model.
-
-    https://penzai.readthedocs.io/en/v0.2.1/_autosummary/leaf/penzai.toolshed.basic_training.LossFunction.html
-    """
-    named_inputs = pz.nx.wrap(inputs, "batch", "seq")
-    named_logits = model(named_inputs)
-    assert isinstance(named_logits, NamedArray)
-    logits = named_logits.unwrap("batch", "seq", "vocabulary")
-    losses = optax.softmax_cross_entropy_with_integer_labels(logits, labels)
+    """Cross entropy loss."""
+    logits = model(inputs)
+    losses = cross_entropy_fn(logits, labels)
     loss = jnp.mean(losses)
     return loss, state, {"loss": loss}
 
 
 def train(
-    model: PenzaiModel,
+    model: PredictiveModel,
     training_cfg: TrainConfig,
     training_data_generator: GenerativeProcess,
     logger: Logger | None = None,
@@ -51,18 +49,40 @@ def train(
     training_eos_token: int | None = None,
     validation_bos_token: int | None = None,
     validation_eos_token: int | None = None,
-) -> tuple[PenzaiModel, float]:
+) -> tuple[PredictiveModel, float]:
     """Train a predictive model on a generative process."""
     key = jax.random.PRNGKey(training_cfg.seed)
 
+    def get_model():
+        return model
+
     key, trainer_key = jax.random.split(key)
     optimizer = typed_instantiate(training_cfg.optimizer.instance, optax.GradientTransformation)
-    trainer = basic_training.StatefulTrainer.build(
-        root_rng=trainer_key,
-        model=model,
-        optimizer_def=optimizer,
-        loss_fn=loss_fn,
-    )
+    if isinstance(model, PenzaiModel):
+        trainer = PenzaiTrainer.build(
+            root_rng=trainer_key,
+            model=model,
+            optimizer_def=optimizer,
+            loss_fn=use_penzai_model(loss_fn),
+        )
+
+        validate = use_penzai_model(evaluate)
+    elif isinstance(model, eqx.Module):
+        trainer = EquinoxTrainer.build(
+            root_rng=trainer_key,
+            model=model,
+            optimizer_def=optimizer,
+            loss_fn=vmap_model(loss_fn),
+        )
+
+        def get_trainer_model():
+            return trainer.model.value
+
+        get_model = get_trainer_model
+
+        validate = vmap_model(evaluate)
+    else:
+        raise ValueError(f"Unknown model type: {type(model)}")
 
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
@@ -81,20 +101,25 @@ def train(
         )
         metrics = trainer.step(inputs=inputs, labels=labels)
         if logger:
-            if step % training_cfg.log_every == 0:
+            if training_cfg.log_every and step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)
-            if validation_cfg and validation_data_generator and step % training_cfg.validate_every == 0:
-                validation_metrics = evaluate(
-                    model,
-                    validation_cfg,
-                    validation_data_generator,
+            if (
+                validation_cfg
+                and validation_data_generator
+                and training_cfg.validate_every
+                and step % training_cfg.validate_every == 0
+            ):
+                validation_metrics = validate(
+                    model=get_model(),
+                    cfg=validation_cfg,
+                    data_generator=validation_data_generator,
                     bos_token=validation_bos_token,
                     eos_token=validation_eos_token,
                 )
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
-        if persister and step % training_cfg.checkpoint_every == 0:
-            persister.save_weights(model, step)
+        if persister and training_cfg.checkpoint_every and step % training_cfg.checkpoint_every == 0:
+            persister.save_weights(get_model(), step)
 
     loss = float(metrics["loss"])
-    return model, loss
+    return get_model(), loss

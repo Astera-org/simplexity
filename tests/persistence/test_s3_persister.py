@@ -12,7 +12,7 @@ from tests.persistence.s3_mocks import MockBoto3Session, MockS3Client
 
 
 def get_model(seed: int = 0) -> GRURNN:
-    return GRURNN(in_size=1, out_size=2, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
+    return GRURNN(vocab_size=2, embedding_size=4, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
 
 
 def test_s3_persister(tmp_path: Path):

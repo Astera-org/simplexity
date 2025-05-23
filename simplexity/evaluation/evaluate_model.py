@@ -1,36 +1,31 @@
 from collections import defaultdict
+from collections.abc import Iterable
 
 import jax
 import jax.numpy as jnp
-from penzai import pz
-from penzai.core.named_axes import NamedArray
-from penzai.nn.layer import Layer
 
 from simplexity.configs.evaluation.config import Config
-from simplexity.evaluation.metric_functions import accuracy_fn, loss_fn
+from simplexity.evaluation.metric_functions import METRIC_FUNCTIONS
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
+from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
-def evaluation_step(model: Layer, inputs: jax.Array, labels: jax.Array) -> dict[str, jax.Array]:
-    """Cross entropy loss for a penzai model.
-
-    https://penzai.readthedocs.io/en/v0.2.1/_autosummary/leaf/penzai.toolshed.basic_training.LossFunction.html
-    """
-    named_inputs = pz.nx.wrap(inputs, "batch", "seq")
-    named_logits = model(named_inputs)
-    assert isinstance(named_logits, NamedArray)
-    logits = named_logits.unwrap("batch", "seq", "vocabulary")
-    token_losses = loss_fn(logits, labels)
-    mean_batch_loss = jnp.mean(token_losses)
-    token_accuracies = accuracy_fn(logits, labels)
-    mean_batch_accuracy = jnp.mean(token_accuracies)
-    return {"loss": mean_batch_loss, "accuracy": mean_batch_accuracy}
+def evaluation_step(
+    model: PredictiveModel, inputs: jax.Array, labels: jax.Array, metric_keys: Iterable[str] = ("loss", "accuracy")
+) -> dict[str, jax.Array]:
+    """Cross entropy loss for a penzai model."""
+    logits = model(inputs)
+    metrics = {}
+    for metric_key in metric_keys:
+        metric_values = METRIC_FUNCTIONS[metric_key](logits, labels)
+        metrics[metric_key] = jnp.mean(metric_values)
+    return metrics
 
 
 def evaluate(
-    model: Layer,
+    model: PredictiveModel,
     cfg: Config,
     data_generator: GenerativeProcess,
     logger: Logger | None = None,
@@ -58,7 +53,7 @@ def evaluate(
         step_metrics = evaluation_step(model, inputs, labels)
         for metric_name, metric_value in step_metrics.items():
             metrics[metric_name] += metric_value
-        if logger and step % cfg.log_every == 0:
+        if logger and cfg.log_every and step % cfg.log_every == 0:
             logger.log_metrics(step, metrics)
 
     return {k: v / cfg.num_steps for k, v in metrics.items()}
