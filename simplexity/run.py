@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+
 import hydra
 
 from simplexity.configs.config import Config, validate_config
@@ -35,24 +37,18 @@ def train_model(cfg: Config) -> float:
     vocab_size = training_data_generator.vocab_size
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, vocab_size=vocab_size)
 
-    if cfg.persistence:
-        with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
+    persister_context = (
+        typed_instantiate(cfg.persistence.instance, ModelPersister) if cfg.persistence else nullcontext()
+    )
+
+    with persister_context as persister:
+        if isinstance(persister, ModelPersister):
             if cfg.predictive_model.load_checkpoint_step:
                 model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_step)
-            _, loss = train(
-                model,
-                cfg.training,
-                training_data_generator,
-                logger,
-                cfg.validation,
-                validation_data_generator,
-                persister,
-                training_bos_token=cfg.training_data_generator.bos_token,
-                training_eos_token=cfg.training_data_generator.eos_token,
-                validation_bos_token=validation_bos_token,
-                validation_eos_token=validation_eos_token,
-            )
-    else:
+            train_persister = persister
+        else:
+            train_persister = None
+
         _, loss = train(
             model,
             cfg.training,
@@ -60,7 +56,7 @@ def train_model(cfg: Config) -> float:
             logger,
             cfg.validation,
             validation_data_generator,
-            None,
+            train_persister,
             training_bos_token=cfg.training_data_generator.bos_token,
             training_eos_token=cfg.training_data_generator.eos_token,
             validation_bos_token=validation_bos_token,
