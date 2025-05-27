@@ -80,6 +80,12 @@ def train(
     opt_state = optimizer.init(params)
     opt_update = eqx.filter_jit(optimizer.update)
 
+    vocab_size = training_data_generator.vocab_size
+    if training_bos_token:
+        vocab_size += 1
+    if training_eos_token:
+        vocab_size += 1
+
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
     if training_state_sampler:
@@ -105,7 +111,7 @@ def train(
             bos_token=training_bos_token,
             eos_token=training_eos_token,
         )
-        inputs = jax.nn.one_hot(inputs, training_data_generator.vocab_size)
+        inputs = jax.nn.one_hot(inputs, vocab_size)
         model, opt_state, metrics = training_step(model, opt_state, inputs, labels, opt_update)
         if logger:
             if step % training_cfg.log_every == 0:
