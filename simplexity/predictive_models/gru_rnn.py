@@ -26,6 +26,19 @@ class GRUFn(eqx.Module):
         return outs
 
 
+class LayerNormFn(eqx.Module):
+    """Apply a layer norm to each element of the input sequence."""
+
+    layer_norm: eqx.nn.LayerNorm
+
+    def __init__(self, in_size: int):
+        self.layer_norm = eqx.nn.LayerNorm(in_size)
+
+    def __call__(self, xs: jax.Array) -> jax.Array:
+        """Forward pass of the layer norm."""
+        return eqx.filter_vmap(self.layer_norm)(xs)
+
+
 class LinearFn(eqx.Module):
     """Apply a linear model to each element of the input sequence."""
 
@@ -52,7 +65,15 @@ class GRURNN(eqx.Module):
     out_size: int = eqx.field(static=True)
     layers: eqx.nn.Sequential
 
-    def __init__(self, in_size: int, out_size: int, hidden_sizes: Sequence[int], *, key: chex.PRNGKey):
+    def __init__(
+        self,
+        in_size: int,
+        out_size: int,
+        hidden_sizes: Sequence[int],
+        *,
+        key: chex.PRNGKey,
+        use_layer_norm: bool = False,
+    ):
         self.in_size = in_size
         self.out_size = out_size
 
@@ -64,6 +85,10 @@ class GRURNN(eqx.Module):
             gru_fn = GRUFn(in_size, hidden_size, cell_key)
             gru_layer = eqx.nn.Lambda(gru_fn)
             layers.append(gru_layer)
+            if use_layer_norm:
+                norm_fn = LayerNormFn(hidden_size)
+                norm_layer = eqx.nn.Lambda(norm_fn)
+                layers.append(norm_layer)
             in_size = hidden_size
         linear_fn = LinearFn(in_size, out_size, linear_key)
         linear_layer = eqx.nn.Lambda(linear_fn)
@@ -75,8 +100,10 @@ class GRURNN(eqx.Module):
         return self.layers(xs)
 
 
-def build_gru_rnn(vocab_size: int, num_layers: int, hidden_size: int, seed: int) -> GRURNN:
+def build_gru_rnn(
+    vocab_size: int, num_layers: int, hidden_size: int, seed: int, use_layer_norm: bool = False
+) -> GRURNN:
     """Build a GRU RNN model."""
     hidden_sizes = [hidden_size] * num_layers
     key = jax.random.PRNGKey(seed)
-    return GRURNN(vocab_size, vocab_size, hidden_sizes, key=key)
+    return GRURNN(vocab_size, vocab_size, hidden_sizes, key=key, use_layer_norm=use_layer_norm)
