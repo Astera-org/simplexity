@@ -1,0 +1,47 @@
+# Template configuration file for research experiments
+# This shows how to structure your Hydra configs for Simplexity extensions
+
+defaults:
+  - _self_
+  # Your custom component configs
+  - your_component: default
+  
+  # Reuse existing Simplexity configs
+  - generative_process@training_data_generator: your_process_name
+  - generative_process@validation_data_generator: your_process_name
+  - predictive_model: small_transformer
+  - persistence: local_penzai_persister
+  - logging: mlflow_logger
+  - training: medium
+  - evaluation@validation: small
+  
+  # Optional: Enable hyperparameter sweeping
+  # - override hydra/sweeper: optuna
+
+# Experiment configuration
+seed: 0
+experiment_name: ${predictive_model.name}_${training_data_generator.name}_your_experiment
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}
+
+# Override specific parameters if needed
+training:
+  num_steps: 1000
+  batch_size: 32
+  sequence_len: 100
+
+# Hydra configuration
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  
+  # Uncomment for hyperparameter tuning
+  # sweeper:
+  #   direction: minimize
+  #   n_trials: 100
+  #   sampler:
+  #     _target_: optuna.samplers.TPESampler
+  #     seed: ${seed}
+  #   params:
+  #     training.optimizer.instance.learning_rate: tag(log, interval(1e-4, 1e-1))
+  #     training.batch_size: choice(16, 32, 64, 128)
+  #     your_component.instance.param2: interval(0.1, 0.9) 
