@@ -1,11 +1,6 @@
 ---
-description: 
+description: Guides the creation of a Product Requirements Document (PRD) for new features or experiments.
 globs: 
-alwaysApply: false
----
----
-description:
-globs:
 alwaysApply: false
 ---
 # Rule: Generating a Product Requirements Document (PRD)

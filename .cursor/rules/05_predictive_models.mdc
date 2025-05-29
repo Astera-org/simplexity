@@ -1,5 +1,5 @@
 ---
-description: Model architecture patterns, PredictiveModel protocol, and external library integration
+description: Model architecture patterns, PredictiveModel protocol, and external library integration. Usually neural networks
 globs: 
 alwaysApply: false
 ---
