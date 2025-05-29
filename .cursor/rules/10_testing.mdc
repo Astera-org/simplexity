@@ -1,0 +1,493 @@
+---
+description: JAX testing patterns, test structure, fixtures, and testing best practices
+keywords: [testing, JAX testing, fixtures, golden tests, property testing, pytest]
+use_when: Writing tests, understanding test patterns, debugging test issues
+load_priority: development
+---
+# Testing Patterns
+
+Simplexity uses pytest for testing with specific patterns for JAX-based code.
+
+## Test Structure
+
+The test directory mirrors the source structure:
+
+```
+tests/
+├── configs/           # Configuration tests
+├── data_structures/   # Data structure tests
+├── evaluation/        # Evaluation function tests
+├── generative_processes/  # Generator tests
+│   └── goldens/       # Golden test data
+├── logging/          # Logger tests
+├── persistence/      # Persistence tests
+├── predictive_models/    # Model tests
+├── training/         # Training tests
+├── utils/           # Utility tests
+└── assertions.py    # Custom assertions
+```
+
+## Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run specific test file
+uv run pytest tests/generative_processes/test_hmm.py
+
+# Run with coverage
+uv run pytest --cov=simplexity --cov-report=html
+
+# Run specific test
+uv run pytest -k "test_hmm_generation"
+
+# Verbose output
+uv run pytest -v
+
+# Show print statements
+uv run pytest -s
+```
+
+## Core Testing Utilities
+
+### Custom Assertions
+
+```python
+# tests/assertions.py
+import jax.numpy as jnp
+import numpy as np
+
+def assert_array_equal(actual, expected, msg=""):
+    """Assert arrays are equal with helpful error message."""
+    np.testing.assert_array_equal(actual, expected, err_msg=msg)
+
+def assert_array_close(actual, expected, rtol=1e-5, atol=1e-8):
+    """Assert arrays are close within tolerance."""
+    np.testing.assert_allclose(actual, expected, rtol=rtol, atol=atol)
+
+def assert_is_probability_distribution(arr, axis=None):
+    """Assert array represents valid probability distribution."""
+    assert jnp.all(arr >= 0), "Probabilities must be non-negative"
+    assert jnp.all(arr <= 1), "Probabilities must be <= 1"
+    if axis is not None:
+        assert jnp.allclose(jnp.sum(arr, axis=axis), 1.0), "Probabilities must sum to 1"
+```
+
+## Testing Patterns
+
+### 1. Testing JAX Functions
+
+```python
+import jax
+import jax.numpy as jnp
+import pytest
+
+class TestJAXFunction:
+    def test_pure_function(self):
+        """Test JAX pure functions."""
+        def my_function(x):
+            return jnp.sum(x ** 2)
+        
+        # Test basic functionality
+        x = jnp.array([1., 2., 3.])
+        result = my_function(x)
+        assert_array_close(result, 14.0)
+        
+        # Test gradients
+        grad_fn = jax.grad(my_function)
+        grads = grad_fn(x)
+        assert_array_close(grads, 2 * x)
+        
+        # Test JIT compilation
+        jit_fn = jax.jit(my_function)
+        jit_result = jit_fn(x)
+        assert_array_close(jit_result, result)
+    
+    def test_vmap(self):
+        """Test vectorized functions."""
+        def single_item(x):
+            return x ** 2
+        
+        batched_fn = jax.vmap(single_item)
+        
+        # Test batched execution
+        batch = jnp.array([[1., 2.], [3., 4.]])
+        result = batched_fn(batch)
+        expected = jnp.array([[1., 4.], [9., 16.]])
+        assert_array_close(result, expected)
+```
+
+### 2. Testing Generative Processes
+
+```python
+class TestGenerativeProcess:
+    @pytest.fixture
+    def simple_hmm(self):
+        """Create a simple HMM for testing."""
+        return HiddenMarkovModel(
+            transition_matrix=jnp.array([[0.9, 0.1], [0.1, 0.9]]),
+            emission_matrix=jnp.array([[0.8, 0.2], [0.2, 0.8]]),
+            initial_distribution=jnp.array([0.5, 0.5])
+        )
+    
+    def test_generation(self, simple_hmm):
+        """Test sequence generation."""
+        key = jax.random.PRNGKey(42)
+        state = simple_hmm.initial_state
+        
+        # Generate sequence
+        final_state, observations = simple_hmm.generate(
+            state, key, sequence_len=100, return_all_states=False
+        )
+        
+        # Check outputs
+        assert observations.shape == (100,)
+        assert jnp.all((observations >= 0) & (observations < 2))
+        assert_is_probability_distribution(final_state)
+    
+    def test_state_evolution(self, simple_hmm):
+        """Test state transition dynamics."""
+        state = simple_hmm.initial_state
+        
+        # Transition with observation 0
+        new_state = simple_hmm.transition_states(state, 0)
+        
+        # Check Bayesian update
+        expected = jnp.array([0.8, 0.2]) * jnp.array([0.5, 0.5])
+        expected = expected / jnp.sum(expected)
+        expected = expected @ simple_hmm.transition_matrix
+        
+        assert_array_close(new_state, expected)
+```
+
+### 3. Testing Models
+
+```python
+class TestPredictiveModel:
+    @pytest.fixture
+    def model(self):
+        """Create model for testing."""
+        return create_gru_rnn(vocab_size=10, hidden_size=32, num_layers=2)
+    
+    def test_model_output_shape(self, model):
+        """Test model produces correct output shape."""
+        batch_size, seq_len = 4, 20
+        inputs = jax.random.randint(
+            jax.random.PRNGKey(0), 
+            (batch_size, seq_len), 
+            0, 10
+        )
+        
+        outputs = model(inputs)
+        
+        assert outputs.shape == (batch_size, seq_len, 10)
+        assert outputs.dtype == jnp.float32
+    
+    def test_model_protocol(self, model):
+        """Test model implements protocol correctly."""
+        from simplexity.predictive_models import PredictiveModel
+        
+        assert isinstance(model, PredictiveModel)
+    
+    @pytest.mark.parametrize("batch_size", [1, 4, 16])
+    def test_batch_sizes(self, model, batch_size):
+        """Test model handles different batch sizes."""
+        seq_len = 10
+        inputs = jnp.ones((batch_size, seq_len), dtype=jnp.int32)
+        
+        outputs = model(inputs)
+        assert outputs.shape[0] == batch_size
+```
+
+### 4. Testing Training
+
+```python
+class TestTraining:
+    def test_training_step(self):
+        """Test single training step."""
+        # Setup
+        model = create_simple_model(vocab_size=2)
+        optimizer = optax.adam(1e-3)
+        
+        # Partition model
+        params, static = eqx.partition(model, eqx.is_array)
+        opt_state = optimizer.init(params)
+        
+        # Generate data
+        observations = jnp.array([[0, 1, 0, 1, 0]])
+        
+        # Training step
+        def loss_fn(params):
+            model = eqx.combine(params, static)
+            logits = model(observations[:, :-1])
+            targets = observations[:, 1:]
+            return optax.softmax_cross_entropy_with_integer_labels(
+                logits, targets
+            ).mean()
+        
+        loss, grads = eqx.filter_value_and_grad(loss_fn)(params)
+        updates, new_opt_state = optimizer.update(grads, opt_state)
+        new_params = optax.apply_updates(params, updates)
+        
+        # Verify
+        assert not jnp.isnan(loss)
+        assert loss > 0
+        # Check parameters updated
+        assert not jax.tree_util.tree_all(
+            jax.tree_map(jnp.array_equal, params, new_params)
+        )
+```
+
+### 5. Testing Configuration
+
+```python
+class TestConfiguration:
+    def test_config_instantiation(self):
+        """Test Hydra config instantiation."""
+        from hydra import compose, initialize
+        from simplexity.utils.hydra import typed_instantiate
+        
+        with initialize(config_path="../simplexity/configs"):
+            cfg = compose(config_name="train_model.yaml")
+            
+            # Test generator instantiation
+            generator = typed_instantiate(
+                cfg.training_data_generator.instance,
+                GenerativeProcess
+            )
+            assert isinstance(generator, GenerativeProcess)
+            
+            # Test model instantiation
+            model = typed_instantiate(
+                cfg.predictive_model.instance,
+                PredictiveModel,
+                vocab_size=generator.vocab_size
+            )
+            assert isinstance(model, PredictiveModel)
+    
+    def test_config_overrides(self):
+        """Test configuration overrides."""
+        with initialize(config_path="../simplexity/configs"):
+            cfg = compose(
+                config_name="train_model.yaml",
+                overrides=["training.num_epochs=100", "seed=123"]
+            )
+            
+            assert cfg.training.num_epochs == 100
+            assert cfg.seed == 123
+```
+
+### 6. Golden Tests
+
+```python
+class TestGoldenData:
+    def test_hmm_golden(self):
+        """Test HMM against golden data."""
+        # Load golden data
+        golden_path = Path(__file__).parent / "goldens" / "hmm_test.npz"
+        golden_data = np.load(golden_path)
+        
+        # Create HMM with same parameters
+        hmm = HiddenMarkovModel(
+            transition_matrix=golden_data["transition_matrix"],
+            emission_matrix=golden_data["emission_matrix"],
+            initial_distribution=golden_data["initial_distribution"]
+        )
+        
+        # Generate with same seed
+        key = jax.random.PRNGKey(golden_data["seed"])
+        state = hmm.initial_state
+        _, observations = hmm.generate(state, key, 100, False)
+        
+        # Compare
+        assert_array_equal(observations, golden_data["observations"])
+```
+
+## Fixtures and Utilities
+
+### Common Fixtures
+
+```python
+# conftest.py
+import pytest
+import jax
+
+@pytest.fixture
+def random_key():
+    """Provide random key for tests."""
+    return jax.random.PRNGKey(42)
+
+@pytest.fixture
+def simple_generator():
+    """Provide simple generator for testing."""
+    return create_test_generator()
+
+@pytest.fixture(scope="session")
+def temp_dir(tmp_path_factory):
+    """Provide temporary directory for test outputs."""
+    return tmp_path_factory.mktemp("test_outputs")
+
+@pytest.fixture
+def mock_logger():
+    """Provide mock logger for testing."""
+    from unittest.mock import MagicMock
+    logger = MagicMock()
+    logger.log_metrics = MagicMock()
+    logger.log_params = MagicMock()
+    return logger
+```
+
+### Test Helpers
+
+```python
+def create_test_batch(batch_size=4, seq_len=10, vocab_size=2, key=None):
+    """Create test batch of sequences."""
+    if key is None:
+        key = jax.random.PRNGKey(0)
+    
+    return jax.random.randint(
+        key, (batch_size, seq_len), 0, vocab_size
+    )
+
+def create_test_model(vocab_size=2, hidden_size=16):
+    """Create small model for testing."""
+    return eqx.nn.Sequential([
+        eqx.nn.Embedding(vocab_size, hidden_size),
+        eqx.nn.Linear(hidden_size, vocab_size),
+    ])
+
+def assert_model_improves(model, data, optimizer, num_steps=10):
+    """Assert model loss decreases with training."""
+    initial_loss = compute_loss(model, data)
+    
+    # Train for a few steps
+    trained_model = train_steps(model, data, optimizer, num_steps)
+    
+    final_loss = compute_loss(trained_model, data)
+    assert final_loss < initial_loss, "Model should improve with training"
+```
+
+## Testing Best Practices
+
+### 1. Test Isolation
+
+```python
+def test_isolated_function():
+    """Each test should be independent."""
+    # Don't rely on global state
+    key = jax.random.PRNGKey(42)  # Always use fixed seed
+    
+    # Create all needed objects
+    model = create_model()
+    data = generate_data(key)
+    
+    # Test specific functionality
+    result = model(data)
+    assert result is not None
+```
+
+### 2. Parametrized Tests
+
+```python
+@pytest.mark.parametrize("num_states,vocab_size", [
+    (2, 2),
+    (4, 3),
+    (8, 10),
+])
+def test_multiple_configurations(num_states, vocab_size):
+    """Test with multiple parameter combinations."""
+    process = create_process(num_states, vocab_size)
+    assert process.vocab_size == vocab_size
+```
+
+### 3. Property-Based Testing
+
+```python
+from hypothesis import given, strategies as st
+
+@given(
+    batch_size=st.integers(1, 10),
+    seq_len=st.integers(5, 50),
+)
+def test_model_properties(batch_size, seq_len):
+    """Test model properties hold for various inputs."""
+    model = create_model()
+    inputs = jnp.ones((batch_size, seq_len), dtype=jnp.int32)
+    
+    outputs = model(inputs)
+    
+    # Properties that should always hold
+    assert outputs.shape == (batch_size, seq_len, model.vocab_size)
+    assert not jnp.any(jnp.isnan(outputs))
+```
+
+### 4. Performance Tests
+
+```python
+@pytest.mark.slow
+def test_performance():
+    """Test performance requirements."""
+    import time
+    
+    model = create_model()
+    data = create_large_batch(1000, 100)
+    
+    # Compile
+    jit_model = jax.jit(model)
+    _ = jit_model(data[:1])  # Warmup
+    
+    # Time execution
+    start = time.time()
+    _ = jit_model(data)
+    duration = time.time() - start
+    
+    assert duration < 1.0, f"Model too slow: {duration:.2f}s"
+```
+
+### 5. Error Testing
+
+```python
+def test_error_handling():
+    """Test error conditions."""
+    model = create_model(vocab_size=10)
+    
+    # Test invalid input
+    with pytest.raises(ValueError):
+        model(jnp.array([]))  # Empty input
+    
+    # Test out of vocab
+    with pytest.raises(IndexError):
+        model(jnp.array([[15]]))  # Index > vocab_size
+```
+
+## Debugging Tests
+
+### Enable Debug Mode
+
+```python
+# Run with JAX debug mode
+import os
+os.environ["JAX_DEBUG_NANS"] = "1"
+os.environ["JAX_DEBUG_INFS"] = "1"
+
+# Or in test
+def test_with_debug():
+    with jax.debug_nans(True):
+        result = potentially_nan_function()
+```
+
+### Test Utilities
+
+```python
+def debug_test_failure(model, data, expected):
+    """Helper to debug test failures."""
+    actual = model(data)
+    
+    print(f"Input shape: {data.shape}")
+    print(f"Output shape: {actual.shape}")
+    print(f"Expected shape: {expected.shape}")
+    print(f"Max difference: {jnp.max(jnp.abs(actual - expected))}")
+    print(f"Actual:\n{actual}")
+    print(f"Expected:\n{expected}")
+```

@@ -1,0 +1,243 @@
+---
+description: Hydra configuration system patterns, best practices, and instantiation strategies
+keywords: [hydra, configuration, YAML, instantiation, overrides, structured configs]
+use_when: Adding new configs, modifying experiment settings, working with configuration files
+load_priority: medium
+---
+# Hydra Configuration System
+
+Simplexity uses Hydra for configuration management, enabling composable, type-safe, and overrideable experiment configurations.
+
+## Configuration Structure
+
+```
+simplexity/configs/
+├── experiment.yaml          # Multi-run experiment config
+├── train_model.yaml        # Single training run config
+├── config.py              # Structured config classes
+├── generative_process/    # Data generator configs
+├── predictive_model/      # Model architecture configs
+├── training/             # Training loop configs
+├── persistence/          # Checkpoint configs
+├── logging/              # Logger configs
+└── evaluation/           # Evaluation configs
+```
+
+## Key Concepts
+
+### 1. Defaults List
+
+The `defaults` list composes configurations:
+
+```yaml
+defaults:
+  - _self_
+  - generative_process@training_data_generator: mess3
+  - generative_process@validation_data_generator: mess3
+  - predictive_model: gru_rnn
+  - persistence: local_persister
+  - logging: mlflow_logger
+  - training: medium
+```
+
+**Important patterns:**
+- `_self_` controls override order
+- `@` syntax creates nested config groups
+- Names after `:` specify which config file to use
+
+### 2. Instantiation Pattern
+
+Use `_target_` for class instantiation:
+
+```yaml
+instance:
+  _target_: simplexity.generative_processes.MixedStatePresentation
+  epsilon: 0.01
+  num_states: 8
+```
+
+This tells Hydra to call the specified class with given parameters.
+
+### 3. Structured Configs
+
+Define dataclasses in `config.py` for type safety:
+
+```python
+@dataclass
+class PredictiveModelConfig:
+    name: str
+    instance: Any
+    load_checkpoint_step: Optional[int] = None
+```
+
+## Adding New Configurations
+
+### Step 1: Create Config File
+
+Create `simplexity/configs/predictive_model/my_model.yaml`:
+
+```yaml
+name: my_model
+instance:
+  _target_: simplexity.predictive_models.MyModel
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.1
+load_checkpoint_step: null
+```
+
+### Step 2: Update Structured Config
+
+Add to `simplexity/configs/predictive_model/config.py`:
+
+```python
+@dataclass
+class MyModelInstanceConfig:
+    _target_: str = "simplexity.predictive_models.MyModel"
+    hidden_size: int = 128
+    num_layers: int = 2
+    dropout: float = 0.1
+```
+
+### Step 3: Register with Hydra
+
+```python
+cs = ConfigStore.instance()
+cs.store(
+    group="predictive_model",
+    name="my_model",
+    node=PredictiveModelConfig(
+        name="my_model",
+        instance=MyModelInstanceConfig(),
+    ),
+)
+```
+
+## Variable Interpolation
+
+Use `${}` for variable references:
+
+```yaml
+experiment_name: ${predictive_model.name}_${training_data_generator.name}
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}
+```
+
+## Overrides
+
+### Command Line Overrides
+
+```bash
+# Change single parameter
+uv run python simplexity/train_model.py training.num_epochs=100
+
+# Change config selection
+uv run python simplexity/train_model.py predictive_model=transformer
+
+# Multiple overrides
+uv run python simplexity/train_model.py \
+    predictive_model.instance.hidden_size=256 \
+    training.batch_size=64
+```
+
+### Sweep Configuration
+
+For Optuna sweeps in `experiment.yaml`:
+
+```yaml
+hydra:
+  sweeper:
+    params:
+      # Log scale search
+      train.optimizer.instance.learning_rate: tag(log, interval(1e-4, 1e-1))
+      # Discrete choices
+      train.batch_size: choice(16, 32, 64, 128)
+      # Integer interval
+      predictive_model.instance.hidden_size: int(interval(32, 256))
+```
+
+## Best Practices
+
+### 1. Config Naming
+
+- Use descriptive names that indicate purpose
+- Keep consistent naming patterns
+- Example: `small`, `medium`, `large` for training configs
+
+### 2. Parameter Organization
+
+- Group related parameters
+- Use nested structures for clarity
+- Keep defaults reasonable
+
+### 3. Documentation
+
+Add comments in YAML:
+
+```yaml
+# Number of hidden states in the generative process
+num_states: 8
+# Probability of random emission
+epsilon: 0.01
+```
+
+### 4. Type Safety
+
+Always define structured configs:
+- Catches errors early
+- Provides IDE autocomplete
+- Documents expected structure
+
+### 5. Conditional Configuration
+
+Use Hydra's conditional syntax:
+
+```yaml
+persistence:
+  instance:
+    _target_: ${if:${oc.env:USE_S3,false},simplexity.persistence.S3Persister,simplexity.persistence.LocalPersister}
+```
+
+## Common Patterns
+
+### Multi-Environment Setup
+
+```yaml
+# configs/env/local.yaml
+data_path: ./data
+output_dir: ./outputs
+
+# configs/env/cloud.yaml  
+data_path: s3://my-bucket/data
+output_dir: s3://my-bucket/outputs
+```
+
+### Inheritance Pattern
+
+```yaml
+# configs/training/base.yaml
+num_epochs: 10
+batch_size: 32
+
+# configs/training/large.yaml
+defaults:
+  - base
+num_epochs: 100
+batch_size: 128
+```
+
+## Debugging Tips
+
+1. **View composed config**: 
+   ```bash
+   uv run python simplexity/train_model.py --cfg job
+   ```
+
+2. **Check available options**:
+   ```bash
+   uv run python simplexity/train_model.py --help
+   ```
+
+3. **Validate without running**:
+   ```bash
+   uv run python simplexity/train_model.py --cfg job --run false
+   ```

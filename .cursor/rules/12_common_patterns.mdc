@@ -1,0 +1,496 @@
+---
+description: Frequently used patterns, utilities, debugging helpers, and complete pipeline examples
+keywords: [patterns, utilities, debugging, examples, pipelines, helpers]
+use_when: Implementing common functionality, debugging, looking for code examples
+load_priority: reference
+---
+# Common Patterns
+
+This guide covers frequently used patterns and utilities throughout the Simplexity codebase.
+
+## Data Generation Patterns
+
+### Batch Generation
+
+```python
+def generate_batch(
+    generator: GenerativeProcess,
+    batch_size: int,
+    sequence_length: int,
+    key: jax.random.PRNGKey
+) -> tuple[jax.Array, jax.Array]:
+    """Generate a batch of sequences."""
+    # Split key for each sequence
+    keys = jax.random.split(key, batch_size)
+    
+    # Create initial states
+    initial_states = jax.vmap(lambda _: generator.initial_state)(
+        jnp.arange(batch_size)
+    )
+    
+    # Generate sequences
+    states, observations = generator.generate(
+        initial_states,
+        keys,
+        sequence_length,
+        return_all_states=True
+    )
+    
+    return states, observations
+```
+
+### Streaming Data
+
+```python
+def create_data_stream(
+    generator: GenerativeProcess,
+    batch_size: int,
+    sequence_length: int,
+    key: jax.random.PRNGKey
+):
+    """Create infinite stream of batches."""
+    while True:
+        key, subkey = jax.random.split(key)
+        _, observations = generate_batch(
+            generator, batch_size, sequence_length, subkey
+        )
+        yield observations
+```
+
+## Model Patterns
+
+### Model Creation with Validation
+
+```python
+def create_validated_model(
+    model_fn: Callable,
+    vocab_size: int,
+    **kwargs
+) -> PredictiveModel:
+    """Create model with validation."""
+    # Create model
+    model = model_fn(vocab_size=vocab_size, **kwargs)
+    
+    # Validate protocol
+    if not isinstance(model, PredictiveModel):
+        raise TypeError(
+            f"Model must implement PredictiveModel protocol, "
+            f"got {type(model)}"
+        )
+    
+    # Test with dummy input
+    dummy_input = jnp.ones((1, 10), dtype=jnp.int32)
+    try:
+        output = model(dummy_input)
+        assert output.shape == (1, 10, vocab_size)
+    except Exception as e:
+        raise ValueError(f"Model validation failed: {e}")
+    
+    return model
+```
+
+### Model Wrappers
+
+```python
+def add_dropout(model: PredictiveModel, dropout_rate: float = 0.1) -> PredictiveModel:
+    """Add dropout to existing model."""
+    def wrapped_model(x: jax.Array, *, key: Optional[jax.random.PRNGKey] = None) -> jax.Array:
+        logits = model(x)
+        
+        if key is not None:
+            # Apply dropout during training
+            dropout = jax.nn.dropout(logits, dropout_rate, key)
+            return dropout
+        else:
+            # No dropout during inference
+            return logits
+    
+    return wrapped_model
+```
+
+## Training Patterns
+
+### Training with Callbacks
+
+```python
+class TrainingCallback(Protocol):
+    def on_epoch_start(self, epoch: int) -> None: ...
+    def on_epoch_end(self, epoch: int, metrics: Dict[str, float]) -> None: ...
+    def on_batch_end(self, batch: int, loss: float) -> None: ...
+
+def train_with_callbacks(
+    model: PredictiveModel,
+    cfg: TrainingConfig,
+    callbacks: List[TrainingCallback]
+) -> PredictiveModel:
+    """Train with callback support."""
+    for epoch in range(cfg.num_epochs):
+        # Notify epoch start
+        for callback in callbacks:
+            callback.on_epoch_start(epoch)
+        
+        # Training loop
+        epoch_losses = []
+        for batch in range(cfg.batches_per_epoch):
+            # ... training step ...
+            loss = train_step(...)
+            
+            for callback in callbacks:
+                callback.on_batch_end(batch, float(loss))
+            
+            epoch_losses.append(loss)
+        
+        # Notify epoch end
+        metrics = {"loss": np.mean(epoch_losses)}
+        for callback in callbacks:
+            callback.on_epoch_end(epoch, metrics)
+    
+    return model
+```
+
+### Gradient Accumulation
+
+```python
+def train_with_gradient_accumulation(
+    model: PredictiveModel,
+    optimizer: optax.GradientTransformation,
+    data_iterator: Iterator,
+    accumulation_steps: int = 4
+):
+    """Train with gradient accumulation for larger effective batch size."""
+    params, static = eqx.partition(model, eqx.is_array)
+    opt_state = optimizer.init(params)
+    
+    # Initialize accumulated gradients
+    accumulated_grads = jax.tree_map(jnp.zeros_like, params)
+    
+    for step, batch in enumerate(data_iterator):
+        # Compute gradients
+        loss, grads = eqx.filter_value_and_grad(loss_fn)(params, batch)
+        
+        # Accumulate
+        accumulated_grads = jax.tree_map(
+            lambda a, g: a + g / accumulation_steps,
+            accumulated_grads, grads
+        )
+        
+        # Update every accumulation_steps
+        if (step + 1) % accumulation_steps == 0:
+            updates, opt_state = optimizer.update(accumulated_grads, opt_state)
+            params = optax.apply_updates(params, updates)
+            
+            # Reset accumulation
+            accumulated_grads = jax.tree_map(jnp.zeros_like, params)
+    
+    return eqx.combine(params, static)
+```
+
+## Configuration Patterns
+
+### Dynamic Configuration
+
+```python
+def build_config_with_overrides(
+    base_config: str,
+    overrides: Dict[str, Any]
+) -> DictConfig:
+    """Build configuration with programmatic overrides."""
+    from hydra import compose, initialize
+    
+    # Convert dict to list of override strings
+    override_list = [f"{k}={v}" for k, v in overrides.items()]
+    
+    with initialize(config_path="../configs"):
+        cfg = compose(
+            config_name=base_config,
+            overrides=override_list
+        )
+    
+    return cfg
+```
+
+### Config Validation
+
+```python
+def validate_config(cfg: DictConfig) -> None:
+    """Validate configuration consistency."""
+    # Check required fields
+    required = ["training", "predictive_model", "generative_process"]
+    for field in required:
+        if field not in cfg:
+            raise ValueError(f"Missing required config field: {field}")
+    
+    # Check value constraints
+    if cfg.training.batch_size <= 0:
+        raise ValueError("Batch size must be positive")
+    
+    if cfg.training.num_epochs <= 0:
+        raise ValueError("Number of epochs must be positive")
+    
+    # Check compatibility
+    if cfg.training.sequence_length > 1000 and cfg.training.batch_size > 64:
+        warnings.warn(
+            "Large sequence length and batch size may cause OOM"
+        )
+```
+
+## Evaluation Patterns
+
+### Multi-Metric Evaluation
+
+```python
+@dataclass
+class MetricSuite:
+    """Collection of metrics to compute."""
+    metrics: Dict[str, Callable[[jax.Array, jax.Array], jax.Array]]
+    
+    def compute(self, logits: jax.Array, targets: jax.Array) -> Dict[str, float]:
+        """Compute all metrics."""
+        results = {}
+        for name, metric_fn in self.metrics.items():
+            try:
+                value = metric_fn(logits, targets)
+                results[name] = float(value)
+            except Exception as e:
+                print(f"Warning: Failed to compute {name}: {e}")
+                results[name] = float('nan')
+        
+        return results
+
+# Standard metric suite
+STANDARD_METRICS = MetricSuite({
+    "loss": cross_entropy_loss,
+    "accuracy": accuracy,
+    "perplexity": perplexity,
+    "top_5_accuracy": top_k_accuracy(5),
+})
+```
+
+### Evaluation with Caching
+
+```python
+class CachedEvaluator:
+    """Evaluator that caches generated data."""
+    
+    def __init__(self, generator: GenerativeProcess, cfg: EvaluationConfig):
+        self.generator = generator
+        self.cfg = cfg
+        self._cache = None
+        self._cache_key = None
+    
+    def evaluate(self, model: PredictiveModel, cache_key: Any = None) -> Dict[str, float]:
+        # Generate data if not cached or key changed
+        if self._cache is None or cache_key != self._cache_key:
+            self._generate_eval_data()
+            self._cache_key = cache_key
+        
+        # Evaluate on cached data
+        return self._evaluate_on_cache(model)
+    
+    def _generate_eval_data(self):
+        """Generate and cache evaluation data."""
+        key = jax.random.PRNGKey(0)
+        all_obs = []
+        
+        for i in range(self.cfg.num_batches):
+            key, subkey = jax.random.split(key)
+            _, obs = generate_batch(
+                self.generator,
+                self.cfg.batch_size,
+                self.cfg.sequence_length,
+                subkey
+            )
+            all_obs.append(obs)
+        
+        self._cache = jnp.stack(all_obs)
+```
+
+## Persistence Patterns
+
+### Checkpoint Recovery
+
+```python
+def load_latest_checkpoint(
+    persister: ModelPersister,
+    model_template: PredictiveModel,
+    checkpoint_dir: Path
+) -> tuple[PredictiveModel, int]:
+    """Load the latest checkpoint if available."""
+    # Find all checkpoints
+    checkpoints = list(checkpoint_dir.glob("checkpoint_*.eqx"))
+    
+    if not checkpoints:
+        print("No checkpoints found, starting from scratch")
+        return model_template, 0
+    
+    # Get latest by step number
+    latest = max(checkpoints, key=lambda p: int(p.stem.split('_')[1]))
+    step = int(latest.stem.split('_')[1])
+    
+    # Load checkpoint
+    try:
+        model = persister.load_weights(model_template, step)
+        print(f"Resumed from checkpoint at step {step}")
+        return model, step
+    except Exception as e:
+        print(f"Failed to load checkpoint: {e}")
+        return model_template, 0
+```
+
+### Distributed Checkpointing
+
+```python
+def save_sharded_checkpoint(
+    model: PredictiveModel,
+    save_dir: Path,
+    num_shards: int = 4
+) -> None:
+    """Save model in multiple shards for large models."""
+    # Flatten model to list of arrays
+    flat_model, tree_def = jax.tree_flatten(model)
+    
+    # Divide into shards
+    shard_size = len(flat_model) // num_shards
+    
+    for i in range(num_shards):
+        start = i * shard_size
+        end = start + shard_size if i < num_shards - 1 else len(flat_model)
+        
+        shard = flat_model[start:end]
+        shard_path = save_dir / f"shard_{i}.npz"
+        
+        # Save shard
+        np.savez(shard_path, *shard)
+    
+    # Save tree structure
+    with open(save_dir / "tree_def.pkl", "wb") as f:
+        pickle.dump(tree_def, f)
+```
+
+## Utility Patterns
+
+### Safe Array Operations
+
+```python
+def safe_normalize(x: jax.Array, axis: int = -1, epsilon: float = 1e-10) -> jax.Array:
+    """Normalize array safely to avoid division by zero."""
+    norm = jnp.sum(x, axis=axis, keepdims=True)
+    return x / (norm + epsilon)
+
+def safe_log(x: jax.Array, epsilon: float = 1e-10) -> jax.Array:
+    """Compute log safely for positive values."""
+    return jnp.log(x + epsilon)
+
+def safe_softmax(logits: jax.Array, temperature: float = 1.0) -> jax.Array:
+    """Compute softmax with temperature and numerical stability."""
+    scaled_logits = logits / temperature
+    return jax.nn.softmax(scaled_logits)
+```
+
+### Tree Operations
+
+```python
+def tree_stack(trees: List[Any]) -> Any:
+    """Stack list of trees into single tree."""
+    return jax.tree_map(lambda *xs: jnp.stack(xs), *trees)
+
+def tree_mean(trees: List[Any]) -> Any:
+    """Compute mean across list of trees."""
+    stacked = tree_stack(trees)
+    return jax.tree_map(lambda x: jnp.mean(x, axis=0), stacked)
+
+def tree_cosine_similarity(tree1: Any, tree2: Any) -> float:
+    """Compute cosine similarity between two trees."""
+    # Flatten to vectors
+    vec1 = jnp.concatenate([x.flatten() for x in jax.tree_leaves(tree1)])
+    vec2 = jnp.concatenate([x.flatten() for x in jax.tree_leaves(tree2)])
+    
+    # Compute cosine similarity
+    dot_product = jnp.dot(vec1, vec2)
+    norm1 = jnp.linalg.norm(vec1)
+    norm2 = jnp.linalg.norm(vec2)
+    
+    return dot_product / (norm1 * norm2 + 1e-10)
+```
+
+### Debugging Helpers
+
+```python
+def print_tree_summary(tree: Any, name: str = "Tree") -> None:
+    """Print summary of tree structure."""
+    print(f"\n{name} Summary:")
+    print(f"Number of leaves: {len(jax.tree_leaves(tree))}")
+    
+    total_params = sum(x.size for x in jax.tree_leaves(tree) if hasattr(x, 'size'))
+    print(f"Total parameters: {total_params:,}")
+    
+    # Print structure
+    for path, value in jax.tree_flatten_with_path(tree)[0][:5]:  # First 5
+        if hasattr(value, 'shape'):
+            print(f"  {path}: shape={value.shape}, dtype={value.dtype}")
+
+def check_for_nans(tree: Any) -> bool:
+    """Check if tree contains any NaN values."""
+    def has_nan(x):
+        return jnp.any(jnp.isnan(x)) if jnp.issubdtype(x.dtype, jnp.floating) else False
+    
+    nan_found = any(has_nan(x) for x in jax.tree_leaves(tree))
+    
+    if nan_found:
+        print("WARNING: NaN values found in tree!")
+        # Find where
+        for path, value in jax.tree_flatten_with_path(tree)[0]:
+            if has_nan(value):
+                print(f"  NaN at {path}")
+    
+    return nan_found
+```
+
+## Integration Examples
+
+### Complete Training Pipeline
+
+```python
+def run_training_pipeline(
+    config_name: str,
+    overrides: Optional[Dict[str, Any]] = None
+) -> PredictiveModel:
+    """Complete training pipeline with all patterns."""
+    # Build config
+    cfg = build_config_with_overrides(config_name, overrides or {})
+    validate_config(cfg)
+    
+    # Initialize components
+    generator = typed_instantiate(cfg.training_data_generator.instance, GenerativeProcess)
+    model = create_validated_model(
+        model_fn=cfg.predictive_model.instance,
+        vocab_size=generator.vocab_size
+    )
+    
+    # Setup logging
+    logger = typed_instantiate(cfg.logging.instance, Logger)
+    logger.log_config(cfg)
+    
+    # Setup persistence
+    with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
+        # Try to resume
+        model, start_epoch = load_latest_checkpoint(persister, model, cfg.output_dir)
+        
+        # Create callbacks
+        callbacks = [
+            CheckpointCallback(persister, save_every=10),
+            EarlyStoppingCallback(patience=5),
+            MetricCallback(logger),
+        ]
+        
+        # Train
+        model = train_with_callbacks(model, cfg, callbacks)
+    
+    # Final evaluation
+    evaluator = CachedEvaluator(generator, cfg.evaluation)
+    final_metrics = evaluator.evaluate(model)
+    logger.log_metrics(final_metrics)
+    
+    logger.close()
+    return model
+```

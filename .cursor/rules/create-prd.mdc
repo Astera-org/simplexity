@@ -17,8 +17,8 @@ To guide Simplexity in creating a detailed Product Requirements Document (PRD) i
 ## Process
 
 1.  **Receive Initial Prompt:** The user provides a brief description or request for a new feature or experiment.
-2.  **Ask Clarifying Questions:** Before writing the PRD, the AI *must* ask clarifying questions to gather sufficient detail. The goal is to understand the "what" and "why" of the feature, not necessarily the "how" (which the developer will figure out). During this process, you should consider the structure of the codebase as outlined in the documention, see [1.1-Overview.md](mdc:documentation/1.0-Introduction/1.1-Overview.md), and read other sections of the documentation as needed.
-3.  **Generate PRD:** Based on the initial prompt and the user's answers to the clarifying questions, generate a PRD using the structure outlined below. Again, please explcitly reference the documentation, this should be your primary source of information.
+2.  **Ask Clarifying Questions:** Before writing the PRD, the AI *must* ask clarifying questions to gather sufficient detail. The goal is to understand the "what" and "why" of the feature, not necessarily the "how" (which the developer will figure out). During this process, you should consider the structure of the codebase as outlined in the `.cursor/rules/` folder, and read other cursor rules as needed.
+3.  **Generate PRD:** Based on the initial prompt and the user's answers to the clarifying questions, generate a PRD using the structure outlined below. Again, please explicitly reference the cursor rules, this should be your primary source of information.
 4.  **Save PRD:** Save the generated document as `prd-[feature-name].md` inside the `/tasks` directory.
 
 ## Clarifying Questions (Examples)

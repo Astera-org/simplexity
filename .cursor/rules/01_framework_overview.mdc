@@ -1,0 +1,124 @@
+---
+description: High-level architecture, design principles, and core concepts of the Simplexity framework
+globs: 
+alwaysApply: false
+---
+# Simplexity Framework Overview
+
+Simplexity is a JAX-based machine learning experimentation framework for exploring sequence prediction models from a Computational Mechanics perspective.
+
+## Core Technologies
+
+- **JAX**: Primary computation framework for automatic differentiation and JIT compilation
+- **Equinox**: Neural network library built on JAX for defining models
+- **Hydra**: Configuration management system for experiments
+- **MLflow**: Experiment tracking and model registry
+- **Optuna**: Hyperparameter optimization
+- **Penzai**: Alternative model implementation framework (optional)
+
+## Architecture Principles
+
+### 1. Separation of Concerns
+
+The framework cleanly separates:
+- **Data Generation**: `GenerativeProcess` classes that produce sequences
+- **Model Architecture**: `PredictiveModel` implementations
+- **Training Logic**: Separate training functions for different model types
+- **Configuration**: Hydra-based YAML configs for all components
+
+### 2. Protocol-Based Design
+
+Key interfaces use Python protocols:
+```python
+@runtime_checkable
+class PredictiveModel(Protocol):
+    def __call__(self, x: jax.Array, /) -> jax.Array: ...
+```
+
+This allows flexible integration of external libraries (Penzai, Flax, Haiku) without inheritance.
+
+### 3. Functional Programming
+
+Following JAX patterns:
+- Pure functions for transformations
+- Immutable data structures
+- Explicit state management
+- Vectorization via `vmap`
+
+## Project Structure
+
+```
+simplexity/
+├── configs/           # Hydra configuration files
+├── data_structures/   # Core data types
+├── evaluation/        # Model evaluation logic
+├── generative_processes/  # Data generation
+├── logging/          # Experiment tracking
+├── persistence/      # Model checkpointing
+├── predictive_models/    # Model architectures
+├── training/         # Training loops
+├── utils/           # Helper functions
+├── run_experiment.py    # Multi-run entry point
+└── train_model.py      # Single run entry point
+```
+
+## Key Abstractions
+
+### GenerativeProcess
+- Generates sequences based on hidden states
+- Provides ground truth for evaluation
+- Examples: HMMs, Mixed State Presentations
+
+### PredictiveModel
+- Takes sequences, outputs predictions
+- Protocol-based for flexibility
+- Can wrap any callable returning logits
+
+### Training Pipeline
+1. Instantiate components via Hydra
+2. Generate training/validation data
+3. Train model with configured optimizer
+4. Track metrics via logger
+5. Save checkpoints via persister
+
+## Configuration Philosophy
+
+Hydra enables:
+- Composable configurations via `defaults`
+- Override any parameter from CLI
+- Structured config with `_target_` for instantiation
+- Multi-run sweeps for hyperparameter search
+
+Example:
+```yaml
+defaults:
+  - generative_process@training_data_generator: mess3
+  - predictive_model: gru_rnn
+  - training: medium
+```
+
+## Best Practices
+
+1. **Adding Components**: Follow existing patterns in respective directories
+2. **Configuration**: Always use Hydra configs, avoid hardcoding
+3. **Type Safety**: Use type hints and protocols
+4. **Testing**: Mirror source structure in tests/
+5. **Logging**: Use provided logger abstraction
+6. **Checkpointing**: Use persister for model saves
+
+## Common Workflows
+
+### Running Single Experiment
+```bash
+uv run python simplexity/train_model.py
+```
+
+### Hyperparameter Sweep
+```bash
+uv run python simplexity/run_experiment.py --multirun
+```
+
+### Override Configuration
+```bash
+uv run python simplexity/train_model.py predictive_model=transformer training.num_epochs=100
+```

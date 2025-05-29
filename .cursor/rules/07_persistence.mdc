@@ -1,0 +1,421 @@
+---
+description: Model checkpointing, saving/loading, local and S3 storage management
+keywords: [persistence, checkpoints, S3, orbax, storage, model saving]
+use_when: Working with model persistence, S3 integration, checkpoint management
+load_priority: component
+---
+# Persistence & Checkpointing
+
+Simplexity provides flexible model persistence with support for local and S3 storage.
+
+## Core Concepts
+
+### ModelPersister Protocol
+
+All persisters implement this interface:
+
+```python
+class ModelPersister(Protocol):
+    def save_checkpoint(self, model: Any, step: int) -> None:
+        """Save model checkpoint at given step."""
+        
+    def save_weights(self, model: Any, step: int) -> None:
+        """Save only model weights."""
+        
+    def load_checkpoint(self, step: int) -> Any:
+        """Load complete checkpoint."""
+        
+    def load_weights(self, model: Any, step: int) -> Any:
+        """Load weights into existing model."""
+        
+    def __enter__(self) -> "ModelPersister":
+        """Context manager entry."""
+        
+    def __exit__(self, *args) -> None:
+        """Context manager exit."""
+```
+
+### Persister Types
+
+1. **LocalPersister**: Saves to local filesystem
+2. **S3Persister**: Saves to AWS S3
+3. **LocalEquinoxPersister**: Specialized for Equinox models
+4. **LocalPenzaiPersister**: Specialized for Penzai models
+
+## Configuration
+
+### Local Storage
+
+```yaml
+# configs/persistence/local_persister.yaml
+name: local_persister
+instance:
+  _target_: simplexity.persistence.LocalPersister
+  save_dir: ${hydra:runtime.output_dir}/checkpoints
+  model_type: equinox  # or 'penzai'
+```
+
+### S3 Storage
+
+```yaml
+# configs/persistence/s3_persister.yaml
+name: s3_persister
+instance:
+  _target_: simplexity.persistence.S3Persister
+  config_path: ~/.config/simplexity/s3_config.ini
+  model_type: equinox
+```
+
+S3 configuration file (`~/.config/simplexity/s3_config.ini`):
+
+```ini
+[aws]
+profile_name = default
+
+[s3]
+bucket = my-model-bucket
+prefix = experiments/simplexity
+```
+
+## Usage Patterns
+
+### Basic Checkpointing
+
+```python
+# In training loop
+with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
+    for epoch in range(num_epochs):
+        # Training code...
+        
+        # Save checkpoint every N epochs
+        if (epoch + 1) % checkpoint_every == 0:
+            persister.save_checkpoint(model, epoch + 1)
+        
+        # Save weights only (smaller file)
+        if (epoch + 1) % save_weights_every == 0:
+            persister.save_weights(model, epoch + 1)
+```
+
+### Loading Checkpoints
+
+```python
+# Load from specific step
+if cfg.predictive_model.load_checkpoint_step:
+    with typed_instantiate(cfg.persistence.instance, ModelPersister) as persister:
+        # Full checkpoint (includes optimizer state if saved)
+        checkpoint = persister.load_checkpoint(cfg.predictive_model.load_checkpoint_step)
+        model = checkpoint['model']
+        
+        # Or just weights
+        model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_step)
+```
+
+## Implementation Details
+
+### Equinox Persistence
+
+```python
+class LocalEquinoxPersister(ModelPersister):
+    def save_checkpoint(self, model: Any, step: int) -> None:
+        checkpoint_path = self.save_dir / f"checkpoint_{step}.eqx"
+        
+        # Save complete state
+        checkpoint = {
+            'model': model,
+            'step': step,
+            'timestamp': datetime.now().isoformat(),
+        }
+        
+        # Use equinox serialization
+        eqx.tree_serialise_leaves(checkpoint_path, checkpoint)
+    
+    def load_weights(self, model: Any, step: int) -> Any:
+        checkpoint_path = self.save_dir / f"checkpoint_{step}.eqx"
+        
+        # Load and merge weights
+        checkpoint = eqx.tree_deserialise_leaves(checkpoint_path, model)
+        return checkpoint['model']
+```
+
+### Penzai Persistence
+
+```python
+class LocalPenzaiPersister(ModelPersister):
+    def save_checkpoint(self, model: pz.nn.Layer, step: int) -> None:
+        checkpoint_path = self.save_dir / f"checkpoint_{step}.npz"
+        
+        # Extract parameters
+        params = pz.select(model).at_instances(pz.nn.Parameter)
+        param_values = {str(i): p.value for i, p in enumerate(params)}
+        
+        # Save with numpy
+        np.savez(checkpoint_path, **param_values, step=step)
+    
+    def load_weights(self, model: pz.nn.Layer, step: int) -> pz.nn.Layer:
+        checkpoint_path = self.save_dir / f"checkpoint_{step}.npz"
+        data = np.load(checkpoint_path)
+        
+        # Restore parameters
+        params = pz.select(model).at_instances(pz.nn.Parameter)
+        for i, param in enumerate(params):
+            param.value = data[str(i)]
+        
+        return model
+```
+
+## Advanced Features
+
+### 1. Checkpoint Management
+
+```python
+class CheckpointManager:
+    def __init__(self, persister: ModelPersister, keep_n_checkpoints: int = 5):
+        self.persister = persister
+        self.keep_n_checkpoints = keep_n_checkpoints
+        self.checkpoints = []
+    
+    def save(self, model, step):
+        # Save new checkpoint
+        self.persister.save_checkpoint(model, step)
+        self.checkpoints.append(step)
+        
+        # Remove old checkpoints
+        if len(self.checkpoints) > self.keep_n_checkpoints:
+            old_step = self.checkpoints.pop(0)
+            self.delete_checkpoint(old_step)
+    
+    def delete_checkpoint(self, step):
+        # Implementation depends on storage backend
+        pass
+```
+
+### 2. Best Model Tracking
+
+```python
+class BestModelSaver:
+    def __init__(self, persister: ModelPersister, metric: str = 'val_loss'):
+        self.persister = persister
+        self.metric = metric
+        self.best_value = float('inf') if 'loss' in metric else -float('inf')
+    
+    def update(self, model, step, metric_value):
+        is_better = (
+            metric_value < self.best_value if 'loss' in self.metric
+            else metric_value > self.best_value
+        )
+        
+        if is_better:
+            self.best_value = metric_value
+            self.persister.save_weights(model, step)
+            # Also save as 'best' for easy loading
+            self.persister.save_weights(model, 'best')
+            return True
+        return False
+```
+
+### 3. Distributed Checkpointing
+
+```python
+def save_distributed_checkpoint(model, step, rank, world_size):
+    if rank == 0:
+        # Only rank 0 saves
+        persister.save_checkpoint(model, step)
+    
+    # Synchronize
+    jax.experimental.multihost_utils.sync_global_devices("checkpoint_save")
+```
+
+### 4. Incremental Checkpointing
+
+```python
+class IncrementalCheckpointer:
+    def __init__(self, base_persister):
+        self.base_persister = base_persister
+        self.last_checkpoint = None
+    
+    def save_delta(self, model, step):
+        if self.last_checkpoint is None:
+            # First checkpoint, save full
+            self.base_persister.save_checkpoint(model, step)
+        else:
+            # Save only changed parameters
+            delta = compute_delta(model, self.last_checkpoint)
+            save_delta_checkpoint(delta, step)
+        
+        self.last_checkpoint = model
+```
+
+## S3-Specific Features
+
+### Configuration Options
+
+```ini
+[aws]
+profile_name = default
+region = us-east-1
+
+[s3]
+bucket = my-bucket
+prefix = experiments/run1
+storage_class = STANDARD_IA  # For infrequent access
+server_side_encryption = AES256
+```
+
+### S3 Transfer Configuration
+
+```python
+# In S3Persister
+transfer_config = TransferConfig(
+    multipart_threshold=1024 * 25,  # 25MB
+    max_concurrency=10,
+    multipart_chunksize=1024 * 25,
+    use_threads=True
+)
+```
+
+### Versioning Support
+
+```python
+def save_with_versioning(self, model, step):
+    # S3 versioning must be enabled on bucket
+    key = f"{self.prefix}/checkpoint_{step}.eqx"
+    
+    # Save with metadata
+    metadata = {
+        'step': str(step),
+        'timestamp': datetime.now().isoformat(),
+        'model_type': 'equinox'
+    }
+    
+    self.s3_client.put_object(
+        Bucket=self.bucket,
+        Key=key,
+        Body=serialized_model,
+        Metadata=metadata
+    )
+```
+
+## Error Handling
+
+### Retry Logic
+
+```python
+def save_with_retry(persister, model, step, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            persister.save_checkpoint(model, step)
+            break
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            print(f"Save failed, retrying... ({e})")
+            time.sleep(2 ** attempt)  # Exponential backoff
+```
+
+### Corruption Detection
+
+```python
+def verify_checkpoint(persister, step):
+    try:
+        # Attempt to load
+        checkpoint = persister.load_checkpoint(step)
+        
+        # Basic validation
+        assert 'model' in checkpoint
+        assert checkpoint.get('step') == step
+        
+        # Try to use model
+        dummy_input = jnp.ones((1, 10))
+        _ = checkpoint['model'](mdc:dummy_input)
+        
+        return True
+    except Exception as e:
+        print(f"Checkpoint {step} is corrupted: {e}")
+        return False
+```
+
+## Best Practices
+
+### 1. Checkpoint Frequency
+
+```yaml
+# Balance between safety and performance
+training:
+  checkpoint_every: 10  # epochs
+  save_weights_every: 5  # epochs
+  keep_n_checkpoints: 3
+```
+
+### 2. Naming Conventions
+
+```python
+def get_checkpoint_name(step, model_name, experiment_id):
+    # Include metadata in filename
+    return f"{model_name}_{experiment_id}_step{step:06d}.ckpt"
+```
+
+### 3. Storage Organization
+
+```
+checkpoints/
+├── experiment_1/
+│   ├── checkpoint_1000.eqx
+│   ├── checkpoint_2000.eqx
+│   └── best.eqx
+├── experiment_2/
+│   └── ...
+└── metadata.json
+```
+
+### 4. Atomic Saves
+
+```python
+def atomic_save(persister, model, step):
+    # Save to temporary file first
+    temp_path = f"checkpoint_{step}.tmp"
+    persister.save_to_path(model, temp_path)
+    
+    # Rename atomically
+    final_path = f"checkpoint_{step}.eqx"
+    os.rename(temp_path, final_path)
+```
+
+## Migration and Compatibility
+
+### Version Management
+
+```python
+def save_with_version(model, step, version="1.0"):
+    checkpoint = {
+        'model': model,
+        'step': step,
+        'version': version,
+        'framework_version': simplexity.__version__,
+    }
+    # Save with version info
+```
+
+### Loading Old Checkpoints
+
+```python
+def load_with_compatibility(persister, step):
+    checkpoint = persister.load_checkpoint(step)
+    
+    # Check version
+    version = checkpoint.get('version', '0.1')
+    
+    if version < '1.0':
+        # Apply migrations
+        checkpoint = migrate_v0_to_v1(checkpoint)
+    
+    return checkpoint['model']
+```
+
+## Performance Tips
+
+1. **Use weight-only saves** when optimizer state isn't needed
+2. **Compress large checkpoints** with `gzip` for S3 storage
+3. **Save asynchronously** to avoid blocking training
+4. **Use regional S3 buckets** to reduce latency
+5. **Enable S3 Transfer Acceleration** for faster uploads
+6. **Implement checkpoint sharding** for very large models

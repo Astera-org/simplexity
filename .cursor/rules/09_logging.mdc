@@ -1,0 +1,436 @@
+---
+description: MLflow integration, experiment tracking, artifact logging, and monitoring best practices
+keywords: [logging, mlflow, tracking, artifacts, monitoring, experiments]
+use_when: Setting up logging, tracking experiments, managing artifacts
+load_priority: component
+---
+# Logging & Tracking
+
+Simplexity uses MLflow for comprehensive experiment tracking, with support for custom logging backends.
+
+## Logger Protocol
+
+All loggers implement this interface:
+
+```python
+class Logger(Protocol):
+    def log_params(self, params: Dict[str, Any]) -> None:
+        """Log parameters/hyperparameters."""
+    
+    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None) -> None:
+        """Log metrics at a given step."""
+    
+    def log_config(self, config: DictConfig) -> None:
+        """Log complete configuration."""
+    
+    def close(self) -> None:
+        """Clean up resources."""
+```
+
+## Configuration
+
+### MLflow Logger
+
+```yaml
+# configs/logging/mlflow_logger.yaml
+name: mlflow_logger
+instance:
+  _target_: simplexity.logging.MLFlowLogger
+  experiment_name: ${experiment_name}
+  run_name: ${run_name}
+  tracking_uri: null  # Use default MLflow tracking
+```
+
+### Custom Tracking URI
+
+```yaml
+instance:
+  _target_: simplexity.logging.MLFlowLogger
+  experiment_name: ${experiment_name}
+  run_name: ${run_name}
+  tracking_uri: http://mlflow-server:5000  # Remote server
+  # Or local file
+  # tracking_uri: file:///path/to/mlruns
+```
+
+## Basic Usage
+
+### In Training Scripts
+
+```python
+# Initialize logger
+logger = typed_instantiate(cfg.logging.instance, Logger)
+
+# Log configuration
+logger.log_config(cfg)
+
+# Log hyperparameters
+logger.log_params({
+    "model_type": cfg.predictive_model.name,
+    "learning_rate": cfg.training.optimizer.instance.learning_rate,
+    "batch_size": cfg.training.batch_size,
+    "seed": cfg.seed,
+})
+
+# Training loop
+for epoch in range(num_epochs):
+    # ... training code ...
+    
+    # Log metrics
+    logger.log_metrics({
+        "train/loss": train_loss,
+        "train/accuracy": train_accuracy,
+        "learning_rate": current_lr,
+    }, step=epoch)
+    
+    # Validation metrics
+    if val_metrics:
+        logger.log_metrics({
+            f"val/{name}": value 
+            for name, value in val_metrics.items()
+        }, step=epoch)
+
+# Cleanup
+logger.close()
+```
+
+## Advanced Features
+
+### 1. Nested Runs
+
+```python
+class NestedExperimentLogger:
+    def __init__(self, parent_run_id: str):
+        self.parent_run_id = parent_run_id
+    
+    def create_child_run(self, child_name: str):
+        with mlflow.start_run(run_name=child_name, nested=True):
+            # Log child experiment metrics
+            mlflow.log_param("parent_run_id", self.parent_run_id)
+            yield mlflow.active_run()
+```
+
+### 2. Artifact Logging
+
+```python
+class ArtifactLogger:
+    def __init__(self, logger: Logger):
+        self.logger = logger
+        self.mlflow_client = mlflow.tracking.MlflowClient()
+    
+    def log_model_checkpoint(self, model_path: str, step: int):
+        """Log model checkpoint as artifact."""
+        mlflow.log_artifact(
+            model_path,
+            artifact_path=f"checkpoints/step_{step}"
+        )
+    
+    def log_figure(self, fig, name: str):
+        """Log matplotlib figure."""
+        with tempfile.NamedTemporaryFile(suffix='.png') as f:
+            fig.savefig(f.name)
+            mlflow.log_artifact(f.name, artifact_path="figures")
+    
+    def log_config_yaml(self, config: DictConfig):
+        """Log configuration as YAML artifact."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml') as f:
+            OmegaConf.save(config, f.name)
+            mlflow.log_artifact(f.name, artifact_path="configs")
+```
+
+### 3. Custom Metrics
+
+```python
+def log_gradient_metrics(grads, step, logger):
+    """Log gradient statistics."""
+    grad_norms = jax.tree_map(
+        lambda g: jnp.linalg.norm(g.flatten()),
+        grads
+    )
+    
+    total_norm = jnp.sqrt(
+        sum(n**2 for n in jax.tree_leaves(grad_norms))
+    )
+    
+    logger.log_metrics({
+        "gradients/total_norm": float(total_norm),
+        "gradients/max_norm": float(max(jax.tree_leaves(grad_norms))),
+        "gradients/min_norm": float(min(jax.tree_leaves(grad_norms))),
+    }, step=step)
+
+def log_weight_metrics(model, step, logger):
+    """Log model weight statistics."""
+    weights = eqx.filter(model, eqx.is_array)
+    
+    weight_stats = {
+        "weights/total_params": sum(w.size for w in jax.tree_leaves(weights)),
+        "weights/mean_magnitude": float(
+            jnp.mean(jnp.array([jnp.mean(jnp.abs(w)) for w in jax.tree_leaves(weights)]))
+        ),
+    }
+    
+    logger.log_metrics(weight_stats, step=step)
+```
+
+### 4. Experiment Comparison
+
+```python
+class ExperimentComparer:
+    def __init__(self, experiment_name: str):
+        self.client = mlflow.tracking.MlflowClient()
+        self.experiment = self.client.get_experiment_by_name(experiment_name)
+    
+    def get_best_run(self, metric: str = "val/loss", mode: str = "min"):
+        """Find best run by metric."""
+        runs = self.client.search_runs(
+            experiment_ids=[self.experiment.experiment_id],
+            order_by=[f"metrics.{metric} {'ASC' if mode == 'min' else 'DESC'}"],
+            max_results=1
+        )
+        return runs[0] if runs else None
+    
+    def compare_runs(self, run_ids: List[str], metrics: List[str]):
+        """Compare multiple runs."""
+        comparison = {}
+        
+        for run_id in run_ids:
+            run = self.client.get_run(run_id)
+            comparison[run_id] = {
+                metric: run.data.metrics.get(metric)
+                for metric in metrics
+            }
+        
+        return pd.DataFrame(comparison).T
+```
+
+## Integration Patterns
+
+### 1. Hyperparameter Search Logging
+
+```python
+@hydra.main(config_path="configs", config_name="experiment.yaml")
+def run_experiment(cfg: Config) -> float:
+    # Each Optuna trial gets its own MLflow run
+    logger = typed_instantiate(cfg.logging.instance, Logger)
+    
+    # Log trial information
+    logger.log_params({
+        "trial_id": hydra.core.hydra_config.HydraConfig.get().job.num,
+        "sweep_id": hydra.core.hydra_config.HydraConfig.get().sweep.id,
+    })
+    
+    # Run training
+    model, loss = train(...)
+    
+    # Log final metric for Optuna
+    logger.log_metrics({"final_loss": loss})
+    
+    logger.close()
+    return loss  # Return for Optuna optimization
+```
+
+### 2. Distributed Training Logging
+
+```python
+class DistributedLogger:
+    def __init__(self, base_logger: Logger, rank: int, world_size: int):
+        self.base_logger = base_logger
+        self.rank = rank
+        self.world_size = world_size
+    
+    def log_metrics(self, metrics: Dict[str, float], step: int):
+        # Only rank 0 logs to avoid duplicates
+        if self.rank == 0:
+            self.base_logger.log_metrics(metrics, step)
+        
+        # Log rank-specific metrics
+        rank_metrics = {
+            f"rank_{self.rank}/{name}": value
+            for name, value in metrics.items()
+        }
+        self.base_logger.log_metrics(rank_metrics, step)
+```
+
+### 3. Live Monitoring
+
+```python
+class LiveMetricMonitor:
+    def __init__(self, run_id: str, metrics_to_watch: List[str]):
+        self.client = mlflow.tracking.MlflowClient()
+        self.run_id = run_id
+        self.metrics_to_watch = metrics_to_watch
+    
+    def get_latest_metrics(self):
+        """Get most recent metric values."""
+        run = self.client.get_run(self.run_id)
+        return {
+            metric: run.data.metrics.get(metric)
+            for metric in self.metrics_to_watch
+        }
+    
+    def plot_live(self, refresh_interval: int = 5):
+        """Plot metrics with live updates."""
+        import matplotlib.pyplot as plt
+        from IPython.display import clear_output
+        
+        while True:
+            clear_output(wait=True)
+            
+            # Get metric history
+            history = self.client.get_metric_history(
+                self.run_id, self.metrics_to_watch[0]
+            )
+            
+            # Plot
+            steps = [m.step for m in history]
+            values = [m.value for m in history]
+            plt.plot(steps, values)
+            plt.xlabel('Step')
+            plt.ylabel(self.metrics_to_watch[0])
+            plt.show()
+            
+            time.sleep(refresh_interval)
+```
+
+## MLflow UI Usage
+
+### Starting the UI
+
+```bash
+# Default (uses ./mlruns)
+mlflow ui
+
+# Custom tracking URI
+mlflow ui --backend-store-uri file:///path/to/mlruns
+
+# With host/port
+mlflow ui --host 0.0.0.0 --port 5000
+```
+
+### UI Features
+
+1. **Experiment View**: Compare runs within experiment
+2. **Run Details**: View parameters, metrics, artifacts
+3. **Metric Plots**: Visualize training curves
+4. **Comparison**: Select multiple runs to compare
+5. **Search**: Filter runs by parameters/metrics
+
+### Programmatic Access
+
+```python
+# Get all experiments
+experiments = mlflow.list_experiments()
+
+# Search runs
+runs = mlflow.search_runs(
+    experiment_ids=["1"],
+    filter_string="params.model_type = 'transformer'",
+    order_by=["metrics.val_loss ASC"],
+)
+
+# Download artifacts
+mlflow.artifacts.download_artifacts(
+    run_id="abc123",
+    artifact_path="checkpoints/best.eqx",
+    dst_path="./downloaded_models"
+)
+```
+
+## Best Practices
+
+### 1. Metric Naming Conventions
+
+```python
+# Use hierarchical names
+metrics = {
+    "train/loss": train_loss,
+    "train/accuracy": train_acc,
+    "val/loss": val_loss,
+    "val/accuracy": val_acc,
+    "gradients/norm": grad_norm,
+    "learning_rate": lr,
+}
+```
+
+### 2. Parameter Logging
+
+```python
+# Log all relevant hyperparameters
+def log_all_params(cfg, logger):
+    # Flatten nested config
+    flat_params = flatten_dict(OmegaConf.to_container(cfg))
+    
+    # Filter out non-parameter values
+    params = {
+        k: v for k, v in flat_params.items()
+        if isinstance(v, (int, float, str, bool))
+    }
+    
+    logger.log_params(params)
+```
+
+### 3. Experiment Organization
+
+```python
+# Use descriptive experiment names
+experiment_name = f"{model_type}_{dataset}_{objective}"
+
+# Use informative run names
+run_name = f"{timestamp}_{key_hyperparams}"
+```
+
+### 4. Artifact Management
+
+```python
+# Log important files
+mlflow.log_artifact("requirements.txt")
+mlflow.log_artifact("configs/experiment.yaml")
+
+# Log code version
+mlflow.log_param("git_commit", get_git_commit())
+mlflow.log_param("git_branch", get_git_branch())
+```
+
+### 5. Metric Buffering
+
+```python
+class BufferedLogger:
+    def __init__(self, base_logger, buffer_size=10):
+        self.base_logger = base_logger
+        self.buffer = defaultdict(list)
+        self.buffer_size = buffer_size
+    
+    def log_metrics(self, metrics, step):
+        for name, value in metrics.items():
+            self.buffer[name].append((step, value))
+        
+        # Flush if buffer full
+        if len(next(iter(self.buffer.values()))) >= self.buffer_size:
+            self.flush()
+    
+    def flush(self):
+        # Log all buffered metrics
+        for metric_name, values in self.buffer.items():
+            for step, value in values:
+                self.base_logger.log_metrics(
+                    {metric_name: value}, step=step
+                )
+        self.buffer.clear()
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **MLflow server not found**: Check tracking URI
+2. **Duplicate run names**: Add timestamp to run name
+3. **Large artifacts**: Use artifact location with more storage
+4. **Slow UI**: Reduce number of runs or use database backend
+
+### Performance Tips
+
+1. **Batch metric logging**: Don't log every batch
+2. **Async logging**: Use background thread for logging
+3. **Selective artifact logging**: Only log best model checkpoints
+4. **Database backend**: Use PostgreSQL for large experiments
+5. **Cleanup old runs**: Archive or delete unsuccessful runs

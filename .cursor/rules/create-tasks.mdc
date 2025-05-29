@@ -1,11 +1,13 @@
 ---
-description: 
+description: Generates a detailed Markdown task list from a PRD
 globs: 
 alwaysApply: false
 ---
 ---
-description: 
-globs: 
+description: Generates a detailed Markdown task list from a PRD
+keywords: [tasks, implementation, PRD, project management, development]
+use_when: Converting PRDs to actionable task lists, planning implementation
+load_priority: workflow
 alwaysApply: false
 ---
 # Rule: Generating a Task List from a PRD
