@@ -36,8 +36,7 @@ def train_model(cfg: Config) -> float:
         validation_bos_token = None
         validation_eos_token = None
 
-    vocab_size = training_data_generator.vocab_size
-    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel, vocab_size=vocab_size)
+    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel)
 
     persister_context = (
         typed_instantiate(cfg.persistence.instance, ModelPersister) if cfg.persistence else nullcontext()

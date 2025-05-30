@@ -1,13 +1,13 @@
 defaults:
  - _self_
- - generative_process@training_data_generator: mess3
- - generative_process@validation_data_generator: mess3
- - predictive_model: gru_rnn
- - persistence: local_persister
+ - generative_process@training_data_generator: wonka_dursley
+ - generative_process@validation_data_generator: wonka_dursley
+ - predictive_model: transformer
+ - persistence: s3_persister
  - logging: mlflow_logger
  - training: small
  - evaluation@validation: small
 
 seed: 0
-experiment_name: ${predictive_model.name}_${training_data_generator.name}
+experiment_name: example
 run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}
