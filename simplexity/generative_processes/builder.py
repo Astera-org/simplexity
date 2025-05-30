@@ -90,7 +90,7 @@ def build_nonergodic_initial_state(
 def build_nonergodic_hidden_markov_model(
     process_names: list[str],
     process_kwargs: Sequence[Mapping[str, Any]],
-    process_weights: jax.Array,
+    process_weights: Sequence[float],
     vocab_maps: Sequence[Sequence[int]] | None = None,
     add_bos_token: bool = False,
 ) -> HiddenMarkovModel:
@@ -103,7 +103,7 @@ def build_nonergodic_hidden_markov_model(
     component_initial_states = [
         stationary_state(transition_matrix.sum(axis=0).T) for transition_matrix in component_transition_matrices
     ]
-    initial_state = build_nonergodic_initial_state(component_initial_states, process_weights)
+    initial_state = build_nonergodic_initial_state(component_initial_states, jnp.array(process_weights))
     if add_bos_token:
         composite_transition_matrix = add_begin_of_sequence_token(composite_transition_matrix, initial_state)
         num_states = composite_transition_matrix.shape[1]
