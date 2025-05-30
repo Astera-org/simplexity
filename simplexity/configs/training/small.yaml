@@ -9,4 +9,3 @@ num_steps: 10
 log_every: 1
 validate_every: 2
 checkpoint_every: 5
-checkpoint_name: ${run_name}

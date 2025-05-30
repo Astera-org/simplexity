@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -16,6 +16,34 @@ from penzai.core.variables import (
     StateVariableValue,
     VariableLabel,
 )
+from penzai.nn.layer import Layer as PenzaiModel
+
+
+@pz.pytree_dataclass
+class PenzaiWrapper(PenzaiModel):
+    """A wrapper around a penzai model that allows for easy prediction."""
+
+    model: PenzaiModel
+
+    def __call__(self, inputs: jax.Array, **side_inputs: jax.Array) -> jax.Array:
+        """Call the wrapped model with the given inputs and side inputs."""
+        named_inputs = pz.nx.wrap(inputs, "batch", "seq")
+        named_logits = self.model(named_inputs, **side_inputs)
+        assert isinstance(named_logits, NamedArray)
+        return named_logits.unwrap("batch", "seq", "vocabulary")
+
+
+def use_penzai_model(f: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorate a function to use a penzai model."""
+
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        if "model" not in kwargs:
+            raise ValueError("Function must be called with 'model' keyword argument")
+        wrapped_model = PenzaiWrapper(kwargs["model"])
+        kwargs["model"] = wrapped_model
+        return f(*args, **kwargs)
+
+    return wrapper
 
 
 @dataclass
