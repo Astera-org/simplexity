@@ -7,3 +7,4 @@ data/
 multirun/
 outputs/
 config.ini
+*temp*
