@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from omegaconf import DictConfig
-
 TARGETS = Literal["simplexity.predictive_models.gru_rnn.build_gru_rnn"]
 
 
