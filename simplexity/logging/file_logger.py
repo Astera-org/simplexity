@@ -12,7 +12,10 @@ class FileLogger(Logger):
 
     def __init__(self, file_path: str):
         self.file_path = file_path
-        Path(self.file_path).parent.mkdir(parents=True, exist_ok=True)
+        try:
+            Path(self.file_path).parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError as e:
+            raise RuntimeError(f"Failed to create directory for logging: {e}") from e
 
     def log_config(self, config: DictConfig) -> None:
         """Log config to the file."""
