@@ -1,6 +1,6 @@
 # Simplexity
 
-![Simplexity](https://github.com/Astera-org/simplexity/actions/workflows/simplexity.yaml/badge.svg)
+[![Checks](https://github.com/Astera-org/simplexity/actions/workflows/simplexity.yaml/badge.svg)](https://github.com/Astera-org/simplexity/actions/workflows/simplexity.yaml)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Astera-org/simplexity)
 
 A library for exploring sequence prediction models from a Computational Mechanics perspective.
