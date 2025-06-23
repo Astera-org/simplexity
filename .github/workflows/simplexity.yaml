@@ -34,7 +34,7 @@ jobs:
           enable-cache: true
 
       - name: pytest
-        run: uv run --extra dev --extra aws pytest --capture=no --verbose --cov --cov-report=xml
+        run: uv run --extra aws --extra dev --extra cuda --extra pytorch pytest --capture=no --verbose --cov --cov-report=xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
