@@ -23,7 +23,7 @@ jobs:
         run: uv run --extra dev nbqa ruff notebooks
 
       - name: pyright
-        run: uv run --extra dev --extra aws pyright
+        run: uv run --extra aws --extra dev --extra pytorch pyright
 
   unit-tests:
     runs-on: ubuntu-latest
