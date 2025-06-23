@@ -18,7 +18,7 @@ dependencies = [
     "equinox",
     "hydra-core",
     "hydra-optuna-sweeper",
-    "jax[cuda12_pip]",
+    "jax",
     "jupyter",
     "matplotlib",
     "mlflow",
@@ -30,17 +30,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-aws = [
-    "boto3",
-]
-dev = [
-    "jaxtyping",
-    "nbqa",
-    "pyright",
-    "pytest",
-    "pytest-cov",
-    "ruff"
-]
+aws = ["boto3"]
+cuda = ["jax[cuda12_pip]"]
+dev = ["jaxtyping", "nbqa", "pyright", "pytest", "pytest-cov", "ruff"]
+mac = ["jax-metal"]
+pytorch = ["torch"]
 
 [tool.ruff]
 line-length = 120
