@@ -19,7 +19,7 @@ def test_generate_data_batch():
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
     gen_states, inputs, labels = generate_data_batch(states, hmm, batch_size, sequence_len, key)
-    assert isinstance(gen_states, torch.Tensor)
+    assert isinstance(gen_states, jax.Array)
     assert isinstance(inputs, torch.Tensor)
     assert isinstance(labels, torch.Tensor)
     assert inputs.shape == (batch_size, sequence_len - 1)
@@ -41,7 +41,7 @@ def test_generate_data_batch_with_bos_token():
     key = jax.random.PRNGKey(0)
     bos_token = hmm.vocab_size
     gen_states, inputs, labels = generate_data_batch(states, hmm, batch_size, sequence_len, key, bos_token=bos_token)
-    assert isinstance(gen_states, torch.Tensor)
+    assert isinstance(gen_states, jax.Array)
     assert isinstance(inputs, torch.Tensor)
     assert isinstance(labels, torch.Tensor)
     assert inputs.shape == (batch_size, sequence_len)
@@ -64,7 +64,7 @@ def test_generate_data_batch_with_eos_token():
     key = jax.random.PRNGKey(0)
     eos_token = hmm.vocab_size
     gen_states, inputs, labels = generate_data_batch(states, hmm, batch_size, sequence_len, key, eos_token=eos_token)
-    assert isinstance(gen_states, torch.Tensor)
+    assert isinstance(gen_states, jax.Array)
     assert isinstance(inputs, torch.Tensor)
     assert isinstance(labels, torch.Tensor)
     assert inputs.shape == (batch_size, sequence_len)
