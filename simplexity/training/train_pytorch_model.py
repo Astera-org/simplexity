@@ -33,10 +33,10 @@ def train(
 ) -> tuple[torch.nn.Module, float]:
     """Train a PyTorch model on a generative process."""
     key = jax.random.PRNGKey(training_cfg.seed)
-    
+
     # Setup optimizer
     optimizer = typed_instantiate(training_cfg.optimizer.instance, torch.optim.Optimizer, params=model.parameters())
-    
+
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
     loss_value = 0.0
@@ -52,21 +52,21 @@ def train(
             bos_token=training_bos_token,
             eos_token=training_eos_token,
         )
-        
+
         # Training step
         model.train()
         optimizer.zero_grad()
-        
+
         logits = model(inputs)
         loss = F.cross_entropy(logits, labels)
         loss.backward()
         optimizer.step()
-        
+
         loss_value = float(loss.item())
-        
+
         # Convert metrics to JAX arrays for logging consistency
         metrics = {"loss": torch_to_jax(loss.detach())}
-        
+
         if logger:
             if training_cfg.log_every and step % training_cfg.log_every == 0:
                 logger.log_metrics(step, metrics)

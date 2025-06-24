@@ -21,16 +21,16 @@ class LocalPytorchPersister(LocalPersister):
         """Saves a PyTorch model to the local filesystem."""
         path = self._get_path(step)
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         if overwrite_existing and path.exists():
             path.unlink()
-            
+
         torch.save(model.state_dict(), path)
 
     def load_weights(self, model: torch.nn.Module, step: int = 0) -> torch.nn.Module:
         """Loads weights into a PyTorch model from the local filesystem."""
         path = self._get_path(step)
-        state_dict = torch.load(path, map_location=model.device if hasattr(model, 'device') else 'cpu')
+        state_dict = torch.load(path, map_location=model.device if hasattr(model, "device") else "cpu")
         model.load_state_dict(state_dict)
         return model
 

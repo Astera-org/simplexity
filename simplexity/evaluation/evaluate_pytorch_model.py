@@ -18,17 +18,17 @@ except ImportError as e:
 
 
 def evaluation_step(
-    model: torch.nn.Module, 
-    inputs: torch.Tensor, 
-    labels: torch.Tensor, 
-    metric_keys: Iterable[str] = ("loss", "accuracy")
+    model: torch.nn.Module,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    metric_keys: Iterable[str] = ("loss", "accuracy"),
 ) -> dict[str, jax.Array]:
     """Compute evaluation metrics for a PyTorch model."""
     model.eval()
     with torch.no_grad():
         logits = model(inputs)
         metrics = {}
-        
+
         for metric_key in metric_keys:
             if metric_key == "loss":
                 loss = F.cross_entropy(logits, labels)
@@ -37,7 +37,7 @@ def evaluation_step(
                 preds = torch.argmax(logits, dim=-1)
                 accuracy = (preds == labels).float().mean()
                 metrics[metric_key] = torch_to_jax(accuracy)
-                
+
     return metrics
 
 
