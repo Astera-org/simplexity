@@ -1,4 +1,3 @@
-import chex
 import jax
 import jax.numpy as jnp
 
@@ -28,7 +27,7 @@ def test_generate_data_batch():
     assert torch.all(inputs < hmm.vocab_size)
     assert torch.all(labels >= 0)
     assert torch.all(labels < hmm.vocab_size)
-    chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
+    assert torch.equal(inputs[:, 1:], labels[:, :-1])
     assert gen_states.shape == (batch_size, *gen_state.shape)
 
 
@@ -51,7 +50,7 @@ def test_generate_data_batch_with_bos_token():
     assert torch.all(inputs[:, 1:] < bos_token)
     assert torch.all(labels >= 0)
     assert torch.all(labels < bos_token)
-    chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
+    assert torch.equal(inputs[:, 1:], labels[:, :-1])
     assert gen_states.shape == (batch_size, *gen_state.shape)
 
 
@@ -74,5 +73,5 @@ def test_generate_data_batch_with_eos_token():
     assert torch.all(labels >= 0)
     assert torch.all(labels[:, :-1] < eos_token)
     assert torch.all(labels[:, -1] == eos_token)
-    chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
+    assert torch.equal(inputs[:, 1:], labels[:, :-1])
     assert gen_states.shape == (batch_size, *gen_state.shape)
