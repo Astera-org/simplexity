@@ -26,16 +26,22 @@ def evaluation_step(
     """Compute evaluation metrics for a PyTorch model."""
     model.eval()
     with torch.no_grad():
-        logits = model(inputs)
+        logits: torch.Tensor = model(inputs)
         metrics = {}
+
+        # Reshape for sequence-level predictions: [batch, seq, vocab] -> [batch*seq, vocab]
+        # and labels: [batch, seq] -> [batch*seq]
+        vocab_size = logits.shape[2]
+        logits_reshaped = logits.view(-1, vocab_size)
+        labels_reshaped = labels.view(-1).long()  # Ensure labels are long type for cross entropy
 
         for metric_key in metric_keys:
             if metric_key == "loss":
-                loss = F.cross_entropy(logits, labels)
+                loss = F.cross_entropy(logits_reshaped, labels_reshaped)
                 metrics[metric_key] = torch_to_jax(loss)
             elif metric_key == "accuracy":
-                preds = torch.argmax(logits, dim=-1)
-                accuracy = (preds == labels).float().mean()
+                preds = torch.argmax(logits_reshaped, dim=-1)
+                accuracy = (preds == labels_reshaped).float().mean()
                 metrics[metric_key] = torch_to_jax(accuracy)
 
     return metrics

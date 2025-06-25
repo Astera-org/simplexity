@@ -17,7 +17,8 @@ class LocalPytorchPersister(LocalPersister):
         self.directory = Path(directory)
         self.filename = filename
 
-    def save_weights(self, model: torch.nn.Module, step: int = 0, overwrite_existing: bool = False) -> None:
+    # TODO: This is a hack to get the type checker to work.
+    def save_weights(self, model: torch.nn.Module, step: int = 0, overwrite_existing: bool = False) -> None:  # type: ignore
         """Saves a PyTorch model to the local filesystem."""
         path = self._get_path(step)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -27,10 +28,13 @@ class LocalPytorchPersister(LocalPersister):
 
         torch.save(model.state_dict(), path)
 
-    def load_weights(self, model: torch.nn.Module, step: int = 0) -> torch.nn.Module:
+    # TODO: This is a hack to get the type checker to work.
+    def load_weights(self, model: torch.nn.Module, step: int = 0) -> torch.nn.Module:  # type: ignore
         """Loads weights into a PyTorch model from the local filesystem."""
         path = self._get_path(step)
-        state_dict = torch.load(path, map_location=model.device if hasattr(model, "device") else "cpu")
+        # Get device from model parameters, fallback to CPU
+        device = next(model.parameters()).device if list(model.parameters()) else "cpu"
+        state_dict = torch.load(path, map_location=device)
         model.load_state_dict(state_dict)
         return model
 

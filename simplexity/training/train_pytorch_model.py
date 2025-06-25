@@ -57,8 +57,15 @@ def train(
         model.train()
         optimizer.zero_grad()
 
-        logits = model(inputs)
-        loss = F.cross_entropy(logits, labels)
+        logits: torch.Tensor = model(inputs)
+
+        # Reshape for sequence-level predictions: [batch, seq, vocab] -> [batch*seq, vocab]
+        # and labels: [batch, seq] -> [batch*seq]
+        vocab_size = logits.shape[2]
+        logits_reshaped = logits.view(-1, vocab_size)
+        labels_reshaped = labels.view(-1).long()  # Ensure labels are long type for cross entropy
+
+        loss = F.cross_entropy(logits_reshaped, labels_reshaped)
         loss.backward()
         optimizer.step()
 

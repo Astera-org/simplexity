@@ -9,8 +9,8 @@ from torch.nn import Transformer
 
 from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.configs.training.optimizer.config import PytorchAdamConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
+from simplexity.configs.training.optimizer.config import PytorchAdamConfig
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
@@ -19,7 +19,7 @@ from simplexity.training.train_pytorch_model import train
 
 
 @pytest.fixture
-def model() -> Transformer:
+def model() -> torch.nn.Module:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     return Transformer(
         d_model=64,
@@ -50,7 +50,7 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 
 
 @pytest.mark.slow
-def test_train(model: Transformer, tmp_path: Path):
+def test_train(model: torch.nn.Module, tmp_path: Path):
     data_generator = build_hidden_markov_model("zero_one_random", p=0.5)
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
@@ -101,7 +101,7 @@ def test_train(model: Transformer, tmp_path: Path):
     losses = extract_losses(log_file_path)
     assert training_cfg.log_every is not None
     assert losses.shape == (training_cfg.num_steps // training_cfg.log_every,)
-    final_metrics = evaluate_model(model=model, cfg=validation_cfg, data_generator=data_generator)
+    final_metrics = evaluate(model=model, cfg=validation_cfg, data_generator=data_generator)
     assert final_metrics["loss"] < original_metrics["loss"]
     assert final_metrics["accuracy"] >= original_metrics["accuracy"]
     assert final_metrics["accuracy"] <= 1.0
