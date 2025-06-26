@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 import torch
-from torch.nn import Transformer
+import torch.nn as nn
 
 from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
@@ -18,21 +18,56 @@ from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 from simplexity.training.train_pytorch_model import train
 
 
+class DecoderOnlyTransformer(nn.Module):
+    """A decoder-only transformer for language modeling."""
+
+    def __init__(
+        self,
+        vocab_size: int,
+        d_model: int = 64,
+        nhead: int = 4,
+        num_layers: int = 2,
+        dim_feedforward: int = 256,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.d_model = d_model
+        self.vocab_size = vocab_size
+        self.token_embedding = nn.Embedding(vocab_size, d_model)
+        self.max_seq_len = 1024
+        self.pos_embedding = nn.Embedding(self.max_seq_len, d_model)
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout, batch_first=True
+        )
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
+        self.output_projection = nn.Linear(d_model, vocab_size)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        batch_size, seq_len = x.shape
+        device = x.device
+
+        positions = torch.arange(seq_len, device=device).unsqueeze(0).expand(batch_size, -1)
+        token_emb = self.token_embedding(x)
+        pos_emb = self.pos_embedding(positions)
+        embeddings = self.dropout(token_emb + pos_emb)
+
+        causal_mask = nn.Transformer.generate_square_subsequent_mask(seq_len, device=device)
+        output = self.transformer_decoder(
+            tgt=embeddings, memory=embeddings, tgt_mask=causal_mask, memory_mask=causal_mask
+        )
+        logits = self.output_projection(output)
+        return logits
+
+
 @pytest.fixture
 def model() -> torch.nn.Module:
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    return Transformer(
-        d_model=64,
-        nhead=1,
-        num_encoder_layers=2,
-        num_decoder_layers=2,
-        dim_feedforward=64,
-        dropout=0.0,
-        activation="gelu",
-        batch_first=True,
-        norm_first=False,
-        device=device,
+    vocab_size = 2
+    model = DecoderOnlyTransformer(
+        vocab_size=vocab_size, d_model=64, nhead=4, num_layers=2, dim_feedforward=256, dropout=0.1
     )
+    return model.to(device)
 
 
 def extract_losses(log_file_path: Path) -> jax.Array:
@@ -40,7 +75,7 @@ def extract_losses(log_file_path: Path) -> jax.Array:
     with open(log_file_path) as f:
         log_lines = f.readlines()
 
-    loss_pattern = r"'loss': Array\(([\d.]+)"
+    loss_pattern = r"'loss': ([\d.]+)"
     losses = []
     for line in log_lines:
         match = re.search(loss_pattern, line)
