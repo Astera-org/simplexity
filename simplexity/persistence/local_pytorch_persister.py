@@ -32,7 +32,6 @@ class LocalPytorchPersister(LocalPersister):
     def load_weights(self, model: torch.nn.Module, step: int = 0) -> torch.nn.Module:  # type: ignore
         """Loads weights into a PyTorch model from the local filesystem."""
         path = self._get_path(step)
-        # Get device from model parameters, fallback to CPU
         device = next(model.parameters()).device if list(model.parameters()) else "cpu"
         state_dict = torch.load(path, map_location=device)
         model.load_state_dict(state_dict)

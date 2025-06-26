@@ -80,7 +80,3 @@ def evaluate(
             logger.log_metrics(step, metrics)
 
     return {k: v / cfg.num_steps for k, v in metrics.items()}
-
-
-# Alias for consistency with test expectations
-evaluate_model = evaluate

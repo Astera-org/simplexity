@@ -34,7 +34,6 @@ def train(
     """Train a PyTorch model on a generative process."""
     key = jax.random.PRNGKey(training_cfg.seed)
 
-    # Set up optimizer
     optimizer = typed_instantiate(training_cfg.optimizer.instance, torch.optim.Optimizer, params=model.parameters())
 
     gen_state = training_data_generator.initial_state
@@ -53,14 +52,11 @@ def train(
             eos_token=training_eos_token,
         )
 
-        # Train the model on the batch of inputs and labels
         model.train()
         optimizer.zero_grad()
 
-        # Forward pass
         logits = model(inputs)
 
-        # Compute loss - reshape for sequence-level predictions
         vocab_size = logits.shape[2]
         logits_reshaped = logits.view(-1, vocab_size)
         labels_reshaped = labels.view(-1).long()  # Ensure labels are long type for cross entropy
@@ -69,7 +65,6 @@ def train(
         loss = torch_to_jax(loss_tensor).item()
         loss_value = loss
 
-        # Backward pass
         loss_tensor.backward()
         optimizer.step()
 

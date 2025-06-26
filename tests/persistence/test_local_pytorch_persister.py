@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pytest
 import torch
 import torch.nn as nn
 
@@ -39,11 +38,7 @@ def models_equal(model1: nn.Module, model2: nn.Module) -> bool:
     if set(params1.keys()) != set(params2.keys()):
         return False
 
-    for name in params1.keys():
-        if not torch.allclose(params1[name], params2[name]):
-            return False
-
-    return True
+    return all(torch.allclose(params1[name], params2[name]) for name in params1)
 
 
 def test_local_persister(tmp_path: Path):
