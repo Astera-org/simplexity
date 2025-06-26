@@ -22,8 +22,26 @@ class AdamConfig(OptimizerInstanceConfig):
 
 
 @dataclass
+class PytorchOptimizerInstanceConfig:
+    """Configuration for PyTorch optimizer instance."""
+
+    _target_: Literal["torch.optim.AdamW", "torch.optim.Adam", "torch.optim.SGD"]
+
+
+@dataclass
+class PytorchAdamConfig(PytorchOptimizerInstanceConfig):
+    """Configuration for PyTorch Adam optimizer."""
+
+    lr: float
+    betas: tuple[float, float]
+    eps: float
+    weight_decay: float
+    amsgrad: bool
+
+
+@dataclass
 class Config:
     """Base configuration for predictive models."""
 
-    name: Literal["adam"]
-    instance: OptimizerInstanceConfig
+    name: Literal["adam", "pytorch_adam"]
+    instance: OptimizerInstanceConfig | PytorchOptimizerInstanceConfig
