@@ -26,14 +26,15 @@ class LocalPytorchPersister(LocalPersister):
         if overwrite_existing and path.exists():
             path.unlink()
 
-        torch.save(model.state_dict(), path)
+        # Save state_dict to CPU for device-agnostic checkpoints
+        state_dict = {k: v.cpu() for k, v in model.state_dict().items()}
+        torch.save(state_dict, path)
 
     # TODO: This is a hack to get the type checker to work.
     def load_weights(self, model: torch.nn.Module, step: int = 0) -> torch.nn.Module:  # type: ignore
         """Loads weights into a PyTorch model from the local filesystem."""
         path = self._get_path(step)
-        device = next(model.parameters()).device if list(model.parameters()) else "cpu"
-        state_dict = torch.load(path, map_location=device)
+        state_dict = torch.load(path, map_location="cpu")
         model.load_state_dict(state_dict)
         return model
 
