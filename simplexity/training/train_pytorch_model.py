@@ -9,7 +9,6 @@ from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.utils.hydra import typed_instantiate
-from simplexity.utils.pytorch_utils import torch_to_jax
 
 try:
     import torch
@@ -38,7 +37,7 @@ def train(
 
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
-    loss_value = 0.0
+    metrics = {"loss": 0.0}
 
     for step in range(1, training_cfg.num_steps + 1):
         key, gen_key = jax.random.split(key)
@@ -62,13 +61,10 @@ def train(
         labels_reshaped = labels.view(-1).long()  # Ensure labels are long type for cross entropy
 
         loss_tensor = F.cross_entropy(logits_reshaped, labels_reshaped)
-        loss = torch_to_jax(loss_tensor).item()
-        loss_value = loss
-
         loss_tensor.backward()
         optimizer.step()
 
-        metrics = {"loss": loss}
+        metrics["loss"] = float(loss_tensor.item())
 
         if logger:
             if training_cfg.log_every and step % training_cfg.log_every == 0:
@@ -91,4 +87,4 @@ def train(
         if persister and training_cfg.checkpoint_every and step % training_cfg.checkpoint_every == 0:
             persister.save_weights(model, step)
 
-    return model, loss_value
+    return model, metrics["loss"]

@@ -8,7 +8,6 @@ from simplexity.configs.evaluation.config import Config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
-from simplexity.utils.pytorch_utils import torch_to_jax
 
 try:
     import torch
@@ -22,7 +21,7 @@ def evaluation_step(
     inputs: torch.Tensor,
     labels: torch.Tensor,
     metric_keys: Iterable[str] = ("loss", "accuracy"),
-) -> dict[str, jax.Array]:
+) -> dict[str, float]:
     """Compute evaluation metrics for a PyTorch model."""
     model.eval()
     with torch.no_grad():
@@ -38,11 +37,11 @@ def evaluation_step(
         for metric_key in metric_keys:
             if metric_key == "loss":
                 loss = F.cross_entropy(logits_reshaped, labels_reshaped)
-                metrics[metric_key] = torch_to_jax(loss)
+                metrics[metric_key] = float(loss.item())
             elif metric_key == "accuracy":
                 preds = torch.argmax(logits_reshaped, dim=-1)
                 accuracy = (preds == labels_reshaped).float().mean()
-                metrics[metric_key] = torch_to_jax(accuracy)
+                metrics[metric_key] = float(accuracy.item())
 
     return metrics
 
@@ -54,13 +53,13 @@ def evaluate(
     logger: Logger | None = None,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> dict[str, jax.Array]:
+) -> dict[str, float]:
     """Evaluate a PyTorch model on a generative process."""
     key = jax.random.PRNGKey(cfg.seed)
 
     gen_state = data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], cfg.batch_size, axis=0)
-    metrics = defaultdict(lambda: jnp.array(0.0))
+    metrics = defaultdict(lambda: 0.0)
 
     for step in range(1, cfg.num_steps + 1):
         key, gen_key = jax.random.split(key)
