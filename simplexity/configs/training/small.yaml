@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - optimizer: adam
+  - optimizer: optax
 
 seed: ${seed}
 sequence_len: 8
