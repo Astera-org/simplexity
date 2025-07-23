@@ -2,6 +2,9 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.arithmetic_process import ArithmeticProcess, Operators
 
+BASE_TREE = jnp.array([6, 5, 5, 2, 0, 6, 4, 10, 10, 10, 10, 3, 1, 10, 10, 10])
+CHILD_TREE = jnp.array([6, 2, 5, 10, 10, 2, 4, 10, 10, 10, 10, 10, 10, 10, 10, 10])
+
 
 def test_initialization():
     process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
@@ -53,13 +56,13 @@ def test_is_operator():
 
 def test_diagram():
     process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
-    tree = jnp.array([6, 5, 5, 2, 0, 6, 4, 10, 10, 10, 10, 3, 1, 10, 10, 10])
-    diagram = process.diagram(tree)
+
+    base_diagram = process.diagram(BASE_TREE)
     with open("tests/generative_processes/goldens/equation_trees/base_equation.md") as f:
         expected = f.read().strip()
-        assert diagram == expected
-    child_tree = jnp.array([6, 2, 5, 10, 10, 2, 4, 10, 10, 10, 10, 10, 10, 10, 10, 10])
-    child_diagram = process.diagram(child_tree)
+        assert base_diagram == expected
+
+    child_diagram = process.diagram(CHILD_TREE)
     with open("tests/generative_processes/goldens/equation_trees/child_equation.md") as f:
         expected = f.read().strip()
         assert child_diagram == expected
@@ -67,7 +70,5 @@ def test_diagram():
 
 def test_child_simple_add():
     process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
-    tree = jnp.array([6, 5, 5, 2, 0, 6, 4, 10, 10, 10, 10, 3, 1, 10, 10, 10])
-    output = process.child(tree)
-    expected = jnp.array([6, 2, 5, 10, 10, 2, 4, 10, 10, 10, 10, 10, 10, 10, 10, 10])
-    assert jnp.all(output == expected)
+    child_tree = process.child(BASE_TREE)
+    assert jnp.all(child_tree == CHILD_TREE)
