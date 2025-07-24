@@ -103,11 +103,13 @@ class ArithmeticProcess(eqx.Module):
             if parent < 0:
                 continue
             lines.append(f"node{parent} --> node{idx}")
+        font = "color:#000,font-weight:bold"
+        shape = "rx:40,ry:40"
         lines.extend(
             [
                 "",
-                "classDef operand fill:#b3d9ff,stroke:#1a75ff,stroke-width:2px,color:#000,font-weight:bold,rx:40,ry:40;",
-                "classDef operator fill:#ffcccc,stroke:#cc0000,stroke-width:2px,color:#000,font-weight:bold,rx:40,ry:40;",
+                f"classDef operand fill:#b3d9ff,stroke:#1a75ff,stroke-width:2px,{font},{shape};",
+                f"classDef operator fill:#ffcccc,stroke:#cc0000,stroke-width:2px,{font},{shape};",
                 "",
             ]
         )
