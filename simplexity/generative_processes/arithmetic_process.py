@@ -11,20 +11,15 @@ from simplexity.data_structures.stack import Stack
 
 
 class Operators(enum.Enum):
-    """The operators that can be used in the arithmetic process."""
+    """Mathematical operators that can be used in arithmetic expressions."""
 
     ADD = "+"
     SUB = "-"
     MUL = "*"
 
-    # def __lt__(self, other):
-    #     if not isinstance(other, Operators):
-    #         return NotImplemented
-    #     return self.value < other.value
-
 
 class SpecialTokens(enum.Enum):
-    """The special tokens that can be used in the arithmetic process."""
+    """Special tokens used to structure arithmetic expressions and sequences."""
 
     VAL = "<val>"  # Value (operand)
     OPR = "<opr>"  # Operator
@@ -35,7 +30,12 @@ class SpecialTokens(enum.Enum):
 
 
 class ArithmeticProcess(eqx.Module, ABC):
-    """A generative process that generates arithmetic expressions.
+    """Abstract base class for generative processes that create arithmetic expressions.
+
+    This class provides the foundation for generating arithmetic expressions
+    in different formats (e.g., binary tree, RPN). It handles token management,
+    operator functions, and provides abstract methods for subclasses to implement
+    specific generation strategies.
 
     This class is abstract and cannot be instantiated directly.
     """
@@ -46,6 +46,12 @@ class ArithmeticProcess(eqx.Module, ABC):
     operator_functions: dict[str, Callable[[jax.Array, jax.Array], jax.Array]] = eqx.static_field()
 
     def __init__(self, p: int, operators: Sequence[Operators]):
+        """Initialize the arithmetic process.
+
+        Args:
+            p: The modulus for arithmetic operations (values are in range [0, p-1])
+            operators: Sequence of operators to use in expressions
+        """
         self.p = p
         self.operators = {p + i: operator for i, operator in enumerate(operators)}
         num_operators = len(self.operators)
@@ -69,33 +75,93 @@ class ArithmeticProcess(eqx.Module, ABC):
         self.operator_functions = {operator.value: operator_function_map[operator.value] for operator in operators}
 
     def is_operand(self, token: jax.Array) -> jax.Array:
-        """Check if a token is an operand."""
+        """Check if a token represents an operand (numeric value).
+
+        Args:
+            token: Token to check
+
+        Returns:
+            Boolean array indicating if the token is an operand
+        """
         return token < self.p
 
     def is_operand_or_operator(self, token: jax.Array) -> jax.Array:
-        """Check if a token is an operand or an operator."""
+        """Check if a token represents an operand or operator.
+
+        Args:
+            token: Token to check
+
+        Returns:
+            Boolean array indicating if the token is an operand or operator
+        """
         return token < self.p + len(self.operators)
 
     def is_operator(self, token: jax.Array) -> jax.Array:
-        """Check if a token is an operator."""
+        """Check if a token represents an operator.
+
+        Args:
+            token: Token to check
+
+        Returns:
+            Boolean array indicating if the token is an operator
+        """
         return self.is_operand_or_operator(token) & ~self.is_operand(token)
 
     def operator(self, token: jax.Array) -> Callable[[jax.Array, jax.Array], jax.Array]:
-        """Get the operator function for a token."""
+        """Get the operator function corresponding to a token.
+
+        Args:
+            token: Token representing an operator
+
+        Returns:
+            Function that performs the corresponding arithmetic operation
+        """
         return self.operator_functions[self.operators[int(token)].value]
 
     @abstractmethod
     def random_sub_equation(self, key: chex.PRNGKey, k: int) -> tuple[int, jax.Array]:
-        """Produce a random sub-equation."""
+        """Generate a random sub-equation.
+
+        Args:
+            key: JAX PRNG key for random number generation
+            k: Complexity parameter (typically represents tree depth or expression size)
+
+        Returns:
+            Tuple of (size, sub_equation) where size is the number of meaningful tokens
+            and sub_equation is the array representation of the expression
+        """
         ...
 
     @abstractmethod
     def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
-        """Produce a child sub-equation."""
+        """Generate a child sub-equation by evaluating the given sub-equation.
+
+        This method typically performs one step of evaluation, reducing the expression
+        by computing operations where both operands are known.
+
+        Args:
+            sub_equation: The parent sub-equation to evaluate
+
+        Returns:
+            Tuple of (size, evaluated_sub_equation) where size is the number of
+            meaningful tokens in the evaluated result
+        """
         ...
 
     def full_equation(self, sub_equation: jax.Array, n: int, sequence_len: int) -> jax.Array:
-        """Produce a random RPN sequence."""
+        """Generate a complete equation sequence from a sub-equation.
+
+        Creates a full equation by repeatedly evaluating the sub-equation until
+        it reduces to a single value, adding equals signs between each evaluation step.
+
+        Args:
+            sub_equation: Initial sub-equation to start with
+            n: Number of meaningful tokens in the sub-equation
+            sequence_len: Total length of the output sequence
+
+        Returns:
+            Complete equation sequence with beginning/end markers and equals signs
+        """
         equation = jnp.full(sequence_len, self.tokens[SpecialTokens.PAD.value])
         equation = equation.at[0].set(self.tokens[SpecialTokens.BOE.value])
         i = 1
@@ -111,39 +177,98 @@ class ArithmeticProcess(eqx.Module, ABC):
         return equation
 
     def random_equation(self, key: chex.PRNGKey, k: int, sequence_len: int) -> jax.Array:
-        """Produce a random RPN sequence."""
+        """Generate a complete random arithmetic equation.
+
+        Args:
+            key: JAX PRNG key for random number generation
+            k: Complexity parameter for the sub-equation
+            sequence_len: Total length of the output sequence
+
+        Returns:
+            Complete equation sequence with random arithmetic expression
+        """
         n, sub_equation = self.random_sub_equation(key, k)
         return self.full_equation(sub_equation, n, sequence_len)
 
     @abstractmethod
     def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
-        """Check if a RPN sequence is valid."""
+        """Check if a sub-equation is valid according to the implementation's rules.
+
+        Args:
+            sub_equation: The sub-equation to validate
+            n: Number of meaningful tokens in the sub-equation
+
+        Returns:
+            Boolean array indicating if the sub-equation is valid
+        """
         ...
 
 
 class BinaryTreeArithmeticProcess(ArithmeticProcess):
-    """A generative process that generates arithmetic expressions in RPN format."""
+    """Generative process that creates arithmetic expressions in binary tree format.
+
+    This implementation represents arithmetic expressions as complete binary trees
+    stored in array format, where each node at index i has children at indices
+    2*i+1 and 2*i+2. Operators are placed at internal nodes and operands at leaves.
+    """
 
     def __init__(self, p: int, operators: Sequence[Operators]):
+        """Initialize the binary tree arithmetic process.
+
+        Args:
+            p: The modulus for arithmetic operations
+            operators: Sequence of operators to use in expressions
+        """
         super().__init__(p, operators)
 
     @staticmethod
     def parent(idx: int) -> int:
-        """Get the parent of an index."""
+        """Get the parent index of a given node index.
+
+        Args:
+            idx: Node index
+
+        Returns:
+            Parent node index
+        """
         return (idx - 1) // 2
 
     @staticmethod
     def left_child(idx: int) -> int:
-        """Get the left child of an index."""
+        """Get the left child index of a given node index.
+
+        Args:
+            idx: Node index
+
+        Returns:
+            Left child node index
+        """
         return 2 * idx + 1
 
     @staticmethod
     def right_child(idx: int) -> int:
-        """Get the right child of an index."""
+        """Get the right child index of a given node index.
+
+        Args:
+            idx: Node index
+
+        Returns:
+            Right child node index
+        """
         return 2 * idx + 2
 
     def diagram(self, tree: jax.Array) -> str:
-        """Produce a diagram from a template."""
+        """Generate a Mermaid diagram representation of the binary tree.
+
+        Creates a visual representation of the arithmetic expression tree
+        suitable for rendering in Markdown with Mermaid support.
+
+        Args:
+            tree: Array representation of the binary tree
+
+        Returns:
+            Mermaid diagram code as a string
+        """
         safe_values = {
             Operators.ADD.value: "#43;",
             Operators.SUB.value: "#45;",
@@ -190,7 +315,20 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
         return "\n".join(lines)
 
     def random_sub_equation(self, key: chex.PRNGKey, k: int) -> tuple[int, jax.Array]:
-        """Produce a random RPN sub-equation."""
+        """Generate a random binary tree sub-equation.
+
+        Creates a complete binary tree with k operators randomly placed at internal
+        nodes and k+1 operands at leaf nodes. The tree is stored in array format
+        where each node at index i has children at indices 2*i+1 and 2*i+2.
+
+        Args:
+            key: JAX PRNG key for random number generation
+            k: Number of operators (determines tree depth and complexity)
+
+        Returns:
+            Tuple of (size, sub_equation) where size is the actual tree size
+            and sub_equation contains the tree in array format
+        """
         n = 2 ** (k + 1) - 1
         sub_equation = jnp.full(n, self.tokens[SpecialTokens.PAD.value])
         operand_key, operator_key, key = jax.random.split(key, 3)
@@ -214,7 +352,20 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
         return n, sub_equation
 
     def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
-        """Produce a child RPN sub-equation."""
+        """Generate a child sub-equation by evaluating the binary tree.
+
+        Performs one step of evaluation by computing operations where both
+        operands are known values. Uses a stack-based traversal to process
+        the tree in depth-first order.
+
+        Args:
+            sub_equation: The parent binary tree sub-equation to evaluate
+
+        Returns:
+            Tuple of (size, evaluated_sub_equation) where size is the actual
+            tree size after evaluation and evaluated_sub_equation contains
+            the partially evaluated tree
+        """
         n = sub_equation.shape[0]
         output = jnp.full(n, self.tokens[SpecialTokens.PAD.value])
         stack = Stack(max_size=n, default_element=jnp.array(0, dtype=jnp.int32))
@@ -243,7 +394,22 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
         return n, output
 
     def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
-        """Check if a sub-equation is valid."""
+        """Check if a binary tree sub-equation is valid.
+
+        Validates that the sub-equation follows binary tree structure rules:
+        - Root must be an operand or operator
+        - Internal nodes must be operators
+        - Leaf nodes must be operands
+        - Parent-child relationships must be consistent
+        - Padding tokens must be in unused positions
+
+        Args:
+            sub_equation: The sub-equation to validate
+            n: Number of meaningful tokens in the sub-equation
+
+        Returns:
+            Boolean array indicating if the sub-equation is valid
+        """
         if n < 1:
             return jnp.array(False)
         if sub_equation.shape[0] < n:
