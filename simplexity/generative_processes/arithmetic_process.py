@@ -90,22 +90,26 @@ class ArithmeticProcess(eqx.Module, ABC):
         """Produce a child sub-equation."""
         ...
 
-    def random_equation(self, key: chex.PRNGKey, k: int, sequence_len: int) -> jax.Array:
+    def full_equation(self, sub_equation: jax.Array, n: int, sequence_len: int) -> jax.Array:
         """Produce a random RPN sequence."""
         equation = jnp.full(sequence_len, self.tokens[SpecialTokens.PAD.value])
         equation = equation.at[0].set(self.tokens[SpecialTokens.BOE.value])
         i = 1
-        n, sub_equation = self.random_sub_equation(key, k)
         equation = equation.at[i : i + n].set(sub_equation)
         i += n
         while n > 1:
             equation = equation.at[i].set(self.tokens[SpecialTokens.EQL.value])
             i += 1
             n, sub_equation = self.child_sub_equation(sub_equation)
-            equation = equation.at[i : i + n].set(sub_equation[1:n])
+            equation = equation.at[i : i + n].set(sub_equation[:n])
             i += n
         equation = equation.at[i].set(self.tokens[SpecialTokens.EOE.value])
         return equation
+
+    def random_equation(self, key: chex.PRNGKey, k: int, sequence_len: int) -> jax.Array:
+        """Produce a random RPN sequence."""
+        n, sub_equation = self.random_sub_equation(key, k)
+        return self.full_equation(sub_equation, n, sequence_len)
 
 
 class BinaryTreeArithmeticProcess(ArithmeticProcess):

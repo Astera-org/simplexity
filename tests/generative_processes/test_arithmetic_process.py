@@ -2,8 +2,22 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.arithmetic_process import BinaryTreeArithmeticProcess, Operators
 
+TOKENS = {
+    "0": 0,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "+": 5,
+    "-": 6,
+    "=": 7,
+    "<boe>": 8,
+    "<eoe>": 9,
+    "<pad>": 10,
+}
+
 # 0 1 2 3 4 5 6 7 8 9 A B C D E
-# - + + 2 0 - 4 _ _ _ _ 2 1 _ _
+# - + + 2 0 - 4 _ _ _ _ 3 1 _ _
 #
 #        -
 #    +       +
@@ -11,7 +25,25 @@ from simplexity.generative_processes.arithmetic_process import BinaryTreeArithme
 # _ _ _ _ 3 1 _ _
 #
 # (2 + 0) - ((3 - 1) + 4)
-BASE_TREE = jnp.array([6, 5, 5, 2, 0, 6, 4, 10, 10, 10, 10, 3, 1, 10, 10])
+BASE_TREE = jnp.array(
+    [
+        TOKENS["-"],
+        TOKENS["+"],
+        TOKENS["+"],
+        TOKENS["2"],
+        TOKENS["0"],
+        TOKENS["-"],
+        TOKENS["4"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["3"],
+        TOKENS["1"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+    ]
+)
 # 0 1 2 3 4 5 6 7 8 9 A B C D E
 # - 2 + _ _ 2 4 _ _ _ _ _ _ _ _
 #
@@ -21,7 +53,25 @@ BASE_TREE = jnp.array([6, 5, 5, 2, 0, 6, 4, 10, 10, 10, 10, 3, 1, 10, 10])
 # _ _ _ _ _ _ _ _
 #
 # 2 - (2 + 4)
-CHILD_TREE = jnp.array([6, 2, 5, 10, 10, 2, 4, 10, 10, 10, 10, 10, 10, 10, 10])
+CHILD_TREE = jnp.array(
+    [
+        TOKENS["-"],
+        TOKENS["2"],
+        TOKENS["+"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["2"],
+        TOKENS["4"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+    ]
+)
 # 0 1 2 3 4 5 6 7 8 9 A B C D E
 # - 2 1 _ _ _ _ _ _ _ _ _ _ _ _
 #
@@ -31,7 +81,25 @@ CHILD_TREE = jnp.array([6, 2, 5, 10, 10, 2, 4, 10, 10, 10, 10, 10, 10, 10, 10])
 # _ _ _ _ _ _ _ _
 #
 # 2 - 6
-GRANDCHILD_TREE = jnp.array([6, 2, 1, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10])
+GRANDCHILD_TREE = jnp.array(
+    [
+        TOKENS["-"],
+        TOKENS["2"],
+        TOKENS["1"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+    ]
+)
 # 0 1 2 3 4 5 6 7 8 9 A B C D E
 # 1 _ _ _ _ _ _ _ _ _ _ _ _ _ _
 #
@@ -41,26 +109,31 @@ GRANDCHILD_TREE = jnp.array([6, 2, 1, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10
 # _ _ _ _ _ _ _ _
 #
 # 1
-SOLUTION_TREE = jnp.array([1, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10])
+SOLUTION_TREE = jnp.array(
+    [
+        TOKENS["1"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+        TOKENS["<pad>"],
+    ]
+)
 
 
 def test_initialization():
     process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     assert process.p == 5
-    tokens = {
-        "0": 0,
-        "1": 1,
-        "2": 2,
-        "3": 3,
-        "4": 4,
-        "+": 5,
-        "-": 6,
-        "=": 7,
-        "<boe>": 8,
-        "<eoe>": 9,
-        "<pad>": 10,
-    }
-    assert process.tokens == tokens
+    assert process.tokens == TOKENS
 
 
 def test_operations():
@@ -119,3 +192,23 @@ def test_child_simple_add():
     n, child_tree = process.child_sub_equation(GRANDCHILD_TREE)
     assert n == 1
     assert jnp.all(child_tree == SOLUTION_TREE)
+
+
+def test_full_equation():
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    equation = process.full_equation(BASE_TREE, 15, 32)
+    expected = jnp.concatenate(
+        [
+            jnp.array([TOKENS["<boe>"]]),
+            BASE_TREE[:15],
+            jnp.array([TOKENS["="]]),
+            CHILD_TREE[:7],
+            jnp.array([TOKENS["="]]),
+            GRANDCHILD_TREE[:3],
+            jnp.array([TOKENS["="]]),
+            SOLUTION_TREE[:1],
+            jnp.array([TOKENS["<eoe>"]]),
+            jnp.array([TOKENS["<pad>"]]),
+        ]
+    )
+    assert jnp.all(equation == expected)
