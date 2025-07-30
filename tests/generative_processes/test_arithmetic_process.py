@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.arithmetic_process import BinaryTreeArithmeticProcess, Operators
@@ -144,25 +145,47 @@ def test_operations():
 
 def test_is_operand():
     process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
-    for i in range(5):
-        assert isinstance(process.tokens[str(i)], int)
-        assert process.is_operand(jnp.array(i))
-    for i in range(5, 11):
-        assert not process.is_operand(jnp.array(i))
+    assert process.is_operand(jnp.array(TOKENS["0"]))
+    assert process.is_operand(jnp.array(TOKENS["1"]))
+    assert process.is_operand(jnp.array(TOKENS["2"]))
+    assert process.is_operand(jnp.array(TOKENS["3"]))
+    assert process.is_operand(jnp.array(TOKENS["4"]))
+    assert not process.is_operand(jnp.array(TOKENS["+"]))
+    assert not process.is_operand(jnp.array(TOKENS["-"]))
+    assert not process.is_operand(jnp.array(TOKENS["="]))
+    assert not process.is_operand(jnp.array(TOKENS["<boe>"]))
+    assert not process.is_operand(jnp.array(TOKENS["<eoe>"]))
+    assert not process.is_operand(jnp.array(TOKENS["<pad>"]))
+
+
+def test_is_operand_or_operator():
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    assert process.is_operand_or_operator(jnp.array(TOKENS["0"]))
+    assert process.is_operand_or_operator(jnp.array(TOKENS["1"]))
+    assert process.is_operand_or_operator(jnp.array(TOKENS["2"]))
+    assert process.is_operand_or_operator(jnp.array(TOKENS["3"]))
+    assert process.is_operand_or_operator(jnp.array(TOKENS["4"]))
+    assert process.is_operand_or_operator(jnp.array(TOKENS["+"]))
+    assert process.is_operand_or_operator(jnp.array(TOKENS["-"]))
+    assert not process.is_operand_or_operator(jnp.array(TOKENS["="]))
+    assert not process.is_operand_or_operator(jnp.array(TOKENS["<boe>"]))
+    assert not process.is_operand_or_operator(jnp.array(TOKENS["<eoe>"]))
+    assert not process.is_operand_or_operator(jnp.array(TOKENS["<pad>"]))
 
 
 def test_is_operator():
     process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
-    for i in range(0, 5):
-        assert not process.is_operator(jnp.array(i))
-
-    plus = jnp.array(process.tokens[Operators.ADD.value])
-    assert process.is_operator(plus)
-    minus = jnp.array(process.tokens[Operators.SUB.value])
-    assert process.is_operator(minus)
-
-    for i in range(7, 11):
-        assert not process.is_operator(jnp.array(i))
+    assert not process.is_operator(jnp.array(TOKENS["0"]))
+    assert not process.is_operator(jnp.array(TOKENS["1"]))
+    assert not process.is_operator(jnp.array(TOKENS["2"]))
+    assert not process.is_operator(jnp.array(TOKENS["3"]))
+    assert not process.is_operator(jnp.array(TOKENS["4"]))
+    assert process.is_operator(jnp.array(TOKENS["+"]))
+    assert process.is_operator(jnp.array(TOKENS["-"]))
+    assert not process.is_operator(jnp.array(TOKENS["="]))
+    assert not process.is_operator(jnp.array(TOKENS["<boe>"]))
+    assert not process.is_operator(jnp.array(TOKENS["<eoe>"]))
+    assert not process.is_operator(jnp.array(TOKENS["<pad>"]))
 
 
 def test_diagram():
@@ -212,3 +235,31 @@ def test_full_equation():
         ]
     )
     assert jnp.all(equation == expected)
+
+
+def test_random_sub_equation():
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    key = jax.random.PRNGKey(0)
+    k = 3
+    n, sub_equation = process.random_sub_equation(key, k)
+    assert process.valid_sub_equation(sub_equation, n)
+
+
+def test_random_equation():
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    key = jax.random.PRNGKey(0)
+    k = 3
+    equation = process.random_equation(key, k, 32)
+    assert equation.shape == (32,)
+
+
+def test_valid_sub_equation():
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    assert process.valid_sub_equation(BASE_TREE, 15)
+    assert process.valid_sub_equation(CHILD_TREE, 7)
+    assert process.valid_sub_equation(GRANDCHILD_TREE, 3)
+    assert process.valid_sub_equation(SOLUTION_TREE, 1)
+    assert not process.valid_sub_equation(BASE_TREE, 0)
+    assert not process.valid_sub_equation(BASE_TREE, 32)
+    assert not process.valid_sub_equation(CHILD_TREE.at[8].set(2), 7)
+    assert not process.valid_sub_equation(jnp.array([TOKENS["<boe>"], 1, TOKENS["<eoe>"]]), 1)

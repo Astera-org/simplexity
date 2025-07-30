@@ -72,9 +72,13 @@ class ArithmeticProcess(eqx.Module, ABC):
         """Check if a token is an operand."""
         return token < self.p
 
+    def is_operand_or_operator(self, token: jax.Array) -> jax.Array:
+        """Check if a token is an operand or an operator."""
+        return token < self.p + len(self.operators)
+
     def is_operator(self, token: jax.Array) -> jax.Array:
         """Check if a token is an operator."""
-        return (token >= self.p) & (token < self.p + len(self.operators))
+        return self.is_operand_or_operator(token) & ~self.is_operand(token)
 
     def operator(self, token: jax.Array) -> Callable[[jax.Array, jax.Array], jax.Array]:
         """Get the operator function for a token."""
@@ -95,7 +99,7 @@ class ArithmeticProcess(eqx.Module, ABC):
         equation = jnp.full(sequence_len, self.tokens[SpecialTokens.PAD.value])
         equation = equation.at[0].set(self.tokens[SpecialTokens.BOE.value])
         i = 1
-        equation = equation.at[i : i + n].set(sub_equation)
+        equation = equation.at[i : i + n].set(sub_equation[:n])
         i += n
         while n > 1:
             equation = equation.at[i].set(self.tokens[SpecialTokens.EQL.value])
@@ -111,12 +115,22 @@ class ArithmeticProcess(eqx.Module, ABC):
         n, sub_equation = self.random_sub_equation(key, k)
         return self.full_equation(sub_equation, n, sequence_len)
 
+    @abstractmethod
+    def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
+        """Check if a RPN sequence is valid."""
+        ...
+
 
 class BinaryTreeArithmeticProcess(ArithmeticProcess):
     """A generative process that generates arithmetic expressions in RPN format."""
 
     def __init__(self, p: int, operators: Sequence[Operators]):
         super().__init__(p, operators)
+
+    @staticmethod
+    def parent(idx: int) -> int:
+        """Get the parent of an index."""
+        return (idx - 1) // 2
 
     @staticmethod
     def left_child(idx: int) -> int:
@@ -193,7 +207,9 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
             leaf_idxs = leaf_idxs.at[self.right_child(leaf_idx)].set(True)
         sub_equation = sub_equation.at[operator_idxs].set(operators)
         sub_equation = sub_equation.at[leaf_idxs].set(operands)
-        max_level = int(jnp.floor(jnp.log2(jnp.max(leaf_idxs) + 1)))
+        # Find the maximum index that contains a non-PAD token
+        max_idx = jnp.max(jnp.where(sub_equation != self.tokens[SpecialTokens.PAD.value])[0])
+        max_level = int(jnp.floor(jnp.log2(max_idx + 1)))
         n = 2 ** (max_level + 1) - 1
         return n, sub_equation
 
@@ -225,3 +241,38 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
         max_level = int(jnp.floor(jnp.log2(max_idx + 1)))
         n = 2 ** (max_level + 1) - 1
         return n, output
+
+    def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
+        """Check if a sub-equation is valid."""
+        if n < 1:
+            return jnp.array(False)
+        if sub_equation.shape[0] < n:
+            return jnp.array(False)
+        if not self.is_operand_or_operator(sub_equation[0]):
+            return jnp.array(False)
+        if not jnp.all(sub_equation[n:] == self.tokens[SpecialTokens.PAD.value]):
+            return jnp.array(False)
+        # valid parents
+        for idx in range(1, sub_equation.shape[0]):
+            if self.is_operand_or_operator(sub_equation[idx]):
+                if not self.is_operator(sub_equation[self.parent(idx)]):
+                    return jnp.array(False)
+            elif sub_equation[idx] != self.tokens[SpecialTokens.PAD.value]:
+                return jnp.array(False)
+        # valid children
+        for idx in range(self.parent(n)):
+            token = sub_equation[idx]
+            left_idx = self.left_child(int(idx))
+            right_idx = self.right_child(int(idx))
+            left_token = sub_equation[left_idx]
+            right_token = sub_equation[right_idx]
+            if self.is_operator(token):
+                if not (self.is_operand_or_operator(left_token) and self.is_operand_or_operator(right_token)):
+                    return jnp.array(False)
+            else:
+                if not (
+                    left_token == self.tokens[SpecialTokens.PAD.value]
+                    and right_token == self.tokens[SpecialTokens.PAD.value]
+                ):
+                    return jnp.array(False)
+        return jnp.array(True)
