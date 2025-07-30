@@ -8,20 +8,40 @@ from simplexity.generative_processes.arithmetic_process import BinaryTreeArithme
 #        -
 #    +       +
 #  2   0   -   4
-# _ _ _ _ 2 1 _ _
+# _ _ _ _ 3 1 _ _
 #
-# (2 + 0) - ((2 - 1) + 4)
+# (2 + 0) - ((3 - 1) + 4)
 BASE_TREE = jnp.array([6, 5, 5, 2, 0, 6, 4, 10, 10, 10, 10, 3, 1, 10, 10])
 # 0 1 2 3 4 5 6 7 8 9 A B C D E
 # - 2 + _ _ 2 4 _ _ _ _ _ _ _ _
 #
 #        -
 #    2       +
-#  _   _   1   4
+#  _   _   2   4
 # _ _ _ _ _ _ _ _
 #
-# 2 - (1 + 4)
+# 2 - (2 + 4)
 CHILD_TREE = jnp.array([6, 2, 5, 10, 10, 2, 4, 10, 10, 10, 10, 10, 10, 10, 10])
+# 0 1 2 3 4 5 6 7 8 9 A B C D E
+# - 2 1 _ _ _ _ _ _ _ _ _ _ _ _
+#
+#        -
+#    2       1
+#  _   _   _   _
+# _ _ _ _ _ _ _ _
+#
+# 2 - 6
+GRANDCHILD_TREE = jnp.array([6, 2, 1, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10])
+# 0 1 2 3 4 5 6 7 8 9 A B C D E
+# 1 _ _ _ _ _ _ _ _ _ _ _ _ _ _
+#
+#        1
+#    _       _
+#  _   _   _   _
+# _ _ _ _ _ _ _ _
+#
+# 1
+SOLUTION_TREE = jnp.array([1, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10])
 
 
 def test_initialization():
@@ -91,3 +111,11 @@ def test_child_simple_add():
     n, child_tree = process.child_sub_equation(BASE_TREE)
     assert n == 15
     assert jnp.all(child_tree == CHILD_TREE)
+
+    n, child_tree = process.child_sub_equation(CHILD_TREE)
+    assert n == 15
+    assert jnp.all(child_tree == GRANDCHILD_TREE)
+
+    n, child_tree = process.child_sub_equation(GRANDCHILD_TREE)
+    assert n == 15
+    assert jnp.all(child_tree == SOLUTION_TREE)
