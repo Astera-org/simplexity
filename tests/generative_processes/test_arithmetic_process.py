@@ -109,13 +109,13 @@ def test_diagram():
 def test_child_simple_add():
     process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     n, child_tree = process.child_sub_equation(BASE_TREE)
-    assert n == 15
+    assert n == 7
     assert jnp.all(child_tree == CHILD_TREE)
 
     n, child_tree = process.child_sub_equation(CHILD_TREE)
-    assert n == 15
+    assert n == 3
     assert jnp.all(child_tree == GRANDCHILD_TREE)
 
     n, child_tree = process.child_sub_equation(GRANDCHILD_TREE)
-    assert n == 15
+    assert n == 1
     assert jnp.all(child_tree == SOLUTION_TREE)

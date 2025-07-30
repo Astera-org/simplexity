@@ -189,6 +189,8 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
             leaf_idxs = leaf_idxs.at[self.right_child(leaf_idx)].set(True)
         sub_equation = sub_equation.at[operator_idxs].set(operators)
         sub_equation = sub_equation.at[leaf_idxs].set(operands)
+        max_level = int(jnp.floor(jnp.log2(jnp.max(leaf_idxs) + 1)))
+        n = 2 ** (max_level + 1) - 1
         return n, sub_equation
 
     def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
@@ -197,8 +199,10 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
         output = jnp.full(n, self.tokens[SpecialTokens.PAD.value])
         stack = Stack(max_size=n, default_element=jnp.array(0, dtype=jnp.int32))
         stack = stack.push(jnp.array(0, dtype=jnp.int32))
+        max_idx = 0
         while not stack.is_empty:
             stack, idx = stack.pop()
+            max_idx = max(max_idx, idx)
             token = sub_equation[idx]
             if self.is_operator(token):
                 left_idx = self.left_child(int(idx))
@@ -214,4 +218,6 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
             elif self.is_operand(token):
                 output = output.at[idx].set(token)
 
+        max_level = int(jnp.floor(jnp.log2(max_idx + 1)))
+        n = 2 ** (max_level + 1) - 1
         return n, output
