@@ -1,13 +1,31 @@
 import jax.numpy as jnp
 
-from simplexity.generative_processes.arithmetic_process import ArithmeticProcess, Operators
+from simplexity.generative_processes.arithmetic_process import BinaryTreeArithmeticProcess, Operators
 
-BASE_TREE = jnp.array([6, 5, 5, 2, 0, 6, 4, 10, 10, 10, 10, 3, 1, 10, 10, 10])
-CHILD_TREE = jnp.array([6, 2, 5, 10, 10, 2, 4, 10, 10, 10, 10, 10, 10, 10, 10, 10])
+# 0 1 2 3 4 5 6 7 8 9 A B C D E
+# - + + 2 0 - 4 _ _ _ _ 2 1 _ _
+#
+#        -
+#    +       +
+#  2   0   -   4
+# _ _ _ _ 2 1 _ _
+#
+# (2 + 0) - ((2 - 1) + 4)
+BASE_TREE = jnp.array([6, 5, 5, 2, 0, 6, 4, 10, 10, 10, 10, 3, 1, 10, 10])
+# 0 1 2 3 4 5 6 7 8 9 A B C D E
+# - 2 + _ _ 2 4 _ _ _ _ _ _ _ _
+#
+#        -
+#    2       +
+#  _   _   1   4
+# _ _ _ _ _ _ _ _
+#
+# 2 - (1 + 4)
+CHILD_TREE = jnp.array([6, 2, 5, 10, 10, 2, 4, 10, 10, 10, 10, 10, 10, 10, 10])
 
 
 def test_initialization():
-    process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     assert process.p == 5
     tokens = {
         "0": 0,
@@ -26,13 +44,13 @@ def test_initialization():
 
 
 def test_operations():
-    process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     assert process.operator_functions[Operators.ADD.value](jnp.array(2), jnp.array(3)) == 0
     assert process.operator_functions[Operators.SUB.value](jnp.array(2), jnp.array(3)) == 4
 
 
 def test_is_operand():
-    process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     for i in range(5):
         assert isinstance(process.tokens[str(i)], int)
         assert process.is_operand(jnp.array(i))
@@ -41,7 +59,7 @@ def test_is_operand():
 
 
 def test_is_operator():
-    process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     for i in range(0, 5):
         assert not process.is_operator(jnp.array(i))
 
@@ -55,7 +73,7 @@ def test_is_operator():
 
 
 def test_diagram():
-    process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
 
     base_diagram = process.diagram(BASE_TREE)
     with open("tests/generative_processes/goldens/equation_trees/base_equation.md") as f:
@@ -69,6 +87,7 @@ def test_diagram():
 
 
 def test_child_simple_add():
-    process = ArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
-    child_tree = process.child(BASE_TREE)
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    n, child_tree = process.child_sub_equation(BASE_TREE)
+    assert n == 15
     assert jnp.all(child_tree == CHILD_TREE)

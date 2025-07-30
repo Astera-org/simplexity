@@ -1,10 +1,13 @@
 import enum
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 
 import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+
+from simplexity.data_structures.stack import Stack
 
 
 class Operators(enum.Enum):
@@ -31,8 +34,11 @@ class SpecialTokens(enum.Enum):
     PAD = "<pad>"  # Padding
 
 
-class ArithmeticProcess(eqx.Module):
-    """A generative process that generates arithmetic expressions."""
+class ArithmeticProcess(eqx.Module, ABC):
+    """A generative process that generates arithmetic expressions.
+
+    This class is abstract and cannot be instantiated directly.
+    """
 
     p: int
     operators: dict[int, Operators]
@@ -73,6 +79,50 @@ class ArithmeticProcess(eqx.Module):
     def operator(self, token: jax.Array) -> Callable[[jax.Array, jax.Array], jax.Array]:
         """Get the operator function for a token."""
         return self.operator_functions[self.operators[int(token)].value]
+
+    @abstractmethod
+    def random_sub_equation(self, key: chex.PRNGKey, k: int) -> tuple[int, jax.Array]:
+        """Produce a random sub-equation."""
+        ...
+
+    @abstractmethod
+    def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
+        """Produce a child sub-equation."""
+        ...
+
+    def random_equation(self, key: chex.PRNGKey, k: int, sequence_len: int) -> jax.Array:
+        """Produce a random RPN sequence."""
+        equation = jnp.full(sequence_len, self.tokens[SpecialTokens.PAD.value])
+        equation = equation.at[0].set(self.tokens[SpecialTokens.BOE.value])
+        i = 1
+        n, sub_equation = self.random_sub_equation(key, k)
+        equation = equation.at[i : i + n].set(sub_equation)
+        i += n
+        while n > 1:
+            equation = equation.at[i].set(self.tokens[SpecialTokens.EQL.value])
+            i += 1
+            n, sub_equation = self.child_sub_equation(sub_equation)
+            equation = equation.at[i : i + n].set(sub_equation[1:n])
+            i += n
+        equation = equation.at[i].set(self.tokens[SpecialTokens.EOE.value])
+        return equation
+
+
+class BinaryTreeArithmeticProcess(ArithmeticProcess):
+    """A generative process that generates arithmetic expressions in RPN format."""
+
+    def __init__(self, p: int, operators: Sequence[Operators]):
+        super().__init__(p, operators)
+
+    @staticmethod
+    def left_child(idx: int) -> int:
+        """Get the left child of an index."""
+        return 2 * idx + 1
+
+    @staticmethod
+    def right_child(idx: int) -> int:
+        """Get the right child of an index."""
+        return 2 * idx + 2
 
     def diagram(self, tree: jax.Array) -> str:
         """Produce a diagram from a template."""
@@ -121,36 +171,47 @@ class ArithmeticProcess(eqx.Module):
         lines.append("```")
         return "\n".join(lines)
 
-    def child(self, tree: jax.Array) -> jax.Array:
-        """Produce a child template from a template."""
+    def random_sub_equation(self, key: chex.PRNGKey, k: int) -> tuple[int, jax.Array]:
+        """Produce a random RPN sub-equation."""
+        n = 2 ** (k + 1) - 1
+        sub_equation = jnp.full(n, self.tokens[SpecialTokens.PAD.value])
+        operand_key, operator_key, key = jax.random.split(key, 3)
+        operands = jax.random.randint(operand_key, (k + 1,), 0, self.p)
+        operators = jax.random.randint(operator_key, (k,), self.p, self.p + len(self.operators))
+        operator_idxs = jnp.zeros(n, dtype=jnp.bool_)
+        leaf_idxs = jnp.zeros(n, dtype=jnp.bool_).at[0].set(True)
+        while jnp.sum(operator_idxs) < k:
+            key, leaf_key = jax.random.split(key)
+            leaf_idx = int(jax.random.choice(leaf_key, jnp.where(leaf_idxs)[0]))
+            operator_idxs = operator_idxs.at[leaf_idx].set(True)
+            leaf_idxs = leaf_idxs.at[leaf_idx].set(False)
+            leaf_idxs = leaf_idxs.at[self.left_child(leaf_idx)].set(True)
+            leaf_idxs = leaf_idxs.at[self.right_child(leaf_idx)].set(True)
+        sub_equation = sub_equation.at[operator_idxs].set(operators)
+        sub_equation = sub_equation.at[leaf_idxs].set(operands)
+        return n, sub_equation
 
-        def left_child(idx: int) -> int:
-            return 2 * idx + 1
-
-        def right_child(idx: int) -> int:
-            return 2 * idx + 2
-
-        output = jnp.full(tree.shape, self.tokens[SpecialTokens.PAD.value])
-        stack = [0]
-        while stack:
-            idx = stack.pop()
-            token = tree[idx]
+    def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
+        """Produce a child RPN sub-equation."""
+        n = sub_equation.shape[0]
+        output = jnp.full(n, self.tokens[SpecialTokens.PAD.value])
+        stack = Stack(max_size=n, default_element=jnp.array(0, dtype=jnp.int32))
+        stack = stack.push(jnp.array(0, dtype=jnp.int32))
+        while not stack.is_empty:
+            stack, idx = stack.pop()
+            token = sub_equation[idx]
             if self.is_operator(token):
-                left_idx = left_child(idx)
-                right_idx = right_child(idx)
-                left_token = tree[left_idx]
-                right_token = tree[right_idx]
+                left_idx = self.left_child(int(idx))
+                right_idx = self.right_child(int(idx))
+                left_token = sub_equation[left_idx]
+                right_token = sub_equation[right_idx]
                 if self.is_operand(left_token) & self.is_operand(right_token):
                     output = output.at[idx].set(self.operator(token)(left_token, right_token))
                 else:
                     output = output.at[idx].set(token)
-                    stack.append(left_idx)
-                    stack.append(right_idx)
+                    stack = stack.push(jnp.array(left_idx, dtype=jnp.int32))
+                    stack = stack.push(jnp.array(right_idx, dtype=jnp.int32))
             elif self.is_operand(token):
                 output = output.at[idx].set(token)
 
-        return output
-
-    def generate(self, state: jax.Array, key: chex.PRNGKey, sequence_len: int) -> jax.Array:
-        """Produce an equation from a format."""
-        ...
+        return n, output
