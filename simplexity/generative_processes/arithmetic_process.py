@@ -193,33 +193,49 @@ class ArithmeticProcess(eqx.Module, ABC):
 
         # Add initial sub-equation
         n_int = n.astype(jnp.int32)
-        # Use dynamic_update_slice for the initial sub-equation
-        sub_eq_slice = jax.lax.dynamic_slice(sub_equation, (0,), (n_int,))
-        equation = jax.lax.dynamic_update_slice(equation, sub_eq_slice, (1,))
+        equation = jax.lax.dynamic_update_slice(equation, sub_equation, (1,))
         i = 1 + n_int
 
-        # Use a Python while loop for the iterative evaluation
-        # This allows the child_sub_equation methods to work as intended
-        current_sub_eq = sub_equation
-        current_n = n_int
+        # Use jax.lax.while_loop for JAX compatibility
+        def while_cond(carry):
+            equation, current_sub_eq, current_n, i = carry
+            # Continue as long as the current sub-equation has more than 1 meaningful token
+            return current_n > 1
 
-        while current_n > 1:
-            # Add equals sign
+        def while_body(carry):
+            equation, current_sub_eq, current_n, i = carry
+
+            # Add equals sign after the meaningful tokens (except for the final result)
             equation = equation.at[i].set(self.tokens[SpecialTokens.EQL.value])
             i = i + 1
 
-            # Evaluate sub-equation
+            # Evaluate sub-equation first
             new_n, new_sub_eq = self.child_sub_equation(current_sub_eq)
 
             # Add the evaluated sub-equation using dynamic_update_slice
             new_n_int = new_n.astype(jnp.int32)
-            new_sub_eq_slice = jax.lax.dynamic_slice(new_sub_eq, (0,), (new_n_int,))
-            equation = jax.lax.dynamic_update_slice(equation, new_sub_eq_slice, (i,))
+            # Copy the full sub-equation array
+            equation = jax.lax.dynamic_update_slice(equation, new_sub_eq, (i,))
             i = i + new_n_int
 
-            # Update for next iteration
-            current_sub_eq = new_sub_eq
-            current_n = new_n_int
+            # Add equals sign after the meaningful tokens (except for the final result)
+            # equation = jax.lax.cond(
+            #     new_n_int > 1,  # Not the final result
+            #     lambda: equation.at[i].set(self.tokens[SpecialTokens.EQL.value]),
+            #     lambda: equation,
+            # )
+            # i = jax.lax.cond(
+            #     new_n_int > 1,  # Not the final result
+            #     lambda: i + 1,
+            #     lambda: i,
+            # )
+
+            return equation, new_sub_eq, new_n_int, i
+
+        # Run the while loop
+        equation, current_sub_eq, current_n, i = jax.lax.while_loop(
+            while_cond, while_body, (equation, sub_equation, n_int, i)
+        )
 
         # Add end of equation marker
         equation = equation.at[i].set(self.tokens[SpecialTokens.EOE.value])

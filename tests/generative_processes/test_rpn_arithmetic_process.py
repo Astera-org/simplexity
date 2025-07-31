@@ -209,25 +209,26 @@ def test_child_sub_equation_jit_vmap():
     assert jnp.all(sub_equations == expected)
 
 
-def test_full_equation():
+@pytest.mark.parametrize("sequence_len", [32, 64])
+def test_full_equation(sequence_len):
     process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
-    equation = process.full_equation(BASE_RPN, jnp.array(9), 32)
+    equation = process.full_equation(BASE_RPN, jnp.array(9), sequence_len)
 
     # Build the expected array of size 32
     meaningful_tokens = jnp.concatenate(
         [
-            jnp.array([TOKENS["<boe>"]]),
-            BASE_RPN[:9],
-            jnp.array([TOKENS["="]]),
-            CHILD_RPN[:5],
-            jnp.array([TOKENS["="]]),
-            GRANDCHILD_RPN[:3],
-            jnp.array([TOKENS["="]]),
-            SOLUTION_RPN[:1],
-            jnp.array([TOKENS["<eoe>"]]),
+            jnp.array([TOKENS["<boe>"]]),  # 0
+            BASE_RPN[:9],  # 1-9
+            jnp.array([TOKENS["="]]),  # 10
+            CHILD_RPN[:5],  # 11-15
+            jnp.array([TOKENS["="]]),  # 16
+            GRANDCHILD_RPN[:3],  # 17-19
+            jnp.array([TOKENS["="]]),  # 20
+            SOLUTION_RPN[:1],  # 21
+            jnp.array([TOKENS["<eoe>"]]),  # 22
         ]
     )
-    padding_tokens = jnp.full(32 - len(meaningful_tokens), TOKENS["<pad>"])
+    padding_tokens = jnp.full(sequence_len - len(meaningful_tokens), TOKENS["<pad>"])
     expected = jnp.concatenate([meaningful_tokens, padding_tokens])
 
     assert jnp.all(equation == expected)
