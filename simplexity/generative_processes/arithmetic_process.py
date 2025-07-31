@@ -44,7 +44,7 @@ class ArithmeticProcess(eqx.Module, ABC):
     p: int
     operators: dict[int, Operators]
     tokens: dict[str, int]
-    operator_functions: dict[str, Callable[[jax.Array, jax.Array], jax.Array]] = eqx.static_field()
+    operator_functions: list[Callable[[jax.Array, jax.Array], jax.Array]] = eqx.static_field()
 
     def __init__(self, p: int, operators: Sequence[Operators]):
         """Initialize the arithmetic process.
@@ -73,7 +73,7 @@ class ArithmeticProcess(eqx.Module, ABC):
             Operators.SUB.value: lambda x, y: jnp.mod(jnp.subtract(x, y), self.p),
             Operators.MUL.value: lambda x, y: jnp.mod(jnp.multiply(x, y), self.p),
         }
-        self.operator_functions = {operator.value: operator_function_map[operator.value] for operator in operators}
+        self.operator_functions = [operator_function_map[operator.value] for operator in operators]
 
     def is_operand(self, token: jax.Array) -> jax.Array:
         """Check if a token represents an operand (numeric value).
@@ -117,7 +117,29 @@ class ArithmeticProcess(eqx.Module, ABC):
         Returns:
             Function that performs the corresponding arithmetic operation
         """
-        return self.operator_functions[self.operators[int(token)].value]
+        # Map token to index (tokens are p, p+1, p+2, etc.)
+        op_index = int(token) - self.p
+        return self.operator_functions[op_index]
+
+    def apply_operator(self, op_token: jax.Array, a: jax.Array, b: jax.Array) -> jax.Array:
+        """Apply an operator to two operands in a JAX-compatible way.
+
+        This method is designed to work with JAX compilation by using
+        conditional logic instead of dynamic dictionary lookups.
+
+        Args:
+            op_token: Token representing the operator
+            a: First operand
+            b: Second operand
+
+        Returns:
+            Result of applying the operator to the operands
+        """
+        # Map token to index (tokens are p, p+1, p+2, etc.)
+        op_index = op_token - self.p
+
+        # Use switch to select the appropriate function from our list
+        return jax.lax.switch(op_index, self.operator_functions, a, b)
 
     @abstractmethod
     def random_sub_equation(self, key: chex.PRNGKey, k: int) -> tuple[int, jax.Array]:
@@ -134,7 +156,7 @@ class ArithmeticProcess(eqx.Module, ABC):
         ...
 
     @abstractmethod
-    def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
+    def child_sub_equation(self, sub_equation: jax.Array) -> tuple[jax.Array, jax.Array]:
         """Generate a child sub-equation by evaluating the given sub-equation.
 
         This method typically performs one step of evaluation, reducing the expression
@@ -149,7 +171,7 @@ class ArithmeticProcess(eqx.Module, ABC):
         """
         ...
 
-    def full_equation(self, sub_equation: jax.Array, n: int, sequence_len: int) -> jax.Array:
+    def full_equation(self, sub_equation: jax.Array, n: jax.Array, sequence_len: int) -> jax.Array:
         """Generate a complete equation sequence from a sub-equation.
 
         Creates a full equation by repeatedly evaluating the sub-equation until
@@ -172,8 +194,9 @@ class ArithmeticProcess(eqx.Module, ABC):
             equation = equation.at[i].set(self.tokens[SpecialTokens.EQL.value])
             i += 1
             n, sub_equation = self.child_sub_equation(sub_equation)
-            equation = equation.at[i : i + n].set(sub_equation[:n])
-            i += n
+            n_int = int(n)
+            equation = equation.at[i : i + n_int].set(sub_equation[:n_int])
+            i += n_int
         equation = equation.at[i].set(self.tokens[SpecialTokens.EOE.value])
         return equation
 
@@ -189,7 +212,7 @@ class ArithmeticProcess(eqx.Module, ABC):
             Complete equation sequence with random arithmetic expression
         """
         n, sub_equation = self.random_sub_equation(key, k)
-        return self.full_equation(sub_equation, n, sequence_len)
+        return self.full_equation(sub_equation, jnp.array(n), sequence_len)
 
     @abstractmethod
     def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
@@ -352,7 +375,7 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
         n = 2 ** (max_level + 1) - 1
         return n, sub_equation
 
-    def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
+    def child_sub_equation(self, sub_equation: jax.Array) -> tuple[jax.Array, jax.Array]:
         """Generate a child sub-equation by evaluating the binary tree.
 
         Performs one step of evaluation by computing operations where both
@@ -392,7 +415,7 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
 
         max_level = int(jnp.floor(jnp.log2(max_idx + 1)))
         n = 2 ** (max_level + 1) - 1
-        return n, output
+        return jnp.array(n), output
 
     def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
         """Check if a binary tree sub-equation is valid.
@@ -582,7 +605,7 @@ class RPNArithmeticProcess(ArithmeticProcess):
 
         return n, sub_equation
 
-    def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
+    def child_sub_equation(self, sub_equation: jax.Array) -> tuple[jax.Array, jax.Array]:
         """Generate a child sub-equation by evaluating the RPN expression.
 
         Performs one step of evaluation by reducing all [operand, operand, operator] patterns
@@ -596,34 +619,61 @@ class RPNArithmeticProcess(ArithmeticProcess):
             meaningful tokens in the evaluated result
         """
         n = sub_equation.shape[0]
-        output = []
-        i = 0
-        while i < n:
-            # Check for a reducible pattern
-            if (
-                i + 2 < n
-                and self.is_operand(sub_equation[i])
-                and self.is_operand(sub_equation[i + 1])
-                and self.is_operator(sub_equation[i + 2])
-            ):
-                a = sub_equation[i]
-                b = sub_equation[i + 1]
-                op = sub_equation[i + 2]
-                result = self.operator(op)(a, b)
-                output.append(result)
-                i += 3  # Skip the reduced pattern
-            else:
-                output.append(sub_equation[i])
-                i += 1
 
-        # Create output array of the same size as input, with padding
-        output_array = jnp.full(n, self.tokens[SpecialTokens.PAD.value])
-        meaningful_count = 0
-        for i, token in enumerate(output):
-            if token != self.tokens[SpecialTokens.PAD.value]:
-                output_array = output_array.at[i].set(token)
-                meaningful_count += 1
-            else:
-                break
+        # Use scan to process the tokens in a vectorizable way
+        def scan_fn(carry, token_info):
+            output_tokens, output_idx, skip_next = carry
+            token, i = token_info
 
-        return meaningful_count, output_array
+            # If we're supposed to skip this token, continue
+            def skip_case():
+                new_carry = (output_tokens, output_idx, jnp.maximum(0, skip_next - 1))
+                return new_carry, None
+
+            # If we're not skipping, process normally
+            def process_case():
+                # Check if we can form a reducible pattern with the next two tokens
+                can_reduce = jax.lax.cond(
+                    i + 2 < n,
+                    lambda: (
+                        self.is_operand(token)
+                        & self.is_operand(sub_equation[i + 1])
+                        & self.is_operator(sub_equation[i + 2])
+                    ),
+                    lambda: jnp.array(False),
+                )
+
+                # If we can reduce, compute the result and skip next 2 tokens
+                def reduce_case():
+                    a = token
+                    b = sub_equation[i + 1]
+                    op = sub_equation[i + 2]
+                    result = self.apply_operator(op, a, b)
+                    new_output_tokens = output_tokens.at[output_idx].set(result)
+                    new_carry = (new_output_tokens, output_idx + 1, 2)
+                    return new_carry, None
+
+                # If we can't reduce, just add the token
+                def no_reduce_case():
+                    new_output_tokens = output_tokens.at[output_idx].set(token)
+                    new_carry = (new_output_tokens, output_idx + 1, 0)
+                    return new_carry, None
+
+                return jax.lax.cond(can_reduce, reduce_case, no_reduce_case)
+
+            return jax.lax.cond(skip_next > 0, skip_case, process_case)
+
+        # Create token indices for scan
+        token_indices = jnp.arange(n)
+        token_info = jnp.stack([sub_equation, token_indices], axis=1)
+
+        # Initialize output array
+        output_tokens = jnp.full(n, self.tokens[SpecialTokens.PAD.value])
+
+        # Run scan
+        (final_output, final_idx, _), _ = jax.lax.scan(scan_fn, (output_tokens, 0, 0), token_info)
+
+        # Count meaningful tokens (non-padding tokens)
+        meaningful_count = jnp.sum(final_output != self.tokens[SpecialTokens.PAD.value])
+
+        return meaningful_count, final_output

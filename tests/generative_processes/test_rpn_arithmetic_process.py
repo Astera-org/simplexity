@@ -134,10 +134,10 @@ def test_initialization():
     assert process.tokens == TOKENS
 
 
-def test_operations():
+def test_apply_operator():
     process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
-    assert process.operator_functions[Operators.ADD.value](jnp.array(2), jnp.array(3)) == 0
-    assert process.operator_functions[Operators.SUB.value](jnp.array(2), jnp.array(3)) == 4
+    assert process.apply_operator(jnp.array(TOKENS["+"]), jnp.array(2), jnp.array(3)) == 0
+    assert process.apply_operator(jnp.array(TOKENS["-"]), jnp.array(2), jnp.array(3)) == 4
 
 
 def test_is_operand():
@@ -202,7 +202,7 @@ def test_child_simple_add():
 
 def test_full_equation():
     process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
-    equation = process.full_equation(BASE_RPN, 9, 32)
+    equation = process.full_equation(BASE_RPN, jnp.array(9), 32)
 
     # Build the expected array of size 32
     meaningful_tokens = jnp.concatenate(
