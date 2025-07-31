@@ -8,6 +8,7 @@ making it suitable for stack-based evaluation.
 Example: (2 + 3) * 4 becomes 2 3 + 4 * in RPN
 """
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
@@ -228,6 +229,18 @@ def test_random_sub_equation():
     k = 3
     n, sub_equation = process.random_sub_equation(key, k)
     assert process.valid_sub_equation(sub_equation, n)
+
+
+def test_random_sub_equation_jit_vmap():
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    key = jax.random.PRNGKey(0)
+    k = 3
+    batch_size = 10
+    keys = jax.random.split(key, batch_size)
+    n, sub_equations = eqx.filter_jit(eqx.filter_vmap(process.random_sub_equation))(keys, k)
+    # assert n.shape == (batch_size,)
+    assert sub_equations.shape == (batch_size, 2 * k + 1)
+    assert jnp.all(jnp.array([process.valid_sub_equation(sub_equation, n) for sub_equation in sub_equations]))
 
 
 def test_random_equation():
