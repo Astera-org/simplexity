@@ -200,6 +200,15 @@ def test_child_simple_add():
     assert jnp.all(child_rpn == SOLUTION_RPN)
 
 
+def test_child_sub_equation_jit_vmap():
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    sub_equations = jnp.array([BASE_RPN, CHILD_RPN, GRANDCHILD_RPN, SOLUTION_RPN])
+    n, sub_equations = eqx.filter_jit(eqx.filter_vmap(process.child_sub_equation))(sub_equations)
+    assert n.shape[0] == 4
+    expected = jnp.array([CHILD_RPN, GRANDCHILD_RPN, SOLUTION_RPN, SOLUTION_RPN])
+    assert jnp.all(sub_equations == expected)
+
+
 def test_full_equation():
     process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     equation = process.full_equation(BASE_RPN, jnp.array(9), 32)
