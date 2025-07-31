@@ -481,37 +481,59 @@ class RPNArithmeticProcess(ArithmeticProcess):
         Returns:
             Boolean array indicating if the sub-equation is valid
         """
-        if n < 1:
-            return jnp.array(False)
-        if sub_equation.shape[0] < n:
-            return jnp.array(False)
 
-        # Check that all meaningful tokens are operands or operators
-        meaningful_tokens = sub_equation[:n]
-        if not jnp.all(self.is_operand_or_operator(meaningful_tokens)):
-            return jnp.array(False)
+        # Use jax.lax.cond for conditional logic instead of Python if statements
+        def check_basic_conditions():
+            # Check n >= 1
+            n_valid = n >= 1
+            # Check sub_equation.shape[0] >= n
+            shape_valid = sub_equation.shape[0] >= n
+            return jnp.logical_and(n_valid, shape_valid)
 
-        # Check that padding tokens are only at the end
-        if not jnp.all(sub_equation[n:] == self.tokens[SpecialTokens.PAD.value]):
-            return jnp.array(False)
+        def check_tokens_and_evaluate():
+            # Check that all meaningful tokens are operands or operators
+            meaningful_tokens = sub_equation[:n]
+            tokens_valid = jnp.all(self.is_operand_or_operator(meaningful_tokens))
 
-        # Check that the RPN expression is evaluable
-        # We need to simulate stack evaluation to ensure it's valid
-        stack_size = 0
-        for i in range(n):
-            token = sub_equation[i]
-            if self.is_operand(token):
-                stack_size += 1
-            elif self.is_operator(token):
-                if stack_size < 2:
-                    return jnp.array(False)  # Not enough operands for operator
-                stack_size -= 1  # Pop two operands, push one result
+            # Check that padding tokens are only at the end
+            padding_valid = jnp.all(sub_equation[n:] == self.tokens[SpecialTokens.PAD.value])
 
-        # At the end, we should have exactly one value on the stack
-        if stack_size != 1:
-            return jnp.array(False)
+            # Check that the RPN expression is evaluable using scan
+            def scan_fn(carry, token):
+                stack_size, was_invalid = carry
+                new_stack_size = jax.lax.cond(
+                    self.is_operand(token),
+                    lambda: stack_size + 1,  # Push operand
+                    lambda: jax.lax.cond(
+                        self.is_operator(token),
+                        lambda: jax.lax.cond(
+                            stack_size >= 2,
+                            lambda: stack_size - 1,  # Pop two, push one
+                            lambda: stack_size,  # Keep stack size but mark as invalid
+                        ),
+                        lambda: stack_size,  # Not operand or operator (shouldn't happen if tokens_valid)
+                    ),
+                )
+                # Track if we ever had insufficient operands for an operator
+                new_was_invalid = jax.lax.cond(
+                    self.is_operator(token),
+                    lambda: jax.lax.cond(
+                        stack_size >= 2,
+                        lambda: was_invalid,  # Keep previous invalid state
+                        lambda: True,  # Mark as invalid
+                    ),
+                    lambda: was_invalid,  # Keep previous invalid state for operands
+                )
+                return (new_stack_size, new_was_invalid), None
 
-        return jnp.array(True)
+            (final_stack_size, was_invalid), _ = jax.lax.scan(scan_fn, (0, False), meaningful_tokens)
+            evaluation_valid = jnp.logical_and(final_stack_size == 1, jnp.logical_not(was_invalid))
+
+            return jnp.logical_and.reduce(jnp.array([tokens_valid, padding_valid, evaluation_valid]))
+
+        # Combine all checks
+        basic_valid = check_basic_conditions()
+        return jax.lax.cond(basic_valid, check_tokens_and_evaluate, lambda: jnp.array(False))
 
     def random_sub_equation(self, key: chex.PRNGKey, k: int) -> tuple[int, jax.Array]:
         """Generate a random RPN sub-equation.
