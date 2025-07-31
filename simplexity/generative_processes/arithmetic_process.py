@@ -185,19 +185,45 @@ class ArithmeticProcess(eqx.Module, ABC):
         Returns:
             Complete equation sequence with beginning/end markers and equals signs
         """
+        # Initialize equation with padding
         equation = jnp.full(sequence_len, self.tokens[SpecialTokens.PAD.value])
+
+        # Set beginning of equation marker
         equation = equation.at[0].set(self.tokens[SpecialTokens.BOE.value])
-        i = 1
-        equation = equation.at[i : i + n].set(sub_equation[:n])
-        i += n
-        while n > 1:
+
+        # Add initial sub-equation
+        n_int = n.astype(jnp.int32)
+        # Use dynamic_update_slice for the initial sub-equation
+        sub_eq_slice = jax.lax.dynamic_slice(sub_equation, (0,), (n_int,))
+        equation = jax.lax.dynamic_update_slice(equation, sub_eq_slice, (1,))
+        i = 1 + n_int
+
+        # Use a Python while loop for the iterative evaluation
+        # This allows the child_sub_equation methods to work as intended
+        current_sub_eq = sub_equation
+        current_n = n_int
+
+        while current_n > 1:
+            # Add equals sign
             equation = equation.at[i].set(self.tokens[SpecialTokens.EQL.value])
-            i += 1
-            n, sub_equation = self.child_sub_equation(sub_equation)
-            n_int = int(n)
-            equation = equation.at[i : i + n_int].set(sub_equation[:n_int])
-            i += n_int
+            i = i + 1
+
+            # Evaluate sub-equation
+            new_n, new_sub_eq = self.child_sub_equation(current_sub_eq)
+
+            # Add the evaluated sub-equation using dynamic_update_slice
+            new_n_int = new_n.astype(jnp.int32)
+            new_sub_eq_slice = jax.lax.dynamic_slice(new_sub_eq, (0,), (new_n_int,))
+            equation = jax.lax.dynamic_update_slice(equation, new_sub_eq_slice, (i,))
+            i = i + new_n_int
+
+            # Update for next iteration
+            current_sub_eq = new_sub_eq
+            current_n = new_n_int
+
+        # Add end of equation marker
         equation = equation.at[i].set(self.tokens[SpecialTokens.EOE.value])
+
         return equation
 
     def random_equation(self, key: chex.PRNGKey, k: int, sequence_len: int) -> jax.Array:
