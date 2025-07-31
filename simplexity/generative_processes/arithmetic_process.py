@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.data_structures.stack import Stack
+from simplexity.utils.dyck_paths import catalan_number, unrank_dyck_path
 
 
 class Operators(enum.Enum):
@@ -531,64 +532,33 @@ class RPNArithmeticProcess(ArithmeticProcess):
         n = 2 * k + 1
 
         # Generate operands and operators
-        operand_key, operator_key, key = jax.random.split(key, 3)
+        operand_key, operator_key, path_key = jax.random.split(key, 3)
         operands = jax.random.randint(operand_key, (k + 1,), 0, self.p)
         operators = jax.random.randint(operator_key, (k,), self.p, self.p + len(self.operators))
+        rank = jax.random.randint(path_key, (), 0, catalan_number(k))
+        dyck_path = unrank_dyck_path(rank, k)
 
-        # Use a stack-based approach to generate valid RPN expressions
-        # This ensures we always get a valid sequence with uniform probability
-        sub_equation = jnp.full(n, self.tokens[SpecialTokens.PAD.value])
+        is_operand = dyck_path == 1
+        is_operator = dyck_path == -1
 
-        # Generate a valid RPN expression using a recursive approach
-        # We'll use a non-recursive implementation for JAX compatibility
-        result = self._generate_valid_rpn(operands, operators, key)
+        # Position in operand/operator arrays
+        operand_idx = jnp.cumsum(is_operand)
+        operator_idx = jnp.cumsum(is_operator) - 1
 
-        sub_equation = sub_equation.at[:n].set(result)
+        # Compute intermediate part (first 2n - 2 tokens)
+        main_part = jnp.where(
+            is_operand,
+            operands[operand_idx],
+            operators[operator_idx],
+        )  # shape [2n - 2]
+
+        # Final operand goes at the beginning
+        first_operand = operands[0]  # scalar
+
+        # Stack full result with fixed shape and no extra copies
+        sub_equation = jnp.concatenate([jnp.expand_dims(first_operand, axis=0), main_part], axis=0)
+
         return n, sub_equation
-
-    def _generate_valid_rpn(self, operands: jax.Array, operators: jax.Array, key: chex.PRNGKey) -> jax.Array:
-        """Generate a valid RPN expression using a simple valid approach.
-
-        This method generates valid RPN expressions by ensuring proper
-        operand-operator balance. While not perfectly uniform, it provides
-        a working solution that can be improved later.
-
-        Args:
-            operands: Array of operands to use
-            operators: Array of operators to use
-            key: JAX PRNG key
-
-        Returns:
-            Valid RPN expression as a token array
-        """
-        n_operands = len(operands)
-        n_operators = len(operators)
-
-        if n_operators == 0:
-            return operands
-
-        # Verify we have the correct number of operands and operators
-        assert n_operands == n_operators + 1, f"Expected {n_operators + 1} operands, got {n_operands}"
-
-        # Randomly permute operands and operators
-        operand_key, operator_key, key = jax.random.split(key, 3)
-        permuted_operands = jax.random.permutation(operand_key, operands)
-        permuted_operators = jax.random.permutation(operator_key, operators)
-
-        # Generate a valid RPN expression
-        # For now, use a simple approach: place operands first, then operators
-        # This ensures we always have valid RPN
-        result = []
-
-        # Add all operands first
-        for i in range(len(permuted_operands)):
-            result.append(permuted_operands[i])
-
-        # Add all operators
-        for i in range(len(permuted_operators)):
-            result.append(permuted_operators[i])
-
-        return jnp.array(result)
 
     def child_sub_equation(self, sub_equation: jax.Array) -> tuple[int, jax.Array]:
         """Generate a child sub-equation by evaluating the RPN expression.
