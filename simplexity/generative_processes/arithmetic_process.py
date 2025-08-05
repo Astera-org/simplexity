@@ -185,62 +185,71 @@ class ArithmeticProcess(eqx.Module, ABC):
         Returns:
             Complete equation sequence with beginning/end markers and equals signs
         """
-        # Initialize equation with padding
-        equation = jnp.full(sequence_len, self.tokens[SpecialTokens.PAD.value])
+        pad_tok = self.tokens[SpecialTokens.PAD.value]
+        eq_tok = self.tokens[SpecialTokens.EQL.value]
+        boe_tok = self.tokens[SpecialTokens.BOE.value]
+        eoe_tok = self.tokens[SpecialTokens.EOE.value]
 
-        # Set beginning of equation marker
-        equation = equation.at[0].set(self.tokens[SpecialTokens.BOE.value])
+        L = sub_equation.shape[0]
+        # safe upper bound on steps: 1 + 3 + 5 + … + (2*L−1) = L^2
+        max_steps = L * L
+        # stack of [max_steps × L], initialized to all-PAD
+        sub_stack = jnp.full((max_steps, L), pad_tok, dtype=sub_equation.dtype)
+        # vector of lengths [max_steps], initialized to 0
+        ns = jnp.zeros((max_steps,), dtype=jnp.int32)
 
-        # Add initial sub-equation
-        n_int = n.astype(jnp.int32)
-        equation = jax.lax.dynamic_update_slice(equation, sub_equation, (1,))
-        i = 1 + n_int
+        # seed in row 0
+        sub_stack = sub_stack.at[0].set(sub_equation)
+        ns = ns.at[0].set(n)
 
-        # Use jax.lax.while_loop for JAX compatibility
-        def while_cond(carry):
-            equation, current_sub_eq, current_n, i = carry
-            # Continue as long as the current sub-equation has more than 1 meaningful token
-            return current_n > 1
+        def cond(carry):
+            idx, _, _, done = carry
+            return jnp.logical_and(idx < max_steps, ~done)
 
-        def while_body(carry):
-            equation, current_sub_eq, current_n, i = carry
+        def body(carry):
+            idx, stack, lens, done = carry
+            cur = stack[idx]  # shape [L]
+            # run one step
+            new_n, new_sub = self.child_sub_equation(cur)
+            # write into row idx+1
+            stack = stack.at[idx + 1].set(new_sub)
+            lens = lens.at[idx + 1].set(new_n)
+            done = done | (new_n <= 1)
+            return (idx + 1, stack, lens, done)
 
-            # Add equals sign after the meaningful tokens (except for the final result)
-            equation = equation.at[i].set(self.tokens[SpecialTokens.EQL.value])
-            i = i + 1
+        # run until terminal or max_steps
+        _, sub_stack, ns, _ = jax.lax.while_loop(cond, body, (0, sub_stack, ns, False))
 
-            # Evaluate sub-equation first
-            new_n, new_sub_eq = self.child_sub_equation(current_sub_eq)
+        # now pack them all
+        def pack_all_prefixes(stack, ns):
+            S, L = stack.shape
+            # 1) build EQL markers per row and set BOE in row 0
+            eqs = jnp.where(ns > 0, eq_tok, pad_tok)  # [S]
+            eqs = eqs.at[0].set(boe_tok)
 
-            # Add the evaluated sub-equation using dynamic_update_slice
-            new_n_int = new_n.astype(jnp.int32)
-            # Copy the full sub-equation array
-            equation = jax.lax.dynamic_update_slice(equation, new_sub_eq, (i,))
-            i = i + new_n_int
+            # 2) prepend each row with its eq marker → [S, L+1]
+            with_eq = jnp.concatenate([eqs[:, None], stack], axis=1)
 
-            # Add equals sign after the meaningful tokens (except for the final result)
-            # equation = jax.lax.cond(
-            #     new_n_int > 1,  # Not the final result
-            #     lambda: equation.at[i].set(self.tokens[SpecialTokens.EQL.value]),
-            #     lambda: equation,
-            # )
-            # i = jax.lax.cond(
-            #     new_n_int > 1,  # Not the final result
-            #     lambda: i + 1,
-            #     lambda: i,
-            # )
+            # 3) compute per-row lengths (eq + meaningful tokens)
+            lengths = ns + 1  # [S]
+            # 4) mask = True for all idx < lengths[row]
+            mask = jnp.arange(L + 1)[None, :] < lengths[:, None]  # [S, L+1]
 
-            return equation, new_sub_eq, new_n_int, i
+            # 5) pull them out in row-major order
+            flat = with_eq[mask]  # 1D array of sum(lengths)
 
-        # Run the while loop
-        equation, current_sub_eq, current_n, i = jax.lax.while_loop(
-            while_cond, while_body, (equation, sub_equation, n_int, i)
-        )
+            # total = flat.shape[0]  # JAX scalar
+            total = jnp.sum(ns) + jnp.sum(ns > 0)
+            # 6) build the final sequence of length `sequence_len`
+            out = jnp.full((sequence_len,), pad_tok, dtype=flat.dtype)
+            take = jnp.minimum(total, sequence_len - 1)  # leave room for EOE
+            # 7) first `take` elements ← our packed steps
+            out = out.at[:take].set(flat[:take])
+            # 8) EOE at position `take`
+            out = out.at[take].set(eoe_tok)
+            return out
 
-        # Add end of equation marker
-        equation = equation.at[i].set(self.tokens[SpecialTokens.EOE.value])
-
-        return equation
+        return pack_all_prefixes(sub_stack, ns)
 
     def random_equation(self, key: chex.PRNGKey, k: int, sequence_len: int) -> jax.Array:
         """Generate a complete random arithmetic equation.
