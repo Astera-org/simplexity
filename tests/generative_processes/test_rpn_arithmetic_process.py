@@ -234,6 +234,39 @@ def test_full_equation(sequence_len):
     assert jnp.all(equation == expected)
 
 
+@pytest.mark.parametrize("sequence_len", [32, 64])
+def test_full_equation_jit_vmap(sequence_len):
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    sub_equations = jnp.array([BASE_RPN, CHILD_RPN, GRANDCHILD_RPN, SOLUTION_RPN])
+    n = jnp.array([9, 5, 3, 1])
+    equations = eqx.filter_jit(eqx.filter_vmap(process.full_equation))(sub_equations, n, 32)
+
+    meaningful_tokens = jnp.concatenate(
+        [
+            jnp.array([TOKENS["<boe>"]]),  # 0
+            BASE_RPN[:9],  # 1-9
+            jnp.array([TOKENS["="]]),  # 10
+            CHILD_RPN[:5],  # 11-15
+            jnp.array([TOKENS["="]]),  # 16
+            GRANDCHILD_RPN[:3],  # 17-19
+            jnp.array([TOKENS["="]]),  # 20
+            SOLUTION_RPN[:1],  # 21
+            jnp.array([TOKENS["<eoe>"]]),  # 22
+        ]
+    )
+    padding_tokens = jnp.full(sequence_len - len(meaningful_tokens), TOKENS["<pad>"])
+    full_equation = jnp.concatenate([meaningful_tokens, padding_tokens])
+
+    expected = jnp.full((4, sequence_len), TOKENS["<pad>"])
+    expected = expected.at[:, 0].set(jnp.full(4, TOKENS["<boe>"]))
+    expected = expected.at[0, 1:23].set(full_equation[1:23])
+    expected = expected.at[1, 1:13].set(full_equation[11:23])
+    expected = expected.at[2, 1:7].set(full_equation[17:23])
+    expected = expected.at[3, 1:3].set(full_equation[21:23])
+
+    assert jnp.all(equations == expected)
+
+
 def test_random_sub_equation():
     process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     key = jax.random.PRNGKey(0)

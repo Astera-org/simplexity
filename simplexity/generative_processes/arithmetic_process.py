@@ -186,9 +186,9 @@ class ArithmeticProcess(eqx.Module, ABC):
             Complete equation sequence with beginning/end markers and equals signs
         """
         pad_tok = self.tokens[SpecialTokens.PAD.value]
-        eq_tok = self.tokens[SpecialTokens.EQL.value]
-        boe_tok = self.tokens[SpecialTokens.BOE.value]
-        eoe_tok = self.tokens[SpecialTokens.EOE.value]
+        # eq_tok = self.tokens[SpecialTokens.EQL.value]
+        # boe_tok = self.tokens[SpecialTokens.BOE.value]
+        # eoe_tok = self.tokens[SpecialTokens.EOE.value]
 
         L = sub_equation.shape[0]
         # safe upper bound on steps: 1 + 3 + 5 + … + (2*L−1) = L^2
@@ -221,33 +221,69 @@ class ArithmeticProcess(eqx.Module, ABC):
         _, sub_stack, ns, _ = jax.lax.while_loop(cond, body, (0, sub_stack, ns, False))
 
         # now pack them all
-        def pack_all_prefixes(stack, ns):
-            S, L = stack.shape
-            # 1) build EQL markers per row and set BOE in row 0
-            eqs = jnp.where(ns > 0, eq_tok, pad_tok)  # [S]
+        def pack_all_prefixes(stack: jax.Array, ns: jax.Array) -> jax.Array:
+            """Vectorization-friendly packing function using a robust index-mapping scatter.
+
+            Assembles the final sequence from the stack of sub-equations using
+            fixed-shape operations that are safe from overwrite errors.
+            """
+            pad_tok = self.tokens[SpecialTokens.PAD.value]
+            eq_tok = self.tokens[SpecialTokens.EQL.value]
+            boe_tok = self.tokens[SpecialTokens.BOE.value]
+            eoe_tok = self.tokens[SpecialTokens.EOE.value]
+
+            S, L = stack.shape  # S = max_steps, L = sub_equation_length
+
+            # 1. Prepare all potential source tokens with their BOE/EQL markers
+            eqs = jnp.where(ns > 0, eq_tok, pad_tok)
             eqs = eqs.at[0].set(boe_tok)
+            with_eq = jnp.concatenate([eqs[:, None], stack], axis=1)  # Shape: [S, L+1]
 
-            # 2) prepend each row with its eq marker → [S, L+1]
-            with_eq = jnp.concatenate([eqs[:, None], stack], axis=1)
+            # 2. Create a boolean mask identifying the "real" tokens to be included
+            lengths = ns + 1
+            # This mask has the same shape as with_eq, True for valid tokens
+            mask = jnp.arange(L + 1) < lengths[:, None]
 
-            # 3) compute per-row lengths (eq + meaningful tokens)
-            lengths = ns + 1  # [S]
-            # 4) mask = True for all idx < lengths[row]
-            mask = jnp.arange(L + 1)[None, :] < lengths[:, None]  # [S, L+1]
+            # 3. Calculate the final destination index for EVERY token
+            # We flatten the mask and use cumsum. The Nth 'True' value gets a
+            # cumulative sum of N, so its destination index is N-1.
+            flat_mask = mask.flatten()
+            # Destination indices for every position in the flattened source array
+            dest_indices = jnp.cumsum(flat_mask) - 1
 
-            # 5) pull them out in row-major order
-            flat = with_eq[mask]  # 1D array of sum(lengths)
+            # 4. Prepare for the scatter operation
+            # Initialize the final output array with padding
+            out = jnp.full((sequence_len,), pad_tok, dtype=stack.dtype)
+            flat_source_vals = with_eq.flatten()
 
-            # total = flat.shape[0]  # JAX scalar
-            total = jnp.sum(ns) + jnp.sum(ns > 0)
-            # 6) build the final sequence of length `sequence_len`
-            out = jnp.full((sequence_len,), pad_tok, dtype=flat.dtype)
-            take = jnp.minimum(total, sequence_len - 1)  # leave room for EOE
-            # 7) first `take` elements ← our packed steps
-            out = out.at[:take].set(flat[:take])
-            # 8) EOE at position `take`
-            out = out.at[take].set(eoe_tok)
+            # 5. Perform the masked scatter
+            # We only want to write tokens that are:
+            #   a) Real (i.e., where flat_mask is True)
+            #   b) Fit within the output buffer (dest_indices < sequence_len - 1)
+            # This combined mask ensures we don't try to write out of bounds.
+            scatter_mask = flat_mask & (dest_indices < sequence_len - 1)
+
+            # Use the mask to select valid destination indices and their corresponding values.
+            # jnp.where sends invalid elements to an out-of-bounds index (-1),
+            # which is safely ignored by the `.at` update.
+            indices_to_write = jnp.where(scatter_mask, dest_indices, -1)
+            values_to_write = flat_source_vals  # No need to mask values if indices are masked
+
+            # Perform the single, powerful scatter operation
+            out = out.at[indices_to_write].set(values_to_write)
+
+            # 6. Add the final End-Of-Equation token
+            # The position for the EOE token is the total number of tokens we just wrote.
+            num_tokens_written = jnp.sum(ns) + jnp.sum(ns > 0)
+            out = out.at[num_tokens_written].set(eoe_tok)
+
             return out
+
+        # The rest of your class and the `full_equation_vectorized` function that calls
+        # this packing function would remain the same.
+
+        # The rest of your class and the `full_equation_vectorized` function that calls
+        # this packing function would remain the same.
 
         return pack_all_prefixes(sub_stack, ns)
 
