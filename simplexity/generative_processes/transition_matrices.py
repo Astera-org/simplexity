@@ -360,6 +360,7 @@ HMM_MATRIX_FUNCTIONS = {
     "coin": coin,
     "days_of_week": days_of_week,
     "even_ones": even_ones,
+    "matching_parens": matching_parens,
     "mess3": mess3,
     "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,

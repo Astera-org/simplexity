@@ -42,8 +42,11 @@ def add_begin_of_sequence_token(transition_matrix: jax.Array, initial_state: jax
     return augmented_matrix.at[vocab_size, num_states, :num_states].set(initial_state)
 
 
-def build_hidden_markov_model(process_name: str, initial_state: jax.Array | None = None, **kwargs) -> HiddenMarkovModel:
+def build_hidden_markov_model(
+    process_name: str, initial_state: jax.Array | Sequence[float] | None = None, **kwargs
+) -> HiddenMarkovModel:
     """Build a hidden Markov model."""
+    initial_state = jnp.array(initial_state) if initial_state is not None else None
     transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, **kwargs)
     return HiddenMarkovModel(transition_matrices, initial_state)
 
