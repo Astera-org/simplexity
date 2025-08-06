@@ -319,7 +319,8 @@ class ArithmeticProcess(eqx.Module):
         n, sub_equation = self.random_sub_equation(key, k)
         return self.full_equation(sub_equation, jnp.array(n), sequence_len)
 
-    # @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
+    @eqx.filter_jit
+    @eqx.filter_vmap(in_axes=(None, None, 0, None, None), out_axes=(None, 0))
     def generate(
         self, state: int, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
     ) -> tuple[int, chex.Array]:

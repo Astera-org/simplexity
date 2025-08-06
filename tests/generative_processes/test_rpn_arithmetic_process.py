@@ -556,7 +556,10 @@ def test_valid_sub_equation_vmap_compatibility():
 
 def test_generate():
     process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
-    key = jax.random.PRNGKey(0)
     k = 3
-    k, equation = process.generate(k, key, 32, False)
-    assert equation.shape == (32,)
+    batch_size = 10
+    sequence_len = 32
+    key = jax.random.PRNGKey(0)
+    keys = jax.random.split(key, batch_size)
+    k, equations = process.generate(k, keys, sequence_len, False)
+    assert equations.shape == (batch_size, sequence_len)

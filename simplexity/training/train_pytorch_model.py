@@ -37,7 +37,10 @@ def train(
     optimizer = typed_instantiate(training_cfg.optimizer.instance, torch.optim.Optimizer, params=model.parameters())
 
     gen_state = training_data_generator.initial_state
-    gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
+    if isinstance(gen_state, jax.Array):
+        gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
+    else:
+        gen_states = gen_state
     loss_value = 0.0
 
     for step in range(1, training_cfg.num_steps + 1):
