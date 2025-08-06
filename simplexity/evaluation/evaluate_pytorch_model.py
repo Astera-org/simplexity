@@ -59,7 +59,10 @@ def evaluate(
     key = jax.random.PRNGKey(cfg.seed)
 
     gen_state = data_generator.initial_state
-    gen_states = jnp.repeat(gen_state[None, :], cfg.batch_size, axis=0)
+    if isinstance(gen_state, jax.Array):
+        gen_states = jnp.repeat(gen_state[None, :], cfg.batch_size, axis=0)
+    else:
+        gen_states = gen_state
     metrics = defaultdict(lambda: jnp.array(0.0))
 
     for step in range(1, cfg.num_steps + 1):
