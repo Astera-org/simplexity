@@ -239,7 +239,7 @@ def test_full_equation_jit_vmap(sequence_len):
     process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
     sub_equations = jnp.array([BASE_RPN, CHILD_RPN, GRANDCHILD_RPN, SOLUTION_RPN])
     n = jnp.array([9, 5, 3, 1])
-    equations = eqx.filter_jit(eqx.filter_vmap(process.full_equation))(sub_equations, n, 32)
+    equations = eqx.filter_jit(eqx.filter_vmap(process.full_equation))(sub_equations, n, sequence_len)
 
     meaningful_tokens = jnp.concatenate(
         [

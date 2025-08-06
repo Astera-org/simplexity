@@ -218,7 +218,8 @@ class ArithmeticProcess(eqx.Module, ABC):
             return (idx + 1, stack, lens, done)
 
         # run until terminal or max_steps
-        _, sub_stack, ns, _ = jax.lax.while_loop(cond, body, (0, sub_stack, ns, False))
+        done = n <= 1
+        _, sub_stack, ns, _ = jax.lax.while_loop(cond, body, (0, sub_stack, ns, done))
 
         # now pack them all
         def pack_all_prefixes(stack: jax.Array, ns: jax.Array) -> jax.Array:
