@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.configs.evaluation.config import Config
-from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generative_process import GenerativeProtocol
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.utils.pytorch_utils import torch_to_jax
@@ -50,7 +50,7 @@ def evaluation_step(
 def evaluate(
     model: torch.nn.Module,
     cfg: Config,
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProtocol,
     logger: Logger | None = None,
     bos_token: int | None = None,
     eos_token: int | None = None,

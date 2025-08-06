@@ -2,13 +2,13 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generative_process import GenerativeProtocol
 
 
 @eqx.filter_jit
 def generate_data_batch(
     gen_states: jax.Array,
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProtocol,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,

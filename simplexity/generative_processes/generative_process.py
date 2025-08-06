@@ -1,11 +1,31 @@
 from abc import abstractmethod
-from typing import Generic, TypeVar
+from typing import Any, Generic, Protocol, TypeVar
 
 import chex
 import equinox as eqx
 import jax
 
 State = TypeVar("State")
+
+
+class GenerativeProtocol(Protocol):
+    """A protocol for generative processes."""
+
+    @property
+    def vocab_size(self) -> int:
+        """The number of observations that can be emitted by the generative process."""
+        ...
+
+    @property
+    def initial_state(self) -> Any:
+        """The initial state of the generative process."""
+        ...
+
+    def generate(
+        self, state: Any, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
+    ) -> tuple[Any, chex.Array]:
+        """Generate a batch of sequences of observations from the generative process."""
+        ...
 
 
 class GenerativeProcess(eqx.Module, Generic[State]):

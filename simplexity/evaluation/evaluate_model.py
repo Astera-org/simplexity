@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 from simplexity.configs.evaluation.config import Config
 from simplexity.evaluation.metric_functions import METRIC_FUNCTIONS
-from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generative_process import GenerativeProtocol
 from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.predictive_models.predictive_model import PredictiveModel
@@ -27,7 +27,7 @@ def evaluation_step(
 def evaluate(
     model: PredictiveModel,
     cfg: Config,
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProtocol,
     logger: Logger | None = None,
     bos_token: int | None = None,
     eos_token: int | None = None,

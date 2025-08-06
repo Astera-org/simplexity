@@ -1,5 +1,5 @@
 import enum
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections.abc import Callable, Sequence
 
 import chex
@@ -30,7 +30,7 @@ class SpecialTokens(enum.Enum):
     PAD = "<pad>"  # Padding
 
 
-class ArithmeticProcess(eqx.Module, ABC):
+class ArithmeticProcess(eqx.Module):
     """Abstract base class for generative processes that create arithmetic expressions.
 
     This class provides the foundation for generating arithmetic expressions

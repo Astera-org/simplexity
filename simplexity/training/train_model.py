@@ -11,7 +11,7 @@ from simplexity.configs.evaluation.config import Config as ValidateConfig
 from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.evaluation.metric_functions import cross_entropy_fn
-from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generative_process import GenerativeProtocol
 from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
@@ -40,10 +40,10 @@ def loss_fn(
 def train(
     model: PredictiveModel,
     training_cfg: TrainConfig,
-    training_data_generator: GenerativeProcess,
+    training_data_generator: GenerativeProtocol,
     logger: Logger | None = None,
     validation_cfg: ValidateConfig | None = None,
-    validation_data_generator: GenerativeProcess | None = None,
+    validation_data_generator: GenerativeProtocol | None = None,
     persister: ModelPersister | None = None,
     training_bos_token: int | None = None,
     training_eos_token: int | None = None,

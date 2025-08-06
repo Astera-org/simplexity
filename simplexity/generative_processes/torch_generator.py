@@ -1,6 +1,6 @@
 import jax
 
-from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generative_process import GenerativeProtocol
 from simplexity.generative_processes.generator import generate_data_batch as generate_jax_data_batch
 from simplexity.utils.pytorch_utils import jax_to_torch
 
@@ -12,7 +12,7 @@ except ImportError as e:
 
 def generate_data_batch(
     gen_states: jax.Array,
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProtocol,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
