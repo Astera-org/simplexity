@@ -129,19 +129,19 @@ SOLUTION_RPN = jnp.array(
 
 
 def test_initialization():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.p == 5
     assert process.tokens == TOKENS
 
 
 def test_apply_operator():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.apply_operator(jnp.array(TOKENS["+"]), jnp.array(2), jnp.array(3)) == 0
     assert process.apply_operator(jnp.array(TOKENS["-"]), jnp.array(2), jnp.array(3)) == 4
 
 
 def test_is_operand():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.is_operand(jnp.array(TOKENS["0"]))
     assert process.is_operand(jnp.array(TOKENS["1"]))
     assert process.is_operand(jnp.array(TOKENS["2"]))
@@ -156,7 +156,7 @@ def test_is_operand():
 
 
 def test_is_operand_or_operator():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.is_operand_or_operator(jnp.array(TOKENS["0"]))
     assert process.is_operand_or_operator(jnp.array(TOKENS["1"]))
     assert process.is_operand_or_operator(jnp.array(TOKENS["2"]))
@@ -171,7 +171,7 @@ def test_is_operand_or_operator():
 
 
 def test_is_operator():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert not process.is_operator(jnp.array(TOKENS["0"]))
     assert not process.is_operator(jnp.array(TOKENS["1"]))
     assert not process.is_operator(jnp.array(TOKENS["2"]))
@@ -186,7 +186,7 @@ def test_is_operator():
 
 
 def test_child_simple_add():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     n, child_rpn = process.child_sub_equation(BASE_RPN)
     assert n == 5
     assert jnp.all(child_rpn == CHILD_RPN)
@@ -201,7 +201,7 @@ def test_child_simple_add():
 
 
 def test_child_sub_equation_jit_vmap():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     sub_equations = jnp.array([BASE_RPN, CHILD_RPN, GRANDCHILD_RPN, SOLUTION_RPN])
     n, sub_equations = eqx.filter_jit(eqx.filter_vmap(process.child_sub_equation))(sub_equations)
     assert n.shape[0] == 4
@@ -211,7 +211,7 @@ def test_child_sub_equation_jit_vmap():
 
 @pytest.mark.parametrize("sequence_len", [32, 64])
 def test_full_equation(sequence_len):
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     equation = process.full_equation(BASE_RPN, jnp.array(9), sequence_len)
 
     # Build the expected array of size 32
@@ -236,7 +236,7 @@ def test_full_equation(sequence_len):
 
 @pytest.mark.parametrize("sequence_len", [32, 64])
 def test_full_equation_jit_vmap(sequence_len):
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     sub_equations = jnp.array([BASE_RPN, CHILD_RPN, GRANDCHILD_RPN, SOLUTION_RPN])
     n = jnp.array([9, 5, 3, 1])
     equations = eqx.filter_jit(eqx.filter_vmap(process.full_equation))(sub_equations, n, sequence_len)
@@ -268,7 +268,7 @@ def test_full_equation_jit_vmap(sequence_len):
 
 
 def test_random_sub_equation():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     key = jax.random.PRNGKey(0)
     k = 3
     n, sub_equation = process.random_sub_equation(key, k)
@@ -276,7 +276,7 @@ def test_random_sub_equation():
 
 
 def test_random_sub_equation_jit_vmap():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     key = jax.random.PRNGKey(0)
     k = 3
     batch_size = 10
@@ -287,7 +287,7 @@ def test_random_sub_equation_jit_vmap():
 
 
 def test_random_equation():
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     key = jax.random.PRNGKey(0)
     k = 3
     equation = process.random_equation(key, k, 32)
@@ -296,7 +296,7 @@ def test_random_equation():
 
 def test_valid_sub_equation():
     """Test basic validation cases."""
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.valid_sub_equation(BASE_RPN, 9)
     assert process.valid_sub_equation(CHILD_RPN, 5)
     assert process.valid_sub_equation(GRANDCHILD_RPN, 3)
@@ -527,14 +527,14 @@ def test_valid_sub_equation():
 )
 def test_valid_sub_equation_comprehensive(operators, description, rpn_array, n, should_be_valid, reason):
     """Comprehensive test of RPN validation covering all edge cases, error conditions, and operator configurations."""
-    process = RPNArithmeticProcess(p=5, operators=operators)
+    process = RPNArithmeticProcess(p=5, operators=operators, max_steps=4)
     result = process.valid_sub_equation(rpn_array, n)
     assert result == should_be_valid, f"{description}: expected {should_be_valid}, got {result} ({reason})"
 
 
 def test_valid_sub_equation_vmap_compatibility():
     """Test that validation works correctly with vmap operations."""
-    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
 
     # Create a batch of test cases: some valid, some invalid (all with n=3)
     test_equations = jnp.array(
@@ -552,3 +552,11 @@ def test_valid_sub_equation_vmap_compatibility():
     jitted_vmapped_validation = eqx.filter_jit(eqx.filter_vmap(process.valid_sub_equation))
     jitted_results = jitted_vmapped_validation(test_equations, 3)
     assert jnp.all(jitted_results == expected), f"Jitted results: expected {expected}, got {jitted_results}"
+
+
+def test_generate():
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
+    key = jax.random.PRNGKey(0)
+    k = 3
+    k, equation = process.generate(k, key, 32, False)
+    assert equation.shape == (32,)

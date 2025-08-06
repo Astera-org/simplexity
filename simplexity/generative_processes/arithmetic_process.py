@@ -42,18 +42,21 @@ class ArithmeticProcess(eqx.Module):
     """
 
     p: int
+    max_steps: int
     operators: dict[int, Operators]
     tokens: dict[str, int]
     operator_functions: list[Callable[[jax.Array, jax.Array], jax.Array]] = eqx.static_field()
 
-    def __init__(self, p: int, operators: Sequence[Operators]):
+    def __init__(self, p: int, operators: Sequence[Operators], max_steps: int):
         """Initialize the arithmetic process.
 
         Args:
             p: The modulus for arithmetic operations (values are in range [0, p-1])
             operators: Sequence of operators to use in expressions
+            max_steps: The maximum number of steps to take in the equation
         """
         self.p = p
+        self.max_steps = max_steps
         self.operators = {p + i: operator for i, operator in enumerate(operators)}
         num_operators = len(self.operators)
         self.tokens = {
@@ -74,6 +77,20 @@ class ArithmeticProcess(eqx.Module):
             Operators.MUL.value: lambda x, y: jnp.mod(jnp.multiply(x, y), self.p),
         }
         self.operator_functions = [operator_function_map[operator.value] for operator in operators]
+
+    @property
+    def vocab_size(self) -> int:
+        """The number of observations that can be emitted by the generative process."""
+        return len(self.tokens)
+
+    @property
+    def initial_state(self) -> int:
+        """The initial state of the generative process."""
+        # TODO: implement dynamic sized equations
+        # logits = jnp.full(self.max_steps + 1, -jnp.inf)
+        # logits = logits.at[self.max_steps].set(0.0)
+        # return logits
+        return self.max_steps
 
     def is_operand(self, token: jax.Array) -> jax.Array:
         """Check if a token represents an operand (numeric value).
@@ -302,6 +319,13 @@ class ArithmeticProcess(eqx.Module):
         n, sub_equation = self.random_sub_equation(key, k)
         return self.full_equation(sub_equation, jnp.array(n), sequence_len)
 
+    # @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
+    def generate(
+        self, state: int, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
+    ) -> tuple[int, chex.Array]:
+        """Generate a batch of sequences of observations from the generative process."""
+        return state, self.random_equation(key, state, sequence_len)
+
     @abstractmethod
     def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
         """Check if a sub-equation is valid according to the implementation's rules.
@@ -324,14 +348,15 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
     2*i+1 and 2*i+2. Operators are placed at internal nodes and operands at leaves.
     """
 
-    def __init__(self, p: int, operators: Sequence[Operators]):
+    def __init__(self, p: int, operators: Sequence[Operators], max_steps: int):
         """Initialize the binary tree arithmetic process.
 
         Args:
             p: The modulus for arithmetic operations
             operators: Sequence of operators to use in expressions
+            max_steps: The maximum number of steps to take in the equation
         """
-        super().__init__(p, operators)
+        super().__init__(p, operators, max_steps)
 
     @staticmethod
     def parent(idx: int) -> int:
@@ -567,14 +592,15 @@ class RPNArithmeticProcess(ArithmeticProcess):
     Example: (2 + 3) * 4 becomes 2 3 + 4 * in RPN
     """
 
-    def __init__(self, p: int, operators: Sequence[Operators]):
+    def __init__(self, p: int, operators: Sequence[Operators], max_steps: int):
         """Initialize the RPN arithmetic process.
 
         Args:
             p: The modulus for arithmetic operations
             operators: Sequence of operators to use in expressions
+            max_steps: The maximum number of steps to take in the equation
         """
-        super().__init__(p, operators)
+        super().__init__(p, operators, max_steps)
 
     def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
         """Check if an RPN sub-equation is valid.

@@ -132,19 +132,19 @@ SOLUTION_TREE = jnp.array(
 
 
 def test_initialization():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.p == 5
     assert process.tokens == TOKENS
 
 
 def test_apply_operator():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.apply_operator(jnp.array(TOKENS["+"]), jnp.array(2), jnp.array(3)) == 0
     assert process.apply_operator(jnp.array(TOKENS["-"]), jnp.array(2), jnp.array(3)) == 4
 
 
 def test_is_operand():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.is_operand(jnp.array(TOKENS["0"]))
     assert process.is_operand(jnp.array(TOKENS["1"]))
     assert process.is_operand(jnp.array(TOKENS["2"]))
@@ -159,7 +159,7 @@ def test_is_operand():
 
 
 def test_is_operand_or_operator():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.is_operand_or_operator(jnp.array(TOKENS["0"]))
     assert process.is_operand_or_operator(jnp.array(TOKENS["1"]))
     assert process.is_operand_or_operator(jnp.array(TOKENS["2"]))
@@ -174,7 +174,7 @@ def test_is_operand_or_operator():
 
 
 def test_is_operator():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert not process.is_operator(jnp.array(TOKENS["0"]))
     assert not process.is_operator(jnp.array(TOKENS["1"]))
     assert not process.is_operator(jnp.array(TOKENS["2"]))
@@ -189,7 +189,7 @@ def test_is_operator():
 
 
 def test_diagram():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
 
     base_diagram = process.diagram(BASE_TREE)
     with open("tests/generative_processes/goldens/equation_trees/base_equation.md") as f:
@@ -203,7 +203,7 @@ def test_diagram():
 
 
 def test_child_simple_add():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     n, child_tree = process.child_sub_equation(BASE_TREE)
     assert n == 7
     assert jnp.all(child_tree == CHILD_TREE)
@@ -218,7 +218,7 @@ def test_child_simple_add():
 
 
 def test_full_equation():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     equation = process.full_equation(BASE_TREE, jnp.array(15), 32)
     expected = jnp.concatenate(
         [
@@ -238,7 +238,7 @@ def test_full_equation():
 
 
 def test_random_sub_equation():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     key = jax.random.PRNGKey(0)
     k = 3
     n, sub_equation = process.random_sub_equation(key, k)
@@ -246,7 +246,7 @@ def test_random_sub_equation():
 
 
 def test_random_equation():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     key = jax.random.PRNGKey(0)
     k = 3
     equation = process.random_equation(key, k, 32)
@@ -254,7 +254,7 @@ def test_random_equation():
 
 
 def test_valid_sub_equation():
-    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB])
+    process = BinaryTreeArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_steps=4)
     assert process.valid_sub_equation(BASE_TREE, 15)
     assert process.valid_sub_equation(CHILD_TREE, 7)
     assert process.valid_sub_equation(GRANDCHILD_TREE, 3)
