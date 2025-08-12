@@ -11,11 +11,15 @@ ProcessName = Literal[
     "rrxor",
     "tom_quantum",
     "zero_one_random",
+    "binary_tree_arithmetic",
+    "rpn_arithmetic",
 ]
 
 ProcessBuilder = Literal[
     "simplexity.generative_processes.builder.build_generalized_hidden_markov_model",
     "simplexity.generative_processes.builder.build_hidden_markov_model",
+    "simplexity.generative_processes.arithmetic_process.BinaryTreeArithmeticProcess",
+    "simplexity.generative_processes.arithmetic_process.RPNArithmeticProcess",
 ]
 ProcessType = ProcessName
 
@@ -111,6 +115,29 @@ class ZeroOneRandomConfig(ProcessInstanceConfig):
     # _target_: build_hidden_markov_model
     # process_name: "zero_one_random"
     p: float
+
+
+@dataclass
+class ArithmeticProcessConfig(ProcessInstanceConfig):
+    """Base configuration for arithmetic processes."""
+
+    p: int
+    max_steps: int
+    operators: list[str]  # List of operator strings like ["+", "-", "*"]
+
+
+@dataclass
+class BinaryTreeArithmeticConfig(ArithmeticProcessConfig):
+    """Configuration for BinaryTreeArithmeticProcess."""
+
+    # _target_ and process_name are inherited from ArithmeticProcessConfig
+
+
+@dataclass
+class RPNArithmeticConfig(ArithmeticProcessConfig):
+    """Configuration for RPNArithmeticProcess."""
+
+    # _target_ and process_name are inherited from ArithmeticProcessConfig
 
 
 @dataclass

@@ -1,0 +1,10 @@
+name: binary_tree_arithmetic
+vocab_size: 8 # p + num_operators + special_tokens (3 + 3 + 2)
+instance:
+  _target_: simplexity.generative_processes.arithmetic_factory.create_arithmetic_process
+  representation: binary_tree
+  p: 3
+  max_steps: 10
+  operators: ["+", "-", "*"]
+bos_token: null
+eos_token: null
