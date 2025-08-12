@@ -42,21 +42,21 @@ class ArithmeticProcess(eqx.Module):
     """
 
     p: int
-    max_steps: int
+    max_operations: int
     operators: dict[int, Operators]
     tokens: dict[str, int]
     operator_functions: list[Callable[[jax.Array, jax.Array], jax.Array]] = eqx.static_field()
 
-    def __init__(self, p: int, operators: Sequence[Operators], max_steps: int):
+    def __init__(self, p: int, operators: Sequence[Operators], max_operations: int):
         """Initialize the arithmetic process.
 
         Args:
             p: The modulus for arithmetic operations (values are in range [0, p-1])
             operators: Sequence of operators to use in expressions
-            max_steps: The maximum number of steps to take in the equation
+            max_operations: The maximum number of operations to take in the equation
         """
         self.p = p
-        self.max_steps = max_steps
+        self.max_operations = max_operations
         self.operators = {p + i: operator for i, operator in enumerate(operators)}
         num_operators = len(self.operators)
         self.tokens = {
@@ -87,10 +87,10 @@ class ArithmeticProcess(eqx.Module):
     def initial_state(self) -> int:
         """The initial state of the generative process."""
         # TODO: implement dynamic sized equations
-        # logits = jnp.full(self.max_steps + 1, -jnp.inf)
-        # logits = logits.at[self.max_steps].set(0.0)
+        # logits = jnp.full(self.max_operations + 1, -jnp.inf)
+        # logits = logits.at[self.max_operations].set(0.0)
         # return logits
-        return self.max_steps
+        return self.max_operations
 
     def is_operand(self, token: jax.Array) -> jax.Array:
         """Check if a token represents an operand (numeric value).
@@ -209,7 +209,7 @@ class ArithmeticProcess(eqx.Module):
 
         L = sub_equation.shape[0]
         # safe upper bound on steps: 1 + 3 + 5 + … + (2*L−1) = L^2
-        max_steps = L * L
+        max_steps = (L + 1) // 2
         # stack of [max_steps × L], initialized to all-PAD
         sub_stack = jnp.full((max_steps, L), pad_tok, dtype=sub_equation.dtype)
         # vector of lengths [max_steps], initialized to 0
@@ -349,15 +349,15 @@ class BinaryTreeArithmeticProcess(ArithmeticProcess):
     2*i+1 and 2*i+2. Operators are placed at internal nodes and operands at leaves.
     """
 
-    def __init__(self, p: int, operators: Sequence[Operators], max_steps: int):
+    def __init__(self, p: int, operators: Sequence[Operators], max_operations: int):
         """Initialize the binary tree arithmetic process.
 
         Args:
             p: The modulus for arithmetic operations
             operators: Sequence of operators to use in expressions
-            max_steps: The maximum number of steps to take in the equation
+            max_operations: The maximum number of operations to take in the equation
         """
-        super().__init__(p, operators, max_steps)
+        super().__init__(p, operators, max_operations)
 
     @staticmethod
     def parent(idx: int) -> int:
@@ -593,15 +593,15 @@ class RPNArithmeticProcess(ArithmeticProcess):
     Example: (2 + 3) * 4 becomes 2 3 + 4 * in RPN
     """
 
-    def __init__(self, p: int, operators: Sequence[Operators], max_steps: int):
+    def __init__(self, p: int, operators: Sequence[Operators], max_operations: int):
         """Initialize the RPN arithmetic process.
 
         Args:
             p: The modulus for arithmetic operations
             operators: Sequence of operators to use in expressions
-            max_steps: The maximum number of steps to take in the equation
+            max_operations: The maximum number of operations to take in the equation
         """
-        super().__init__(p, operators, max_steps)
+        super().__init__(p, operators, max_operations)
 
     def valid_sub_equation(self, sub_equation: jax.Array, n: int) -> jax.Array:
         """Check if an RPN sub-equation is valid.

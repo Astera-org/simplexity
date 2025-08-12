@@ -145,7 +145,7 @@ def test_train(tmp_path: Path):
 
 @pytest.mark.slow
 def test_train_arithmetic(tmp_path: Path):
-    data_generator = RPNArithmeticProcess(p=5, operators=[Operators.ADD], max_steps=2)
+    data_generator = RPNArithmeticProcess(p=5, operators=[Operators.ADD], max_operations=2)
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 

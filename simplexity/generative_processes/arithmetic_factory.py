@@ -10,7 +10,7 @@ from simplexity.generative_processes.arithmetic_process import (
 
 def create_arithmetic_process(
     p: int,
-    max_steps: int,
+    max_operations: int,
     operators: list[str],
     representation: str,
 ) -> ArithmeticProcess:
@@ -21,7 +21,7 @@ def create_arithmetic_process(
 
     Args:
         p: The modulus for arithmetic operations
-        max_steps: The maximum number of steps to take in the equation
+        max_operations: The maximum number of operations to take in the equation
         operators: List of operator strings like ["+", "-", "*"]
         representation: Type of process ("binary_tree" or "rpn")
 
@@ -46,9 +46,9 @@ def create_arithmetic_process(
 
     # Instantiate the appropriate class
     if representation == "binary_tree":
-        return BinaryTreeArithmeticProcess(p=p, operators=operator_enums, max_steps=max_steps)
+        return BinaryTreeArithmeticProcess(p=p, operators=operator_enums, max_operations=max_operations)
     elif representation == "rpn":
-        return RPNArithmeticProcess(p=p, operators=operator_enums, max_steps=max_steps)
+        return RPNArithmeticProcess(p=p, operators=operator_enums, max_operations=max_operations)
     else:
         raise ValueError(f"Unsupported process type: {representation}")
 

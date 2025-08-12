@@ -4,7 +4,7 @@ instance:
   _target_: simplexity.generative_processes.arithmetic_factory.create_arithmetic_process
   representation: rpn
   p: 3
-  max_steps: 10
+  max_operations: 10
   operators: ["+", "-", "*"]
 bos_token: null
 eos_token: null

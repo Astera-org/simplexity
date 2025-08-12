@@ -122,7 +122,7 @@ class ArithmeticProcessConfig(ProcessInstanceConfig):
     """Base configuration for arithmetic processes."""
 
     p: int
-    max_steps: int
+    max_operations: int
     operators: list[str]  # List of operator strings like ["+", "-", "*"]
 
 
