@@ -16,6 +16,7 @@ ProcessName = Literal[
 ProcessBuilder = Literal[
     "simplexity.generative_processes.builder.build_generalized_hidden_markov_model",
     "simplexity.generative_processes.builder.build_hidden_markov_model",
+    "simplexity.generative_processes.builder.build_product_hidden_markov_model",
 ]
 ProcessType = ProcessName
 

@@ -1,4 +1,5 @@
 import inspect
+import itertools
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -113,3 +114,73 @@ def build_nonergodic_hidden_markov_model(
         initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
         initial_state = initial_state.at[num_states - 1].set(1)
     return HiddenMarkovModel(composite_transition_matrix, initial_state)
+
+
+def _kron_all(matrices: Sequence[jax.Array]) -> jax.Array:
+    """Compute the Kronecker product over a sequence of 2D matrices."""
+    if len(matrices) == 0:
+        raise ValueError("Expected at least one matrix for Kronecker product")
+    result = matrices[0]
+    for matrix in matrices[1:]:
+        result = jnp.kron(result, matrix)
+    return result
+
+
+def _linearize_multi_index(indices: Sequence[int], dims: Sequence[int]) -> int:
+    """Map a tuple of indices to a single integer using mixed-radix encoding.
+
+    Equivalent to numpy.ravel_multi_index(indices, dims, order="C").
+    """
+    if len(indices) != len(dims):
+        raise ValueError("indices and dims must have the same length")
+    linear_index = 0
+    stride = 1
+    for idx, dim in zip(reversed(indices), reversed(dims), strict=True):
+        if idx < 0 or idx >= dim:
+            raise IndexError(f"index {idx} out of bounds for dimension with size {dim}")
+        linear_index += idx * stride
+        stride *= dim
+    return linear_index
+
+
+def build_product_hidden_markov_model(
+    process_names: list[str], process_kwargs: Sequence[Mapping[str, Any]]
+) -> HiddenMarkovModel:
+    """Build a product HMM whose emissions are the Cartesian product of component emissions.
+
+    The combined process assumes conditional independence of components given their own
+    hidden states. Its per-observation transition matrix is the Kronecker product of
+    the corresponding component per-observation transition matrices. The combined state
+    space is the Cartesian product of component state spaces, and the initial belief
+    state is the Kronecker product of component stationary states.
+    """
+    if len(process_names) == 0:
+        raise ValueError("Must provide at least one component process")
+
+    component_transition_matrices: list[jax.Array] = [
+        build_transition_matrices(HMM_MATRIX_FUNCTIONS, name, **kwargs)
+        for name, kwargs in zip(process_names, process_kwargs, strict=True)
+    ]
+
+    vocab_sizes = [tm.shape[0] for tm in component_transition_matrices]
+    state_sizes = [tm.shape[1] for tm in component_transition_matrices]
+
+    total_vocab_size = int(jnp.prod(jnp.array(vocab_sizes)))
+    total_state_size = int(jnp.prod(jnp.array(state_sizes)))
+
+    # Preallocate combined transition tensor
+    combined = jnp.zeros((total_vocab_size, total_state_size, total_state_size))
+
+    # Iterate over all observation tuples and set the Kronecker product matrix
+    for obs_tuple in itertools.product(*[range(v) for v in vocab_sizes]):
+        obs_matrices = [tm[o] for tm, o in zip(component_transition_matrices, obs_tuple, strict=True)]
+        kron_matrix = _kron_all(obs_matrices)
+        combined = combined.at[_linearize_multi_index(obs_tuple, vocab_sizes)].set(kron_matrix)
+
+    # Initial state is Kronecker product of component stationary states
+    component_initial_states = [
+        stationary_state(tm.sum(axis=0).T) for tm in component_transition_matrices
+    ]
+    initial_state = _kron_all(component_initial_states)
+
+    return HiddenMarkovModel(combined, initial_state)
