@@ -1,7 +1,7 @@
 defaults:
  - _self_
- - generative_process@training_data_generator: mess3
- - generative_process@validation_data_generator: mess3
+ - generative_process@training_data_generator: product_mess3x2
+ - generative_process@validation_data_generator: product_mess3x2
  - predictive_model: gru_rnn
  - persistence: local_persister
  - logging: mlflow_logger

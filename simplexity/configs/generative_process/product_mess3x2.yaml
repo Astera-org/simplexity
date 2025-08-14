@@ -1,0 +1,10 @@
+name: product_mess3x2
+vocab_size: 9
+instance:
+  _target_: simplexity.generative_processes.builder.build_product_hidden_markov_model
+  process_name: product
+  process_names: [mess3, mess3]
+  process_kwargs:
+    - {x: 0.15, a: 0.6}
+    - {x: 0.20, a: 0.5}
+

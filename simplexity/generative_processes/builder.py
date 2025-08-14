@@ -144,7 +144,7 @@ def _linearize_multi_index(indices: Sequence[int], dims: Sequence[int]) -> int:
 
 
 def build_product_hidden_markov_model(
-    process_names: list[str], process_kwargs: Sequence[Mapping[str, Any]]
+    process_names: list[str], process_kwargs: Sequence[Mapping[str, Any]], process_name: str | None = None
 ) -> HiddenMarkovModel:
     """Build a product HMM whose emissions are the Cartesian product of component emissions.
 
