@@ -74,6 +74,8 @@ class S3Persister(ModelPersister):
             local_persister = LocalPenzaiPersister(directory=temp_dir.name)
         elif model_framework == ModelFramework.Pytorch:
             local_persister = LocalPytorchPersister(directory=temp_dir.name)
+        else:
+            raise ValueError(f"Unsupported model framework: {model_framework}")
         
         return cls(
             bucket=bucket,
