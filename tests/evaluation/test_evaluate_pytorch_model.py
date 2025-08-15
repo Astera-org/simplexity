@@ -54,7 +54,7 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 def test_evaluate_pytorch_model(model: SimpleLM, tmp_path: Path):
     cfg = Config(seed=0, sequence_len=4, batch_size=2, num_steps=3, log_every=5)
     data_generator = build_hidden_markov_model("even_ones", p=0.5)
-    metrics = evaluate(model=model, cfg=cfg, data_generator=data_generator)
+    metrics = evaluate(model=model, cfg=cfg, data_generator=data_generator, bos_token=None, eos_token=None)
     assert metrics["loss"] > 0.0
     assert metrics["accuracy"] >= 0.0
     assert metrics["accuracy"] <= 1.0

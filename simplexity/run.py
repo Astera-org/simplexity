@@ -26,16 +26,80 @@ def train_model(cfg: Config) -> float:
         logger = None
 
     training_data_generator = typed_instantiate(cfg.training_data_generator.instance, GenerativeProcess)
+    
+    # Compute training token values and model vocab size
+    base_vocab_size = training_data_generator.vocab_size
+    use_bos = getattr(cfg.training_data_generator, 'use_bos_token', False)
+    use_eos = getattr(cfg.training_data_generator, 'use_eos_token', False)
+    
+    if use_bos and use_eos:
+        training_bos_token = base_vocab_size
+        training_eos_token = base_vocab_size + 1
+        model_vocab_size = base_vocab_size + 2
+    elif use_bos:
+        training_bos_token = base_vocab_size
+        training_eos_token = None
+        model_vocab_size = base_vocab_size + 1
+    elif use_eos:
+        training_bos_token = None
+        training_eos_token = base_vocab_size
+        model_vocab_size = base_vocab_size + 1
+    else:
+        training_bos_token = None
+        training_eos_token = None
+        model_vocab_size = base_vocab_size
+    
+    # Add computed values to config for logging
+    cfg.training_data_generator.computed_vocab_size = base_vocab_size
+    cfg.training_data_generator.computed_model_vocab_size = model_vocab_size
+    if training_bos_token is not None:
+        cfg.training_data_generator.computed_bos_token = training_bos_token
+    if training_eos_token is not None:
+        cfg.training_data_generator.computed_eos_token = training_eos_token
 
     if cfg.validation_data_generator:
         validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
-        validation_bos_token = cfg.validation_data_generator.bos_token
-        validation_eos_token = cfg.validation_data_generator.eos_token
+        
+        # Compute validation token values
+        val_base_vocab_size = validation_data_generator.vocab_size
+        val_use_bos = getattr(cfg.validation_data_generator, 'use_bos_token', False)
+        val_use_eos = getattr(cfg.validation_data_generator, 'use_eos_token', False)
+        
+        if val_use_bos and val_use_eos:
+            validation_bos_token = val_base_vocab_size
+            validation_eos_token = val_base_vocab_size + 1
+            val_model_vocab_size = val_base_vocab_size + 2
+        elif val_use_bos:
+            validation_bos_token = val_base_vocab_size
+            validation_eos_token = None
+            val_model_vocab_size = val_base_vocab_size + 1
+        elif val_use_eos:
+            validation_bos_token = None
+            validation_eos_token = val_base_vocab_size
+            val_model_vocab_size = val_base_vocab_size + 1
+        else:
+            validation_bos_token = None
+            validation_eos_token = None
+            val_model_vocab_size = val_base_vocab_size
+            
+        # Add computed values to config for logging
+        cfg.validation_data_generator.computed_vocab_size = val_base_vocab_size
+        cfg.validation_data_generator.computed_model_vocab_size = val_model_vocab_size
+        if validation_bos_token is not None:
+            cfg.validation_data_generator.computed_bos_token = validation_bos_token
+        if validation_eos_token is not None:
+            cfg.validation_data_generator.computed_eos_token = validation_eos_token
     else:
         validation_data_generator = None
         validation_bos_token = None
         validation_eos_token = None
 
+    # Override the vocab_size in model config with computed model_vocab_size
+    if hasattr(cfg.predictive_model.instance, 'vocab_size'):
+        cfg.predictive_model.instance.vocab_size = model_vocab_size
+    elif hasattr(cfg.predictive_model.instance, 'config') and hasattr(cfg.predictive_model.instance.config, 'vocab_size'):
+        cfg.predictive_model.instance.config.vocab_size = model_vocab_size
+    
     model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel)
 
     persister_context = (
@@ -58,8 +122,8 @@ def train_model(cfg: Config) -> float:
             cfg.validation,
             validation_data_generator,
             train_persister,
-            training_bos_token=cfg.training_data_generator.bos_token,
-            training_eos_token=cfg.training_data_generator.eos_token,
+            training_bos_token=training_bos_token,
+            training_eos_token=training_eos_token,
             validation_bos_token=validation_bos_token,
             validation_eos_token=validation_eos_token,
         )

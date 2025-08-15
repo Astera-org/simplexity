@@ -116,6 +116,10 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
         validation_cfg,
         data_generator,
         persister,
+        training_bos_token=None,
+        training_eos_token=None,
+        validation_bos_token=None,
+        validation_eos_token=None,
     )
     assert loss > 0.0
     losses = extract_losses(log_file_path)

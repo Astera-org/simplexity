@@ -1,7 +1,8 @@
 name: rrxor
-vocab_size: 2
 instance:
   _target_: simplexity.generative_processes.builder.build_hidden_markov_model
   process_name: rrxor
   pR1: 0.5
   pR2: 0.5
+use_bos_token: false
+use_eos_token: false

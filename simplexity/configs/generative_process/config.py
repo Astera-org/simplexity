@@ -118,7 +118,6 @@ class Config:
     """Base configuration for predictive models."""
 
     name: ProcessName
-    vocab_size: int
     instance: ProcessInstanceConfig
-    bos_token: int | None
-    eos_token: int | None
+    use_bos_token: bool = False
+    use_eos_token: bool = False

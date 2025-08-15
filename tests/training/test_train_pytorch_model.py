@@ -119,7 +119,7 @@ def test_train(model: torch.nn.Module, tmp_path: Path):
     )
     persister = LocalPytorchPersister(directory=str(tmp_path))
 
-    original_metrics = evaluate(model=model, cfg=validation_cfg, data_generator=data_generator)
+    original_metrics = evaluate(model=model, cfg=validation_cfg, data_generator=data_generator, bos_token=None, eos_token=None)
     assert original_metrics["loss"] > 0.0
     assert original_metrics["accuracy"] >= 0.0
     assert original_metrics["accuracy"] <= 1.0
@@ -131,12 +131,16 @@ def test_train(model: torch.nn.Module, tmp_path: Path):
         validation_cfg,
         data_generator,
         persister,
+        training_bos_token=None,
+        training_eos_token=None,
+        validation_bos_token=None,
+        validation_eos_token=None,
     )
     assert loss > 0.0
     losses = extract_losses(log_file_path)
     assert training_cfg.log_every is not None
     assert losses.shape == (training_cfg.num_steps // training_cfg.log_every,)
-    final_metrics = evaluate(model=model, cfg=validation_cfg, data_generator=data_generator)
+    final_metrics = evaluate(model=model, cfg=validation_cfg, data_generator=data_generator, bos_token=None, eos_token=None)
     assert final_metrics["loss"] < original_metrics["loss"]
     assert final_metrics["accuracy"] >= original_metrics["accuracy"]
     assert final_metrics["accuracy"] <= 1.0
