@@ -1,0 +1,14 @@
+name: product_even_ones_rrxor
+vocab_size: 4  # 2 * 2 = 4
+instance:
+  _target_: simplexity.generative_processes.builder.build_product_generator
+  component_configs:
+    - type: hmm
+      process_name: even_ones
+      p: 0.5
+    - type: hmm
+      process_name: rrxor
+      pR1: 0.6
+      pR2: 0.7
+bos_token: 4  # vocab_size is used as BOS token
+eos_token:

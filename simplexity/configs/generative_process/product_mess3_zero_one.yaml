@@ -1,0 +1,14 @@
+name: product_mess3_zero_one
+vocab_size: 6  # 3 * 2 = 6
+instance:
+  _target_: simplexity.generative_processes.builder.build_product_generator
+  component_configs:
+    - type: hmm
+      process_name: mess3
+      x: 0.15
+      a: 0.6
+    - type: hmm
+      process_name: zero_one_random
+      p: 0.7
+bos_token: 6  # vocab_size is used as BOS token
+eos_token:

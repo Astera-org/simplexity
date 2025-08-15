@@ -7,6 +7,7 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.product_generator import ProductGenerator
 from simplexity.generative_processes.transition_matrices import (
     GHMM_MATRIX_FUNCTIONS,
     HMM_MATRIX_FUNCTIONS,
@@ -113,3 +114,42 @@ def build_nonergodic_hidden_markov_model(
         initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
         initial_state = initial_state.at[num_states - 1].set(1)
     return HiddenMarkovModel(composite_transition_matrix, initial_state)
+
+
+def build_product_generator(
+    component_configs: list[dict[str, Any]]
+) -> ProductGenerator:
+    """Build a ProductGenerator from component generator configurations.
+    
+    Args:
+        component_configs: List of dictionaries, each containing:
+            - 'type': Either 'hmm' or 'ghmm' 
+            - 'process_name': Name of the process to build
+            - Additional keyword arguments for the specific process
+            
+    Returns:
+        ProductGenerator combining all component generators
+        
+    Example:
+        >>> gen = build_product_generator([
+        ...     {'type': 'hmm', 'process_name': 'zero_one_random', 'p': 0.5},
+        ...     {'type': 'hmm', 'process_name': 'even_ones'}
+        ... ])
+    """
+    component_generators = []
+    
+    for config in component_configs:
+        config = dict(config)  # Make a copy to avoid modifying original
+        gen_type = config.pop('type', 'hmm')
+        process_name = config.pop('process_name')
+        
+        if gen_type == 'hmm':
+            generator = build_hidden_markov_model(process_name, **config)
+        elif gen_type == 'ghmm':
+            generator = build_generalized_hidden_markov_model(process_name, **config)
+        else:
+            raise ValueError(f"Unknown generator type: {gen_type}. Use 'hmm' or 'ghmm'")
+        
+        component_generators.append(generator)
+    
+    return ProductGenerator(component_generators)

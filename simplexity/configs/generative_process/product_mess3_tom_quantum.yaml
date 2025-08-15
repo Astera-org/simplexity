@@ -1,0 +1,15 @@
+name: product_mess3_tom_quantum
+vocab_size: 12  # 3 * 4 = 12
+instance:
+  _target_: simplexity.generative_processes.builder.build_product_generator
+  component_configs:
+    - type: hmm
+      process_name: mess3
+      x: 0.15
+      a: 0.6
+    - type: ghmm
+      process_name: tom_quantum
+      alpha: 1.0
+      beta: 1.0
+bos_token: 12  # vocab_size is used as BOS token
+eos_token:
