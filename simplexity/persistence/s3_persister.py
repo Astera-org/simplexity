@@ -76,7 +76,7 @@ class S3Persister(ModelPersister):
             local_persister = LocalPytorchPersister(directory=temp_dir.name)
         else:
             raise ValueError(f"Unsupported model framework: {model_framework}")
-        
+
         return cls(
             bucket=bucket,
             prefix=prefix,
