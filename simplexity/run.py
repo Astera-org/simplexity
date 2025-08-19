@@ -1,14 +1,11 @@
-from contextlib import nullcontext
-
 import hydra
+import torch
 from omegaconf import DictConfig
 
 from simplexity.configs.config import Config, validate_config
-from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.arithmetic_process import ArithmeticProcess
 from simplexity.logging.logger import Logger
-from simplexity.persistence.model_persister import ModelPersister
-from simplexity.predictive_models.predictive_model import PredictiveModel
-from simplexity.training.train_model import train
+from simplexity.training.train_pytorch_model import train
 from simplexity.utils.hydra import typed_instantiate
 
 
@@ -25,10 +22,11 @@ def train_model(cfg: Config) -> float:
     else:
         logger = None
 
-    training_data_generator = typed_instantiate(cfg.training_data_generator.instance, GenerativeProcess)
+    # Use ArithmeticProcess for arithmetic data generators
+    training_data_generator = typed_instantiate(cfg.training_data_generator.instance, ArithmeticProcess)
 
     if cfg.validation_data_generator:
-        validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
+        validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, ArithmeticProcess)
         validation_bos_token = cfg.validation_data_generator.bos_token
         validation_eos_token = cfg.validation_data_generator.eos_token
     else:
@@ -36,33 +34,21 @@ def train_model(cfg: Config) -> float:
         validation_bos_token = None
         validation_eos_token = None
 
-    model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel)
+    model = typed_instantiate(cfg.predictive_model.instance, torch.nn.Module)
 
-    persister_context = (
-        typed_instantiate(cfg.persistence.instance, ModelPersister) if cfg.persistence else nullcontext()
+    _, loss = train(
+        model,
+        cfg.training,
+        training_data_generator,
+        logger,
+        cfg.validation,
+        validation_data_generator,
+        None,
+        training_bos_token=cfg.training_data_generator.bos_token,
+        training_eos_token=cfg.training_data_generator.eos_token,
+        validation_bos_token=validation_bos_token,
+        validation_eos_token=validation_eos_token,
     )
-
-    with persister_context as persister:
-        if isinstance(persister, ModelPersister):
-            if cfg.predictive_model.load_checkpoint_step:
-                model = persister.load_weights(model, cfg.predictive_model.load_checkpoint_step)
-            train_persister = persister
-        else:
-            train_persister = None
-
-        _, loss = train(
-            model,
-            cfg.training,
-            training_data_generator,
-            logger,
-            cfg.validation,
-            validation_data_generator,
-            train_persister,
-            training_bos_token=cfg.training_data_generator.bos_token,
-            training_eos_token=cfg.training_data_generator.eos_token,
-            validation_bos_token=validation_bos_token,
-            validation_eos_token=validation_eos_token,
-        )
 
     if logger:
         logger.close()

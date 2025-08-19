@@ -1,11 +1,11 @@
 defaults:
   - _self_
-  - optimizer: optax
+  - optimizer: pytorch
 
 seed: ${seed}
-sequence_len: 8
-batch_size: 4
-num_steps: 10
+sequence_len: 16
+batch_size: 256
+num_steps: 1000
 log_every: 1
-validate_every: 2
-checkpoint_every: 5
+validate_every: 10
+checkpoint_every:

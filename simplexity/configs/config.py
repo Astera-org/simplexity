@@ -79,10 +79,12 @@ def validate_config(cfg: Config) -> None:
         assert cfg.validation is None, "Validation is configured but not required"
         assert cfg.validation_data_generator is None, "Validation data generator is configured but not required"
 
+    # Safely check for persistence field
+    persistence = getattr(cfg, "persistence", None)
     if persistence_required(cfg):
-        assert cfg.persistence is not None, "Persistence is required but not configured"
+        assert persistence is not None, "Persistence is required but not configured"
     else:
-        assert not cfg.persistence, "Persistence is configured but not required"
+        assert not persistence, "Persistence is configured but not required"
 
     if cfg.logging:
         assert logging_required(cfg), "Logging is configured but not required"

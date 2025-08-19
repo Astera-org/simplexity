@@ -58,6 +58,10 @@ def evaluate(
     """Evaluate a PyTorch model on a generative process."""
     key = jax.random.PRNGKey(cfg.seed)
 
+    # Determine device
+    device = next(model.parameters()).device if list(model.parameters()) else torch.device("cpu")
+    model = model.to(device)
+
     gen_state = data_generator.initial_state
     if isinstance(gen_state, jax.Array):
         gen_states = jnp.repeat(gen_state[None, :], cfg.batch_size, axis=0)
@@ -76,6 +80,11 @@ def evaluate(
             bos_token=bos_token,
             eos_token=eos_token,
         )
+
+        # Move inputs and labels to the same device as the model
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+
         step_metrics = evaluation_step(model, inputs, labels)
         for metric_name, metric_value in step_metrics.items():
             metrics[metric_name] += metric_value
