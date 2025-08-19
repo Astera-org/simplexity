@@ -10,6 +10,3 @@ defaults:
 seed: 0
 experiment_name: pytorch_arithmetic_training
 run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}
-
-# Set vocab_size to match the arithmetic process
-vocab_size: 18
