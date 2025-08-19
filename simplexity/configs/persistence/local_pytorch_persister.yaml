@@ -1,0 +1,5 @@
+name: local_pytorch_persister
+instance:
+  _target_: simplexity.persistence.local_pytorch_persister.LocalPytorchPersister
+  directory: ${oc.env:CHECKPOINT_DIR,${hydra:runtime.output_dir}/checkpoints}
+  filename: model.pt

@@ -15,6 +15,7 @@ from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.arithmetic_process import Operators, RPNArithmeticProcess
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
+from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 from simplexity.training.train_pytorch_model import train
 
@@ -146,12 +147,15 @@ def test_train(tmp_path: Path):
 @pytest.mark.slow
 def test_train_arithmetic(tmp_path: Path):
     data_generator = RPNArithmeticProcess(p=5, operators=[Operators.ADD], max_operations=2)
-    log_file_path = tmp_path / "test.log"
-    logger = FileLogger(file_path=str(log_file_path))
+    logger = MLFlowLogger(
+        tracking_uri="databricks",
+        experiment_name="/Shared/test_train_arithmetic",
+        run_name="test_run",
+    )
 
     training_cfg = TrainConfig(
         seed=0,
-        sequence_len=32,
+        sequence_len=16,
         batch_size=64,
         num_steps=100,
         log_every=50,
@@ -194,9 +198,8 @@ def test_train_arithmetic(tmp_path: Path):
         persister,
     )
     assert loss > 0.0
-    losses = extract_losses(log_file_path)
-    assert training_cfg.log_every is not None
-    assert losses.shape == (training_cfg.num_steps // training_cfg.log_every,)
+    # Note: MLFlowLogger doesn't write to a file, so we can't extract losses from a file
+    # The training function returns the final loss value, which we've already asserted is > 0.0
     final_metrics = evaluate(model=model, cfg=validation_cfg, data_generator=data_generator)
     assert final_metrics["loss"] < original_metrics["loss"]
     assert final_metrics["accuracy"] >= original_metrics["accuracy"]

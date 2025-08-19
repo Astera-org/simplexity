@@ -1,0 +1,12 @@
+name: pytorch_transformer
+instance:
+  _target_: simplexity.predictive_models.pytorch_transformer.build_pytorch_transformer
+  vocab_size: ${vocab_size}
+  d_model: 128
+  num_layers: 1
+  num_heads: 4
+  d_mlp: 512 # 4 * d_model
+  n_ctx: 16 # Context length - should match training sequence_len
+  act_type: "ReLU" # Activation function
+  use_ln: false # Use layer normalization
+load_checkpoint_step: null

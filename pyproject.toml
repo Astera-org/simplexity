@@ -15,6 +15,7 @@ dependencies = [
     "boto3>=1.37.24",
     "chex",
     "dotenv",
+    "einops",
     "equinox",
     "hydra-core",
     "hydra-optuna-sweeper",

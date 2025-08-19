@@ -34,6 +34,10 @@ def train(
     """Train a PyTorch model on a generative process."""
     key = jax.random.PRNGKey(training_cfg.seed)
 
+    # Determine device
+    device = next(model.parameters()).device if list(model.parameters()) else torch.device("cpu")
+    model = model.to(device)
+
     optimizer = typed_instantiate(training_cfg.optimizer.instance, torch.optim.Optimizer, params=model.parameters())
 
     gen_state = training_data_generator.initial_state
@@ -54,6 +58,10 @@ def train(
             bos_token=training_bos_token,
             eos_token=training_eos_token,
         )
+
+        # Move inputs and labels to the same device as the model
+        inputs = inputs.to(device)
+        labels = labels.to(device)
 
         model.train()
         optimizer.zero_grad()

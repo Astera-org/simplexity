@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 from typing import Literal
 
-TARGETS = Literal["simplexity.predictive_models.gru_rnn.build_gru_rnn"]
+TARGETS = Literal[
+    "simplexity.predictive_models.gru_rnn.build_gru_rnn",
+    "simplexity.predictive_models.pytorch_transformer.build_pytorch_transformer",
+]
 
 
 @dataclass
