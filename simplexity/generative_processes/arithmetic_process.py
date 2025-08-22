@@ -45,6 +45,8 @@ class ArithmeticProcess(eqx.Module):
     max_operations: int
     operators: dict[int, Operators]
     tokens: dict[str, int]
+    group_id: jax.Array
+    group_masks: jax.Array
     operator_functions: list[Callable[[jax.Array, jax.Array], jax.Array]] = eqx.static_field()
 
     def __init__(self, p: int, operators: Sequence[Operators], max_operations: int):
@@ -69,6 +71,17 @@ class ArithmeticProcess(eqx.Module):
                 SpecialTokens.PAD.value: p + num_operators + 3,
             },
         }
+
+        self.group_id = jnp.concatenate(
+            [
+                jnp.zeros((p,), dtype=jnp.int32),  # operands
+                jnp.ones((num_operators,), dtype=jnp.int32),  # operators
+                jnp.arange(2, 6, dtype=jnp.int32),  # 4 specials
+            ]
+        )
+        self.group_masks = jnp.full((6, self.vocab_size), -jnp.inf)
+        for g in range(6):
+            self.group_masks = self.group_masks.at[g, self.group_id == g].set(0.0)
 
         # Create operator functions mapping
         operator_function_map = {
@@ -792,3 +805,81 @@ class RPNArithmeticProcess(ArithmeticProcess):
         meaningful_count = jnp.sum(final_output != self.tokens[SpecialTokens.PAD.value])
 
         return meaningful_count, final_output
+
+    def format_loss_old(self, logits: jax.Array, labels: jax.Array) -> jax.Array:
+        """Compute a format loss for the RPN arithmetic process.
+
+        The sequence of operators, operands, and special tokens should be the same as in the labels.
+        But the particular values of the operators and operands can be different.
+
+        Args:
+            logits: The logits from the model
+            labels: The labels from the data
+
+        Returns:
+            The format loss
+        """
+        # Exponentiate and normalize logits to get probabilities
+        logits = jax.nn.softmax(logits, axis=-1)
+
+        # Aggregate probabilites over the different values for operators and operands
+        # This can be accomplished by multiplying by a rectangular binary matrix
+        # of shape (6, vocab_size)
+        # Where the 6 rows represent a generic operand, a generic operator, and the 4 special tokens
+        # The binary matrix is:
+        # [1, 1, ..., 1, 1, 0, 0, ..., 0, 0, 0, 0, 0, 0]
+        # [0, 0, ..., 0, 0, 1, 1, ..., 1, 1, 0, 0, 0, 0]
+        # [0, 0, ..., 0, 0, 0, 0, ..., 0, 0, 1, 0, 0, 0]
+        # [0, 0, ..., 0, 0, 0, 0, ..., 0, 0, 0, 1, 0, 0]
+        # [0, 0, ..., 0, 0, 0, 0, ..., 0, 0, 0, 0, 1, 0]
+        # [0, 0, ..., 0, 0, 0, 0, ..., 0, 0, 0, 0, 0, 1]
+
+        num_operators = len(self.operators)
+        binary_matrix = jnp.zeros((6, self.vocab_size))
+        binary_matrix = binary_matrix.at[0, : self.p].set(1)
+        binary_matrix = binary_matrix.at[1, self.p : self.p + num_operators].set(1)
+        binary_matrix = binary_matrix.at[2, self.p + num_operators].set(1)
+        binary_matrix = binary_matrix.at[3, self.p + num_operators + 1].set(1)
+        binary_matrix = binary_matrix.at[4, self.p + num_operators + 2].set(1)
+        binary_matrix = binary_matrix.at[5, self.p + num_operators + 3].set(1)
+
+        aggregated_logits = binary_matrix @ logits
+        aggregated_labels = binary_matrix @ labels
+
+        return -jnp.sum(aggregated_labels * jnp.log(aggregated_logits)) / labels.shape[0]
+
+    def format_loss(
+        self, logits: jax.Array, labels: jax.Array, *, label_is_index: bool = True, pad_id: int | None = None
+    ) -> jax.Array:
+        """Cross-entropy over 6 meta-classes: operand, operator, 4 specials.
+
+        logits: (..., V)
+        labels: (...,) int indices if label_is_index else (..., V) one-hot
+        pad_id: optional padding id in vocab to exclude from the average
+        """
+        log_probs = jax.nn.log_softmax(logits, axis=-1)  # (..., V)
+
+        # Group log-probs: log(sum_{v in group g} p(v))
+        # Add broadcasted masks (0 or -inf), then logsumexp over vocab
+        # Broadcast masks to leading dims: (..., 6, V) then reduce over V
+        lp_expanded = log_probs[..., None, :]  # (..., 1, V)
+        masks_b = self.group_masks[None, ...]  # (1, 6, V)
+        group_log_probs = jax.nn.logsumexp(lp_expanded + masks_b, axis=-1)  # (..., 6)
+
+        if label_is_index:
+            y_vocab = labels
+        else:
+            y_vocab = jnp.argmax(labels, axis=-1)
+
+        y_group = jnp.take(self.group_id, y_vocab)
+        nll = -jnp.take_along_axis(group_log_probs, y_group[..., None], axis=-1)[..., 0]
+
+        if pad_id is not None:
+            valid = jnp.ones_like(y_group, dtype=bool)
+            valid = y_vocab != pad_id
+            denom = jnp.maximum(1, jnp.sum(valid))
+            loss = jnp.sum(jnp.where(valid, nll, 0.0)) / denom
+        else:
+            loss = jnp.mean(nll)
+
+        return loss
