@@ -35,6 +35,7 @@ cuda = ["jax[cuda12_pip]"]
 dev = ["jaxtyping", "nbqa", "pyright", "pytest", "pytest-cov", "ruff"]
 mac = ["jax-metal"]
 pytorch = ["torch"]
+transformerlens = ["torch", "transformer-lens", "better-abc"]
 
 [tool.ruff]
 line-length = 120
