@@ -12,6 +12,11 @@ class Logger(ABC):
     def log_config(self, config: DictConfig) -> None:
         """Log config to the logger."""
         ...
+    
+    @abstractmethod
+    def log_resolved_config(self, config: DictConfig) -> None:
+        """Log a resolved config to the logger."""
+        ...
 
     @abstractmethod
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
