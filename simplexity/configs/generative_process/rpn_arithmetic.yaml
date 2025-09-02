@@ -1,9 +1,9 @@
 name: rpn_arithmetic
-vocab_size: 18 # p + num_operators + special_tokens (3 + 1 + 4)
+vocab_size: 118 # p + num_operators + special_tokens (113 + 1 + 4)
 instance:
   _target_: simplexity.generative_processes.arithmetic_factory.create_arithmetic_process
   representation: rpn
-  p: 13
+  p: 113
   max_operations: 2
   operators: ["+"]
 bos_token: null

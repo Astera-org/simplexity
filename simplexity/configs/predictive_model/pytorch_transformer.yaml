@@ -1,9 +1,9 @@
 name: pytorch_transformer
 instance:
   _target_: simplexity.predictive_models.pytorch_transformer.build_pytorch_transformer
-  vocab_size: 18
+  vocab_size: 118
   d_model: 128
-  num_layers: 1
+  num_layers: 2
   num_heads: 4
   d_mlp: 512 # 4 * d_model
   n_ctx: 16 # Context length - should match training sequence_len

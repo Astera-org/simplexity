@@ -1,0 +1,6 @@
+name: local_mlflow_logger
+instance:
+  _target_: simplexity.logging.mlflow_logger.MLFlowLogger
+  experiment_name: ${experiment_name}
+  run_name: ${run_name}
+  tracking_uri: file:./mlruns

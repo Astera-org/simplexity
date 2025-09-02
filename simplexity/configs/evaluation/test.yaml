@@ -1,0 +1,5 @@
+seed: ${seed}
+sequence_len: 16
+batch_size: 16
+num_steps: 5
+log_every: null
