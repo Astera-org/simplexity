@@ -563,3 +563,153 @@ def test_generate():
     keys = jax.random.split(key, batch_size)
     k, equations = process.generate(k, keys, sequence_len, False)
     assert equations.shape == (batch_size, sequence_len)
+
+
+def test_format_loss_exact_match():
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_operations=4)
+    logits = jnp.array(
+        [
+            [
+                # 0   1   2   3   4   +   -   =  BOE EOE PAD
+                [-1, -1, -1, -1, -1, -1, -1, -1, 10, -1, -1],  # BOE
+                [-1, -1, 10, -1, -1, -1, -1, -1, -1, -1, -1],  # 2
+                [-1, -1, -1, -1, -1, 10, -1, -1, -1, -1, -1],  # +
+                [-1, -1, -1, -1, 10, -1, -1, -1, -1, -1, -1],  # 4
+                [-1, -1, -1, -1, -1, -1, -1, 10, -1, -1, -1],  # =
+                [-1, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1],  # 1
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, 10, -1],  # EOE
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 10],  # PAD
+            ]
+        ]
+    )
+    labels = jnp.array(
+        [
+            [
+                TOKENS["<boe>"],
+                TOKENS["2"],
+                TOKENS["+"],
+                TOKENS["4"],
+                TOKENS["="],
+                TOKENS["1"],
+                TOKENS["<eoe>"],
+                TOKENS["<pad>"],
+            ]
+        ]
+    )
+    loss = process.format_loss(logits, labels, label_is_index=True)
+
+    # Calculate expected loss explicitly by computing softmax probabilities
+    import math
+
+    # For logits with one high value (10) and rest -1, compute softmax probabilities
+    e_10 = math.exp(10)
+    e_neg1 = math.exp(-1)
+    denominator = e_10 + 10 * e_neg1  # 10 low values + 1 high value
+    p_high = e_10 / denominator
+    p_low = e_neg1 / denominator
+
+    # Define group sizes for each position
+    # Groups: operands (0-4), operators (5-6), = (7), <boe> (8), <eoe> (9), <pad> (10)
+    group_sizes = [
+        1,  # <boe>
+        5,  # operands
+        2,  # operators
+        5,  # operands
+        1,  # =
+        5,  # operands
+        1,  # <eoe>
+        1,  # <pad>
+    ]
+
+    # Compute loss for each position
+    position_losses = []
+    for group_size in group_sizes:
+        if group_size == 1:
+            # Single token group: only the high probability token
+            group_prob = p_high
+        else:
+            # Multiple token group: high probability token + (group_size-1) low probability tokens
+            group_prob = p_high + (group_size - 1) * p_low
+
+        position_loss = -math.log(group_prob)
+        position_losses.append(position_loss)
+
+    # Average loss across all positions
+    expected_loss = sum(position_losses) / len(position_losses)
+
+    assert abs(loss - expected_loss) < 1e-6
+
+
+def test_format_loss_inexact_match():
+    process = RPNArithmeticProcess(p=5, operators=[Operators.ADD, Operators.SUB], max_operations=4)
+    logits = jnp.array(
+        [
+            [
+                # 0   1   2   3   4   +   -   =  BOE EOE PAD
+                [-1, -1, -1, -1, -1, -1, -1, 10, 10, -1, -1],  # BOE -> (=, BOE)
+                [-1, 10, -1, 10, -1, -1, -1, -1, -1, -1, -1],  # 2 -> (1, 3)
+                [-1, -1, -1, -1, -1, 10, 10, -1, -1, -1, -1],  # + -> (+, -)
+                [10, -1, 10, -1, -1, -1, -1, -1, -1, -1, -1],  # 4 -> (0, 2)
+                [-1, -1, -1, -1, -1, -1, -1, 10, -1, -1, 10],  # = -> (=, PAD)
+                [-1, 10, 10, -1, -1, -1, -1, -1, -1, -1, -1],  # 1 -> (1, 2)
+                [-1, -1, -1, -1, -1, -1, -1, -1, 10, 10, -1],  # EOE -> (BOE, EOE)
+                [-1, -1, -1, -1, -1, 10, -1, -1, -1, -1, 10],  # PAD -> (+, PAD)
+            ]
+        ]
+    )
+    labels = jnp.array(
+        [
+            [
+                TOKENS["<boe>"],
+                TOKENS["2"],
+                TOKENS["+"],
+                TOKENS["4"],
+                TOKENS["="],
+                TOKENS["1"],
+                TOKENS["<eoe>"],
+                TOKENS["<pad>"],
+            ]
+        ]
+    )
+    loss = process.format_loss(logits, labels, label_is_index=True)
+
+    # Calculate expected loss explicitly by computing softmax probabilities
+    import math
+
+    # For logits with one high value (10) and rest -1, compute softmax probabilities
+    e_10 = math.exp(10)
+    e_neg1 = math.exp(-1)
+    denominator = 2 * e_10 + 9 * e_neg1  # 9 low values + 2 high values
+    p_high = e_10 / denominator
+    p_low = e_neg1 / denominator
+
+    # Define group sizes for each position
+    # Groups: operands (0-4), operators (5-6), = (7), <boe> (8), <eoe> (9), <pad> (10)
+    group_sizes = [
+        1,  # <boe>
+        5,  # operands
+        2,  # operators
+        5,  # operands
+        1,  # =
+        5,  # operands
+        1,  # <eoe>
+        1,  # <pad>
+    ]
+
+    # Compute loss for each position
+    position_losses = []
+    for group_size in group_sizes:
+        if group_size == 1:
+            # Single token group: only the high probability token
+            group_prob = p_high
+        else:
+            # Multiple token group: high probability token + (group_size-1) low probability tokens
+            group_prob = 2 * p_high + (group_size - 2) * p_low
+
+        position_loss = -math.log(group_prob)
+        position_losses.append(position_loss)
+
+    # Average loss across all positions
+    expected_loss = sum(position_losses) / len(position_losses)
+
+    assert abs(loss - expected_loss) < 1e-6

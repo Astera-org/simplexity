@@ -4,6 +4,7 @@
 .vscode/
 __pycache__/
 data/
+mlruns/
 multirun/
 outputs/
 config.ini
