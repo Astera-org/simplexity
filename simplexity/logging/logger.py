@@ -9,7 +9,7 @@ class Logger(ABC):
     """Logs to a variety of backends."""
 
     @abstractmethod
-    def log_config(self, config: DictConfig) -> None:
+    def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to the logger."""
         ...
 

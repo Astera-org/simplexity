@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from pprint import pprint
 from typing import Any
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
 
@@ -10,9 +10,10 @@ from simplexity.logging.logger import Logger
 class PrintLogger(Logger):
     """Logs to the console."""
 
-    def log_config(self, config: DictConfig) -> None:
+    def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to the console."""
-        pprint(f"Config: {config}")
+        _config = OmegaConf.to_container(config, resolve=resolve)
+        pprint(f"Config: {_config}")
 
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
         """Log metrics to the console."""
