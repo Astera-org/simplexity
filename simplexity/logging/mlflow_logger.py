@@ -40,7 +40,7 @@ class MLFlowLogger(Logger):
             config_path = os.path.join(temp_dir, "config.yaml")
             OmegaConf.save(config, config_path)
             self._client.log_artifact(self._run_id, config_path)
-    
+
     def log_resolved_config(self, config: DictConfig) -> None:
         """Log a resolved config to MLflow."""
         with tempfile.TemporaryDirectory() as temp_dir:

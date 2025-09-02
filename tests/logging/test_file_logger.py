@@ -45,6 +45,7 @@ def test_file_logger(tmp_path: Path):
     with open(tmp_path / "test.log") as f:
         assert f.read() == EXPECTED_LOG
 
+
 def test_file_logger_with_interpolation(tmp_path: Path):
     """Test that resolved config properly resolves interpolations."""
     logger = FileLogger(str(tmp_path / "test.log"))
@@ -53,11 +54,11 @@ def test_file_logger_with_interpolation(tmp_path: Path):
     config_dict = {
         "base_value": "hello",
         "interpolated_value": "${base_value}_world",
-        "nested":{
+        "nested": {
             "value": "${base_value}_nested",
         },
     }
-    
+
     config = DictConfig(config_dict)
     logger.log_resolved_config(config)
     logger.close()

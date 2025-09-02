@@ -21,7 +21,7 @@ class FileLogger(Logger):
         """Log config to the file."""
         with open(self.file_path, "a") as f:
             print(f"Config: {config}", file=f)
-    
+
     def log_resolved_config(self, config: DictConfig) -> None:
         """Log a resolved config to the file."""
         with open(self.file_path, "a") as f:
@@ -47,10 +47,19 @@ class FileLogger(Logger):
         """Close the logger."""
         pass
 
+
 if __name__ == "__main__":
     print("Testing FileLogger resolved config...")
     logger = FileLogger("test.log")
     print(f"Logging to {logger.file_path}")
-    logger.log_resolved_config(DictConfig({"base_value": "hello", "interpolated_value": "${base_value}_world", "nested": {"value": "${base_value}_nested"}}))
+    logger.log_resolved_config(
+        DictConfig(
+            {
+                "base_value": "hello",
+                "interpolated_value": "${base_value}_world",
+                "nested": {"value": "${base_value}_nested"},
+            }
+        )
+    )
     logger.close()
     print("Test completed! Check test.log for output.")

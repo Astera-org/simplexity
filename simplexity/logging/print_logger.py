@@ -13,7 +13,7 @@ class PrintLogger(Logger):
     def log_config(self, config: DictConfig) -> None:
         """Log config to the console."""
         pprint(f"Config: {config}")
-    
+
     def log_resolved_config(self, config: DictConfig) -> None:
         """Log a resolved config to the console."""
         resolved_config = OmegaConf.to_container(config, resolve=True)
