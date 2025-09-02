@@ -7,6 +7,7 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.cartesian_product_process import CartesianProductProcess
 from simplexity.generative_processes.transition_matrices import (
     GHMM_MATRIX_FUNCTIONS,
     HMM_MATRIX_FUNCTIONS,
@@ -113,3 +114,61 @@ def build_nonergodic_hidden_markov_model(
         initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
         initial_state = initial_state.at[num_states - 1].set(1)
     return HiddenMarkovModel(composite_transition_matrix, initial_state)
+
+
+def build_cartesian_product_process(
+    component_specs: list[dict[str, Any]],
+    component_names: list[str] | None = None
+) -> CartesianProductProcess:
+    """
+    Build a Cartesian product process from a list of component specifications.
+    
+    Each component spec should be a dict with:
+    - 'type': 'hmm' or 'ghmm'
+    - 'process_name': name of the process (e.g., 'mess3', 'tom_quantum')
+    - Any additional parameters for that process (e.g., 'x', 'a' for mess3)
+    
+    Example:
+        component_specs = [
+            {'type': 'hmm', 'process_name': 'mess3', 'x': 0.15, 'a': 0.6},
+            {'type': 'ghmm', 'process_name': 'tom_quantum', 'alpha': 1.0, 'beta': 7.14}
+        ]
+        
+    Args:
+        component_specs: List of component specifications
+        component_names: Optional names for components (defaults to process names)
+        
+    Returns:
+        CartesianProductProcess instance
+    """
+    processes = []
+    default_names = []
+    
+    for i, spec in enumerate(component_specs):
+        spec = dict(spec)  # Make a copy to avoid modifying original
+        
+        # Extract type and process name
+        process_type = spec.pop('type', 'hmm').lower()
+        process_name = spec.get('process_name')
+        
+        if not process_name:
+            raise ValueError(f"Component {i} missing 'process_name'")
+            
+        # Remove process_name from kwargs since it's a positional arg
+        kwargs = {k: v for k, v in spec.items() if k != 'process_name'}
+        
+        # Build the appropriate process
+        if process_type == 'hmm':
+            process = build_hidden_markov_model(process_name, **kwargs)
+        elif process_type == 'ghmm':
+            process = build_generalized_hidden_markov_model(process_name, **kwargs)
+        else:
+            raise ValueError(f"Unknown process type: {process_type}. Use 'hmm' or 'ghmm'")
+            
+        processes.append(process)
+        default_names.append(f"{process_name}_{i}")
+    
+    # Use provided names or defaults
+    names = component_names if component_names else default_names
+    
+    return CartesianProductProcess(processes, names)
