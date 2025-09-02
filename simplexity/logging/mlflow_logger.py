@@ -34,18 +34,11 @@ class MLFlowLogger(Logger):
         run = self._client.create_run(experiment_id=experiment_id, run_name=run_name)
         self._run_id = run.info.run_id
 
-    def log_config(self, config: DictConfig) -> None:
+    def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to MLflow."""
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = os.path.join(temp_dir, "config.yaml")
-            OmegaConf.save(config, config_path)
-            self._client.log_artifact(self._run_id, config_path)
-
-    def log_resolved_config(self, config: DictConfig) -> None:
-        """Log a resolved config to MLflow."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_path = os.path.join(temp_dir, "config_resolved.yaml")
-            OmegaConf.save(config, config_path, resolve=True)
+            OmegaConf.save(config, config_path, resolve=resolve)
             self._client.log_artifact(self._run_id, config_path)
 
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
