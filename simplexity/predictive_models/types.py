@@ -6,3 +6,4 @@ class ModelFramework(StrEnum):
 
     Equinox = "equinox"
     Penzai = "penzai"
+    Pytorch = "pytorch"
