@@ -179,12 +179,13 @@ class MLFlowLogger(Logger):
         # Track simplexity repository
         try:
             import simplexity
-            simplexity_path = Path(simplexity.__file__).parent.parent
-            simplexity_info = self._get_git_info(simplexity_path)
-            if simplexity_info:
-                for key, value in simplexity_info.items():
-                    tags[f"git.simplexity.{key}"] = value
-        except (ImportError, AttributeError):
+            if simplexity.__file__:
+                simplexity_path = Path(simplexity.__file__).parent.parent
+                simplexity_info = self._get_git_info(simplexity_path)
+                if simplexity_info:
+                    for key, value in simplexity_info.items():
+                        tags[f"git.simplexity.{key}"] = value
+        except (ImportError, AttributeError, TypeError):
             pass
         
         # Log all git tags if we found any
