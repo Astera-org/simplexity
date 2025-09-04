@@ -179,8 +179,26 @@ class MLFlowLogger(Logger):
         # Track simplexity repository
         try:
             import simplexity
-            if simplexity.__file__:
+            # Try multiple ways to find simplexity path
+            simplexity_path = None
+            
+            # Method 1: Use __file__ if available
+            if hasattr(simplexity, '__file__') and simplexity.__file__:
                 simplexity_path = Path(simplexity.__file__).parent.parent
+            # Method 2: Use __path__ for namespace packages
+            elif hasattr(simplexity, '__path__'):
+                for path in simplexity.__path__:
+                    if path:
+                        simplexity_path = Path(path).parent
+                        break
+            # Method 3: Use the module spec
+            if not simplexity_path:
+                import importlib.util
+                spec = importlib.util.find_spec('simplexity')
+                if spec and spec.origin:
+                    simplexity_path = Path(spec.origin).parent.parent
+            
+            if simplexity_path and simplexity_path.exists():
                 simplexity_info = self._get_git_info(simplexity_path)
                 if simplexity_info:
                     for key, value in simplexity_info.items():
