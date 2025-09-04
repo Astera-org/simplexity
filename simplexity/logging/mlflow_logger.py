@@ -1,7 +1,9 @@
 import os
+import subprocess
 import tempfile
 import time
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import dotenv
@@ -33,6 +35,9 @@ class MLFlowLogger(Logger):
             experiment_id = self._client.create_experiment(experiment_name)
         run = self._client.create_run(experiment_id=experiment_id, run_name=run_name)
         self._run_id = run.info.run_id
+        
+        # Automatically log git information for reproducibility
+        self._log_git_info()
 
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to MLflow."""
@@ -94,3 +99,118 @@ class MLFlowLogger(Logger):
     def _log_batch(self, **kwargs: Any) -> None:
         """Log arbitrary data to MLflow."""
         self._client.log_batch(self._run_id, **kwargs, synchronous=False)
+    
+    def _get_git_info(self, repo_path: Path) -> dict[str, str]:
+        """Get git repository information.
+        
+        Args:
+            repo_path: Path to the git repository
+            
+        Returns:
+            Dictionary with git information (commit, branch, dirty state, remote)
+        """
+        try:
+            # Get commit hash
+            result = subprocess.run(
+                ['git', 'rev-parse', 'HEAD'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            commit_full = result.stdout.strip() if result.returncode == 0 else "unknown"
+            commit_short = commit_full[:8] if commit_full != "unknown" else "unknown"
+            
+            # Check if working directory is dirty (has uncommitted changes)
+            result = subprocess.run(
+                ['git', 'status', '--porcelain'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            is_dirty = bool(result.stdout.strip()) if result.returncode == 0 else False
+            
+            # Get current branch name
+            result = subprocess.run(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            branch = result.stdout.strip() if result.returncode == 0 else "unknown"
+            
+            # Get remote URL
+            result = subprocess.run(
+                ['git', 'config', '--get', 'remote.origin.url'],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            remote_url = result.stdout.strip() if result.returncode == 0 else "unknown"
+            
+            return {
+                "commit": commit_short,
+                "commit_full": commit_full,
+                "dirty": str(is_dirty),
+                "branch": branch,
+                "remote": remote_url
+            }
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            # Return empty dict if git is not available or repo is not a git repo
+            return {}
+    
+    def _log_git_info(self) -> None:
+        """Automatically log git information for reproducibility.
+        
+        Logs git information for both the main repository (where the training
+        script is running) and the simplexity library repository.
+        """
+        tags = {}
+        
+        # Track main repository (current working directory)
+        main_repo_info = self._get_git_info(Path.cwd())
+        if main_repo_info:
+            for key, value in main_repo_info.items():
+                tags[f"git.main.{key}"] = value
+        
+        # Track simplexity repository
+        try:
+            import simplexity
+            simplexity_path = Path(simplexity.__file__).parent.parent
+            simplexity_info = self._get_git_info(simplexity_path)
+            if simplexity_info:
+                for key, value in simplexity_info.items():
+                    tags[f"git.simplexity.{key}"] = value
+        except (ImportError, AttributeError):
+            pass
+        
+        # Log all git tags if we found any
+        if tags:
+            self.log_tags(tags)
+    
+    def log_storage_info(self, persister: Any) -> None:
+        """Log model storage information for tracking.
+        
+        Args:
+            persister: Model persister object (S3Persister, LocalPersister, etc.)
+        """
+        tags = {}
+        
+        # Check if it's an S3Persister
+        if hasattr(persister, 'bucket') and hasattr(persister, 'prefix'):
+            tags["storage.type"] = "s3"
+            tags["storage.location"] = f"s3://{persister.bucket}/{persister.prefix}"
+            tags["storage.bucket"] = persister.bucket
+            tags["storage.prefix"] = persister.prefix
+        # Check if it's a LocalPersister or has a directory attribute
+        elif hasattr(persister, 'directory'):
+            tags["storage.type"] = "local"
+            tags["storage.location"] = str(Path(persister.directory).absolute())
+        else:
+            tags["storage.type"] = "unknown"
+        
+        if tags:
+            self.log_tags(tags)
