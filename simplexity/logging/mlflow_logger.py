@@ -172,14 +172,18 @@ class MLFlowLogger(Logger):
             simplexity_path = None
 
             # Method 1: Use __file__ if available
-            if hasattr(simplexity, "__file__") and simplexity.__file__:
-                simplexity_path = Path(simplexity.__file__).parent.parent
+            file_attr = getattr(simplexity, "__file__", None)
+            if file_attr:
+                simplexity_path = Path(file_attr).parent.parent
             # Method 2: Use __path__ for namespace packages
-            elif hasattr(simplexity, "__path__"):
-                for path in simplexity.__path__:
-                    if path:
-                        simplexity_path = Path(path).parent
-                        break
+            else:
+                path_attr = getattr(simplexity, "__path__", None)
+                if path_attr:
+                    # path_attr might be a _NamespacePath or similar iterable
+                    for path in path_attr:
+                        if path:
+                            simplexity_path = Path(path).parent
+                            break
             # Method 3: Use the module spec
             if not simplexity_path:
                 import importlib.util
