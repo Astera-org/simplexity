@@ -883,3 +883,24 @@ class RPNArithmeticProcess(ArithmeticProcess):
             loss = jnp.mean(nll)
 
         return loss
+
+    def boxed_answer_reward(self, equation: jax.Array) -> jax.Array:
+        """Compute a boxed answer reward for the RPN arithmetic process.
+
+        The <EOE> token should be immediately preceded by the <EQL> token and an operand token.
+        """
+        # Check that the <EOE> token is immediately preceded by the <EQL> token and an operand token
+        eoe_pos = jnp.argmax(equation == self.tokens[SpecialTokens.EOE.value])
+        correct_eql_pos = equation[eoe_pos - 2] == self.tokens[SpecialTokens.EQL.value]
+        correct_operand_pos = equation[eoe_pos - 1] < self.p
+        return jnp.logical_and(correct_eql_pos, correct_operand_pos)
+
+    def correct_answer_reward(self, equation: jax.Array, correct_answer: jax.Array) -> jax.Array:
+        """Compute a correct answer reward for the RPN arithmetic process.
+
+        The <EOE> token should be immediately preceded by the <EQL> token and the correct answer.
+        """
+        eoe_pos = jnp.argmax(equation == self.tokens[SpecialTokens.EOE.value])
+        correct_eql_pos = equation[eoe_pos - 2] == self.tokens[SpecialTokens.EQL.value]
+        correct_operand_pos = equation[eoe_pos - 1] == correct_answer
+        return jnp.logical_and(correct_eql_pos, correct_operand_pos)
