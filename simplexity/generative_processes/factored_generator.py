@@ -65,7 +65,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
         return token
 
-    def _token_to_tuple(self, token: jax.Array) -> tuple[jax.Array, ...]:
+    def _token_to_tuple(self, token: chex.Array) -> tuple[jax.Array, ...]:
         """Convert composite token back to tuple of component tokens."""
         result = []
         remaining = token
