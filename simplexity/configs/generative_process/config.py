@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 ProcessName = Literal[
     "days_of_week",
-    "even_ones", 
+    "even_ones",
     "fanizza",
     "mess3",
     "no_consecutive_ones",
@@ -120,9 +120,9 @@ class ZeroOneRandomConfig(ProcessInstanceConfig):
 class FactoredGeneratorConfig(ProcessInstanceConfig):
     """Configuration for factored generator with flexible components."""
 
-    # _target_: build_factored_generator  
+    # _target_: build_factored_generator
     component_specs: list[dict[str, Any]]
-    component_types: list[str] | None = None  # ["hmm", "ghmm", ...] or None for all HMM
+    component_types: list[str] | None = None  # ["hmm", "ghmm", ...] or None for all GHMM
 
 
 @dataclass
