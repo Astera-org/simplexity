@@ -1,4 +1,4 @@
-from typing import Sequence, cast
+from collections.abc import Sequence
 
 import chex
 import equinox as eqx
@@ -49,14 +49,14 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         """Initial state is tuple of component initial states."""
         return tuple(component.initial_state for component in self.components)
     
-    def _tuple_to_token(self, token_tuple: tuple[int, ...]) -> int:
+    def _tuple_to_token(self, token_tuple: tuple[jax.Array, ...]) -> jax.Array:
         """Convert tuple of component tokens to single composite token.
         
         Uses base conversion: for components with vocab sizes [V1, V2, V3],
         tuple (t1, t2, t3) -> t1 * V2 * V3 + t2 * V3 + t3
         """
-        token = 0
-        multiplier = 1
+        token = jnp.array(0)
+        multiplier = jnp.array(1)
         
         # Process in reverse order for correct base conversion
         for i in reversed(range(len(token_tuple))):
@@ -65,7 +65,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             
         return token
     
-    def _token_to_tuple(self, token: int) -> tuple[int, ...]:
+    def _token_to_tuple(self, token: jax.Array) -> tuple[jax.Array, ...]:
         """Convert composite token back to tuple of component tokens."""
         result = []
         remaining = token
@@ -73,7 +73,8 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         # Process in reverse order
         for i in reversed(range(len(self.components))):
             component_vocab_size = self.components[i].vocab_size
-            result.append(remaining % component_vocab_size)
+            component_token = remaining % component_vocab_size
+            result.append(component_token)
             remaining //= component_vocab_size
             
         return tuple(reversed(result))
@@ -82,13 +83,14 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
     def emit_observation(self, state: FactoredState, key: chex.PRNGKey) -> jax.Array:
         """Emit observation by having each component emit, then combining via outer product."""
         keys = jax.random.split(key, len(self.components))
-        component_tokens = []
         
-        for i, (component, component_state, component_key) in enumerate(zip(self.components, state, keys)):
+        # Emit tokens from each component
+        component_tokens = []
+        for component, component_state, component_key in zip(self.components, state, keys, strict=True):
             token = component.emit_observation(component_state, component_key)
             component_tokens.append(token)
         
-        # Convert list of component tokens to tuple, then to composite token
+        # Convert to tuple and then to composite token
         token_tuple = tuple(component_tokens)
         return self._tuple_to_token(token_tuple)
     
@@ -99,7 +101,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         component_obs_tuple = self._token_to_tuple(obs)
         
         new_component_states = []
-        for component, component_state, component_obs in zip(self.components, state, component_obs_tuple):
+        for component, component_state, component_obs in zip(self.components, state, component_obs_tuple, strict=True):
             new_state = component.transition_states(component_state, component_obs)
             new_component_states.append(new_state)
             
@@ -107,13 +109,17 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
     
     # Placeholder implementations - will be completed in Step 4
     def observation_probability_distribution(self, state: FactoredState) -> jax.Array:
+        """Compute probability distribution over observations. Will be implemented in Step 4."""
         raise NotImplementedError("Will be implemented in Step 4")
     
     def log_observation_probability_distribution(self, log_belief_state: FactoredState) -> jax.Array:
+        """Compute log probability distribution over observations. Will be implemented in Step 4."""
         raise NotImplementedError("Will be implemented in Step 4")
     
     def probability(self, observations: jax.Array) -> jax.Array:
+        """Compute probability of observation sequence. Will be implemented in Step 4."""
         raise NotImplementedError("Will be implemented in Step 4")
     
     def log_probability(self, observations: jax.Array) -> jax.Array:
+        """Compute log probability of observation sequence. Will be implemented in Step 4."""
         raise NotImplementedError("Will be implemented in Step 4")
