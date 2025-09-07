@@ -107,19 +107,81 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             
         return tuple(new_component_states)
     
-    # Placeholder implementations - will be completed in Step 4
+    @eqx.filter_jit
     def observation_probability_distribution(self, state: FactoredState) -> jax.Array:
-        """Compute probability distribution over observations. Will be implemented in Step 4."""
-        raise NotImplementedError("Will be implemented in Step 4")
+        """Compute probability distribution over composite observations.
+        
+        For each possible composite token (i,j,...), compute P(composite_token | factored_state)
+        = P(token_i | component_state_1) * P(token_j | component_state_2) * ...
+        """
+        # Get probability distributions for each component
+        component_probs = []
+        for component, component_state in zip(self.components, state, strict=True):
+            component_prob_dist = component.observation_probability_distribution(component_state)
+            component_probs.append(component_prob_dist)
+        
+        # Compute outer product of all component probability distributions
+        # For 2 components with vocab sizes V1, V2: result shape is (V1*V2,)
+        composite_probs = jnp.ones(self.vocab_size)
+        
+        for composite_token in range(self.vocab_size):
+            component_tokens = self._token_to_tuple(jnp.array(composite_token))
+            prob = 1.0
+            for component_token, component_prob_dist in zip(component_tokens, component_probs, strict=True):
+                prob *= component_prob_dist[component_token]
+            composite_probs = composite_probs.at[composite_token].set(prob)
+            
+        return composite_probs
     
+    @eqx.filter_jit
     def log_observation_probability_distribution(self, log_belief_state: FactoredState) -> jax.Array:
-        """Compute log probability distribution over observations. Will be implemented in Step 4."""
-        raise NotImplementedError("Will be implemented in Step 4")
+        """Compute log probability distribution over composite observations."""
+        # Convert from log space to regular space, compute distribution, convert back
+        # This is not the most numerically stable approach, but matches existing pattern in GHMM
+        regular_state = tuple(jnp.exp(component_log_state) for component_log_state in log_belief_state)
+        obs_prob_dist = self.observation_probability_distribution(regular_state)
+        return jnp.log(obs_prob_dist)
     
+    @eqx.filter_jit
     def probability(self, observations: jax.Array) -> jax.Array:
-        """Compute probability of observation sequence. Will be implemented in Step 4."""
-        raise NotImplementedError("Will be implemented in Step 4")
+        """Compute probability of generating observation sequence.
+        
+        Since components are independent, we can compute this by running each component
+        independently and multiplying their probabilities.
+        """
+        # Extract component sequences from composite observations
+        component_sequences = []
+        for i in range(len(self.components)):
+            component_seq = []
+            for obs in observations:
+                component_tokens = self._token_to_tuple(obs)
+                component_seq.append(component_tokens[i])
+            component_sequences.append(jnp.array(component_seq))
+        
+        # Compute probability for each component independently and multiply
+        total_prob = jnp.array(1.0)
+        for component, component_seq in zip(self.components, component_sequences, strict=True):
+            component_prob = component.probability(component_seq)
+            total_prob *= component_prob
+            
+        return total_prob
     
+    @eqx.filter_jit
     def log_probability(self, observations: jax.Array) -> jax.Array:
-        """Compute log probability of observation sequence. Will be implemented in Step 4."""
-        raise NotImplementedError("Will be implemented in Step 4")
+        """Compute log probability of generating observation sequence."""
+        # Extract component sequences
+        component_sequences = []
+        for i in range(len(self.components)):
+            component_seq = []
+            for obs in observations:
+                component_tokens = self._token_to_tuple(obs)
+                component_seq.append(component_tokens[i])
+            component_sequences.append(jnp.array(component_seq))
+        
+        # Compute log probability for each component independently and sum
+        total_log_prob = jnp.array(0.0)
+        for component, component_seq in zip(self.components, component_sequences, strict=True):
+            component_log_prob = component.log_probability(component_seq)
+            total_log_prob += component_log_prob
+            
+        return total_log_prob

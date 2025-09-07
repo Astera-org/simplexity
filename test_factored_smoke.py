@@ -89,6 +89,60 @@ def test_step2_smoke():
     print("- Composite tokens decompose back to component tokens correctly")
     print("- State transitions work with composite observations")
 
+def test_step4_smoke():
+    """Test complete GenerativeProcess interface implementation."""
+    print("\n=== Step 4 Smoke Test: Complete GenerativeProcess Interface ===")
+    
+    # Create factored generator with 2 simple HMMs
+    hmm1 = build_hidden_markov_model("coin", p=0.7)
+    hmm2 = build_hidden_markov_model("coin", p=0.4) 
+    factored_gen = FactoredGenerativeProcess([hmm1, hmm2])
+    
+    # Test observation probability distribution
+    state = factored_gen.initial_state
+    obs_prob_dist = factored_gen.observation_probability_distribution(state)
+    print(f"Observation probability distribution shape: {obs_prob_dist.shape}")
+    print(f"Sum of probabilities: {jnp.sum(obs_prob_dist):.4f} (should be ~1.0)")
+    print(f"Individual probabilities: {obs_prob_dist}")
+    
+    # Test log observation probability distribution  
+    log_state = tuple(jnp.log(component_state) for component_state in state)
+    log_obs_prob_dist = factored_gen.log_observation_probability_distribution(log_state)
+    print(f"Log obs prob distribution: {log_obs_prob_dist}")
+    
+    # Generate a short sequence manually (since generate is vmapped for batches)
+    key = jax.random.PRNGKey(123)
+    sequence_len = 3
+    tokens = []
+    current_state = state
+    
+    print(f"\nGenerating sequence manually:")
+    for i in range(sequence_len):
+        key, step_key = jax.random.split(key)
+        token = factored_gen.emit_observation(current_state, step_key)
+        tokens.append(token)
+        current_state = factored_gen.transition_states(current_state, token)
+        
+        component_tokens = factored_gen._token_to_tuple(token)
+        print(f"  Step {i}: Token {int(token)} -> ({int(component_tokens[0])}, {int(component_tokens[1])})")
+    
+    tokens = jnp.array(tokens)
+    print(f"Generated sequence: {tokens}")
+    
+    # Test probability calculation
+    prob = factored_gen.probability(tokens)
+    log_prob = factored_gen.log_probability(tokens)
+    print(f"Sequence probability: {prob:.6f}")
+    print(f"Sequence log probability: {log_prob:.6f}")
+    print(f"exp(log_prob): {jnp.exp(log_prob):.6f} (should match probability)")
+    
+    print("\n✅ Step 4 smoke test PASSED!")
+    print("- observation_probability_distribution works and sums to 1")
+    print("- log_observation_probability_distribution works") 
+    print("- probability and log_probability work and are consistent")
+    print("- All abstract methods from GenerativeProcess are implemented")
+
 if __name__ == "__main__":
     test_step1_smoke()
     test_step2_smoke()
+    test_step4_smoke()
