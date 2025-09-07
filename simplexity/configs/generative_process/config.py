@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 ProcessName = Literal[
     "days_of_week",
-    "even_ones",
+    "even_ones", 
     "fanizza",
     "mess3",
     "no_consecutive_ones",
@@ -11,11 +11,14 @@ ProcessName = Literal[
     "rrxor",
     "tom_quantum",
     "zero_one_random",
+    "factored_generator",
 ]
 
 ProcessBuilder = Literal[
     "simplexity.generative_processes.builder.build_generalized_hidden_markov_model",
     "simplexity.generative_processes.builder.build_hidden_markov_model",
+    "simplexity.generative_processes.builder.build_factored_generator",
+    "simplexity.generative_processes.builder.build_factored_hmm_generator",
 ]
 ProcessType = ProcessName
 
@@ -111,6 +114,23 @@ class ZeroOneRandomConfig(ProcessInstanceConfig):
     # _target_: build_hidden_markov_model
     # process_name: "zero_one_random"
     p: float
+
+
+@dataclass
+class FactoredGeneratorConfig(ProcessInstanceConfig):
+    """Configuration for factored generator with flexible components."""
+
+    # _target_: build_factored_generator  
+    component_specs: list[dict[str, Any]]
+    component_types: list[str] | None = None  # ["hmm", "ghmm", ...] or None for all HMM
+
+
+@dataclass
+class FactoredHmmGeneratorConfig(ProcessInstanceConfig):
+    """Configuration for factored generator with all HMM components."""
+
+    # _target_: build_factored_hmm_generator
+    component_specs: list[dict[str, Any]]
 
 
 @dataclass

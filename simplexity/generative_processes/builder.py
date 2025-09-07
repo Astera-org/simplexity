@@ -117,14 +117,18 @@ def build_nonergodic_hidden_markov_model(
 
 
 def build_factored_generator(
-    component_specs: Sequence[tuple[str, dict[str, Any]]], 
-    component_types: Sequence[str] | None = None
+    component_specs: Sequence[dict[str, Any]], 
+    component_types: Sequence[str] | None = None,
+    _process_name: str | None = None,  # For Hydra compatibility, ignored
+    **_kwargs  # For Hydra compatibility, ignored
 ) -> FactoredGenerativeProcess:
     """Build a factored generator from component specifications.
     
     Args:
-        component_specs: List of (process_name, kwargs) tuples for each component
+        component_specs: List of component spec dicts with 'process_name' and other kwargs
         component_types: List of component types ("hmm" or "ghmm"). If None, defaults to "hmm"
+        process_name: Ignored, for Hydra config compatibility
+        **kwargs: Ignored additional args, for Hydra config compatibility
         
     Returns:
         FactoredGenerativeProcess with the specified components
@@ -132,14 +136,14 @@ def build_factored_generator(
     Example:
         # Create factored generator with 2 coin HMMs
         factored_gen = build_factored_generator([
-            ("coin", {"p": 0.7}),
-            ("coin", {"p": 0.3})
+            {"process_name": "zero_one_random", "p": 0.7},
+            {"process_name": "zero_one_random", "p": 0.3}
         ])
         
-        # Mix HMM and GHMM components
+        # Mix HMM and GHMM components  
         factored_gen = build_factored_generator([
-            ("coin", {"p": 0.8}),
-            ("days_of_week", {})
+            {"process_name": "zero_one_random", "p": 0.8},
+            {"process_name": "days_of_week"}
         ], component_types=["hmm", "ghmm"])
     """
     if component_types is None:
@@ -149,7 +153,12 @@ def build_factored_generator(
         raise ValueError("component_specs and component_types must have the same length")
     
     components = []
-    for (process_name, kwargs), component_type in zip(component_specs, component_types, strict=True):
+    for component_spec, component_type in zip(component_specs, component_types, strict=True):
+        # Extract process_name and remaining kwargs
+        spec_copy = component_spec.copy()
+        process_name = spec_copy.pop("process_name")
+        kwargs = spec_copy
+        
         if component_type == "hmm":
             component = build_hidden_markov_model(process_name, **kwargs)
         elif component_type == "ghmm":  
@@ -162,19 +171,23 @@ def build_factored_generator(
 
 
 def build_factored_hmm_generator(
-    process_specs: Sequence[tuple[str, dict[str, Any]]]
+    component_specs: Sequence[dict[str, Any]],
+    _process_name: str | None = None,  # For Hydra compatibility, ignored
+    **_kwargs  # For Hydra compatibility, ignored
 ) -> FactoredGenerativeProcess:
     """Build a factored generator with all HMM components.
     
     Convenience function for the common case of all components being HMMs.
     
     Args:
-        process_specs: List of (process_name, kwargs) tuples
+        component_specs: List of component spec dicts with 'process_name' and other kwargs
+        process_name: Ignored, for Hydra config compatibility
+        **kwargs: Ignored additional args, for Hydra config compatibility
         
     Example:
         factored_gen = build_factored_hmm_generator([
-            ("coin", {"p": 0.7}), 
-            ("coin", {"p": 0.4})
+            {"process_name": "zero_one_random", "p": 0.7}, 
+            {"process_name": "zero_one_random", "p": 0.4}
         ])
     """
-    return build_factored_generator(process_specs, component_types=["hmm"] * len(process_specs))
+    return build_factored_generator(component_specs, component_types=["hmm"] * len(component_specs))
