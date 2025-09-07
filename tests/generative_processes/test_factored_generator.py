@@ -6,7 +6,7 @@ import pytest
 
 from simplexity.generative_processes.builder import build_factored_generator, build_factored_hmm_generator
 from simplexity.generative_processes.factored_generator import FactoredGenerativeProcess
-from simplexity.generative_processes.generator import generate_data_batch
+from simplexity.generative_processes.generator import batch_state, generate_data_batch
 from tests.assertions import assert_proportional
 
 
@@ -130,11 +130,9 @@ def test_generate(model_name: str, request: pytest.FixtureRequest):
     batch_size = 4
     sequence_len = 10
 
-    # Create batch of initial states
+    # Create batch of initial states using PyTree batching
     initial_state = model.initial_state
-    initial_states = tuple(
-        jnp.repeat(component_state[None, :], batch_size, axis=0) for component_state in initial_state
-    )
+    initial_states = batch_state(initial_state, batch_size)
 
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     final_states, observations = model.generate(initial_states, keys, sequence_len, False)
@@ -161,9 +159,7 @@ def test_generate_with_intermediate_states(model_name: str, request: pytest.Fixt
     sequence_len = 10
 
     initial_state = model.initial_state
-    initial_states = tuple(
-        jnp.repeat(component_state[None, :], batch_size, axis=0) for component_state in initial_state
-    )
+    initial_states = batch_state(initial_state, batch_size)
 
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     intermediate_states, observations = model.generate(initial_states, keys, sequence_len, True)
@@ -290,10 +286,9 @@ def test_sequence_generation():
     batch_size = 10
     sequence_len = 10
 
-    # For factored generators, we need to test the generate method directly
-    # since generate_data_batch expects single array states
+    # Test sequence generation functionality
     initial_state = factored_gen.initial_state
-    gen_states = tuple(jnp.repeat(component_state[None, :], batch_size, axis=0) for component_state in initial_state)
+    gen_states = batch_state(initial_state, batch_size)
 
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     final_gen_states, observations = factored_gen.generate(gen_states, keys, sequence_len, False)
@@ -331,7 +326,7 @@ def test_sequence_generation_with_bos_token():
     bos_token = factored_gen.vocab_size  # 6
 
     initial_state = factored_gen.initial_state
-    gen_states = tuple(jnp.repeat(component_state[None, :], batch_size, axis=0) for component_state in initial_state)
+    gen_states = batch_state(initial_state, batch_size)
 
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     final_gen_states, observations = factored_gen.generate(gen_states, keys, sequence_len, False)
@@ -367,7 +362,7 @@ def test_sequence_generation_with_eos_token():
     eos_token = factored_gen.vocab_size  # 4
 
     initial_state = factored_gen.initial_state
-    gen_states = tuple(jnp.repeat(component_state[None, :], batch_size, axis=0) for component_state in initial_state)
+    gen_states = batch_state(initial_state, batch_size)
 
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
     final_gen_states, observations = factored_gen.generate(gen_states, keys, sequence_len, False)

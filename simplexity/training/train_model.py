@@ -12,7 +12,7 @@ from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.evaluation.metric_functions import cross_entropy_fn
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.generative_processes.generator import generate_data_batch
+from simplexity.generative_processes.generator import batch_state, generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
@@ -85,7 +85,7 @@ def train(
         raise ValueError(f"Unknown model type: {type(model)}")
 
     gen_state = training_data_generator.initial_state
-    gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
+    gen_states = batch_state(gen_state, training_cfg.batch_size)
     metrics = {"loss": jnp.array(0.0)}
 
     for step in range(1, training_cfg.num_steps + 1):

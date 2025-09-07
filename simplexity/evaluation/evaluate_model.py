@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from simplexity.configs.evaluation.config import Config
 from simplexity.evaluation.metric_functions import METRIC_FUNCTIONS
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.generative_processes.generator import generate_data_batch
+from simplexity.generative_processes.generator import batch_state, generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.predictive_models.predictive_model import PredictiveModel
 
@@ -36,7 +36,7 @@ def evaluate(
     key = jax.random.PRNGKey(cfg.seed)
 
     gen_state = data_generator.initial_state
-    gen_states = jnp.repeat(gen_state[None, :], cfg.batch_size, axis=0)
+    gen_states = batch_state(gen_state, cfg.batch_size)
     metrics = defaultdict(lambda: jnp.array(0.0))
 
     for step in range(1, cfg.num_steps + 1):

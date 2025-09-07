@@ -1,3 +1,4 @@
+import functools
 from collections.abc import Sequence
 
 import chex
@@ -23,6 +24,8 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     components: Sequence[GenerativeProcess]
     _vocab_size: int
+    vocab_sizes: jax.Array  # [V1, V2, ..., VF]
+    radix_multipliers: jax.Array  # [V2*V3*...*VF, V3*...*VF, ..., VF, 1]
 
     def __init__(self, components: Sequence[GenerativeProcess]):
         """Initialize factored generator with component processes.
@@ -34,10 +37,24 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             raise ValueError("Must provide at least one component process")
 
         self.components = components
+
+        # Precompute vocab sizes and radix multipliers for vectorized operations
+        component_vocab_sizes = [component.vocab_size for component in components]
+        self.vocab_sizes = jnp.array(component_vocab_sizes)
+
+        # Compute radix multipliers: [V2*V3*...*VF, V3*...*VF, ..., VF, 1]
+        # For vocab sizes [V1, V2, V3], radix should be [V2*V3, V3, 1]
+        radix_multipliers = []
+        for i in range(len(component_vocab_sizes)):
+            # For position i, multiply all vocab sizes from i+1 onwards
+            multiplier = 1
+            for j in range(i + 1, len(component_vocab_sizes)):
+                multiplier *= component_vocab_sizes[j]
+            radix_multipliers.append(multiplier)
+        self.radix_multipliers = jnp.array(radix_multipliers)
+
         # Vocab size is product of all component vocab sizes
-        self._vocab_size = 1
-        for component in components:
-            self._vocab_size *= component.vocab_size
+        self._vocab_size = int(jnp.prod(self.vocab_sizes))
 
     @property
     def vocab_size(self) -> int:
@@ -68,16 +85,34 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
     def _token_to_tuple(self, token: chex.Array) -> tuple[jax.Array, ...]:
         """Convert composite token back to tuple of component tokens."""
         result = []
-        remaining = token
+        remaining = jnp.array(token)  # Ensure it's a JAX array
 
         # Process in reverse order
         for i in reversed(range(len(self.components))):
-            component_vocab_size = self.components[i].vocab_size
+            component_vocab_size = jnp.array(self.components[i].vocab_size)
             component_token = remaining % component_vocab_size
             result.append(component_token)
-            remaining //= component_vocab_size
+            remaining = remaining // component_vocab_size
 
         return tuple(reversed(result))
+
+    def _extract_factors_vectorized(self, tokens: chex.Array) -> jax.Array:
+        """Vectorized extraction of component factors from composite tokens.
+
+        Args:
+            tokens: Array of composite tokens, shape [T] or [T,]
+
+        Returns:
+            factors: Array of component factors, shape [T, F] where F is num_components
+        """
+        # Ensure tokens is at least 1D
+        tokens = jnp.atleast_1d(tokens)
+
+        # Vectorized base conversion: tokens[i, None] broadcasts to [T, 1]
+        # radix_multipliers[None, :] broadcasts to [1, F]
+        # Result is [T, F] with factors[t, f] = factor f for token t
+        factors = (tokens[:, None] // self.radix_multipliers[None, :]) % self.vocab_sizes[None, :]
+        return factors
 
     @eqx.filter_jit
     def emit_observation(self, state: FactoredState, key: chex.PRNGKey) -> jax.Array:
@@ -109,10 +144,12 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     @eqx.filter_jit
     def observation_probability_distribution(self, state: FactoredState) -> jax.Array:
-        """Compute probability distribution over composite observations.
+        """Compute probability distribution over composite observations using Kronecker product.
 
         For each possible composite token (i,j,...), compute P(composite_token | factored_state)
         = P(token_i | component_state_1) * P(token_j | component_state_2) * ...
+
+        Uses vectorized Kronecker product instead of explicit loops over vocab_size.
         """
         # Get probability distributions for each component
         component_probs = []
@@ -120,16 +157,9 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             component_prob_dist = component.observation_probability_distribution(component_state)
             component_probs.append(component_prob_dist)
 
-        # Compute outer product of all component probability distributions
-        # For 2 components with vocab sizes V1, V2: result shape is (V1*V2,)
-        composite_probs = jnp.ones(self.vocab_size)
-
-        for composite_token in range(self.vocab_size):
-            component_tokens = self._token_to_tuple(jnp.array(composite_token))
-            prob = 1.0
-            for component_token, component_prob_dist in zip(component_tokens, component_probs, strict=True):
-                prob *= component_prob_dist[component_token]
-            composite_probs = composite_probs.at[composite_token].set(prob)
+        # Compute outer product via Kronecker product
+        # functools.reduce applies jnp.kron sequentially: kron(kron(p1, p2), p3), etc.
+        composite_probs = functools.reduce(jnp.kron, component_probs)
 
         return composite_probs
 
@@ -144,23 +174,19 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     @eqx.filter_jit
     def probability(self, observations: jax.Array) -> jax.Array:
-        """Compute probability of generating observation sequence.
+        """Compute probability of generating observation sequence using vectorized operations.
 
         Since components are independent, we can compute this by running each component
         independently and multiplying their probabilities.
         """
-        # Extract component sequences from composite observations
-        component_sequences = []
-        for i in range(len(self.components)):
-            component_seq = []
-            for obs in observations:
-                component_tokens = self._token_to_tuple(obs)
-                component_seq.append(component_tokens[i])
-            component_sequences.append(jnp.array(component_seq))
+        # Vectorized extraction of all component factors at once
+        # factors shape: [T, F] where T=sequence_length, F=num_components
+        factors = self._extract_factors_vectorized(observations)
 
         # Compute probability for each component independently and multiply
         total_prob = jnp.array(1.0)
-        for component, component_seq in zip(self.components, component_sequences, strict=True):
+        for i, component in enumerate(self.components):
+            component_seq = factors[:, i]  # Extract sequence for component i
             component_prob = component.probability(component_seq)
             total_prob *= component_prob
 
@@ -168,19 +194,15 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     @eqx.filter_jit
     def log_probability(self, observations: jax.Array) -> jax.Array:
-        """Compute log probability of generating observation sequence."""
-        # Extract component sequences
-        component_sequences = []
-        for i in range(len(self.components)):
-            component_seq = []
-            for obs in observations:
-                component_tokens = self._token_to_tuple(obs)
-                component_seq.append(component_tokens[i])
-            component_sequences.append(jnp.array(component_seq))
+        """Compute log probability of generating observation sequence using vectorized operations."""
+        # Vectorized extraction of all component factors at once
+        # factors shape: [T, F] where T=sequence_length, F=num_components
+        factors = self._extract_factors_vectorized(observations)
 
         # Compute log probability for each component independently and sum
         total_log_prob = jnp.array(0.0)
-        for component, component_seq in zip(self.components, component_sequences, strict=True):
+        for i, component in enumerate(self.components):
+            component_seq = factors[:, i]  # Extract sequence for component i
             component_log_prob = component.log_probability(component_seq)
             total_log_prob += component_log_prob
 
