@@ -1,3 +1,4 @@
+import configparser
 import tempfile
 from collections.abc import Iterable, Mapping
 from pathlib import Path
@@ -59,12 +60,23 @@ class S3Persister(ModelPersister):
     @classmethod
     def from_config(
         cls,
-        bucket: str,
         prefix: str,
-        profile_name: str,
         model_framework: ModelFramework = ModelFramework.Equinox,
+        config_filename: str = "config.ini",
     ) -> "S3Persister":
-        """Creates a new S3Persister from configuration parameters."""
+        """Creates a new S3Persister from configuration parameters.
+        
+        Args:
+            prefix: S3 prefix for model storage (from YAML config)
+            model_framework: Framework for local persistence 
+            config_filename: Path to config.ini file containing AWS settings
+        """
+        config = configparser.ConfigParser()
+        config.read(config_filename)
+        
+        bucket = config.get("s3", "bucket")
+        profile_name = config.get("aws", "profile_name", fallback="default")
+        
         session = boto3.session.Session(profile_name=profile_name)
         s3_client = session.client("s3")
         temp_dir = tempfile.TemporaryDirectory()
