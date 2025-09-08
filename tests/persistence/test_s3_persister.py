@@ -47,7 +47,7 @@ def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     def mock_session_init(profile_name=None, **kwargs):
         return MockBoto3Session.create(tmp_path)
 
-    monkeypatch.setattr("simplexity.persistence.s3_persister.Session", mock_session_init)
+    monkeypatch.setattr("simplexity.persistence.s3_persister.boto3.session.Session", mock_session_init)
 
     persister = S3Persister.from_config(
         bucket="test_bucket", prefix="test_prefix", profile_name="default"
