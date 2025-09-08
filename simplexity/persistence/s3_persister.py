@@ -3,13 +3,13 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Protocol
 
-from boto3.session import Session
+import boto3.session
 from botocore.exceptions import ClientError
 
 from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
-from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 from simplexity.persistence.local_persister import LocalPersister
+from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
@@ -65,7 +65,7 @@ class S3Persister(ModelPersister):
         model_framework: ModelFramework = ModelFramework.Equinox,
     ) -> "S3Persister":
         """Creates a new S3Persister from configuration parameters."""
-        session = Session(profile_name=profile_name)
+        session = boto3.session.Session(profile_name=profile_name)
         s3_client = session.client("s3")
         temp_dir = tempfile.TemporaryDirectory()
         if model_framework == ModelFramework.Equinox:

@@ -51,7 +51,7 @@ def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     persister = S3Persister.from_config(
         bucket="test_bucket",
-        prefix="test_prefix", 
+        prefix="test_prefix",
         profile_name="default"
     )
 
