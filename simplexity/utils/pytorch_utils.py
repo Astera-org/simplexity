@@ -27,7 +27,6 @@ def jax_to_torch(jax_array: jax.Array) -> torch.Tensor:
 
     Args:
         jax_array: JAX array to convert
-        device: Target PyTorch device (optional, will use JAX array's device if None)
 
     Returns:
         PyTorch tensor
@@ -36,8 +35,7 @@ def jax_to_torch(jax_array: jax.Array) -> torch.Tensor:
         ImportError: If JAX or PyTorch is not available
     """
     try:
-        dlpack_tensor = jax_dlpack.to_dlpack(jax_array)
-        torch_tensor = torch_dlpack.from_dlpack(dlpack_tensor)
+        torch_tensor = torch_dlpack.from_dlpack(jax_array)
         return torch_tensor
 
     except Exception as e:
