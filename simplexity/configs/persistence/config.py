@@ -32,7 +32,9 @@ class LocalPenzaiPersisterConfig(PersistenceInstanceConfig):
 class S3PersisterConfig(PersistenceInstanceConfig):
     """Configuration for S3 persister."""
 
-    filename: str
+    bucket: str
+    prefix: str
+    profile_name: str
     model_framework: str
 
 

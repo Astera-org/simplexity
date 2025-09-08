@@ -2,5 +2,7 @@ name: s3_persister
 
 instance:
   _target_: simplexity.persistence.s3_persister.S3Persister.from_config
-  filename: "config.ini"
+  bucket: "your-s3-bucket-name"
+  prefix: "models"
+  profile_name: "default"
   model_framework: "equinox"

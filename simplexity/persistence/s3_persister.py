@@ -1,6 +1,5 @@
 import tempfile
 from collections.abc import Iterable, Mapping
-from configparser import ConfigParser
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -58,13 +57,14 @@ class S3Persister(ModelPersister):
     local_persister: LocalPersister
 
     @classmethod
-    def from_config(cls, filename: str, model_framework: ModelFramework = ModelFramework.Equinox) -> "S3Persister":
-        """Creates a new S3Persister from client arguments."""
-        config = ConfigParser()
-        config.read(filename)
-        bucket = config["s3"]["bucket"]
-        prefix = config["s3"]["prefix"]
-        profile_name = config["aws"]["profile_name"]
+    def from_config(
+        cls,
+        bucket: str,
+        prefix: str,
+        profile_name: str,
+        model_framework: ModelFramework = ModelFramework.Equinox,
+    ) -> "S3Persister":
+        """Creates a new S3Persister from configuration parameters."""
         session = Session(profile_name=profile_name)
         s3_client = session.client("s3")
         temp_dir = tempfile.TemporaryDirectory()
