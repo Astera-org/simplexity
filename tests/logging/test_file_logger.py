@@ -13,8 +13,7 @@ Metrics at step 1: {'int_metric': 1, 'float_metric': 1.0, 'jnp_metric': Array(0.
 """
 
 EXPECTED_LOG_WITH_INTERPOLATION = (
-    """Config: {'base_value': 'hello', 'interpolated_value': 'hello_world', 'nested': {'value': 'hello_nested'}}
-"""
+    "Config: {'base_value': 'hello', 'interpolated_value': 'hello_world', 'nested': {'value': 'hello_nested'}}\n"
 )
 
 

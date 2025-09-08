@@ -50,9 +50,7 @@ def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr("simplexity.persistence.s3_persister.Session", mock_session_init)
 
     persister = S3Persister.from_config(
-        bucket="test_bucket",
-        prefix="test_prefix",
-        profile_name="default"
+        bucket="test_bucket", prefix="test_prefix", profile_name="default"
     )
 
     assert persister.bucket == "test_bucket"
