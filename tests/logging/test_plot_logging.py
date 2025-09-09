@@ -187,6 +187,20 @@ class TestFileLoggerPlotting:
             log_content = f.read()
             assert "Image logging failed" in log_content
 
+    def test_log_image_no_parameters_fails(self, tiny_numpy_image, tmp_path: Path):
+        """Test that log_image with no parameters logs error."""
+        # Arrange
+        logger = FileLogger(str(tmp_path / "test.log"))
+
+        # Act - no parameters provided
+        logger.log_image(tiny_numpy_image)  # Neither artifact_file nor key+step
+        logger.close()
+
+        # Assert
+        with open(tmp_path / "test.log") as f:
+            log_content = f.read()
+            assert "Image logging failed - need either artifact_file or (key + step)" in log_content
+
 
 class TestPrintLoggerPlotting:
     """Tests for PrintLogger figure and image logging."""
