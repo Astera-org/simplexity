@@ -17,13 +17,14 @@ class ExperimentLoader:
     """High-level loader for reconstructing models and reading run data."""
 
     reader: RunReader
+    config_path: str | None = None
     _cached_config: DictConfig | None = None
 
     # --- Constructors ---
     @classmethod
-    def from_mlflow(cls, run_id: str, tracking_uri: str | None = None) -> "ExperimentLoader":
+    def from_mlflow(cls, run_id: str, tracking_uri: str | None = None, config_path: str | None = None) -> "ExperimentLoader":
         reader = MLflowRunReader(run_id=run_id, tracking_uri=tracking_uri)
-        return cls(reader=reader)
+        return cls(reader=reader, config_path=config_path)
 
     # --- Accessors ---
     def load_config(self) -> DictConfig:
@@ -34,11 +35,36 @@ class ExperimentLoader:
     def load_metrics(self, pattern: str | None = None):
         return self.reader.get_metrics(pattern=pattern)
 
+    # --- Helper methods ---
+    def _resolve_device(self, device: str) -> str:
+        """Resolve 'auto' device to actual PyTorch device."""
+        if device != "auto":
+            return device
+        
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return "cuda"
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                return "mps"  # Apple Silicon
+            else:
+                return "cpu"
+        except ImportError:
+            return "cpu"
+
     # --- Model reconstruction ---
     def _instantiate_model_and_persister(self) -> tuple[PredictiveModel, ModelPersister | None, DictConfig]:
         cfg = self.load_config()
         try:
-            model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel)
+            # Handle device resolution for 'auto' setting
+            model_config = dict(cfg.predictive_model.instance)
+            if 'cfg' in model_config and hasattr(model_config['cfg'], 'device'):
+                if model_config['cfg']['device'] == 'auto':
+                    model_config = dict(model_config)
+                    model_config['cfg'] = dict(model_config['cfg'])
+                    model_config['cfg']['device'] = self._resolve_device('auto')
+            
+            model = typed_instantiate(model_config, PredictiveModel)
         except Exception as e:
             raise RuntimeError(
                 "Failed to instantiate predictive model from run config.\n"
@@ -48,7 +74,11 @@ class ExperimentLoader:
         persister: ModelPersister | None
         if cfg.persistence:
             try:
-                persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
+                # Override config_filename if custom config_path is provided
+                persister_config = dict(cfg.persistence.instance)
+                if self.config_path and 'config_filename' in persister_config:
+                    persister_config['config_filename'] = self.config_path
+                persister = typed_instantiate(persister_config, ModelPersister)
             except Exception as e:
                 raise RuntimeError(
                     "Failed to instantiate persister from run config.\n"
@@ -64,7 +94,11 @@ class ExperimentLoader:
         if not cfg.persistence:
             return None
         try:
-            return typed_instantiate(cfg.persistence.instance, ModelPersister)
+            # Override config_filename if custom config_path is provided
+            persister_config = dict(cfg.persistence.instance)
+            if self.config_path and 'config_filename' in persister_config:
+                persister_config['config_filename'] = self.config_path
+            return typed_instantiate(persister_config, ModelPersister)
         except Exception:
             # Best-effort: return None if we cannot construct the persister (missing creds, etc.)
             return None

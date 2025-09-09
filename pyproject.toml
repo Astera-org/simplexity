@@ -27,6 +27,7 @@ dependencies = [
     "pandas",
     "penzai",
     "plotly",
+    "transformer-lens>=2.16.1",
     "treescope",
 ]
 
