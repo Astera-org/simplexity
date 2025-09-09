@@ -5,7 +5,11 @@ from collections.abc import Mapping
 from typing import Any
 
 import dotenv
+import matplotlib.figure
 import mlflow
+import numpy
+import PIL.Image
+import plotly.graph_objects
 from mlflow.entities import Metric, Param, RunTag
 from omegaconf import DictConfig, OmegaConf
 
@@ -86,6 +90,30 @@ class MLFlowLogger(Logger):
         """Set tags on the MLFlow."""
         tags = [RunTag(k, str(v)) for k, v in tag_dict.items()]
         self._log_batch(tags=tags)
+
+    def log_figure(
+        self,
+        figure: matplotlib.figure.Figure | plotly.graph_objects.Figure,
+        artifact_file: str,
+        **kwargs,
+    ) -> None:
+        """Log a figure to MLflow using MLflowClient.log_figure."""
+        self._client.log_figure(self._run_id, figure, artifact_file, **kwargs)
+
+    def log_image(
+        self,
+        image: numpy.ndarray | PIL.Image.Image | mlflow.Image,
+        artifact_file: str | None = None,
+        key: str | None = None,
+        step: int | None = None,
+        **kwargs,
+    ) -> None:
+        """Log an image to MLflow using MLflowClient.log_image."""
+        # Parameter validation - ensure we have either artifact_file or (key + step)
+        if not artifact_file and not (key and step is not None):
+            raise ValueError("Must provide either artifact_file or both key and step parameters")
+
+        self._client.log_image(self._run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
 
     def close(self):
         """End the MLflow run."""

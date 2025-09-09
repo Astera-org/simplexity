@@ -26,6 +26,7 @@ dependencies = [
     "orbax-checkpoint",
     "pandas",
     "penzai",
+    "plotly",
     "treescope",
 ]
 

@@ -7,6 +7,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+import matplotlib.figure
+import mlflow
+import numpy
+import PIL.Image
+import plotly.graph_objects
 from omegaconf import DictConfig
 
 
@@ -31,6 +36,40 @@ class Logger(ABC):
     @abstractmethod
     def log_tags(self, tag_dict: Mapping[str, Any]) -> None:
         """Log tags to the logger."""
+        ...
+
+    @abstractmethod
+    def log_figure(
+        self,
+        figure: matplotlib.figure.Figure | plotly.graph_objects.Figure,
+        artifact_file: str,
+        **kwargs,
+    ) -> None:
+        """Log a figure to the logger."""
+        ...
+
+    @abstractmethod
+    def log_image(
+        self,
+        image: numpy.ndarray | PIL.Image.Image | mlflow.Image,
+        artifact_file: str | None = None,
+        key: str | None = None,
+        step: int | None = None,
+        **kwargs,
+    ) -> None:
+        """Log an image to the logger.
+
+        Args:
+            image: Image to log (numpy array, PIL Image, or mlflow Image)
+            artifact_file: File path for artifact mode (e.g., "image.png")
+            key: Key name for time-stepped mode (requires step parameter)
+            step: Step number for time-stepped mode (requires key parameter)
+            **kwargs: Additional arguments passed to the underlying save method
+
+        Note:
+            Must provide either artifact_file OR both key and step parameters.
+            Providing neither or only one of key/step will result in an error.
+        """
         ...
 
     @abstractmethod
