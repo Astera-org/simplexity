@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
+from PIL import Image
 
 from simplexity.logging.logger import Logger
 
@@ -57,7 +58,6 @@ class FileLogger(Logger):
             if hasattr(image, 'save'):  # PIL Image
                 image.save(image_path, **kwargs)
             elif hasattr(image, 'shape'):  # numpy array
-                from PIL import Image
                 Image.fromarray(image).save(image_path, **kwargs)
             else:
                 # Fallback - just log that we can't save it
@@ -76,7 +76,6 @@ class FileLogger(Logger):
                 if hasattr(image, 'save'):  # PIL Image
                     image.save(image_path, **kwargs)
                 elif hasattr(image, 'shape'):  # numpy array
-                    from PIL import Image
                     Image.fromarray(image).save(image_path, **kwargs)
                 else:
                     with open(self.file_path, "a") as f:
