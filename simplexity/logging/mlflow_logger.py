@@ -87,6 +87,16 @@ class MLFlowLogger(Logger):
         tags = [RunTag(k, str(v)) for k, v in tag_dict.items()]
         self._log_batch(tags=tags)
 
+    def log_figure(self, figure, artifact_file: str, **kwargs) -> None:
+        """Log a figure to MLflow using MLflowClient.log_figure."""
+        self._client.log_figure(self._run_id, figure, artifact_file, **kwargs)
+
+    def log_image(
+        self, image, artifact_file: str | None = None, key: str | None = None, step: int | None = None, **kwargs
+    ) -> None:
+        """Log an image to MLflow using MLflowClient.log_image."""
+        self._client.log_image(self._run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
+
     def close(self):
         """End the MLflow run."""
         self._client.set_terminated(self._run_id)

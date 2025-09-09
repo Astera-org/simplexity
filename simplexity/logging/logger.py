@@ -34,6 +34,18 @@ class Logger(ABC):
         ...
 
     @abstractmethod
+    def log_figure(self, figure, artifact_file: str, **kwargs) -> None:
+        """Log a figure to the logger."""
+        ...
+
+    @abstractmethod
+    def log_image(
+        self, image, artifact_file: str | None = None, key: str | None = None, step: int | None = None, **kwargs
+    ) -> None:
+        """Log an image to the logger."""
+        ...
+
+    @abstractmethod
     def close(self) -> None:
         """Close the logger."""
         ...
