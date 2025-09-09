@@ -32,8 +32,9 @@ class LocalPenzaiPersisterConfig(PersistenceInstanceConfig):
 class S3PersisterConfig(PersistenceInstanceConfig):
     """Configuration for S3 persister."""
 
-    filename: str
+    prefix: str
     model_framework: str
+    config_filename: str = "config.ini"
 
 
 @dataclass
