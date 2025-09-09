@@ -2,6 +2,11 @@ from collections.abc import Mapping
 from pprint import pprint
 from typing import Any
 
+import matplotlib.figure
+import mlflow
+import numpy
+import PIL.Image
+import plotly.graph_objects
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
@@ -26,6 +31,34 @@ class PrintLogger(Logger):
     def log_tags(self, tag_dict: Mapping[str, Any]) -> None:
         """Log tags to the console."""
         pprint(f"Tags: {tag_dict}")
+
+    def log_figure(
+        self,
+        figure: matplotlib.figure.Figure | plotly.graph_objects.Figure,
+        artifact_file: str,
+        **kwargs,
+    ) -> None:
+        """Log figure info to the console (no actual figure saved)."""
+        print(f"[PrintLogger] Figure NOT saved - would be: {artifact_file} (type: {type(figure).__name__})")
+
+    def log_image(
+        self,
+        image: numpy.ndarray | PIL.Image.Image | mlflow.Image,
+        artifact_file: str | None = None,
+        key: str | None = None,
+        step: int | None = None,
+        **kwargs,
+    ) -> None:
+        """Log image info to the console (no actual image saved)."""
+        # Parameter validation - ensure we have either artifact_file or (key + step)
+        if not artifact_file and not (key and step is not None):
+            print("[PrintLogger] Image logging failed - need either artifact_file or (key + step)")
+            return
+
+        if artifact_file:
+            print(f"[PrintLogger] Image NOT saved - would be artifact: {artifact_file} (type: {type(image).__name__})")
+        else:
+            print(f"[PrintLogger] Image NOT saved - would be key: {key}, step: {step} (type: {type(image).__name__})")
 
     def close(self) -> None:
         """Close the logger."""
