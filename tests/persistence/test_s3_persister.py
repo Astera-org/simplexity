@@ -44,26 +44,23 @@ def test_s3_persister(tmp_path: Path):
 
 def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Test S3Persister.from_config with mocked Boto3 session."""
-    # Create a config file
-    config_file = tmp_path / "config.ini"
-    with open(config_file, "w") as f:
-        f.write(
-            """
-            [aws]
-            profile_name = default
-
-            [s3]
-            bucket = test_bucket
-            prefix = test_prefix
-            """
-        )
 
     def mock_session_init(profile_name=None, **kwargs):
         return MockBoto3Session.create(tmp_path)
 
-    monkeypatch.setattr("simplexity.persistence.s3_persister.Session", mock_session_init)
+    monkeypatch.setattr("simplexity.persistence.s3_persister.boto3.session.Session", mock_session_init)
 
-    persister = S3Persister.from_config(str(config_file))
+    # Create config.ini file for testing
+    config_file = tmp_path / "test_config.ini"
+    config_content = """[aws]
+profile_name = default
+
+[s3]
+bucket = test_bucket
+"""
+    config_file.write_text(config_content)
+
+    persister = S3Persister.from_config(prefix="test_prefix", config_filename=str(config_file))
 
     assert persister.bucket == "test_bucket"
     assert persister.prefix == "test_prefix"
