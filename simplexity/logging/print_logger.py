@@ -33,20 +33,20 @@ class PrintLogger(Logger):
         pprint(f"Tags: {tag_dict}")
 
     def log_figure(
-        self, 
-        figure: Union[matplotlib.figure.Figure, plotly.graph_objects.Figure], 
-        artifact_file: str, 
+        self,
+        figure: Union[matplotlib.figure.Figure, plotly.graph_objects.Figure],
+        artifact_file: str,
         **kwargs,
     ) -> None:
         """Log figure info to the console (no actual figure saved)."""
         print(f"[PrintLogger] Figure NOT saved - would be: {artifact_file} (type: {type(figure).__name__})")
 
     def log_image(
-        self, 
-        image: Union[numpy.ndarray, PIL.Image.Image, mlflow.Image], 
-        artifact_file: Union[str, None] = None, 
-        key: Union[str, None] = None, 
-        step: Union[int, None] = None, 
+        self,
+        image: Union[numpy.ndarray, PIL.Image.Image, mlflow.Image],
+        artifact_file: Union[str, None] = None,
+        key: Union[str, None] = None,
+        step: Union[int, None] = None,
         **kwargs,
     ) -> None:
         """Log image info to the console (no actual image saved)."""

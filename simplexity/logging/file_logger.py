@@ -13,7 +13,6 @@ import plotly.graph_objects
 from simplexity.logging.logger import Logger
 
 
-
 class FileLogger(Logger):
     """Logs to a file."""
 
@@ -46,35 +45,35 @@ class FileLogger(Logger):
             print(f"Tags: {tag_dict}", file=f)
 
     def log_figure(
-            self, 
-            figure: Union[matplotlib.figure.Figure, plotly.graph_objects.Figure], 
-            artifact_file: str, 
-            **kwargs,
+        self,
+        figure: Union[matplotlib.figure.Figure, plotly.graph_objects.Figure],
+        artifact_file: str,
+        **kwargs,
     ) -> None:
         """Save figure to file system."""
         figure_path = Path(self.file_path).parent / artifact_file
         figure_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Handle different figure types
         if isinstance(figure, matplotlib.figure.Figure):
             figure.savefig(str(figure_path), **kwargs)
         elif isinstance(figure, plotly.graph_objects.Figure):
-            if str(figure_path).endswith('.html'):
+            if str(figure_path).endswith(".html"):
                 figure.write_html(str(figure_path), **kwargs)
             else:
                 figure.write_image(str(figure_path), **kwargs)
         else:
             raise ValueError(f"Unsupported figure type: {type(figure)}")
-            
+
         with open(self.file_path, "a") as f:
             print(f"Figure saved: {figure_path}", file=f)
 
     def log_image(
-        self, 
-        image: Union[numpy.ndarray, PIL.Image.Image, mlflow.Image], 
-        artifact_file: Union[str, None] = None, 
-        key: Union[str, None] = None, 
-        step: Union[int, None] = None, 
+        self,
+        image: Union[numpy.ndarray, PIL.Image.Image, mlflow.Image],
+        artifact_file: Union[str, None] = None,
+        key: Union[str, None] = None,
+        step: Union[int, None] = None,
         **kwargs,
     ) -> None:
         """Save image to file system."""

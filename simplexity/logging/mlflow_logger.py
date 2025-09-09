@@ -92,20 +92,20 @@ class MLFlowLogger(Logger):
         self._log_batch(tags=tags)
 
     def log_figure(
-            self, 
-            figure: Union[matplotlib.figure.Figure, plotly.graph_objects.Figure], 
-            artifact_file: str, 
-            **kwargs,
+        self,
+        figure: Union[matplotlib.figure.Figure, plotly.graph_objects.Figure],
+        artifact_file: str,
+        **kwargs,
     ) -> None:
         """Log a figure to MLflow using MLflowClient.log_figure."""
         self._client.log_figure(self._run_id, figure, artifact_file, **kwargs)
 
     def log_image(
-        self, 
-        image: Union[numpy.ndarray, PIL.Image.Image, mlflow.Image], 
-        artifact_file: Union[str, None] = None, 
-        key: Union[str, None] = None, 
-        step: Union[int, None] = None, 
+        self,
+        image: Union[numpy.ndarray, PIL.Image.Image, mlflow.Image],
+        artifact_file: Union[str, None] = None,
+        key: Union[str, None] = None,
+        step: Union[int, None] = None,
         **kwargs,
     ) -> None:
         """Log an image to MLflow using MLflowClient.log_image."""
