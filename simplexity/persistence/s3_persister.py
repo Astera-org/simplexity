@@ -9,8 +9,8 @@ from botocore.exceptions import ClientError
 
 from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
-from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 from simplexity.persistence.local_persister import LocalPersister
+from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework

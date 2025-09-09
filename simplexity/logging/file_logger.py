@@ -55,9 +55,9 @@ class FileLogger(Logger):
             image_path = Path(self.file_path).parent / artifact_file
             image_path.parent.mkdir(parents=True, exist_ok=True)
             # Handle different image types
-            if hasattr(image, 'save'):  # PIL Image
+            if hasattr(image, "save"):  # PIL Image
                 image.save(image_path, **kwargs)
-            elif hasattr(image, 'shape'):  # numpy array
+            elif hasattr(image, "shape"):  # numpy array
                 Image.fromarray(image).save(image_path, **kwargs)
             else:
                 # Fallback - just log that we can't save it
@@ -73,9 +73,9 @@ class FileLogger(Logger):
                 image_path = Path(self.file_path).parent / filename
                 image_path.parent.mkdir(parents=True, exist_ok=True)
                 # Same image saving logic
-                if hasattr(image, 'save'):  # PIL Image
+                if hasattr(image, "save"):  # PIL Image
                     image.save(image_path, **kwargs)
-                elif hasattr(image, 'shape'):  # numpy array
+                elif hasattr(image, "shape"):  # numpy array
                     Image.fromarray(image).save(image_path, **kwargs)
                 else:
                     with open(self.file_path, "a") as f:
