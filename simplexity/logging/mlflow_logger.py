@@ -115,6 +115,20 @@ class MLFlowLogger(Logger):
 
         self._client.log_image(self._run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
 
+    def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
+        """Log an artifact (file or directory) to MLflow."""
+        self._client.log_artifact(self._run_id, local_path, artifact_path)
+
+    def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
+        """Log a JSON object as an artifact to MLflow."""
+        import json
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = os.path.join(temp_dir, artifact_name)
+            with open(json_path, "w") as f:
+                json.dump(data, f, indent=2)
+            self._client.log_artifact(self._run_id, json_path)
+
     def close(self):
         """End the MLflow run."""
         self._client.set_terminated(self._run_id)

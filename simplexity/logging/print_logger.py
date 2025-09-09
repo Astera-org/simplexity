@@ -60,6 +60,17 @@ class PrintLogger(Logger):
         else:
             print(f"[PrintLogger] Image NOT saved - would be key: {key}, step: {step} (type: {type(image).__name__})")
 
+    def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
+        """Print artifact info to the console (no actual artifact logged)."""
+        dest_name = artifact_path if artifact_path else f"<filename from {local_path}>"
+        print(f"[PrintLogger] Artifact NOT logged - would copy: {local_path} -> {dest_name}")
+
+    def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
+        """Print JSON artifact info to the console (no actual artifact saved)."""
+        data_type = "dict" if isinstance(data, dict) else "list"
+        data_size = len(data)
+        print(f"[PrintLogger] JSON artifact NOT saved - would be: {artifact_name} ({data_type} with {data_size} items)")
+
     def close(self) -> None:
         """Close the logger."""
         pass

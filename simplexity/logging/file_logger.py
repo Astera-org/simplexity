@@ -126,6 +126,53 @@ class FileLogger(Logger):
                 with open(self.file_path, "a") as f:
                     print(f"Time-stepped image saved: {image_path}", file=f)
 
+    def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
+        """Copy artifact to the log directory."""
+        import shutil
+
+        source_path = Path(local_path)
+        if not source_path.exists():
+            with open(self.file_path, "a") as f:
+                print(f"Artifact logging failed - file not found: {local_path}", file=f)
+            return
+
+        # Determine destination path
+        if artifact_path:
+            dest_path = Path(self.file_path).parent / artifact_path
+        else:
+            dest_path = Path(self.file_path).parent / source_path.name
+
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            if source_path.is_file():
+                shutil.copy2(local_path, dest_path)
+            else:
+                shutil.copytree(local_path, dest_path, dirs_exist_ok=True)
+
+            with open(self.file_path, "a") as f:
+                print(f"Artifact copied: {local_path} -> {dest_path}", file=f)
+        except Exception as e:
+            with open(self.file_path, "a") as f:
+                print(f"Failed to copy artifact: {e}", file=f)
+
+    def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
+        """Save JSON data as an artifact to the log directory."""
+        import json
+
+        json_path = Path(self.file_path).parent / artifact_name
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with open(json_path, "w") as f:
+                json.dump(data, f, indent=2)
+
+            with open(self.file_path, "a") as f:
+                print(f"JSON artifact saved: {json_path}", file=f)
+        except Exception as e:
+            with open(self.file_path, "a") as f:
+                print(f"Failed to save JSON artifact: {e}", file=f)
+
     def close(self) -> None:
         """Close the logger."""
         pass
