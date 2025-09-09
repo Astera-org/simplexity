@@ -34,28 +34,26 @@ def test_local_penzai_persister_config(tmp_path: Path):
 
 
 def test_s3_persister_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    filename = tmp_path / "config.ini"
-    with open(filename, "w") as f:
-        f.write(
-            """
-            [aws]
-            profile_name = test_profile
-
-            [s3]
-            bucket = test_bucket
-            prefix = test_prefix
-            """
-        )
-
     def mock_session_init(profile_name=None, **kwargs):
         return MockBoto3Session.create(tmp_path)
 
-    monkeypatch.setattr("simplexity.persistence.s3_persister.Session", mock_session_init)
+    monkeypatch.setattr("simplexity.persistence.s3_persister.boto3.session.Session", mock_session_init)
+
+    # Create config.ini file for testing
+    config_file = tmp_path / "test_config.ini"
+    config_content = """[aws]
+profile_name = test_profile
+
+[s3]
+bucket = test_bucket
+"""
+    config_file.write_text(config_content)
 
     config = S3PersisterConfig(
         _target_="simplexity.persistence.s3_persister.S3Persister.from_config",
-        filename=str(filename),
+        prefix="test_prefix",
         model_framework="equinox",
+        config_filename=str(config_file),
     )
     persister = hydra.utils.instantiate(config)
     assert isinstance(persister, S3Persister)
