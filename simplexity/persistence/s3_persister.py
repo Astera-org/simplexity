@@ -58,12 +58,11 @@ class S3Persister(ModelPersister):
     local_persister: LocalPersister
 
     @classmethod
-    def from_config(cls, filename: str, model_framework: ModelFramework = ModelFramework.Equinox) -> "S3Persister":
+    def from_config(cls, filename: str, prefix: str, model_framework: ModelFramework = ModelFramework.Equinox) -> "S3Persister":
         """Creates a new S3Persister from client arguments."""
         config = ConfigParser()
         config.read(filename)
         bucket = config["s3"]["bucket"]
-        prefix = config["s3"]["prefix"]
         profile_name = config["aws"]["profile_name"]
         session = Session(profile_name=profile_name)
         s3_client = session.client("s3")

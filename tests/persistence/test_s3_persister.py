@@ -54,7 +54,6 @@ def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
             [s3]
             bucket = test_bucket
-            prefix = test_prefix
             """
         )
 
@@ -63,7 +62,7 @@ def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr("simplexity.persistence.s3_persister.Session", mock_session_init)
 
-    persister = S3Persister.from_config(str(config_file))
+    persister = S3Persister.from_config(str(config_file), "test_prefix")
 
     assert persister.bucket == "test_bucket"
     assert persister.prefix == "test_prefix"

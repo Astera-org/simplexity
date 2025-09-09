@@ -43,7 +43,6 @@ def test_s3_persister_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
             [s3]
             bucket = test_bucket
-            prefix = test_prefix
             """
         )
 
@@ -55,6 +54,7 @@ def test_s3_persister_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config = S3PersisterConfig(
         _target_="simplexity.persistence.s3_persister.S3Persister.from_config",
         filename=str(filename),
+        prefix="test_prefix",
         model_framework="equinox",
     )
     persister = hydra.utils.instantiate(config)
