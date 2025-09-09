@@ -37,25 +37,45 @@ class ExperimentLoader:
     # --- Model reconstruction ---
     def _instantiate_model_and_persister(self) -> tuple[PredictiveModel, ModelPersister | None, DictConfig]:
         cfg = self.load_config()
-        model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel)
+        try:
+            model = typed_instantiate(cfg.predictive_model.instance, PredictiveModel)
+        except Exception as e:
+            raise RuntimeError(
+                "Failed to instantiate predictive model from run config.\n"
+                "Ensure the model's Python package is installed (e.g., `transformer_lens`).\n"
+                f"Underlying error: {e}"
+            ) from e
         persister: ModelPersister | None
         if cfg.persistence:
-            persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
+            try:
+                persister = typed_instantiate(cfg.persistence.instance, ModelPersister)
+            except Exception as e:
+                raise RuntimeError(
+                    "Failed to instantiate persister from run config.\n"
+                    "If using S3, ensure credentials/config are available (e.g., config.ini or env).\n"
+                    f"Underlying error: {e}"
+                ) from e
         else:
             persister = None
         return model, persister, cfg
 
+    def _instantiate_persister_only(self) -> ModelPersister | None:
+        cfg = self.load_config()
+        if not cfg.persistence:
+            return None
+        try:
+            return typed_instantiate(cfg.persistence.instance, ModelPersister)
+        except Exception:
+            # Best-effort: return None if we cannot construct the persister (missing creds, etc.)
+            return None
+
     def list_checkpoints(self) -> list[int]:
-        _, persister, _ = self._instantiate_model_and_persister()
-        if not persister:
-            return []
-        return persister.list_checkpoints()
+        persister = self._instantiate_persister_only()
+        return persister.list_checkpoints() if persister else []
 
     def latest_checkpoint(self) -> int | None:
-        _, persister, _ = self._instantiate_model_and_persister()
-        if not persister:
-            return None
-        return persister.latest_checkpoint()
+        persister = self._instantiate_persister_only()
+        return persister.latest_checkpoint() if persister else None
 
     def load_model(self, step: int | Literal["latest"] = "latest") -> PredictiveModel:
         model, persister, _ = self._instantiate_model_and_persister()
@@ -74,4 +94,3 @@ class ExperimentLoader:
             target_step = step
 
         return persister.load_weights(model, target_step)
-

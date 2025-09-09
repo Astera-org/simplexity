@@ -28,11 +28,21 @@ class MLflowRunReader(RunReader):
 
     # --- Config/params/tags ---
     def get_config(self) -> DictConfig:
-        # We expect the config artifact to be saved as "config.yaml" at the root
+        # We expect the config artifact to be saved as "config.yaml" at the root.
+        # If not found, search the artifact tree for a file named config.yaml.
         dst_dir = Path(self._temp_dir.name) / "config"
         dst_dir.mkdir(parents=True, exist_ok=True)
-        local_path = self._client.download_artifacts(self._run_id, "config.yaml", str(dst_dir))
-        return OmegaConf.load(local_path)
+        try:
+            local_path = self._client.download_artifacts(self._run_id, "config.yaml", str(dst_dir))
+            return OmegaConf.load(local_path)
+        except Exception:
+            for path in self.list_artifacts():
+                if Path(path).name == "config.yaml":
+                    local_path = self._client.download_artifacts(self._run_id, path, str(dst_dir))
+                    return OmegaConf.load(local_path)
+            raise RuntimeError(
+                "Could not find config.yaml in MLflow artifacts for this run."
+            )
 
     def get_params(self) -> dict[str, str]:
         run = self._get_run()
@@ -91,4 +101,3 @@ class MLflowRunReader(RunReader):
             self._temp_dir.cleanup()
         except Exception:
             pass
-
