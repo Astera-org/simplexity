@@ -1,8 +1,13 @@
 from collections.abc import Mapping
 from pprint import pprint
-from typing import Any
+from typing import Any, Union
 
 from omegaconf import DictConfig, OmegaConf
+import matplotlib.figure
+import numpy
+import PIL.Image
+import mlflow
+import plotly.graph_objects
 
 from simplexity.logging.logger import Logger
 
@@ -27,12 +32,22 @@ class PrintLogger(Logger):
         """Log tags to the console."""
         pprint(f"Tags: {tag_dict}")
 
-    def log_figure(self, figure, artifact_file: str, **kwargs) -> None:
+    def log_figure(
+        self, 
+        figure: Union[matplotlib.figure.Figure, plotly.graph_objects.Figure], 
+        artifact_file: str, 
+        **kwargs,
+    ) -> None:
         """Log figure info to the console (no actual figure saved)."""
         print(f"[PrintLogger] Figure NOT saved - would be: {artifact_file} (type: {type(figure).__name__})")
 
     def log_image(
-        self, image, artifact_file: str | None = None, key: str | None = None, step: int | None = None, **kwargs
+        self, 
+        image: Union[numpy.ndarray, PIL.Image.Image, mlflow.Image], 
+        artifact_file: Union[str, None] = None, 
+        key: Union[str, None] = None, 
+        step: Union[int, None] = None, 
+        **kwargs,
     ) -> None:
         """Log image info to the console (no actual image saved)."""
         if artifact_file:

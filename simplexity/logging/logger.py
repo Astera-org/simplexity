@@ -4,8 +4,14 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 from urllib.parse import urlsplit
+
+import matplotlib.figure
+import mlflow
+import numpy
+import PIL.Image
+import plotly.graph_objects
 
 from omegaconf import DictConfig
 
@@ -34,13 +40,23 @@ class Logger(ABC):
         ...
 
     @abstractmethod
-    def log_figure(self, figure, artifact_file: str, **kwargs) -> None:
+    def log_figure(
+        self,
+        figure: Union[matplotlib.figure.Figure, plotly.graph_objects.Figure],
+        artifact_file: str,
+        **kwargs,
+    ) -> None:
         """Log a figure to the logger."""
         ...
 
     @abstractmethod
     def log_image(
-        self, image, artifact_file: str | None = None, key: str | None = None, step: int | None = None, **kwargs
+        self,
+        image: Union[numpy.ndarray, PIL.Image.Image, mlflow.Image],
+        artifact_file: Union[str, None] = None,
+        key: Union[str, None] = None,
+        step: Union[int, None] = None,
+        **kwargs,
     ) -> None:
         """Log an image to the logger."""
         ...

@@ -120,7 +120,7 @@ class TestFileLoggerPlotting:
         unsupported_image = "not an image"
 
         # Act
-        logger.log_image(unsupported_image, artifact_file="bad.png")
+        logger.log_image(unsupported_image, artifact_file="bad.png")  # type: ignore[arg-type]  # Intentionally testing unsupported type
         logger.close()
 
         # Assert
