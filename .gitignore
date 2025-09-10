@@ -8,3 +8,5 @@ multirun/
 outputs/
 config.ini
 *temp*
+# MLflow tracking data
+mlruns/
