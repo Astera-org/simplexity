@@ -1,3 +1,4 @@
+import json
 import re
 import subprocess
 from abc import ABC, abstractmethod
@@ -177,11 +178,48 @@ class Logger(ABC):
             # Return empty dict if git is not available or repo is not a git repo
             return {}
 
+    def _load_git_metadata(self, pkg_dir: Path) -> dict[str, str]:
+        """Load git metadata from build-time capture file.
+
+        Args:
+            pkg_dir: Path to the package directory
+
+        Returns:
+            Dictionary with git metadata, or empty dict if not available
+        """
+        try:
+            metadata_file = pkg_dir / "_git_metadata.json"
+            if metadata_file.exists():
+                with open(metadata_file) as f:
+                    metadata = json.load(f)
+                # Sanitize the remote URL if it exists
+                if "remote" in metadata:
+                    metadata["remote"] = self._sanitize_remote(metadata["remote"])
+                return metadata
+        except Exception:
+            pass
+        return {}
+
+    def _is_installed_package(self, pkg_dir: Path) -> bool:
+        """Check if the package is installed (in site-packages) vs editable install.
+
+        Args:
+            pkg_dir: Path to the package directory
+
+        Returns:
+            True if installed in site-packages, False if editable install
+        """
+        # Check if we're in site-packages
+        pkg_path_str = str(pkg_dir.resolve())
+        return "site-packages" in pkg_path_str
+
     def log_git_info(self) -> None:
         """Log git information for reproducibility.
 
         Logs git information for both the main repository (where the training
-        script is running) and the simplexity library repository.
+        script is running) and the simplexity library repository. For simplexity,
+        uses live git commands if in development (editable install), otherwise
+        uses build-time captured metadata for installed packages.
         """
         tags = {}
 
@@ -191,12 +229,22 @@ class Logger(ABC):
             for k, v in self._get_git_info(main_root).items():
                 tags[f"git.main.{k}"] = v
 
-        # Track simplexity repository using __file__ from Logger class
+        # Track simplexity repository with improved logic for installed packages
         pkg_dir = Path(__file__).resolve().parent
-        simplexity_root = self._find_git_root(pkg_dir)
-        if simplexity_root:
-            for k, v in self._get_git_info(simplexity_root).items():
-                tags[f"git.simplexity.{k}"] = v
+
+        if self._is_installed_package(pkg_dir):
+            # Package is installed in site-packages - try to load build-time metadata
+            git_info = self._load_git_metadata(pkg_dir)
+            if git_info:
+                for k, v in git_info.items():
+                    tags[f"git.simplexity.{k}"] = v
+            # If no build-time metadata available, skip simplexity tracking
+        else:
+            # Package is in development mode (editable install) - use live git
+            simplexity_root = self._find_git_root(pkg_dir)
+            if simplexity_root:
+                for k, v in self._get_git_info(simplexity_root).items():
+                    tags[f"git.simplexity.{k}"] = v
 
         if tags:
             self.log_tags(tags)

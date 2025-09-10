@@ -8,3 +8,5 @@ multirun/
 outputs/
 config.ini
 *temp*
+# Build-time git metadata (generated during package builds)
+simplexity/_git_metadata.json
