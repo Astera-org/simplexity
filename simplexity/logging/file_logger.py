@@ -1,3 +1,5 @@
+import json
+import shutil
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -128,8 +130,6 @@ class FileLogger(Logger):
 
     def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
         """Copy artifact to the log directory."""
-        import shutil
-
         source_path = Path(local_path)
         if not source_path.exists():
             with open(self.file_path, "a") as f:
@@ -137,10 +137,21 @@ class FileLogger(Logger):
             return
 
         # Determine destination path
+        log_dir = Path(self.file_path).parent.resolve()
+
         if artifact_path:
-            dest_path = Path(self.file_path).parent / artifact_path
+            # Validate artifact_path to prevent directory traversal
+            dest_path = log_dir / artifact_path
+            try:
+                dest_path = dest_path.resolve()
+                # Ensure the resolved path is still within the log directory
+                dest_path.relative_to(log_dir)
+            except (OSError, ValueError):
+                with open(self.file_path, "a") as f:
+                    print(f"Artifact logging failed - invalid path: {artifact_path}", file=f)
+                return
         else:
-            dest_path = Path(self.file_path).parent / source_path.name
+            dest_path = log_dir / source_path.name
 
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -152,15 +163,34 @@ class FileLogger(Logger):
 
             with open(self.file_path, "a") as f:
                 print(f"Artifact copied: {local_path} -> {dest_path}", file=f)
+        except PermissionError as e:
+            with open(self.file_path, "a") as f:
+                print(f"Failed to copy artifact - permission denied: {e}", file=f)
+        except FileNotFoundError as e:
+            with open(self.file_path, "a") as f:
+                print(f"Failed to copy artifact - file not found: {e}", file=f)
+        except OSError as e:
+            with open(self.file_path, "a") as f:
+                print(f"Failed to copy artifact - OS error: {e}", file=f)
         except Exception as e:
             with open(self.file_path, "a") as f:
-                print(f"Failed to copy artifact: {e}", file=f)
+                print(f"Failed to copy artifact - unexpected error: {e}", file=f)
 
     def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
         """Save JSON data as an artifact to the log directory."""
-        import json
+        # Validate artifact_name to prevent directory traversal
+        log_dir = Path(self.file_path).parent.resolve()
+        json_path = log_dir / artifact_name
 
-        json_path = Path(self.file_path).parent / artifact_name
+        try:
+            json_path = json_path.resolve()
+            # Ensure the resolved path is still within the log directory
+            json_path.relative_to(log_dir)
+        except (OSError, ValueError):
+            with open(self.file_path, "a") as f:
+                print(f"JSON artifact logging failed - invalid path: {artifact_name}", file=f)
+            return
+
         json_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -169,9 +199,18 @@ class FileLogger(Logger):
 
             with open(self.file_path, "a") as f:
                 print(f"JSON artifact saved: {json_path}", file=f)
+        except PermissionError as e:
+            with open(self.file_path, "a") as f:
+                print(f"Failed to save JSON artifact - permission denied: {e}", file=f)
+        except (TypeError, ValueError) as e:
+            with open(self.file_path, "a") as f:
+                print(f"Failed to save JSON artifact - serialization error: {e}", file=f)
+        except OSError as e:
+            with open(self.file_path, "a") as f:
+                print(f"Failed to save JSON artifact - OS error: {e}", file=f)
         except Exception as e:
             with open(self.file_path, "a") as f:
-                print(f"Failed to save JSON artifact: {e}", file=f)
+                print(f"Failed to save JSON artifact - unexpected error: {e}", file=f)
 
     def close(self) -> None:
         """Close the logger."""

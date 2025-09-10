@@ -148,6 +148,34 @@ class TestFileLoggerArtifacts:
             loaded_data = json.load(f)
             assert loaded_data == sample_list_data
 
+    def test_log_artifact_directory_traversal_prevention(self, file_logger, test_artifact_file, tmp_path: Path):
+        """Test that directory traversal attempts are blocked."""
+        # Act - try to escape the log directory
+        file_logger.log_artifact(str(test_artifact_file), "../../../evil.txt")
+        file_logger.close()
+
+        # Assert - file should not be created outside log directory
+        assert not (tmp_path.parent.parent.parent / "evil.txt").exists()
+
+        # Verify error was logged
+        with open(tmp_path / "test.log") as f:
+            log_content = f.read()
+            assert "Artifact logging failed - invalid path" in log_content
+
+    def test_log_json_artifact_directory_traversal_prevention(self, file_logger, sample_json_data, tmp_path: Path):
+        """Test that JSON artifact directory traversal attempts are blocked."""
+        # Act - try to escape the log directory
+        file_logger.log_json_artifact(sample_json_data, "../../../evil.json")
+        file_logger.close()
+
+        # Assert - file should not be created outside log directory
+        assert not (tmp_path.parent.parent.parent / "evil.json").exists()
+
+        # Verify error was logged
+        with open(tmp_path / "test.log") as f:
+            log_content = f.read()
+            assert "JSON artifact logging failed - invalid path" in log_content
+
 
 class TestPrintLoggerArtifacts:
     """Tests for PrintLogger artifact logging."""

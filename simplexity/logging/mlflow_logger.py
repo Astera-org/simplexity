@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import time
@@ -121,8 +122,6 @@ class MLFlowLogger(Logger):
 
     def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
         """Log a JSON object as an artifact to MLflow."""
-        import json
-
         with tempfile.TemporaryDirectory() as temp_dir:
             json_path = os.path.join(temp_dir, artifact_name)
             with open(json_path, "w") as f:
