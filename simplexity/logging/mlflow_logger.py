@@ -123,23 +123,11 @@ class MLFlowLogger(Logger):
 
     def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
         """Log a JSON object as an artifact to MLflow with improved cleanup."""
-        # Use explicit temporary file management for better error handling
-        temp_dir = None
-        try:
-            temp_dir = tempfile.mkdtemp()
+        with tempfile.TemporaryDirectory() as temp_dir:
             json_path = os.path.join(temp_dir, artifact_name)
             with open(json_path, "w") as f:
                 json.dump(data, f, indent=2)
             self._client.log_artifact(self._run_id, json_path)
-        except Exception:
-            # Ensure cleanup happens even on error
-            if temp_dir and os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            raise
-        finally:
-            # Clean up temporary directory
-            if temp_dir and os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir, ignore_errors=True)
 
     def close(self) -> None:
         """End the MLflow run."""
