@@ -177,7 +177,6 @@ class Logger(ABC):
             # Return empty dict if git is not available or repo is not a git repo
             return {}
 
-
     def log_git_info(self) -> None:
         """Log git information for reproducibility.
 

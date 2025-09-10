@@ -120,11 +120,11 @@ class MLFlowLogger(Logger):
 
     def log_environment_artifacts(self) -> None:
         """Log environment configuration files as MLflow artifacts for reproducibility.
-        
+
         Logs dependency lockfile, project configuration, and system information
         to help reproduce the exact environment used for training.
         """
-        # Log dependency lockfile (most important for reproducibility)  
+        # Log dependency lockfile (most important for reproducibility)
         uv_lock_path = Path("uv.lock")
         if uv_lock_path.exists():
             self._client.log_artifact(self._run_id, str(uv_lock_path), "environment")
@@ -147,7 +147,7 @@ class MLFlowLogger(Logger):
                 f.write(f"Architecture: {platform.architecture()}\n")
                 f.write(f"Machine: {platform.machine()}\n")
                 f.write(f"Processor: {platform.processor()}\n")
-            
+
             self._client.log_artifact(self._run_id, info_path, "environment")
 
     def close(self):
