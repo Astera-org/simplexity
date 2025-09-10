@@ -1,7 +1,10 @@
 import os
+import platform
+import sys
 import tempfile
 import time
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import dotenv
@@ -114,6 +117,38 @@ class MLFlowLogger(Logger):
             raise ValueError("Must provide either artifact_file or both key and step parameters")
 
         self._client.log_image(self._run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
+
+    def log_environment_artifacts(self) -> None:
+        """Log environment configuration files as MLflow artifacts for reproducibility.
+        
+        Logs dependency lockfile, project configuration, and system information
+        to help reproduce the exact environment used for training.
+        """
+        # Log dependency lockfile (most important for reproducibility)  
+        uv_lock_path = Path("uv.lock")
+        if uv_lock_path.exists():
+            self._client.log_artifact(self._run_id, str(uv_lock_path), "environment")
+
+        # Log project configuration
+        pyproject_path = Path("pyproject.toml")
+        if pyproject_path.exists():
+            self._client.log_artifact(self._run_id, str(pyproject_path), "environment")
+
+        # Generate and log system information
+        self._log_system_info()
+
+    def _log_system_info(self) -> None:
+        """Generate and log system information as an artifact."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            info_path = os.path.join(temp_dir, "system_info.txt")
+            with open(info_path, "w") as f:
+                f.write(f"Python version: {sys.version}\n")
+                f.write(f"Platform: {platform.platform()}\n")
+                f.write(f"Architecture: {platform.architecture()}\n")
+                f.write(f"Machine: {platform.machine()}\n")
+                f.write(f"Processor: {platform.processor()}\n")
+            
+            self._client.log_artifact(self._run_id, info_path, "environment")
 
     def close(self):
         """End the MLflow run."""

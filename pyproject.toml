@@ -4,7 +4,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["simplexity"]
-artifacts = ["simplexity/_git_metadata.json"]
 
 [project]
 name = "simplexity"

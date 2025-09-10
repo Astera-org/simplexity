@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/adamimos/Documents/GitHub/simplexity/mlruns/341182093635126558/59f9e8551dc14171a816768987a607c2/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '341182093635126558'
+lifecycle_stage: active
+run_id: 59f9e8551dc14171a816768987a607c2
+run_name: test_run
+run_uuid: 59f9e8551dc14171a816768987a607c2
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1757515877296
+status: 1
+tags: []
+user_id: unknown
