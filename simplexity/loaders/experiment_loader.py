@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.mlflow_reader import MLflowRunReader
 from simplexity.logging.run_reader import RunReader
@@ -57,12 +57,14 @@ class ExperimentLoader:
         cfg = self.load_config()
         try:
             # Handle device resolution for 'auto' setting
-            model_config = dict(cfg.predictive_model.instance)
-            if 'cfg' in model_config and hasattr(model_config['cfg'], 'device'):
-                if model_config['cfg']['device'] == 'auto':
+            model_config = OmegaConf.to_container(cfg.predictive_model.instance, resolve=False)  # type: ignore[arg-type]
+            if isinstance(model_config, dict):
+                cfg_section = model_config.get('cfg')
+                if isinstance(cfg_section, dict) and cfg_section.get('device') == 'auto':
+                    cfg_section = dict(cfg_section)
+                    cfg_section['device'] = self._resolve_device('auto')
                     model_config = dict(model_config)
-                    model_config['cfg'] = dict(model_config['cfg'])
-                    model_config['cfg']['device'] = self._resolve_device('auto')
+                    model_config['cfg'] = cfg_section
             
             # First, try JAX-style PredictiveModel
             try:
@@ -101,9 +103,11 @@ class ExperimentLoader:
         if cfg.persistence:
             try:
                 # Override config_filename if custom config_path is provided
-                persister_config = dict(cfg.persistence.instance)
-                if self.config_path and 'config_filename' in persister_config:
-                    persister_config['config_filename'] = self.config_path
+                persister_config = OmegaConf.to_container(cfg.persistence.instance, resolve=False)  # type: ignore[arg-type]
+                if isinstance(persister_config, dict) and self.config_path:
+                    if 'config_filename' in persister_config:
+                        persister_config = dict(persister_config)
+                        persister_config['config_filename'] = self.config_path
                 persister = typed_instantiate(persister_config, ModelPersister)
             except Exception as e:
                 raise RuntimeError(
@@ -121,9 +125,11 @@ class ExperimentLoader:
             return None
         try:
             # Override config_filename if custom config_path is provided
-            persister_config = dict(cfg.persistence.instance)
-            if self.config_path and 'config_filename' in persister_config:
-                persister_config['config_filename'] = self.config_path
+            persister_config = OmegaConf.to_container(cfg.persistence.instance, resolve=False)  # type: ignore[arg-type]
+            if isinstance(persister_config, dict) and self.config_path:
+                if 'config_filename' in persister_config:
+                    persister_config = dict(persister_config)
+                    persister_config['config_filename'] = self.config_path
             return typed_instantiate(persister_config, ModelPersister)
         except Exception:
             # Best-effort: return None if we cannot construct the persister (missing creds, etc.)
