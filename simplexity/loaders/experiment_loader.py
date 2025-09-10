@@ -53,7 +53,7 @@ class ExperimentLoader:
             return "cpu"
 
     # --- Model reconstruction ---
-    def _instantiate_model_and_persister(self) -> tuple[PredictiveModel, ModelPersister | None, DictConfig]:
+    def _instantiate_model_and_persister(self) -> tuple[object, ModelPersister | None, DictConfig]:
         cfg = self.load_config()
         try:
             # Handle device resolution for 'auto' setting
@@ -64,7 +64,33 @@ class ExperimentLoader:
                     model_config['cfg'] = dict(model_config['cfg'])
                     model_config['cfg']['device'] = self._resolve_device('auto')
             
-            model = typed_instantiate(model_config, PredictiveModel)
+            # First, try JAX-style PredictiveModel
+            try:
+                model = typed_instantiate(model_config, PredictiveModel)
+            except Exception:
+                # Fallback: try PyTorch if available
+                try:
+                    import torch  # type: ignore
+                except Exception as torch_import_err:  # pragma: no cover - import guard
+                    raise RuntimeError(
+                        "Failed to instantiate predictive model from run config.\n"
+                        "Tried PredictiveModel (JAX) and PyTorch fallback, but PyTorch is not available.\n"
+                        "Install torch support (uv sync --extra pytorch) or ensure the model package is installed.\n"
+                        f"Underlying error: {torch_import_err}"
+                    ) from torch_import_err
+
+                # Instantiate expecting a torch.nn.Module
+                try:
+                    model = typed_instantiate(model_config, torch.nn.Module)  # type: ignore[attr-defined]
+                    # Put model into eval mode by default for inference
+                    if hasattr(model, "eval"):
+                        model.eval()
+                except Exception as e2:
+                    raise RuntimeError(
+                        "Failed to instantiate predictive model from run config.\n"
+                        "Ensure the model's Python package is installed (e.g., transformer_lens for HookedTransformer).\n"
+                        f"Underlying error: {e2}"
+                    ) from e2
         except Exception as e:
             raise RuntimeError(
                 "Failed to instantiate predictive model from run config.\n"
@@ -111,7 +137,7 @@ class ExperimentLoader:
         persister = self._instantiate_persister_only()
         return persister.latest_checkpoint() if persister else None
 
-    def load_model(self, step: int | Literal["latest"] = "latest") -> PredictiveModel:
+    def load_model(self, step: int | Literal["latest"] = "latest") -> object:
         model, persister, _ = self._instantiate_model_and_persister()
         if not persister:
             raise RuntimeError("No persistence configuration found in run config; cannot load checkpoints.")
