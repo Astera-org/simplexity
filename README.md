@@ -77,3 +77,40 @@ prefix = your_s3_prefix
 ```
 
 [AWS configuration and credential files](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) can be used for authentication and settings. Authentication credentials should be specified in `~/.aws/credentials`. Settings like `region`, `output`, `endpoint_url` should be specified in `~/.aws/config`. Multiple different profiles can be defined and the specific profile to use can be specified in the `aws` section of the `.ini` file.
+
+### Loading From MLflow
+
+Simplexity provides a high‑level loader to reconstruct models and read run data from MLflow.
+
+Quick start:
+
+```python
+from simplexity.loaders import ExperimentLoader
+
+# Use your MLflow run ID and tracking URI (e.g., Databricks)
+loader = ExperimentLoader.from_mlflow(
+    run_id="<RUN_ID>",
+    tracking_uri="databricks",  # or None to rely on env MLFLOW_TRACKING_URI
+)
+
+# Load saved Hydra config and inspect
+cfg = loader.load_config()
+print("Model target:", cfg.predictive_model.instance._target_)
+
+# Discover checkpoints and load the latest model
+print("Available checkpoints:", loader.list_checkpoints())
+model = loader.load_model(step="latest")
+
+# Fetch metrics as a tidy pandas DataFrame
+df = loader.load_metrics(pattern="validation/*")  # glob filter optional
+print(df.head())
+```
+
+Notes:
+
+- PyTorch models: if your run used a PyTorch model (e.g., `transformer_lens.HookedTransformer`), ensure the package is installed in your environment. The loader first tries JAX’s `PredictiveModel` path, then falls back to `torch.nn.Module` and sets `model.eval()` by default.
+- Persistence: the loader reconstructs the persister from the saved config. If the run has no persistence or no checkpoints, `load_model()` raises an informative error.
+- S3 credentials: if your persister uses `S3Persister.from_config`, you can override the location of the `.ini` via `ExperimentLoader.from_mlflow(..., config_path="/path/to/config.ini")`.
+- Metrics filtering uses glob syntax (e.g., `"validation/*"`).
+
+See `notebooks/experiment_loader_demo.ipynb` for a runnable example.

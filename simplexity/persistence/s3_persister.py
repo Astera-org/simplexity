@@ -161,3 +161,45 @@ class S3Persister(ModelPersister):
                 raise RuntimeError(f"Failed to load {file_name} from S3: {e}") from e
         except Exception as e:
             raise RuntimeError(f"Unexpected error loading {file_name} from S3: {e}") from e
+
+    # --- Checkpoint discovery ---
+    def list_checkpoints(self) -> list[int]:
+        """List available checkpoint steps under the configured prefix.
+
+        We infer steps as the first path component under `prefix`.
+        """
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        steps_set: set[int] = set()
+        prefix = f"{self.prefix}/"
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj.get("Key", "")
+                try:
+                    rel = Path(key).relative_to(self.prefix)
+                except Exception:
+                    # If key equals prefix with no trailing component, skip
+                    continue
+                # rel like '123/model.eqx' or '123/...' -> first part is step
+                parts = rel.parts
+                if parts:
+                    try:
+                        step = int(parts[0])
+                        steps_set.add(step)
+                    except ValueError:
+                        continue
+        steps = sorted(steps_set)
+        return steps
+
+    def latest_checkpoint(self) -> int | None:
+        steps = self.list_checkpoints()
+        return steps[-1] if steps else None
+
+    def checkpoint_exists(self, step: int) -> bool:
+        return step in set(self.list_checkpoints())
+
+    def uri_for_step(self, step: int) -> str:
+        # Best-effort: point to directory or file depending on local persister
+        filename = getattr(self.local_persister, "filename", None)
+        if filename:
+            return f"s3://{self.bucket}/{self.prefix}/{step}/{filename}"
+        return f"s3://{self.bucket}/{self.prefix}/{step}"

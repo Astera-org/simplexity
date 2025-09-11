@@ -37,3 +37,22 @@ class LocalPenzaiPersister(LocalPersister):
         unbound_model, _ = pz.unbind_variables(model)
         variable_values = reconstruct_variables(items)
         return pz.bind_variables(unbound_model, variable_values)
+
+    # --- Checkpoint discovery ---
+    def list_checkpoints(self) -> list[int]:
+        mngr = ocp.CheckpointManager(self.directory, handler_registry=self.registry)
+        steps = list(mngr.all_steps())
+        steps.sort()
+        return steps
+
+    def latest_checkpoint(self) -> int | None:
+        steps = self.list_checkpoints()
+        return steps[-1] if steps else None
+
+    def checkpoint_exists(self, step: int) -> bool:
+        return step in set(self.list_checkpoints())
+
+    def uri_for_step(self, step: int) -> str:
+        # Orbax uses a directory per checkpoint step
+        path = self.directory / str(step)
+        return f"file://{path}"
