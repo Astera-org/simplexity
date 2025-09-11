@@ -201,8 +201,7 @@ class Logger(ABC):
     def log_git_info(self) -> None:
         """Log git information for reproducibility.
 
-        Logs git information for both the main repository (where the training
-        script is running) and the simplexity library repository.
+        Logs git information for the main repository where training is running.
         """
         tags = {}
 
@@ -211,13 +210,6 @@ class Logger(ABC):
         if main_root:
             for k, v in self._get_git_info(main_root).items():
                 tags[f"git.main.{k}"] = v
-
-        # Track simplexity repository using __file__ from Logger class
-        pkg_dir = Path(__file__).resolve().parent
-        simplexity_root = self._find_git_root(pkg_dir)
-        if simplexity_root:
-            for k, v in self._get_git_info(simplexity_root).items():
-                tags[f"git.simplexity.{k}"] = v
 
         if tags:
             self.log_tags(tags)
