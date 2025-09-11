@@ -73,6 +73,27 @@ class Logger(ABC):
         ...
 
     @abstractmethod
+    def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
+        """Log an artifact (file or directory) to the logger.
+
+        Args:
+            local_path: Path to the local file or directory to log
+            artifact_path: Optional artifact path within the experiment run.
+                          If None, uses the filename from local_path.
+        """
+        ...
+
+    @abstractmethod
+    def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
+        """Log a JSON object as an artifact to the logger.
+
+        Args:
+            data: Dictionary or list to serialize as JSON
+            artifact_name: Name for the artifact (e.g., "results.json")
+        """
+        ...
+
+    @abstractmethod
     def close(self) -> None:
         """Close the logger."""
         ...

@@ -1,3 +1,5 @@
+import json
+import shutil
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -125,6 +127,31 @@ class FileLogger(Logger):
             if self._save_image_to_path(image, image_path, **kwargs):
                 with open(self.file_path, "a") as f:
                     print(f"Time-stepped image saved: {image_path}", file=f)
+
+    def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
+        """Copy artifact to the log directory."""
+        source_path = Path(local_path)
+        dest_path = Path(self.file_path).parent / (artifact_path or source_path.name)
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if source_path.is_file():
+            shutil.copy2(local_path, dest_path)
+        else:
+            shutil.copytree(local_path, dest_path, dirs_exist_ok=True)
+
+        with open(self.file_path, "a") as f:
+            print(f"Artifact copied: {local_path} -> {dest_path}", file=f)
+
+    def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
+        """Save JSON data as an artifact to the log directory."""
+        json_path = Path(self.file_path).parent / artifact_name
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=2)
+
+        with open(self.file_path, "a") as f:
+            print(f"JSON artifact saved: {json_path}", file=f)
 
     def close(self) -> None:
         """Close the logger."""
