@@ -5,6 +5,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
+from simplexity.generative_processes.factored_generator import FactoredGenerativeProcess
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
 from simplexity.generative_processes.transition_matrices import (
@@ -113,3 +114,80 @@ def build_nonergodic_hidden_markov_model(
         initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
         initial_state = initial_state.at[num_states - 1].set(1)
     return HiddenMarkovModel(composite_transition_matrix, initial_state)
+
+
+def build_factored_generator(
+    component_specs: Sequence[dict[str, Any]],
+    component_types: Sequence[str] | None = None,
+    _process_name: str | None = None,  # For Hydra compatibility, ignored
+    **_kwargs,  # For Hydra compatibility, ignored
+) -> FactoredGenerativeProcess:
+    """Build a factored generator from component specifications.
+
+    Args:
+        component_specs: List of component spec dicts with 'process_name' and other kwargs
+        component_types: List of component types ("hmm" or "ghmm"). If None, defaults to "ghmm"
+        process_name: Ignored, for Hydra config compatibility
+        **kwargs: Ignored additional args, for Hydra config compatibility
+
+    Returns:
+        FactoredGenerativeProcess with the specified components
+
+    Example:
+        # Create factored generator with 2 coin HMMs
+        factored_gen = build_factored_generator([
+            {"process_name": "zero_one_random", "p": 0.7},
+            {"process_name": "zero_one_random", "p": 0.3}
+        ])
+
+        # Mix HMM and GHMM components
+        factored_gen = build_factored_generator([
+            {"process_name": "zero_one_random", "p": 0.8},
+            {"process_name": "days_of_week"}
+        ], component_types=["hmm", "ghmm"])
+    """
+    if component_types is None:
+        component_types = ["ghmm"] * len(component_specs)
+
+    if len(component_specs) != len(component_types):
+        raise ValueError("component_specs and component_types must have the same length")
+
+    components = []
+    for component_spec, component_type in zip(component_specs, component_types, strict=True):
+        # Extract process_name and remaining kwargs
+        spec_copy = component_spec.copy()
+        process_name = spec_copy.pop("process_name")
+        kwargs = spec_copy
+
+        if component_type == "hmm":
+            component = build_hidden_markov_model(process_name, **kwargs)
+        elif component_type == "ghmm":
+            component = build_generalized_hidden_markov_model(process_name, **kwargs)
+        else:
+            raise ValueError(f"Unknown component type: {component_type}. Must be 'hmm' or 'ghmm'")
+        components.append(component)
+
+    return FactoredGenerativeProcess(components)
+
+
+def build_factored_hmm_generator(
+    component_specs: Sequence[dict[str, Any]],
+    _process_name: str | None = None,  # For Hydra compatibility, ignored
+    **_kwargs,  # For Hydra compatibility, ignored
+) -> FactoredGenerativeProcess:
+    """Build a factored generator with all HMM components.
+
+    Convenience function for the common case of all components being HMMs.
+
+    Args:
+        component_specs: List of component spec dicts with 'process_name' and other kwargs
+        process_name: Ignored, for Hydra config compatibility
+        **kwargs: Ignored additional args, for Hydra config compatibility
+
+    Example:
+        factored_gen = build_factored_hmm_generator([
+            {"process_name": "zero_one_random", "p": 0.7},
+            {"process_name": "zero_one_random", "p": 0.4}
+        ])
+    """
+    return build_factored_generator(component_specs, component_types=["hmm"] * len(component_specs))

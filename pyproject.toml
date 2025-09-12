@@ -32,7 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 aws = ["boto3"]
-cuda = ["jax[cuda12_pip]"]
+cuda = ["jax[cuda12]"]
 dev = ["jaxtyping", "nbqa", "pyright", "pytest", "pytest-cov", "ruff"]
 mac = ["jax-metal"]
 pytorch = ["torch"]

@@ -4,6 +4,8 @@ import pytest
 
 from simplexity.generative_processes.builder import (
     add_begin_of_sequence_token,
+    build_factored_generator,
+    build_factored_hmm_generator,
     build_generalized_hidden_markov_model,
     build_hidden_markov_model,
     build_nonergodic_hidden_markov_model,
@@ -198,3 +200,138 @@ def test_build_nonergodic_hidden_markov_model_bos():
     chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
     assert hmm.initial_state.shape == (3,)
     chex.assert_trees_all_close(hmm.initial_state, jnp.array([0, 0, 1.0]))
+
+
+def test_build_factored_generator():
+    """Test building factored generator with mixed component types."""
+    # Test 3-component factored generator: mess3(3) + tom_quantum(4) + coin(2) = 24 vocab
+    factored_gen = build_factored_generator(
+        [
+            {"process_name": "mess3", "x": 0.5, "a": 0.8},
+            {"process_name": "tom_quantum", "alpha": 0.3, "beta": 0.7},
+            {"process_name": "zero_one_random", "p": 0.9},
+        ],
+        component_types=["hmm", "ghmm", "hmm"],
+    )
+
+    assert factored_gen.vocab_size == 24  # 3 * 4 * 2
+    assert len(factored_gen.components) == 3
+
+    # Test initial state is tuple of component initial states
+    initial_state = factored_gen.initial_state
+    assert isinstance(initial_state, tuple)
+    assert len(initial_state) == 3
+
+
+def test_build_factored_generator_default_component_types():
+    """Test factored generator defaults to GHMM components when component_types=None."""
+    factored_gen = build_factored_generator(
+        [{"process_name": "zero_one_random", "p": 0.7}, {"process_name": "mess3", "x": 0.4, "a": 0.6}]
+    )  # component_types=None should default to ["ghmm", "ghmm"]
+
+    assert factored_gen.vocab_size == 6  # 2 * 3
+    assert len(factored_gen.components) == 2
+
+
+def test_build_factored_generator_errors():
+    """Test error handling in build_factored_generator."""
+    # Test mismatched component_specs and component_types lengths
+    with pytest.raises(ValueError, match="component_specs and component_types must have the same length"):
+        build_factored_generator(
+            [{"process_name": "zero_one_random", "p": 0.5}], component_types=["hmm", "ghmm"]
+        )  # 1 spec, 2 types
+
+    # Test invalid component type
+    with pytest.raises(ValueError, match="Unknown component type"):
+        build_factored_generator([{"process_name": "zero_one_random", "p": 0.5}], component_types=["invalid_type"])
+
+    # Test invalid process name (should propagate from underlying builders)
+    with pytest.raises(KeyError):
+        build_factored_generator([{"process_name": "nonexistent_process"}])
+
+
+def test_build_factored_hmm_generator():
+    """Test building factored generator with all HMM components."""
+    # Test 3-component HMM factored generator: coin(2) + mess3(3) + coin(2) = 12 vocab
+    factored_gen = build_factored_hmm_generator(
+        [
+            {"process_name": "zero_one_random", "p": 0.6},
+            {"process_name": "mess3", "x": 0.3, "a": 0.7},
+            {"process_name": "zero_one_random", "p": 0.4},
+        ]
+    )
+
+    assert factored_gen.vocab_size == 12  # 2 * 3 * 2
+    assert len(factored_gen.components) == 3
+
+    # Verify all components are HMMs (they should have transition_matrices attribute)
+    for component in factored_gen.components:
+        assert hasattr(component, "transition_matrices")
+        assert hasattr(component, "initial_state")
+
+
+def test_build_factored_hmm_generator_with_various_processes():
+    """Test factored HMM generator with different process types."""
+    factored_gen = build_factored_hmm_generator(
+        [
+            {"process_name": "even_ones", "p": 0.3},  # vocab=2
+            {"process_name": "no_consecutive_ones", "p": 0.7},  # vocab=2
+        ]
+    )
+
+    assert factored_gen.vocab_size == 4  # 2 * 2
+    assert len(factored_gen.components) == 2
+
+
+def test_factored_generator_hydra_compatibility():
+    """Test that factored generators work with Hydra-style parameters."""
+    # Test that process_name and extra kwargs are ignored (Hydra compatibility)
+    factored_gen = build_factored_hmm_generator(
+        [{"process_name": "zero_one_random", "p": 0.5}],
+        process_name="ignored_name",  # Should be ignored
+        extra_param="ignored_value",  # Should be ignored
+    )
+
+    assert factored_gen.vocab_size == 2
+    assert len(factored_gen.components) == 1
+
+    # Test with build_factored_generator too
+    factored_gen2 = build_factored_generator(
+        [{"process_name": "mess3", "x": 0.5, "a": 0.8}],
+        component_types=["hmm"],
+        _process_name="ignored",  # Underscore prefix convention
+        extra_kwarg="also_ignored",
+    )
+
+    assert factored_gen2.vocab_size == 3
+    assert len(factored_gen2.components) == 1
+
+
+def test_factored_generator_vocab_size_calculations():
+    """Test vocab size calculations for various component combinations."""
+    test_cases = [
+        # (component_specs, component_types, expected_vocab_size)
+        ([{"process_name": "zero_one_random", "p": 0.5}], ["hmm"], 2),  # Single component
+        (
+            [{"process_name": "zero_one_random", "p": 0.5}, {"process_name": "zero_one_random", "p": 0.7}],
+            ["hmm", "hmm"],
+            4,
+        ),  # 2*2
+        (
+            [{"process_name": "mess3", "x": 0.5, "a": 0.8}, {"process_name": "zero_one_random", "p": 0.5}],
+            ["hmm", "hmm"],
+            6,
+        ),  # 3*2
+        ([{"process_name": "tom_quantum", "alpha": 0.3, "beta": 0.7}], ["ghmm"], 4),  # Single GHMM
+        (
+            [{"process_name": "mess3", "x": 0.5, "a": 0.8}, {"process_name": "tom_quantum", "alpha": 0.3, "beta": 0.7}],
+            ["hmm", "ghmm"],
+            12,
+        ),  # 3*4
+    ]
+
+    for component_specs, component_types, expected_vocab_size in test_cases:
+        factored_gen = build_factored_generator(component_specs, component_types)
+        assert factored_gen.vocab_size == expected_vocab_size, (
+            f"Expected vocab_size {expected_vocab_size}, got {factored_gen.vocab_size} for specs {component_specs}"
+        )
