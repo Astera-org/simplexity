@@ -28,3 +28,30 @@ class LocalEquinoxPersister(LocalPersister):
 
     def _get_path(self, step: int) -> Path:
         return self.directory / str(step) / self.filename
+
+    # --- Checkpoint discovery ---
+    def list_checkpoints(self) -> list[int]:
+        steps: list[int] = []
+        if not self.directory.exists():
+            return steps
+        for child in self.directory.iterdir():
+            if child.is_dir():
+                try:
+                    step = int(child.name)
+                except ValueError:
+                    continue
+                if (child / self.filename).exists():
+                    steps.append(step)
+        steps.sort()
+        return steps
+
+    def latest_checkpoint(self) -> int | None:
+        steps = self.list_checkpoints()
+        return steps[-1] if steps else None
+
+    def checkpoint_exists(self, step: int) -> bool:
+        return (self.directory / str(step) / self.filename).exists()
+
+    def uri_for_step(self, step: int) -> str:
+        path = self._get_path(step)
+        return f"file://{path}"
