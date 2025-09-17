@@ -135,7 +135,7 @@ class S3Persister(ModelPersister):
             raise RuntimeError(f"Unexpected error saving {file_name} to S3: {e}") from e
 
     def _download_s3_objects(self, step: int) -> None:
-        prefix = f"{self.prefix}/{step}"
+        prefix = f"{self.prefix}/{step}/"
         paginator = self.s3_client.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
             for obj in page.get("Contents", []):

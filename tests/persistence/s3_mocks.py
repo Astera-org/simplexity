@@ -15,7 +15,14 @@ class MockS3Paginator:
         """Paginate over the objects in an S3 bucket."""
         bucket_dir = self.root_dir / Bucket
         bucket_dir.mkdir(exist_ok=True)
-        return [{"Key": obj.name} for obj in bucket_dir.glob(f"{Prefix}/*")]
+        files = []
+        for obj in bucket_dir.rglob("*"):
+            if obj.is_file():
+                relative_path = obj.relative_to(bucket_dir)
+                key = str(relative_path)
+                if key.startswith(Prefix):
+                    files.append({"Key": key})
+        return [{"Contents": files}]
 
 
 class MockS3Client:
