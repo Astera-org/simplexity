@@ -1,0 +1,13 @@
+defaults:
+  - _self_
+  - generative_process@training_data_generator: single_addition
+  - generative_process@validation_data_generator: single_addition
+  - predictive_model: pytorch_transformer
+  - logging: mlflow_logger
+  - persistence: s3_persister
+  - training: addition_pretraining
+  - evaluation@validation: addition_pretraining
+
+seed: 0
+experiment_name: pytorch_addition_pretraining
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}

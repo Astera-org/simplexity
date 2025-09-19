@@ -1,0 +1,11 @@
+defaults:
+  - _self_
+  - optimizer: pytorch
+
+seed: ${seed}
+sequence_len: 8
+batch_size: 256
+num_steps: 15000
+log_every: 1
+validate_every: 100
+checkpoint_every: 5000

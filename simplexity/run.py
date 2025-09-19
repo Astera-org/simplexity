@@ -9,7 +9,7 @@ from simplexity.training.train_pytorch_model import train
 from simplexity.utils.hydra import typed_instantiate
 
 
-@hydra.main(config_path="configs", config_name="train_model.yaml", version_base="1.2")
+@hydra.main(config_path="configs", config_name="addition_pretraining.yaml", version_base="1.2")
 def train_model(cfg: Config) -> float:
     """Train a model."""
     assert isinstance(cfg, DictConfig)
