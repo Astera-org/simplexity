@@ -1,15 +1,16 @@
+import configparser
 import tempfile
 from collections.abc import Iterable, Mapping
-from configparser import ConfigParser
 from pathlib import Path
 from typing import Any, Protocol
 
-from boto3.session import Session
+import boto3.session
 from botocore.exceptions import ClientError
 
 from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 from simplexity.persistence.local_persister import LocalPersister
+from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
@@ -57,20 +58,36 @@ class S3Persister(ModelPersister):
     local_persister: LocalPersister
 
     @classmethod
-    def from_config(cls, filename: str, model_framework: ModelFramework = ModelFramework.Equinox) -> "S3Persister":
-        """Creates a new S3Persister from client arguments."""
-        config = ConfigParser()
-        config.read(filename)
-        bucket = config["s3"]["bucket"]
-        prefix = config["s3"]["prefix"]
-        profile_name = config["aws"]["profile_name"]
-        session = Session(profile_name=profile_name)
+    def from_config(
+        cls,
+        prefix: str,
+        model_framework: ModelFramework = ModelFramework.Equinox,
+        config_filename: str = "config.ini",
+    ) -> "S3Persister":
+        """Creates a new S3Persister from configuration parameters.
+
+        Args:
+            prefix: S3 prefix for model storage (from YAML config)
+            model_framework: Framework for local persistence
+            config_filename: Path to config.ini file containing AWS settings
+        """
+        config = configparser.ConfigParser()
+        config.read(config_filename)
+
+        bucket = config.get("s3", "bucket")
+        profile_name = config.get("aws", "profile_name", fallback="default")
+        session = boto3.session.Session(profile_name=profile_name)
         s3_client = session.client("s3")
         temp_dir = tempfile.TemporaryDirectory()
         if model_framework == ModelFramework.Equinox:
             local_persister = LocalEquinoxPersister(directory=temp_dir.name)
         elif model_framework == ModelFramework.Penzai:
             local_persister = LocalPenzaiPersister(directory=temp_dir.name)
+        elif model_framework == ModelFramework.Pytorch:
+            local_persister = LocalPytorchPersister(directory=temp_dir.name)
+        else:
+            raise ValueError(f"Unsupported model framework: {model_framework}")
+
         return cls(
             bucket=bucket,
             prefix=prefix,

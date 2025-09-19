@@ -15,3 +15,5 @@ scripts/
 HYPEROPT_SETUP.md
 config.ini
 *temp*
+# MLflow tracking data
+mlruns/

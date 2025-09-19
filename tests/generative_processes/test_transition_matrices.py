@@ -6,6 +6,7 @@ from simplexity.generative_processes.transition_matrices import (
     days_of_week,
     even_ones,
     fanizza,
+    matching_parens,
     mess3,
     mr_name,
     no_consecutive_ones,
@@ -102,6 +103,15 @@ def test_fanizza():
     validate_ghmm_transition_matrices(transition_matrices)
     tau = jnp.ones(4)
     assert jnp.allclose(jnp.sum(transition_matrices @ tau, axis=0), tau), "Stochasticity condition not met"
+
+
+def test_matching_parens():
+    transition_matrices = matching_parens(open_probs=[1.0, 0.5, 0.5])
+    assert transition_matrices.shape == (2, 4, 4)
+    validate_hmm_transition_matrices(transition_matrices, rtol=1e-5)
+    state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+    stationary_distribution = stationary_state(state_transition_matrix.T)
+    assert jnp.allclose(stationary_distribution, jnp.array([1, 2, 2, 1]) / 6)
 
 
 def test_mess3():
