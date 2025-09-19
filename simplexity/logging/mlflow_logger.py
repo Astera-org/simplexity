@@ -42,6 +42,16 @@ class MLFlowLogger(Logger):
         run = self._client.create_run(experiment_id=experiment_id, run_name=run_name)
         self._run_id = run.info.run_id
 
+    @property
+    def client(self) -> mlflow.MlflowClient:
+        """Expose underlying MLflow client for integrations."""
+        return self._client
+
+    @property
+    def run_id(self) -> str:
+        """Expose active MLflow run identifier."""
+        return self._run_id
+
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to MLflow."""
         with tempfile.TemporaryDirectory() as temp_dir:
