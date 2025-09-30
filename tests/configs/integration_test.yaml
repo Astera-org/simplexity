@@ -1,0 +1,51 @@
+defaults:
+  - _self_
+  - /generative_process@training_data_generator: zero_one_random
+  - /generative_process@validation_data_generator: zero_one_random
+  - /predictive_model: transformer
+  - /persistence: local_penzai_persister
+  - /logging: file_logger
+  - /training: small
+  - /evaluation@validation: small
+
+seed: 42
+experiment_name: integration_test_${predictive_model.name}_${training_data_generator.name}
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}
+
+persistence:
+  name: local_penzai_persister
+  instance:
+    _target_: simplexity.persistence.local_penzai_persister.LocalPenzaiPersister
+    directory: /tmp/simplexity_integration_test/models
+
+logging:
+  name: file_logger
+  instance:
+    _target_: simplexity.logging.file_logger.FileLogger
+    file_path: /tmp/simplexity_integration_test/logs/${run_name}.log
+
+training:
+  seed: ${seed}
+  sequence_len: 8
+  batch_size: 4
+  num_steps: 10
+  log_every: 2
+  validate_every: 4
+  checkpoint_every: 5
+  optimizer:
+    name: adam
+    instance:
+      _target_: optax.adam
+      learning_rate: 0.01
+      b1: 0.9
+      b2: 0.999
+      eps: 1e-8
+      eps_root: 0.0
+      nesterov: false
+
+validation:
+  seed: ${seed}
+  sequence_len: 8
+  batch_size: 4
+  num_steps: 2
+  log_every: 1
