@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+from typing import Any
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -12,7 +13,7 @@ from simplexity.training.train_model import train
 from simplexity.utils.hydra import typed_instantiate
 
 
-def compute_vocab_and_special_tokens(cfg_generator: DictConfig, generator: GenerativeProcess) -> None:
+def compute_vocab_and_special_tokens(cfg_generator: Any, generator: GenerativeProcess) -> None:
     """Compute vocab_size and special token IDs based on generator and use_bos/use_eos flags.
 
     This modifies the config in-place to set:
