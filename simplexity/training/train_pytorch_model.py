@@ -55,6 +55,17 @@ def train(
         model.train()
         optimizer.zero_grad()
 
+        # Move to model device and ensure integer token dtype for index-based models
+        try:
+            device = next(model.parameters()).device
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+        except Exception:
+            pass
+
+        if inputs.dtype != torch.long:
+            inputs = inputs.long()
+
         logits = model(inputs)
 
         vocab_size = logits.shape[2]
