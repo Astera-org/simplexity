@@ -13,6 +13,7 @@ from simplexity.predictive_models.types import ModelFramework
 
 if TYPE_CHECKING:
     from mlflow import MlflowClient
+
     from simplexity.logging.mlflow_logger import MLFlowLogger
 
 
@@ -39,7 +40,7 @@ class MLFlowPersister(ModelPersister):
 
     def __init__(
         self,
-        client: "MlflowClient | Any",
+        client: MlflowClient | Any,
         run_id: str,
         *,
         artifact_path: str = "models",
@@ -70,13 +71,15 @@ class MLFlowPersister(ModelPersister):
         *,
         run_name: str | None = None,
         tracking_uri: str | None = None,
+        registry_uri: str | None = None,
         artifact_path: str = "models",
         model_framework: ModelFramework = ModelFramework.Equinox,
         registered_model_name: str | None = None,
-    ) -> "MLFlowPersister":
+    ) -> MLFlowPersister:
+        """Create a persister from an MLflow experiment."""
         import mlflow
 
-        client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+        client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
         experiment = client.get_experiment_by_name(experiment_name)
         if experiment:
             experiment_id = experiment.experiment_id
@@ -95,12 +98,12 @@ class MLFlowPersister(ModelPersister):
     @classmethod
     def from_logger(
         cls,
-        logger: "MLFlowLogger",
+        logger: MLFlowLogger,
         *,
         artifact_path: str = "models",
         model_framework: ModelFramework = ModelFramework.Equinox,
         registered_model_name: str | None = None,
-    ) -> "MLFlowPersister":
+    ) -> MLFlowPersister:
         """Create a persister reusing an existing MLFlowLogger run."""
         return cls(
             client=logger.client,
@@ -122,11 +125,11 @@ class MLFlowPersister(ModelPersister):
         if callable(persister_cleanup):
             persister_cleanup()
         if self._managed_run:
-            try:
-                self.client.set_terminated(self.run_id)
-            except Exception:
+            import contextlib
+
+            with contextlib.suppress(Exception):
                 # Cleanup is best-effort; ignore failures when ending the run.
-                pass
+                self.client.set_terminated(self.run_id)
         self._temp_dir.cleanup()
 
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
@@ -197,19 +200,19 @@ class MLFlowPersister(ModelPersister):
             try:
                 self.client.get_registered_model(self.registered_model_name)
             except Exception:
-                try:
+                import contextlib
+
+                with contextlib.suppress(Exception):
                     self.client.create_registered_model(self.registered_model_name)
-                except Exception:
-                    pass
             self._registered_model_checked = True
 
         source = f"runs:/{self.run_id}/{artifact_path}"
-        try:
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            # Surface registration failures as warnings while allowing training to proceed.
             self.client.create_model_version(
                 name=self.registered_model_name,
                 source=source,
                 run_id=self.run_id,
             )
-        except Exception:
-            # Surface registration failures as warnings while allowing training to proceed.
-            pass
