@@ -1,5 +1,6 @@
 name: days_of_week
-vocab_size: 11
+use_bos: false
+use_eos: false
 instance:
   _target_: simplexity.generative_processes.builder.build_hidden_markov_model
   process_name: days_of_week
