@@ -4,3 +4,4 @@ instance:
   experiment_name: /Shared/${experiment_name}
   run_name: ${run_name}
   tracking_uri: databricks
+  registry_uri: databricks-uc
