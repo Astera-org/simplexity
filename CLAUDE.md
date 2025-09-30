@@ -127,6 +127,34 @@ uv run --extra dev --extra pytorch pytest
 uv run python simplexity/train_model.py
 ```
 
+## Configuration Guidelines
+
+### Generative Process Configs
+
+Generative process configs use automatic vocab size and special token computation:
+
+```yaml
+name: process_name
+use_bos: true              # Boolean flag for BOS token
+use_eos: false             # Boolean flag for EOS token
+instance:
+  _target_: simplexity.generative_processes.builder.build_hidden_markov_model
+  process_name: mess3
+  # process-specific parameters
+```
+
+**Do NOT manually specify**:
+- `vocab_size` - Computed from generator.vocab_size + special tokens
+- `bos_token` - Computed as generator.vocab_size when use_bos=true
+- `eos_token` - Computed as next available token ID when use_eos=true
+
+**Model configs** use interpolation to get the computed vocab:
+```yaml
+d_vocab: ${training_data_generator.vocab_size}
+```
+
+See `VOCAB_MIGRATION_GUIDE.md` for detailed examples.
+
 ## Pull Request Guidelines
 
 When reviewing or creating PRs:
