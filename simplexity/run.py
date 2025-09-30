@@ -17,6 +17,7 @@ def train_model(cfg: Config) -> float:
 
     if cfg.logging:
         logger = typed_instantiate(cfg.logging.instance, Logger)
+        logger.log_git_info()
         logger.log_config(cfg)
         logger.log_params(cfg)
     else:
