@@ -9,7 +9,7 @@ instance:
     projection_dim: 16
     mlp_hidden_dim: 16
     num_decoder_blocks: 2
-    vocab_size: 2
+    vocab_size: ${training_data_generator.vocab_size}
     mlp_variant: geglu_approx
     tie_embedder_and_logits: false
     rope_wavelength: 10000
