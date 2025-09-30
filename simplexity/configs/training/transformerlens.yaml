@@ -1,0 +1,12 @@
+defaults:
+  - _self_
+  - optimizer: pytorch
+
+seed: ${seed}
+sequence_len: 6  # With BOS: generator emits 6 + BOS -> tokens 7; inputs length stays 6
+batch_size: 32
+num_steps: 100
+log_every: 10
+validate_every: 20
+checkpoint_every: 50
+
