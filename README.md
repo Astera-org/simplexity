@@ -77,3 +77,18 @@ prefix = your_s3_prefix
 ```
 
 [AWS configuration and credential files](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) can be used for authentication and settings. Authentication credentials should be specified in `~/.aws/credentials`. Settings like `region`, `output`, `endpoint_url` should be specified in `~/.aws/config`. Multiple different profiles can be defined and the specific profile to use can be specified in the `aws` section of the `.ini` file.
+
+### TransformerLens example (optional)
+
+We include a minimal TransformerLens setup mirroring the "basic_mess3" example from simplex-research. It aligns model context with the data pipeline and derives vocab from the generator.
+
+Run with the convenience config:
+
+```bash
+uv run python -m simplexity.run --config-name transformerlens_mess3
+```
+
+Notes:
+- `d_vocab` is interpolated from `${training_data_generator.vocab_size}`.
+- `n_ctx` must match the effective inputs length (checked at runtime) implied by `training.sequence_len` and BOS/EOS.
+- The PyTorch trainer automatically moves batches to the model device and uses `long` token dtype.
