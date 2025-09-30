@@ -115,10 +115,16 @@ class ZeroOneRandomConfig(ProcessInstanceConfig):
 
 @dataclass
 class Config:
-    """Base configuration for predictive models."""
+    """Base configuration for generative processes.
+
+    The vocab_size, bos_token, and eos_token fields are computed automatically
+    after instantiating the generative process based on use_bos and use_eos flags.
+    """
 
     name: ProcessName
-    vocab_size: int
+    use_bos: bool
+    use_eos: bool
     instance: ProcessInstanceConfig
-    bos_token: int | None
-    eos_token: int | None
+    vocab_size: int | None = None
+    bos_token: int | None = None
+    eos_token: int | None = None
