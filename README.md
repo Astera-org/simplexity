@@ -77,3 +77,22 @@ prefix = your_s3_prefix
 ```
 
 [AWS configuration and credential files](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) can be used for authentication and settings. Authentication credentials should be specified in `~/.aws/credentials`. Settings like `region`, `output`, `endpoint_url` should be specified in `~/.aws/config`. Multiple different profiles can be defined and the specific profile to use can be specified in the `aws` section of the `.ini` file.
+
+## Examples
+
+Complete, well-documented examples demonstrating how to use Simplexity:
+
+### [basic_mess3](examples/basic_mess3/)
+
+A minimal example training a TransformerLens model on mess3 (Hidden Markov Model) data. Demonstrates:
+- Device auto-detection (CUDA/MPS/CPU)
+- MLflow artifact storage for checkpoints and metrics
+- Configuration resolution utilities for sequence lengths
+- Hydra-based configuration
+
+```bash
+uv sync --extra dev --extra pytorch
+uv run python examples/basic_mess3/train.py
+```
+
+See [examples/basic_mess3/README.md](examples/basic_mess3/README.md) for full documentation.

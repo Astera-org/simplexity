@@ -1,0 +1,19 @@
+name: transformer_lens_2L2H
+instance:
+  _target_: transformer_lens.HookedTransformer
+  cfg:
+    _target_: transformer_lens.HookedTransformerConfig
+    n_layers: 2
+    n_heads: 2
+    d_model: 64
+    d_head: 32
+    n_ctx: 6
+    d_vocab: ${training_data_generator.vocab_size}
+    act_fn: "gelu"
+    normalization_type: "LN"
+    positional_embedding_type: "standard"
+    attn_only: false
+    seed: ${seed}
+    device: ${device}
+
+load_checkpoint_step:

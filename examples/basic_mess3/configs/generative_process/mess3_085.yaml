@@ -1,0 +1,9 @@
+name: mess3_085
+vocab_size: 4
+instance:
+  _target_: simplexity.generative_processes.builder.build_hidden_markov_model
+  process_name: mess3
+  x: 0.05
+  a: 0.85
+bos_token: 3
+eos_token:
