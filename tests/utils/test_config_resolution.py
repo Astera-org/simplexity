@@ -130,9 +130,7 @@ class TestComputeModelVocabSize:
             (50257, True, True, 50259),
         ],
     )
-    def test_parametrized_cases(
-        self, generator_vocab_size: int, use_bos: bool, use_eos: bool, expected: int
-    ):
+    def test_parametrized_cases(self, generator_vocab_size: int, use_bos: bool, use_eos: bool, expected: int):
         """Test various combinations of vocab size and special tokens."""
         assert compute_model_vocab_size(generator_vocab_size, use_bos, use_eos) == expected
 
