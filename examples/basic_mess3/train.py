@@ -14,9 +14,9 @@ import jax
 import jax.numpy as jnp
 import torch
 import torch.nn.functional as F
+from config import Config, validate_config
 from omegaconf import DictConfig
 
-from simplexity.configs.config import Config, validate_config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
