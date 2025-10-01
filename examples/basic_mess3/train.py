@@ -30,12 +30,7 @@ def train_with_device_support(
     training_cfg,
     training_data_generator: GenerativeProcess,
     logger: Logger | None = None,
-    validation_cfg=None,
-    validation_data_generator: GenerativeProcess | None = None,
-    training_bos_token: int | None = None,
-    training_eos_token: int | None = None,
-    validation_bos_token: int | None = None,
-    validation_eos_token: int | None = None,
+    bos_token: int | None = None,
 ) -> tuple[torch.nn.Module, float]:
     """Train a PyTorch model with MLflow artifact upload."""
     device = next(model.parameters()).device
@@ -61,8 +56,8 @@ def train_with_device_support(
             training_cfg.batch_size,
             training_cfg.sequence_len,
             gen_key,
-            bos_token=training_bos_token,
-            eos_token=training_eos_token,
+            bos_token=bos_token,
+            eos_token=None,
         )
 
         inputs = inputs.to(device)
@@ -144,56 +139,6 @@ def train_with_device_support(
                 logger._client.log_artifact(logger._run_id, str(checkpoint_path), artifact_path="checkpoints")  # type: ignore[attr-defined]
             print(f"Checkpoint uploaded to MLflow at step {step}")
 
-        if (
-            validation_cfg
-            and validation_data_generator
-            and training_cfg.validate_every
-            and step % training_cfg.validate_every == 0
-        ):
-            model.eval()
-            with torch.no_grad():
-                val_key, val_gen_key = jax.random.split(key)
-                val_gen_state = validation_data_generator.initial_state
-                val_gen_states = jnp.repeat(val_gen_state[None, :], validation_cfg.batch_size, axis=0)
-
-                val_losses = []
-                for _val_step in range(validation_cfg.num_steps):
-                    val_key, val_gen_key = jax.random.split(val_key)
-                    val_gen_states, val_inputs, val_labels = generate_data_batch(
-                        val_gen_states,
-                        validation_data_generator,
-                        validation_cfg.batch_size,
-                        validation_cfg.sequence_len,
-                        val_gen_key,
-                        bos_token=validation_bos_token,
-                        eos_token=validation_eos_token,
-                    )
-
-                    val_inputs = val_inputs.to(device)
-                    val_labels = val_labels.to(device)
-
-                    val_logits = model(val_inputs)
-                    vocab_size = val_logits.shape[2]
-                    val_logits_reshaped = val_logits.view(-1, vocab_size)
-                    val_labels_reshaped = val_labels.view(-1).long()
-
-                    val_loss = F.cross_entropy(val_logits_reshaped, val_labels_reshaped).item()
-                    val_losses.append(val_loss)
-
-                avg_val_loss = sum(val_losses) / len(val_losses)
-                val_perplexity = torch.exp(torch.tensor(avg_val_loss)).item()
-
-                val_metrics = {
-                    "validation/loss": avg_val_loss,
-                    "validation/perplexity": val_perplexity,
-                }
-
-                if logger:
-                    logger.log_metrics(step, val_metrics)
-                print(f"Validation at step {step}: loss = {avg_val_loss:.4f}, perplexity = {val_perplexity:.2f}")
-
-            model.train()
-
     return model, loss_value
 
 
@@ -204,15 +149,6 @@ def train_model(cfg: Config) -> float:
 
     training_data_generator = typed_instantiate(cfg.training_data_generator.instance, GenerativeProcess)
 
-    if cfg.validation_data_generator:
-        validation_data_generator = typed_instantiate(cfg.validation_data_generator.instance, GenerativeProcess)
-        validation_bos_token = cfg.validation_data_generator.bos_token
-        validation_eos_token = cfg.validation_data_generator.eos_token
-    else:
-        validation_data_generator = None
-        validation_bos_token = None
-        validation_eos_token = None
-
     from transformer_lens import HookedTransformer, HookedTransformerConfig
 
     config_dict = dict(cfg.predictive_model.instance.cfg)  # type: ignore[attr-defined]
@@ -221,10 +157,10 @@ def train_model(cfg: Config) -> float:
     device_str = config_dict.get("device", "auto")
     config_dict["device"] = resolve_device(device_str)
 
-    use_bos = cfg.training_data_generator.bos_token is not None
-    use_eos = cfg.training_data_generator.eos_token is not None
+    use_bos = cfg.training_data_generator.use_bos  # type: ignore[attr-defined]
+    bos_token = training_data_generator.vocab_size if use_bos else None
 
-    model_vocab_size = compute_model_vocab_size(training_data_generator.vocab_size, use_bos, use_eos)
+    model_vocab_size = compute_model_vocab_size(training_data_generator.vocab_size, use_bos, use_eos=False)
     config_dict["d_vocab"] = model_vocab_size
 
     model_n_ctx = config_dict["n_ctx"]
@@ -234,11 +170,8 @@ def train_model(cfg: Config) -> float:
 
     OmegaConf.set_struct(cfg, False)
     cfg.training.sequence_len = training_sequence_len
-    if cfg.validation:
-        cfg.validation.sequence_len = training_sequence_len
     cfg.training_data_generator.vocab_size = model_vocab_size
-    if cfg.validation_data_generator:
-        cfg.validation_data_generator.vocab_size = model_vocab_size
+    cfg.training_data_generator.bos_token = bos_token
     OmegaConf.set_struct(cfg, True)
 
     validate_config(cfg)
@@ -246,11 +179,12 @@ def train_model(cfg: Config) -> float:
     print(f"Resolved device: {config_dict['device']}")
     print(
         f"Computed model d_vocab: {model_vocab_size} "
-        f"(from generator vocab_size={training_data_generator.vocab_size}, use_bos={use_bos}, use_eos={use_eos})"
+        f"(from generator vocab_size={training_data_generator.vocab_size}, use_bos={use_bos})"
     )
     print(
         f"Computed training sequence_len: {training_sequence_len} (from model n_ctx={model_n_ctx}, use_bos={use_bos})"
     )
+    print(f"Computed bos_token: {bos_token}")
 
     model_config = HookedTransformerConfig(**config_dict)
     model = HookedTransformer(model_config)
@@ -263,8 +197,8 @@ def train_model(cfg: Config) -> float:
             {
                 "computed/model_vocab_size": model_vocab_size,
                 "computed/training_sequence_len": training_sequence_len,
+                "computed/bos_token": bos_token if bos_token is not None else "null",
                 "computed/use_bos": use_bos,
-                "computed/use_eos": use_eos,
             }
         )
         logger.log_git_info()
@@ -288,12 +222,7 @@ def train_model(cfg: Config) -> float:
         cfg.training,
         training_data_generator,
         logger,
-        cfg.validation,
-        validation_data_generator,
-        training_bos_token=cfg.training_data_generator.bos_token,
-        training_eos_token=cfg.training_data_generator.eos_token,
-        validation_bos_token=validation_bos_token,
-        validation_eos_token=validation_eos_token,
+        bos_token=bos_token,
     )
 
     if logger:

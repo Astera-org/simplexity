@@ -4,5 +4,4 @@ instance:
   process_name: mess3
   x: 0.05
   a: 0.85
-bos_token: 3
-eos_token:
+use_bos: true

@@ -1,14 +1,14 @@
 defaults:
  - _self_
  - generative_process@training_data_generator: mess3_085
- - generative_process@validation_data_generator: mess3_085
  - predictive_model: transformer_lens_2L2H
  - logging: mlflow_logger
  - training: transformerlens
- - evaluation@validation: transformerlens
 
 seed: 42
 device: "auto"
 experiment_name: basic_mess3
 run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}
 persistence:
+validation:
+validation_data_generator:

@@ -6,5 +6,5 @@ seed: ${seed}
 batch_size: 32
 num_steps: 100
 log_every: 10
-validate_every: 20
+validate_every:
 checkpoint_every: 50
