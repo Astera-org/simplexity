@@ -20,7 +20,7 @@ from simplexity.configs.config import Config, validate_config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
-from simplexity.utils.config_resolution import compute_model_context_length, compute_model_vocab_size
+from simplexity.utils.config_resolution import compute_generator_sequence_length, compute_model_vocab_size
 from simplexity.utils.hydra import typed_instantiate
 from simplexity.utils.pytorch_utils import resolve_device
 
@@ -201,27 +201,6 @@ def train_with_device_support(
 def train_model(cfg: Config) -> float:
     """Train a TransformerLens model on mess3 data with MLflow artifact storage."""
     assert isinstance(cfg, DictConfig)
-    validate_config(cfg)
-
-    if cfg.logging:
-        logger = typed_instantiate(cfg.logging.instance, Logger)
-        logger.log_config(cfg, resolve=True)
-        logger.log_params(cfg)
-        logger.log_git_info()
-
-        if hasattr(logger, "_client") and hasattr(logger, "_run_id"):
-            repo_root = Path.cwd()
-            artifacts = []
-            if (uv_lock := repo_root / "uv.lock").exists():
-                artifacts.append((uv_lock, "deps/uv.lock"))
-            if (pyproject := repo_root / "pyproject.toml").exists():
-                artifacts.append((pyproject, "deps/pyproject.toml"))
-
-            for src, dest in artifacts:
-                artifact_path = str(Path(dest).parent)
-                logger._client.log_artifact(logger._run_id, str(src), artifact_path=artifact_path)  # type: ignore[attr-defined]
-    else:
-        logger = None
 
     training_data_generator = typed_instantiate(cfg.training_data_generator.instance, GenerativeProcess)
 
@@ -241,18 +220,68 @@ def train_model(cfg: Config) -> float:
 
     device_str = config_dict.get("device", "auto")
     config_dict["device"] = resolve_device(device_str)
+
+    use_bos = cfg.training_data_generator.bos_token is not None
+    use_eos = cfg.training_data_generator.eos_token is not None
+
+    model_vocab_size = compute_model_vocab_size(training_data_generator.vocab_size, use_bos, use_eos)
+    config_dict["d_vocab"] = model_vocab_size
+
+    model_n_ctx = config_dict["n_ctx"]
+    training_sequence_len = compute_generator_sequence_length(model_n_ctx, use_bos)
+
+    from omegaconf import OmegaConf
+
+    OmegaConf.set_struct(cfg, False)
+    cfg.training.sequence_len = training_sequence_len
+    if cfg.validation:
+        cfg.validation.sequence_len = training_sequence_len
+    cfg.training_data_generator.vocab_size = model_vocab_size
+    if cfg.validation_data_generator:
+        cfg.validation_data_generator.vocab_size = model_vocab_size
+    OmegaConf.set_struct(cfg, True)
+
+    validate_config(cfg)
+
     print(f"Resolved device: {config_dict['device']}")
+    print(
+        f"Computed model d_vocab: {model_vocab_size} "
+        f"(from generator vocab_size={training_data_generator.vocab_size}, use_bos={use_bos}, use_eos={use_eos})"
+    )
+    print(
+        f"Computed training sequence_len: {training_sequence_len} (from model n_ctx={model_n_ctx}, use_bos={use_bos})"
+    )
 
     model_config = HookedTransformerConfig(**config_dict)
     model = HookedTransformer(model_config)
 
-    use_bos = cfg.training_data_generator.bos_token is not None
-    use_eos = cfg.training_data_generator.eos_token is not None
-    expected_n_ctx = compute_model_context_length(cfg.training.sequence_len, use_bos)
-    expected_vocab_size = compute_model_vocab_size(training_data_generator.vocab_size, use_bos, use_eos)
+    if cfg.logging:
+        logger = typed_instantiate(cfg.logging.instance, Logger)
+        logger.log_config(cfg, resolve=True)
+        logger.log_params(cfg)
+        logger.log_params(
+            {
+                "computed/model_vocab_size": model_vocab_size,
+                "computed/training_sequence_len": training_sequence_len,
+                "computed/use_bos": use_bos,
+                "computed/use_eos": use_eos,
+            }
+        )
+        logger.log_git_info()
 
-    print(f"Model n_ctx: {model_config.n_ctx}, Expected: {expected_n_ctx}")
-    print(f"Model d_vocab: {model_config.d_vocab}, Expected: {expected_vocab_size}")
+        if hasattr(logger, "_client") and hasattr(logger, "_run_id"):
+            repo_root = Path.cwd()
+            artifacts = []
+            if (uv_lock := repo_root / "uv.lock").exists():
+                artifacts.append((uv_lock, "deps/uv.lock"))
+            if (pyproject := repo_root / "pyproject.toml").exists():
+                artifacts.append((pyproject, "deps/pyproject.toml"))
+
+            for src, dest in artifacts:
+                artifact_path = str(Path(dest).parent)
+                logger._client.log_artifact(logger._run_id, str(src), artifact_path=artifact_path)  # type: ignore[attr-defined]
+    else:
+        logger = None
 
     _, loss = train_with_device_support(
         model,

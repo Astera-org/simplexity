@@ -3,7 +3,6 @@ defaults:
   - optimizer: pytorch_adam
 
 seed: ${seed}
-sequence_len: 6
 batch_size: 32
 num_steps: 100
 log_every: 10
