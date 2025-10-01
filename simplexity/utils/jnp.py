@@ -3,6 +3,39 @@ import jax
 import jax.numpy as jnp
 
 
+def resolve_jax_device(device_spec: str | None = "auto") -> jax.Device:
+    """Resolve device specification to actual JAX device.
+
+    Args:
+        device_spec: One of "auto", "gpu", "cuda", "cpu", or None (treated as "auto")
+
+    Returns:
+        JAX device object
+
+    Examples:
+        >>> resolve_jax_device("auto")  # On GPU machine
+        GpuDevice(id=0, ...)
+        >>> resolve_jax_device("cpu")
+        CpuDevice(id=0)
+    """
+    if device_spec is None or device_spec == "auto":
+        devices = jax.devices("gpu")
+        if devices:
+            return devices[0]
+        return jax.devices("cpu")[0]
+
+    if device_spec in ("gpu", "cuda"):
+        devices = jax.devices("gpu")
+        if not devices:
+            raise RuntimeError("GPU requested but no GPU devices available")
+        return devices[0]
+
+    if device_spec == "cpu":
+        return jax.devices("cpu")[0]
+
+    raise ValueError(f"Unknown device specification: {device_spec}")
+
+
 @eqx.filter_jit
 def entropy(probs: jax.Array, log: bool = False) -> jax.Array:
     """Compute the entropy of a log probability distribution."""
