@@ -89,6 +89,10 @@ def resolve_device(device_spec: str | None = "auto") -> str:
     Returns:
         Resolved device string: "cuda", "mps", or "cpu"
 
+    Raises:
+        ValueError: If device_spec is not a recognized device type
+        RuntimeError: If a specific device is requested but unavailable
+
     Examples:
         >>> resolve_device("auto")  # On CUDA machine
         'cuda'
@@ -102,4 +106,18 @@ def resolve_device(device_spec: str | None = "auto") -> str:
             return "mps"
         else:
             return "cpu"
-    return device_spec
+
+    if device_spec == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA requested but CUDA is not available")
+        return "cuda"
+
+    if device_spec == "mps":
+        if not torch.backends.mps.is_available():
+            raise RuntimeError("MPS requested but MPS is not available")
+        return "mps"
+
+    if device_spec == "cpu":
+        return "cpu"
+
+    raise ValueError(f"Unknown device specification: {device_spec}")

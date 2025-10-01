@@ -19,16 +19,22 @@ def resolve_jax_device(device_spec: str | None = "auto") -> jax.Device:
         CpuDevice(id=0)
     """
     if device_spec is None or device_spec == "auto":
-        devices = jax.devices("gpu")
-        if devices:
-            return devices[0]
+        try:
+            devices = jax.devices("gpu")
+            if devices:
+                return devices[0]
+        except RuntimeError:
+            pass
         return jax.devices("cpu")[0]
 
     if device_spec in ("gpu", "cuda"):
-        devices = jax.devices("gpu")
-        if not devices:
-            raise RuntimeError("GPU requested but no GPU devices available")
-        return devices[0]
+        try:
+            devices = jax.devices("gpu")
+            if devices:
+                return devices[0]
+        except RuntimeError:
+            pass
+        raise RuntimeError("GPU requested but no GPU devices available")
 
     if device_spec == "cpu":
         return jax.devices("cpu")[0]

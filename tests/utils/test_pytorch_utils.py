@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from simplexity.utils.pytorch_utils import jax_to_torch, torch_to_jax
+from simplexity.utils.pytorch_utils import jax_to_torch, resolve_device, torch_to_jax
 
 try:
     import torch
@@ -40,3 +40,72 @@ def test_torch_to_jax(device: str):
     assert jax_array.shape == (2, 2)
     assert jax_array.dtype == jnp.float32
     np.testing.assert_array_equal(jax_array, torch_tensor.cpu().numpy())
+
+
+class TestResolveDevice:
+    """Test resolve_device function."""
+
+    def test_auto_mode_returns_valid_device(self):
+        """Test auto mode returns a valid PyTorch device string."""
+        device = resolve_device("auto")
+        assert device in ("cuda", "mps", "cpu")
+
+    def test_none_treated_as_auto(self):
+        """Test None is treated as auto mode."""
+        device = resolve_device(None)
+        assert device in ("cuda", "mps", "cpu")
+
+    def test_cpu_always_available(self):
+        """Test CPU is always available."""
+        device = resolve_device("cpu")
+        assert device == "cpu"
+
+    def test_cuda_when_available(self):
+        """Test CUDA request when CUDA is available."""
+        if not torch.cuda.is_available():
+            pytest.skip("CUDA not available")
+        device = resolve_device("cuda")
+        assert device == "cuda"
+
+    def test_cuda_unavailable_raises_runtime_error(self):
+        """Test CUDA request raises RuntimeError when CUDA unavailable."""
+        if torch.cuda.is_available():
+            pytest.skip("CUDA is available, cannot test unavailable case")
+        with pytest.raises(RuntimeError, match="CUDA requested but CUDA is not available"):
+            resolve_device("cuda")
+
+    def test_mps_when_available(self):
+        """Test MPS request when MPS is available."""
+        if not torch.backends.mps.is_available():
+            pytest.skip("MPS not available")
+        device = resolve_device("mps")
+        assert device == "mps"
+
+    def test_mps_unavailable_raises_runtime_error(self):
+        """Test MPS request raises RuntimeError when MPS unavailable."""
+        if torch.backends.mps.is_available():
+            pytest.skip("MPS is available, cannot test unavailable case")
+        with pytest.raises(RuntimeError, match="MPS requested but MPS is not available"):
+            resolve_device("mps")
+
+    def test_invalid_spec_raises_value_error(self):
+        """Test invalid device spec raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown device specification"):
+            resolve_device("invalid_device")
+
+    def test_unknown_specs_raise_value_error(self):
+        """Test various unknown specs raise ValueError."""
+        invalid_specs = ["gpu", "cuda:0", "cuda:1", "tpu", "unknown"]
+        for spec in invalid_specs:
+            with pytest.raises(ValueError, match="Unknown device specification"):
+                resolve_device(spec)
+
+    def test_auto_mode_priority_order(self):
+        """Test auto mode follows CUDA -> MPS -> CPU priority."""
+        device = resolve_device("auto")
+        if torch.cuda.is_available():
+            assert device == "cuda"
+        elif torch.backends.mps.is_available():
+            assert device == "mps"
+        else:
+            assert device == "cpu"
