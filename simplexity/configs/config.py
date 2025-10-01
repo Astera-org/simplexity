@@ -52,39 +52,64 @@ def persistence_required(cfg: Config) -> bool:
 
 def logging_required(cfg: Config) -> bool:
     """Check if logging is required."""
+    from omegaconf import DictConfig
+
     if (
         cfg.training.log_every is not None
         and cfg.training.log_every > 0
         and cfg.training.log_every <= cfg.training.num_steps
     ):
         return True
+
+    has_validation = isinstance(cfg, DictConfig) and "validation" in cfg
+    validation_value = cfg.validation if has_validation else None
+
     return bool(
         validation_required(cfg)
-        and cfg.validation
-        and cfg.validation.log_every is not None
-        and cfg.validation.log_every > 0
-        and cfg.validation.log_every <= cfg.validation.num_steps
+        and validation_value
+        and validation_value.log_every is not None
+        and validation_value.log_every > 0
+        and validation_value.log_every <= validation_value.num_steps
     )
 
 
 def validate_config(cfg: Config) -> None:
     """Validate the configuration."""
+    from omegaconf import DictConfig
+
     validate_model_config(cfg.predictive_model)
     validate_training_config(cfg.training)
+
+    # Handle validation config (may not be present in config file)
+    has_validation = isinstance(cfg, DictConfig) and "validation" in cfg
+    validation_value = cfg.validation if has_validation else None
+
     if validation_required(cfg):
-        assert cfg.validation is not None, "Validation is required but not configured"
-        validate_validation_config(cfg.validation)
-        assert cfg.validation_data_generator is not None, "Validation data generator is required but not configured"
+        assert validation_value is not None, "Validation is required but not configured"
+        validate_validation_config(validation_value)
+        has_validation_generator = isinstance(cfg, DictConfig) and "validation_data_generator" in cfg
+        validation_generator_value = cfg.validation_data_generator if has_validation_generator else None
+        assert validation_generator_value is not None, "Validation data generator is required but not configured"
     else:
-        assert cfg.validation is None, "Validation is configured but not required"
-        assert cfg.validation_data_generator is None, "Validation data generator is configured but not required"
+        assert validation_value is None, "Validation is configured but not required"
+        has_validation_generator = isinstance(cfg, DictConfig) and "validation_data_generator" in cfg
+        validation_generator_value = cfg.validation_data_generator if has_validation_generator else None
+        assert validation_generator_value is None, "Validation data generator is configured but not required"
+
+    # Handle persistence config (may not be present in config file)
+    has_persistence = isinstance(cfg, DictConfig) and "persistence" in cfg
+    persistence_value = cfg.persistence if has_persistence else None
 
     if persistence_required(cfg):
-        assert cfg.persistence is not None, "Persistence is required but not configured"
+        assert persistence_value is not None, "Persistence is required but not configured"
     else:
-        assert not cfg.persistence, "Persistence is configured but not required"
+        assert not persistence_value, "Persistence is configured but not required"
 
-    if cfg.logging:
+    # Handle logging config (may not be present in config file)
+    has_logging = isinstance(cfg, DictConfig) and "logging" in cfg
+    logging_value = cfg.logging if has_logging else None
+
+    if logging_value:
         assert logging_required(cfg), "Logging is configured but not required"
     else:
         assert not logging_required(cfg), "Logging is required but not configured"
