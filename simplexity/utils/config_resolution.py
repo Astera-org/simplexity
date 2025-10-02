@@ -1,45 +1,51 @@
-def compute_generator_sequence_length(model_n_ctx: int, use_bos: bool) -> int:
-    """Compute the generator's sequence length from model context length and BOS usage.
+def compute_generator_sequence_length(model_n_ctx: int, use_bos: bool, use_eos: bool = False) -> int:
+    """Compute the generator's sequence length from model context length and special token usage.
 
-    The relationship is: model_n_ctx = generator_seq_len - 1 + BOS
+    The relationship is: model_n_ctx = generator_seq_len - 1 + BOS + EOS
 
-    Solving for generator_seq_len: generator_seq_len = model_n_ctx + 1 - BOS
+    Solving for generator_seq_len: generator_seq_len = model_n_ctx + 1 - BOS - EOS
 
     Args:
         model_n_ctx: The model's context length (number of input positions it processes)
         use_bos: Whether a beginning-of-sequence token is prepended during data generation
+        use_eos: Whether an end-of-sequence token is appended during data generation
 
     Returns:
         The sequence length to configure for the data generator
 
     Examples:
-        >>> compute_generator_sequence_length(model_n_ctx=512, use_bos=True)
+        >>> compute_generator_sequence_length(model_n_ctx=512, use_bos=True, use_eos=False)
         512
-        >>> compute_generator_sequence_length(model_n_ctx=512, use_bos=False)
+        >>> compute_generator_sequence_length(model_n_ctx=512, use_bos=False, use_eos=False)
         513
+        >>> compute_generator_sequence_length(model_n_ctx=512, use_bos=True, use_eos=True)
+        511
     """
-    return model_n_ctx + 1 - int(use_bos)
+    return model_n_ctx + 1 - int(use_bos) - int(use_eos)
 
 
-def compute_model_context_length(generator_seq_len: int, use_bos: bool) -> int:
-    """Compute the model's context length from generator sequence length and BOS usage.
+def compute_model_context_length(generator_seq_len: int, use_bos: bool, use_eos: bool = False) -> int:
+    """Compute the model's context length from generator sequence length and special token usage.
 
-    The relationship is: model_n_ctx = generator_seq_len - 1 + BOS
+    The relationship is: model_n_ctx = generator_seq_len - 1 + BOS + EOS
 
     Args:
         generator_seq_len: The sequence length configured for the data generator
         use_bos: Whether a beginning-of-sequence token is prepended during data generation
+        use_eos: Whether an end-of-sequence token is appended during data generation
 
     Returns:
         The context length for the model (number of input positions it will process)
 
     Examples:
-        >>> compute_model_context_length(generator_seq_len=512, use_bos=True)
+        >>> compute_model_context_length(generator_seq_len=512, use_bos=True, use_eos=False)
         512
-        >>> compute_model_context_length(generator_seq_len=513, use_bos=False)
+        >>> compute_model_context_length(generator_seq_len=513, use_bos=False, use_eos=False)
+        512
+        >>> compute_model_context_length(generator_seq_len=511, use_bos=True, use_eos=True)
         512
     """
-    return generator_seq_len - 1 + int(use_bos)
+    return generator_seq_len - 1 + int(use_bos) + int(use_eos)
 
 
 def compute_model_vocab_size(generator_vocab_size: int, use_bos: bool, use_eos: bool) -> int:

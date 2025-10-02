@@ -20,20 +20,36 @@ class TestComputeGeneratorSequenceLength:
         assert compute_generator_sequence_length(model_n_ctx=512, use_bos=False) == 513
         assert compute_generator_sequence_length(model_n_ctx=100, use_bos=False) == 101
 
+    def test_with_eos_token(self):
+        """When EOS is used, generator_seq_len should be model_n_ctx."""
+        assert compute_generator_sequence_length(model_n_ctx=512, use_bos=False, use_eos=True) == 512
+        assert compute_generator_sequence_length(model_n_ctx=100, use_bos=False, use_eos=True) == 100
+
+    def test_with_bos_and_eos(self):
+        """When both BOS and EOS are used, generator_seq_len should be model_n_ctx - 1."""
+        assert compute_generator_sequence_length(model_n_ctx=512, use_bos=True, use_eos=True) == 511
+        assert compute_generator_sequence_length(model_n_ctx=100, use_bos=True, use_eos=True) == 99
+
     @pytest.mark.parametrize(
-        ("model_n_ctx", "use_bos", "expected"),
+        ("model_n_ctx", "use_bos", "use_eos", "expected"),
         [
-            (1, True, 1),
-            (1, False, 2),
-            (64, True, 64),
-            (64, False, 65),
-            (1024, True, 1024),
-            (1024, False, 1025),
+            (1, True, False, 1),
+            (1, False, False, 2),
+            (1, False, True, 1),
+            (1, True, True, 0),
+            (64, True, False, 64),
+            (64, False, False, 65),
+            (64, False, True, 64),
+            (64, True, True, 63),
+            (1024, True, False, 1024),
+            (1024, False, False, 1025),
+            (1024, False, True, 1024),
+            (1024, True, True, 1023),
         ],
     )
-    def test_parametrized_cases(self, model_n_ctx: int, use_bos: bool, expected: int):
-        """Test various combinations of model_n_ctx and use_bos."""
-        assert compute_generator_sequence_length(model_n_ctx, use_bos) == expected
+    def test_parametrized_cases(self, model_n_ctx: int, use_bos: bool, use_eos: bool, expected: int):
+        """Test various combinations of model_n_ctx, use_bos, and use_eos."""
+        assert compute_generator_sequence_length(model_n_ctx, use_bos, use_eos) == expected
 
     def test_zero_context_with_bos(self):
         """Edge case: zero context length with BOS."""
@@ -57,20 +73,36 @@ class TestComputeModelContextLength:
         assert compute_model_context_length(generator_seq_len=513, use_bos=False) == 512
         assert compute_model_context_length(generator_seq_len=101, use_bos=False) == 100
 
+    def test_with_eos_token(self):
+        """When EOS is used, model_n_ctx should be generator_seq_len."""
+        assert compute_model_context_length(generator_seq_len=512, use_bos=False, use_eos=True) == 512
+        assert compute_model_context_length(generator_seq_len=100, use_bos=False, use_eos=True) == 100
+
+    def test_with_bos_and_eos(self):
+        """When both BOS and EOS are used, model_n_ctx should be generator_seq_len + 1."""
+        assert compute_model_context_length(generator_seq_len=511, use_bos=True, use_eos=True) == 512
+        assert compute_model_context_length(generator_seq_len=99, use_bos=True, use_eos=True) == 100
+
     @pytest.mark.parametrize(
-        ("generator_seq_len", "use_bos", "expected"),
+        ("generator_seq_len", "use_bos", "use_eos", "expected"),
         [
-            (1, True, 1),
-            (2, False, 1),
-            (64, True, 64),
-            (65, False, 64),
-            (1024, True, 1024),
-            (1025, False, 1024),
+            (1, True, False, 1),
+            (2, False, False, 1),
+            (1, False, True, 1),
+            (0, True, True, 1),
+            (64, True, False, 64),
+            (65, False, False, 64),
+            (64, False, True, 64),
+            (63, True, True, 64),
+            (1024, True, False, 1024),
+            (1025, False, False, 1024),
+            (1024, False, True, 1024),
+            (1023, True, True, 1024),
         ],
     )
-    def test_parametrized_cases(self, generator_seq_len: int, use_bos: bool, expected: int):
-        """Test various combinations of generator_seq_len and use_bos."""
-        assert compute_model_context_length(generator_seq_len, use_bos) == expected
+    def test_parametrized_cases(self, generator_seq_len: int, use_bos: bool, use_eos: bool, expected: int):
+        """Test various combinations of generator_seq_len, use_bos, and use_eos."""
+        assert compute_model_context_length(generator_seq_len, use_bos, use_eos) == expected
 
     def test_inverse_relationship_with_bos(self):
         """Verify inverse relationship with compute_generator_sequence_length when using BOS."""
@@ -90,10 +122,11 @@ class TestComputeModelContextLength:
 
     @pytest.mark.parametrize("model_n_ctx", [1, 64, 128, 512, 1024])
     @pytest.mark.parametrize("use_bos", [True, False])
-    def test_round_trip_consistency(self, model_n_ctx: int, use_bos: bool):
+    @pytest.mark.parametrize("use_eos", [True, False])
+    def test_round_trip_consistency(self, model_n_ctx: int, use_bos: bool, use_eos: bool):
         """Verify round-trip conversion maintains original value."""
-        gen_seq_len = compute_generator_sequence_length(model_n_ctx, use_bos)
-        recovered = compute_model_context_length(gen_seq_len, use_bos)
+        gen_seq_len = compute_generator_sequence_length(model_n_ctx, use_bos, use_eos)
+        recovered = compute_model_context_length(gen_seq_len, use_bos, use_eos)
         assert recovered == model_n_ctx
 
 
