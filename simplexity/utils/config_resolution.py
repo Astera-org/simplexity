@@ -1,4 +1,4 @@
-def compute_generator_sequence_length(model_n_ctx: int, use_bos: bool, use_eos: bool = False) -> int:
+def compute_generator_sequence_length(model_n_ctx: int, *, use_bos: bool = False, use_eos: bool = False) -> int:
     """Compute the generator's sequence length from model context length and special token usage.
 
     The relationship is: model_n_ctx = generator_seq_len - 1 + BOS + EOS
@@ -35,7 +35,7 @@ def compute_generator_sequence_length(model_n_ctx: int, use_bos: bool, use_eos: 
     return result
 
 
-def compute_model_context_length(generator_seq_len: int, use_bos: bool, use_eos: bool = False) -> int:
+def compute_model_context_length(generator_seq_len: int, *, use_bos: bool = False, use_eos: bool = False) -> int:
     """Compute the model's context length from generator sequence length and special token usage.
 
     The relationship is: model_n_ctx = generator_seq_len - 1 + BOS + EOS
@@ -70,7 +70,7 @@ def compute_model_context_length(generator_seq_len: int, use_bos: bool, use_eos:
     return result
 
 
-def compute_model_vocab_size(generator_vocab_size: int, use_bos: bool, use_eos: bool = False) -> int:
+def compute_model_vocab_size(generator_vocab_size: int, *, use_bos: bool = False, use_eos: bool = False) -> int:
     """Compute the model's vocabulary size from generator vocab and special tokens.
 
     When BOS or EOS tokens are used during data generation, they are added to the vocabulary,

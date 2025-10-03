@@ -1,29 +1,64 @@
 from pathlib import Path
 
+SUPPORTED_EXTENSIONS = (".pt", ".eqx", ".pkl", ".ckpt", ".pth")
 
-def get_checkpoint_path(directory: Path, step: int, filename: str = "model.pt") -> Path:
+
+def _is_valid_checkpoint_filename(filename: str) -> bool:
+    """Check if filename is a valid checkpoint filename with supported extension.
+
+    Args:
+        filename: The checkpoint filename to validate
+
+    Returns:
+        True if filename has a supported extension, False otherwise
+
+    Examples:
+        >>> _is_valid_checkpoint_filename("model.pt")
+        True
+        >>> _is_valid_checkpoint_filename("state.eqx")
+        True
+        >>> _is_valid_checkpoint_filename("invalid.txt")
+        False
+    """
+    return filename.endswith(SUPPORTED_EXTENSIONS)
+
+
+def get_checkpoint_path(
+    directory: Path, step: int, filename: str = "model.pt", max_steps: int | None = None
+) -> Path:
     """Construct checkpoint path following the standard naming convention.
 
     Args:
         directory: Base directory for checkpoints
         step: Training step number (must be non-negative)
         filename: Checkpoint filename (default: "model.pt")
+        max_steps: Maximum number of training steps. If provided, step will be zero-padded
 
     Returns:
         Path to checkpoint file: {directory}/{step}/{filename}
 
     Raises:
-        ValueError: If step is negative
+        ValueError: If step is negative or filename has unsupported extension
 
     Examples:
         >>> get_checkpoint_path(Path("checkpoints"), 12345)
         PosixPath('checkpoints/12345/model.pt')
         >>> get_checkpoint_path(Path("weights"), 100, "state.pt")
         PosixPath('weights/100/state.pt')
+        >>> get_checkpoint_path(Path("checkpoints"), 42, max_steps=100000)
+        PosixPath('checkpoints/000042/model.pt')
     """
     if step < 0:
         raise ValueError(f"Step must be non-negative, got {step}")
-    return directory / str(step) / filename
+    if not _is_valid_checkpoint_filename(filename):
+        raise ValueError(f"Filename must have one of these extensions: {SUPPORTED_EXTENSIONS}, got {filename}")
+
+    if max_steps is not None:
+        step_str = format_step_number(step, max_steps)
+    else:
+        step_str = str(step)
+
+    return directory / step_str / filename
 
 
 def parse_checkpoint_step(path: str) -> int | None:
@@ -44,7 +79,7 @@ def parse_checkpoint_step(path: str) -> int | None:
         12345
     """
     parts = path.split("/")
-    if len(parts) >= 2 and parts[-1].endswith((".pt", ".eqx")):
+    if len(parts) >= 2 and _is_valid_checkpoint_filename(parts[-1]):
         try:
             return int(parts[-2])
         except ValueError:

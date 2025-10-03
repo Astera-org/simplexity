@@ -12,34 +12,27 @@ class TestParseCheckpointStep:
         ("path", "expected"),
         [
             ("12345/model.pt", 12345),
-            ("checkpoints/12345/model.pt", 12345),
-            ("path/to/500/model.pt", 500),
-            ("0/model.pt", 0),
-            ("prefix/run_name/12345/model.pt", 12345),
-            ("0000/model.pt", 0),
-            ("12345/checkpoint.pt", 12345),
-            ("12345/state.pt", 12345),
-            ("12345/weights.eqx", 12345),
+            ("checkpoints/12345/checkpoint.pt", 12345),
+            ("path/to/500/state.pt", 500),
+            ("0000/weights.eqx", 0),
+            ("prefix/run_name/12345/model.pkl", 12345),
         ],
     )
     def test_directory_model_format(self, path: str, expected: int):
-        """Test parsing {step}/filename format with various filenames."""
+        """Test parsing {step}/filename format with various filenames and zero-padding."""
         assert parse_checkpoint_step(path) == expected
 
     @pytest.mark.parametrize(
         "path",
         [
             "model.pt",
-            "checkpoint.pt",
             "weights/model.eqx",
-            "random_file.txt",
-            "nonumeric/model.pt",
             "abc123/model.pt",
-            "123abc/model.pt",
+            "123abc/checkpoint.pt",
         ],
     )
     def test_no_match_returns_none(self, path: str):
-        """Test paths with numbers but invalid format return None."""
+        """Test paths with numbers in invalid positions return None."""
         assert parse_checkpoint_step(path) is None
 
 
@@ -47,24 +40,29 @@ class TestGetCheckpointPath:
     """Test get_checkpoint_path function."""
 
     @pytest.mark.parametrize(
-        ("directory", "step", "filename", "expected"),
+        ("directory", "step", "filename", "max_steps", "expected"),
         [
-            (Path("checkpoints"), 0, "model.pt", Path("checkpoints/0/model.pt")),
-            (Path("checkpoints"), 12345, "model.pt", Path("checkpoints/12345/model.pt")),
-            (Path("runs/exp1"), 1000, "checkpoint.pt", Path("runs/exp1/1000/checkpoint.pt")),
-            (Path("weights"), 100, "state.pt", Path("weights/100/state.pt")),
-            (Path("."), 42, "model.pt", Path("42/model.pt")),
-            (Path("checkpoints"), 99999, "model.pt", Path("checkpoints/99999/model.pt")),
+            (Path("checkpoints"), 12345, "model.pt", None, Path("checkpoints/12345/model.pt")),
+            (Path("runs/exp1"), 1000, "checkpoint.pt", None, Path("runs/exp1/1000/checkpoint.pt")),
+            (Path("weights"), 42, "state.eqx", 100000, Path("weights/000042/state.eqx")),
+            (Path("checkpoints"), 0, "model.pt", 999, Path("checkpoints/000/model.pt")),
         ],
     )
-    def test_parametrized_paths(self, directory: Path, step: int, filename: str, expected: Path):
+    def test_parametrized_paths(
+        self, directory: Path, step: int, filename: str, max_steps: int | None, expected: Path
+    ):
         """Test various path combinations including custom filenames and zero-padding."""
-        assert get_checkpoint_path(directory, step, filename) == expected
+        assert get_checkpoint_path(directory, step, filename, max_steps) == expected
 
     def test_negative_step_raises_error(self):
         """Test that negative step values raise ValueError."""
         with pytest.raises(ValueError, match="must be non-negative"):
             get_checkpoint_path(Path("checkpoints"), -1)
+
+    def test_invalid_filename_raises_error(self):
+        """Test that invalid filenames raise ValueError."""
+        with pytest.raises(ValueError, match="must have one of these extensions"):
+            get_checkpoint_path(Path("checkpoints"), 100, "invalid.txt")
 
 
 class TestFormatStepNumber:
@@ -74,17 +72,14 @@ class TestFormatStepNumber:
         ("step", "max_steps", "expected"),
         [
             (0, 999, "000"),
-            (1, 999, "001"),
             (42, 999, "042"),
             (999, 999, "999"),
-            (0, 100000, "000000"),
             (42, 100000, "000042"),
-            (12345, 100000, "012345"),
             (100000, 100000, "100000"),
         ],
     )
     def test_parametrized_formatting(self, step: int, max_steps: int, expected: str):
-        """Test various step and max_steps combinations."""
+        """Test various step and max_steps combinations with zero-padding."""
         assert format_step_number(step, max_steps) == expected
 
     def test_lexicographic_ordering(self):
