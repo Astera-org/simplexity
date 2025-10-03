@@ -48,7 +48,7 @@ def compute_model_context_length(generator_seq_len: int, use_bos: bool, use_eos:
     return generator_seq_len - 1 + int(use_bos) + int(use_eos)
 
 
-def compute_model_vocab_size(generator_vocab_size: int, use_bos: bool, use_eos: bool) -> int:
+def compute_model_vocab_size(generator_vocab_size: int, use_bos: bool, use_eos: bool = False) -> int:
     """Compute the model's vocabulary size from generator vocab and special tokens.
 
     When BOS or EOS tokens are used during data generation, they are added to the vocabulary,
