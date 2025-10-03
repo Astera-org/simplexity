@@ -6,11 +6,14 @@ def get_checkpoint_path(directory: Path, step: int, filename: str = "model.pt") 
 
     Args:
         directory: Base directory for checkpoints
-        step: Training step number
+        step: Training step number (must be non-negative)
         filename: Checkpoint filename (default: "model.pt")
 
     Returns:
         Path to checkpoint file: {directory}/{step}/{filename}
+
+    Raises:
+        ValueError: If step is negative
 
     Examples:
         >>> get_checkpoint_path(Path("checkpoints"), 12345)
@@ -18,6 +21,8 @@ def get_checkpoint_path(directory: Path, step: int, filename: str = "model.pt") 
         >>> get_checkpoint_path(Path("weights"), 100, "state.pt")
         PosixPath('weights/100/state.pt')
     """
+    if step < 0:
+        raise ValueError(f"Step must be non-negative, got {step}")
     return directory / str(step) / filename
 
 
@@ -58,12 +63,16 @@ def format_step_number(step: int, max_steps: int) -> str:
     Returns:
         Zero-padded step string
 
+    Raises:
+        ValueError: If step is not between 0 and max_steps
+
     Examples:
         >>> format_step_number(42, max_steps=100000)
         '000042'
         >>> format_step_number(999, max_steps=999)
         '999'
     """
-    assert 0 <= step <= max_steps, f"Step {step} must be between 0 and {max_steps}"
+    if not 0 <= step <= max_steps:
+        raise ValueError(f"Step {step} must be between 0 and {max_steps}")
     width = len(str(max_steps))
     return f"{step:0{width}d}"

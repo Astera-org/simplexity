@@ -36,7 +36,6 @@ class TestComputeGeneratorSequenceLength:
             (1, True, False, 1),
             (1, False, False, 2),
             (1, False, True, 1),
-            (1, True, True, 0),
             (64, True, False, 64),
             (64, False, False, 65),
             (64, False, True, 64),
@@ -51,9 +50,14 @@ class TestComputeGeneratorSequenceLength:
         """Test various combinations of model_n_ctx, use_bos, and use_eos."""
         assert compute_generator_sequence_length(model_n_ctx, use_bos, use_eos) == expected
 
-    def test_zero_context_with_bos(self):
-        """Edge case: zero context length with BOS."""
-        assert compute_generator_sequence_length(model_n_ctx=0, use_bos=True) == 0
+    def test_invalid_configuration_raises_error(self):
+        """Test that invalid configurations raise ValueError."""
+        with pytest.raises(ValueError, match="non-positive generator sequence length"):
+            compute_generator_sequence_length(model_n_ctx=1, use_bos=True, use_eos=True)
+        with pytest.raises(ValueError, match="non-positive generator sequence length"):
+            compute_generator_sequence_length(model_n_ctx=0, use_bos=True, use_eos=False)
+        with pytest.raises(ValueError, match="non-negative"):
+            compute_generator_sequence_length(model_n_ctx=-1, use_bos=False, use_eos=False)
 
     def test_zero_context_without_bos(self):
         """Edge case: zero context length without BOS."""
@@ -89,7 +93,6 @@ class TestComputeModelContextLength:
             (1, True, False, 1),
             (2, False, False, 1),
             (1, False, True, 1),
-            (0, True, True, 1),
             (64, True, False, 64),
             (65, False, False, 64),
             (64, False, True, 64),
@@ -103,6 +106,13 @@ class TestComputeModelContextLength:
     def test_parametrized_cases(self, generator_seq_len: int, use_bos: bool, use_eos: bool, expected: int):
         """Test various combinations of generator_seq_len, use_bos, and use_eos."""
         assert compute_model_context_length(generator_seq_len, use_bos, use_eos) == expected
+
+    def test_invalid_inputs_raise_error(self):
+        """Test that invalid inputs raise ValueError."""
+        with pytest.raises(ValueError, match="must be positive"):
+            compute_model_context_length(generator_seq_len=0, use_bos=True, use_eos=True)
+        with pytest.raises(ValueError, match="must be positive"):
+            compute_model_context_length(generator_seq_len=-1, use_bos=False, use_eos=False)
 
     def test_inverse_relationship_with_bos(self):
         """Verify inverse relationship with compute_generator_sequence_length when using BOS."""
@@ -125,6 +135,9 @@ class TestComputeModelContextLength:
     @pytest.mark.parametrize("use_eos", [True, False])
     def test_round_trip_consistency(self, model_n_ctx: int, use_bos: bool, use_eos: bool):
         """Verify round-trip conversion maintains original value."""
+        # Skip invalid configurations that would produce non-positive sequence lengths
+        if model_n_ctx == 1 and use_bos and use_eos:
+            pytest.skip("Configuration would produce invalid sequence length")
         gen_seq_len = compute_generator_sequence_length(model_n_ctx, use_bos, use_eos)
         recovered = compute_model_context_length(gen_seq_len, use_bos, use_eos)
         assert recovered == model_n_ctx
@@ -174,3 +187,10 @@ class TestComputeModelVocabSize:
     def test_large_vocab(self):
         """Test with large vocabulary sizes."""
         assert compute_model_vocab_size(generator_vocab_size=100000, use_bos=True, use_eos=True) == 100002
+
+    def test_invalid_vocab_size_raises_error(self):
+        """Test that non-positive vocab sizes raise ValueError."""
+        with pytest.raises(ValueError, match="must be positive"):
+            compute_model_vocab_size(generator_vocab_size=0, use_bos=True, use_eos=False)
+        with pytest.raises(ValueError, match="must be positive"):
+            compute_model_vocab_size(generator_vocab_size=-1, use_bos=False, use_eos=False)

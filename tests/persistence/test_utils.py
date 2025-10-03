@@ -66,6 +66,11 @@ class TestGetCheckpointPath:
         """Test various path combinations."""
         assert get_checkpoint_path(directory, step, filename) == expected
 
+    def test_negative_step_raises_error(self):
+        """Test that negative step values raise ValueError."""
+        with pytest.raises(ValueError, match="must be non-negative"):
+            get_checkpoint_path(Path("checkpoints"), -1)
+
 
 class TestFormatStepNumber:
     """Test format_step_number function."""
@@ -115,3 +120,10 @@ class TestFormatStepNumber:
         formatted = format_step_number(step, max_steps)
         expected_width = len(str(max_steps))
         assert len(formatted) == expected_width
+
+    def test_invalid_step_raises_error(self):
+        """Test that invalid step values raise ValueError."""
+        with pytest.raises(ValueError, match="must be between 0 and"):
+            format_step_number(-1, max_steps=100)
+        with pytest.raises(ValueError, match="must be between 0 and"):
+            format_step_number(101, max_steps=100)
