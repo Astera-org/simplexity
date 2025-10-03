@@ -44,7 +44,7 @@ def parse_checkpoint_step(path: str) -> int | None:
         12345
     """
     parts = path.split("/")
-    if len(parts) >= 2 and parts[-1].endswith(".pt"):
+    if len(parts) >= 2 and parts[-1].endswith((".pt", ".eqx")):
         try:
             return int(parts[-2])
         except ValueError:
