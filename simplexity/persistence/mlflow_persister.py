@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
+from simplexity.utils.mlflow_utils import resolve_registry_uri
 
 if TYPE_CHECKING:
     from mlflow import MlflowClient
@@ -79,7 +80,8 @@ class MLFlowPersister(ModelPersister):
         """Create a persister from an MLflow experiment."""
         import mlflow
 
-        client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
+        resolved_registry_uri = resolve_registry_uri(tracking_uri, registry_uri)
+        client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
         experiment = client.get_experiment_by_name(experiment_name)
         if experiment:
             experiment_id = experiment.experiment_id
