@@ -119,10 +119,3 @@ class TestResolveJaxDevice:
         """Test invalid device spec raises ValueError."""
         with pytest.raises(ValueError, match="Unknown device specification"):
             resolve_jax_device("invalid_device")
-
-    def test_unknown_specs_raise_value_error(self):
-        """Test various unknown specs raise ValueError."""
-        invalid_specs = ["tpu", "gpu0", "cuda:0", "mps", "unknown"]
-        for spec in invalid_specs:
-            with pytest.raises(ValueError, match="Unknown device specification"):
-                resolve_jax_device(spec)

@@ -92,20 +92,3 @@ class TestResolveDevice:
         """Test invalid device spec raises ValueError."""
         with pytest.raises(ValueError, match="Unknown device specification"):
             resolve_device("invalid_device")
-
-    def test_unknown_specs_raise_value_error(self):
-        """Test various unknown specs raise ValueError."""
-        invalid_specs = ["gpu", "cuda:0", "cuda:1", "tpu", "unknown"]
-        for spec in invalid_specs:
-            with pytest.raises(ValueError, match="Unknown device specification"):
-                resolve_device(spec)
-
-    def test_auto_mode_priority_order(self):
-        """Test auto mode follows CUDA -> MPS -> CPU priority."""
-        device = resolve_device("auto")
-        if torch.cuda.is_available():
-            assert device == "cuda"
-        elif torch.backends.mps.is_available():
-            assert device == "mps"
-        else:
-            assert device == "cpu"

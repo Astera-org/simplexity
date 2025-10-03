@@ -24,8 +24,7 @@ def compute_generator_sequence_length(model_n_ctx: int, use_bos: bool, use_eos: 
         >>> compute_generator_sequence_length(model_n_ctx=512, use_bos=True, use_eos=True)
         511
     """
-    if model_n_ctx < 0:
-        raise ValueError(f"model_n_ctx must be non-negative, got {model_n_ctx}")
+    assert model_n_ctx > 0, f"model_n_ctx must be positive, got {model_n_ctx}"
 
     result = model_n_ctx + 1 - int(use_bos) - int(use_eos)
     if result <= 0:
@@ -60,8 +59,7 @@ def compute_model_context_length(generator_seq_len: int, use_bos: bool, use_eos:
         >>> compute_model_context_length(generator_seq_len=511, use_bos=True, use_eos=True)
         512
     """
-    if generator_seq_len <= 0:
-        raise ValueError(f"generator_seq_len must be positive, got {generator_seq_len}")
+    assert generator_seq_len > 0, f"generator_seq_len must be positive, got {generator_seq_len}"
 
     result = generator_seq_len - 1 + int(use_bos) + int(use_eos)
     if result <= 0:
@@ -97,6 +95,5 @@ def compute_model_vocab_size(generator_vocab_size: int, use_bos: bool, use_eos: 
         >>> compute_model_vocab_size(generator_vocab_size=100, use_bos=False, use_eos=False)
         100
     """
-    if generator_vocab_size <= 0:
-        raise ValueError(f"generator_vocab_size must be positive, got {generator_vocab_size}")
+    assert generator_vocab_size > 0, f"generator_vocab_size must be positive, got {generator_vocab_size}"
     return generator_vocab_size + int(use_bos) + int(use_eos)

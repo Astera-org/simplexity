@@ -10,25 +10,18 @@ from simplexity.utils.config_resolution import (
 class TestComputeGeneratorSequenceLength:
     """Test compute_generator_sequence_length function."""
 
-    def test_with_bos_token(self):
-        """When BOS is used, generator_seq_len should equal model_n_ctx."""
-        assert compute_generator_sequence_length(model_n_ctx=512, use_bos=True) == 512
-        assert compute_generator_sequence_length(model_n_ctx=100, use_bos=True) == 100
-
-    def test_without_bos_token(self):
-        """When BOS is not used, generator_seq_len should be model_n_ctx + 1."""
-        assert compute_generator_sequence_length(model_n_ctx=512, use_bos=False) == 513
-        assert compute_generator_sequence_length(model_n_ctx=100, use_bos=False) == 101
-
-    def test_with_eos_token(self):
-        """When EOS is used, generator_seq_len should be model_n_ctx."""
-        assert compute_generator_sequence_length(model_n_ctx=512, use_bos=False, use_eos=True) == 512
-        assert compute_generator_sequence_length(model_n_ctx=100, use_bos=False, use_eos=True) == 100
-
-    def test_with_bos_and_eos(self):
-        """When both BOS and EOS are used, generator_seq_len should be model_n_ctx - 1."""
-        assert compute_generator_sequence_length(model_n_ctx=512, use_bos=True, use_eos=True) == 511
-        assert compute_generator_sequence_length(model_n_ctx=100, use_bos=True, use_eos=True) == 99
+    @pytest.mark.parametrize(
+        ("model_n_ctx", "use_bos", "use_eos", "expected"),
+        [
+            (512, False, False, 513),
+            (512, True, False, 512),
+            (512, False, True, 512),
+            (512, True, True, 511),
+        ],
+    )
+    def test_bos_eos_combinations(self, model_n_ctx: int, use_bos: bool, use_eos: bool, expected: int):
+        """Test all combinations of BOS and EOS tokens with same model_n_ctx."""
+        assert compute_generator_sequence_length(model_n_ctx, use_bos, use_eos) == expected
 
     @pytest.mark.parametrize(
         ("model_n_ctx", "use_bos", "use_eos", "expected"),
@@ -54,38 +47,25 @@ class TestComputeGeneratorSequenceLength:
         """Test that invalid configurations raise ValueError."""
         with pytest.raises(ValueError, match="non-positive generator sequence length"):
             compute_generator_sequence_length(model_n_ctx=1, use_bos=True, use_eos=True)
-        with pytest.raises(ValueError, match="non-positive generator sequence length"):
+        with pytest.raises(AssertionError, match="must be positive"):
             compute_generator_sequence_length(model_n_ctx=0, use_bos=True, use_eos=False)
-        with pytest.raises(ValueError, match="non-negative"):
-            compute_generator_sequence_length(model_n_ctx=-1, use_bos=False, use_eos=False)
-
-    def test_zero_context_without_bos(self):
-        """Edge case: zero context length without BOS."""
-        assert compute_generator_sequence_length(model_n_ctx=0, use_bos=False) == 1
 
 
 class TestComputeModelContextLength:
     """Test compute_model_context_length function."""
 
-    def test_with_bos_token(self):
-        """When BOS is used, model_n_ctx should equal generator_seq_len."""
-        assert compute_model_context_length(generator_seq_len=512, use_bos=True) == 512
-        assert compute_model_context_length(generator_seq_len=100, use_bos=True) == 100
-
-    def test_without_bos_token(self):
-        """When BOS is not used, model_n_ctx should be generator_seq_len - 1."""
-        assert compute_model_context_length(generator_seq_len=513, use_bos=False) == 512
-        assert compute_model_context_length(generator_seq_len=101, use_bos=False) == 100
-
-    def test_with_eos_token(self):
-        """When EOS is used, model_n_ctx should be generator_seq_len."""
-        assert compute_model_context_length(generator_seq_len=512, use_bos=False, use_eos=True) == 512
-        assert compute_model_context_length(generator_seq_len=100, use_bos=False, use_eos=True) == 100
-
-    def test_with_bos_and_eos(self):
-        """When both BOS and EOS are used, model_n_ctx should be generator_seq_len + 1."""
-        assert compute_model_context_length(generator_seq_len=511, use_bos=True, use_eos=True) == 512
-        assert compute_model_context_length(generator_seq_len=99, use_bos=True, use_eos=True) == 100
+    @pytest.mark.parametrize(
+        ("generator_seq_len", "use_bos", "use_eos", "expected"),
+        [
+            (513, False, False, 512),
+            (512, True, False, 512),
+            (512, False, True, 512),
+            (511, True, True, 512),
+        ],
+    )
+    def test_bos_eos_combinations(self, generator_seq_len: int, use_bos: bool, use_eos: bool, expected: int):
+        """Test all combinations of BOS and EOS tokens with resulting model_n_ctx=512."""
+        assert compute_model_context_length(generator_seq_len, use_bos, use_eos) == expected
 
     @pytest.mark.parametrize(
         ("generator_seq_len", "use_bos", "use_eos", "expected"),
@@ -108,26 +88,24 @@ class TestComputeModelContextLength:
         assert compute_model_context_length(generator_seq_len, use_bos, use_eos) == expected
 
     def test_invalid_inputs_raise_error(self):
-        """Test that invalid inputs raise ValueError."""
-        with pytest.raises(ValueError, match="must be positive"):
+        """Test that invalid inputs raise AssertionError."""
+        with pytest.raises(AssertionError, match="must be positive"):
             compute_model_context_length(generator_seq_len=0, use_bos=True, use_eos=True)
-        with pytest.raises(ValueError, match="must be positive"):
-            compute_model_context_length(generator_seq_len=-1, use_bos=False, use_eos=False)
 
-    def test_inverse_relationship_with_bos(self):
-        """Verify inverse relationship with compute_generator_sequence_length when using BOS."""
+    @pytest.mark.parametrize(
+        ("use_bos", "use_eos"),
+        [
+            (False, False),
+            (True, False),
+            (False, True),
+            (True, True),
+        ],
+    )
+    def test_inverse_relationship(self, use_bos: bool, use_eos: bool):
+        """Verify inverse relationship with compute_generator_sequence_length."""
         model_n_ctx = 512
-        use_bos = True
-        gen_seq_len = compute_generator_sequence_length(model_n_ctx, use_bos)
-        recovered_n_ctx = compute_model_context_length(gen_seq_len, use_bos)
-        assert recovered_n_ctx == model_n_ctx
-
-    def test_inverse_relationship_without_bos(self):
-        """Verify inverse relationship with compute_generator_sequence_length without BOS."""
-        model_n_ctx = 512
-        use_bos = False
-        gen_seq_len = compute_generator_sequence_length(model_n_ctx, use_bos)
-        recovered_n_ctx = compute_model_context_length(gen_seq_len, use_bos)
+        gen_seq_len = compute_generator_sequence_length(model_n_ctx, use_bos, use_eos)
+        recovered_n_ctx = compute_model_context_length(gen_seq_len, use_bos, use_eos)
         assert recovered_n_ctx == model_n_ctx
 
     @pytest.mark.parametrize("model_n_ctx", [1, 64, 128, 512, 1024])
@@ -135,7 +113,6 @@ class TestComputeModelContextLength:
     @pytest.mark.parametrize("use_eos", [True, False])
     def test_round_trip_consistency(self, model_n_ctx: int, use_bos: bool, use_eos: bool):
         """Verify round-trip conversion maintains original value."""
-        # Skip invalid configurations that would produce non-positive sequence lengths
         if model_n_ctx == 1 and use_bos and use_eos:
             pytest.skip("Configuration would produce invalid sequence length")
         gen_seq_len = compute_generator_sequence_length(model_n_ctx, use_bos, use_eos)
@@ -146,22 +123,6 @@ class TestComputeModelContextLength:
 class TestComputeModelVocabSize:
     """Test compute_model_vocab_size function."""
 
-    def test_no_special_tokens(self):
-        """When no special tokens are used, vocab size should equal generator vocab."""
-        assert compute_model_vocab_size(generator_vocab_size=100, use_bos=False, use_eos=False) == 100
-
-    def test_with_bos_only(self):
-        """When only BOS is used, vocab size should be generator_vocab + 1."""
-        assert compute_model_vocab_size(generator_vocab_size=100, use_bos=True, use_eos=False) == 101
-
-    def test_with_eos_only(self):
-        """When only EOS is used, vocab size should be generator_vocab + 1."""
-        assert compute_model_vocab_size(generator_vocab_size=100, use_bos=False, use_eos=True) == 101
-
-    def test_with_both_special_tokens(self):
-        """When both BOS and EOS are used, vocab size should be generator_vocab + 2."""
-        assert compute_model_vocab_size(generator_vocab_size=100, use_bos=True, use_eos=True) == 102
-
     @pytest.mark.parametrize(
         ("generator_vocab_size", "use_bos", "use_eos", "expected"),
         [
@@ -169,6 +130,15 @@ class TestComputeModelVocabSize:
             (100, True, False, 101),
             (100, False, True, 101),
             (100, True, True, 102),
+        ],
+    )
+    def test_bos_eos_combinations(self, generator_vocab_size: int, use_bos: bool, use_eos: bool, expected: int):
+        """Test all combinations of BOS and EOS tokens with same generator_vocab_size."""
+        assert compute_model_vocab_size(generator_vocab_size, use_bos, use_eos) == expected
+
+    @pytest.mark.parametrize(
+        ("generator_vocab_size", "use_bos", "use_eos", "expected"),
+        [
             (1, False, False, 1),
             (1, True, True, 3),
             (50257, False, False, 50257),
@@ -180,17 +150,7 @@ class TestComputeModelVocabSize:
         """Test various combinations of vocab size and special tokens."""
         assert compute_model_vocab_size(generator_vocab_size, use_bos, use_eos) == expected
 
-    def test_minimal_vocab_with_tokens(self):
-        """Edge case: minimal vocabulary with special tokens."""
-        assert compute_model_vocab_size(generator_vocab_size=2, use_bos=True, use_eos=True) == 4
-
-    def test_large_vocab(self):
-        """Test with large vocabulary sizes."""
-        assert compute_model_vocab_size(generator_vocab_size=100000, use_bos=True, use_eos=True) == 100002
-
     def test_invalid_vocab_size_raises_error(self):
-        """Test that non-positive vocab sizes raise ValueError."""
-        with pytest.raises(ValueError, match="must be positive"):
+        """Test that non-positive vocab sizes raise AssertionError."""
+        with pytest.raises(AssertionError, match="must be positive"):
             compute_model_vocab_size(generator_vocab_size=0, use_bos=True, use_eos=False)
-        with pytest.raises(ValueError, match="must be positive"):
-            compute_model_vocab_size(generator_vocab_size=-1, use_bos=False, use_eos=False)

@@ -16,10 +16,14 @@ class TestParseCheckpointStep:
             ("path/to/500/model.pt", 500),
             ("0/model.pt", 0),
             ("prefix/run_name/12345/model.pt", 12345),
+            ("0000/model.pt", 0),
+            ("12345/checkpoint.pt", 12345),
+            ("12345/state.pt", 12345),
+            ("12345/weights.eqx", 12345),
         ],
     )
     def test_directory_model_format(self, path: str, expected: int):
-        """Test parsing {step}/model.pt format."""
+        """Test parsing {step}/filename format with various filenames."""
         assert parse_checkpoint_step(path) == expected
 
     @pytest.mark.parametrize(
@@ -30,40 +34,31 @@ class TestParseCheckpointStep:
             "weights/model.eqx",
             "random_file.txt",
             "nonumeric/model.pt",
+            "abc123/model.pt",
+            "123abc/model.pt",
         ],
     )
     def test_no_match_returns_none(self, path: str):
-        """Test paths that should not match any pattern."""
+        """Test paths with numbers but invalid format return None."""
         assert parse_checkpoint_step(path) is None
-
-    def test_zero_padded_step_numbers(self):
-        """Test that zero-padded step numbers are correctly parsed."""
-        assert parse_checkpoint_step("0000/model.pt") == 0
 
 
 class TestGetCheckpointPath:
     """Test get_checkpoint_path function."""
 
-    def test_basic_path_construction(self):
-        """Test basic checkpoint path construction."""
-        path = get_checkpoint_path(Path("checkpoints"), 12345)
-        assert path == Path("checkpoints/12345/model.pt")
-
-    def test_custom_filename(self):
-        """Test with custom filename."""
-        path = get_checkpoint_path(Path("weights"), 100, "state.pt")
-        assert path == Path("weights/100/state.pt")
-
     @pytest.mark.parametrize(
         ("directory", "step", "filename", "expected"),
         [
             (Path("checkpoints"), 0, "model.pt", Path("checkpoints/0/model.pt")),
+            (Path("checkpoints"), 12345, "model.pt", Path("checkpoints/12345/model.pt")),
             (Path("runs/exp1"), 1000, "checkpoint.pt", Path("runs/exp1/1000/checkpoint.pt")),
+            (Path("weights"), 100, "state.pt", Path("weights/100/state.pt")),
             (Path("."), 42, "model.pt", Path("42/model.pt")),
+            (Path("checkpoints"), 99999, "model.pt", Path("checkpoints/99999/model.pt")),
         ],
     )
     def test_parametrized_paths(self, directory: Path, step: int, filename: str, expected: Path):
-        """Test various path combinations."""
+        """Test various path combinations including custom filenames and zero-padding."""
         assert get_checkpoint_path(directory, step, filename) == expected
 
     def test_negative_step_raises_error(self):
@@ -74,21 +69,6 @@ class TestGetCheckpointPath:
 
 class TestFormatStepNumber:
     """Test format_step_number function."""
-
-    def test_basic_formatting(self):
-        """Test basic zero-padding behavior."""
-        assert format_step_number(42, max_steps=100) == "042"
-        assert format_step_number(5, max_steps=1000) == "0005"
-
-    def test_no_padding_needed(self):
-        """Test when step already has maximum width."""
-        assert format_step_number(999, max_steps=999) == "999"
-        assert format_step_number(100, max_steps=100) == "100"
-
-    def test_zero_step(self):
-        """Test formatting step 0."""
-        assert format_step_number(0, max_steps=100) == "000"
-        assert format_step_number(0, max_steps=10000) == "00000"
 
     @pytest.mark.parametrize(
         ("step", "max_steps", "expected"),
@@ -112,14 +92,6 @@ class TestFormatStepNumber:
         max_steps = 10000
         formatted = [format_step_number(i, max_steps) for i in [1, 10, 100, 1000, 9999]]
         assert formatted == sorted(formatted)
-
-    def test_width_computation(self):
-        """Verify format_step_number computes width correctly."""
-        max_steps = 100000
-        step = 42
-        formatted = format_step_number(step, max_steps)
-        expected_width = len(str(max_steps))
-        assert len(formatted) == expected_width
 
     def test_invalid_step_raises_error(self):
         """Test that invalid step values raise ValueError."""
