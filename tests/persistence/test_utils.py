@@ -48,9 +48,7 @@ class TestGetCheckpointPath:
             (Path("checkpoints"), 0, "model.pt", 999, Path("checkpoints/000/model.pt")),
         ],
     )
-    def test_parametrized_paths(
-        self, directory: Path, step: int, filename: str, max_steps: int | None, expected: Path
-    ):
+    def test_parametrized_paths(self, directory: Path, step: int, filename: str, max_steps: int | None, expected: Path):
         """Test various path combinations including custom filenames and zero-padding."""
         assert get_checkpoint_path(directory, step, filename, max_steps) == expected
 

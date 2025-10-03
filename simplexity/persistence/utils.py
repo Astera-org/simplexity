@@ -23,9 +23,7 @@ def _is_valid_checkpoint_filename(filename: str) -> bool:
     return filename.endswith(SUPPORTED_EXTENSIONS)
 
 
-def get_checkpoint_path(
-    directory: Path, step: int, filename: str = "model.pt", max_steps: int | None = None
-) -> Path:
+def get_checkpoint_path(directory: Path, step: int, filename: str = "model.pt", max_steps: int | None = None) -> Path:
     """Construct checkpoint path following the standard naming convention.
 
     Args:
