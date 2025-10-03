@@ -21,7 +21,12 @@ def _normalize_databricks_uri(uri: str) -> tuple[str, bool]:
     return uri, False
 
 
-def resolve_registry_uri(tracking_uri: str | None, registry_uri: str | None) -> str | None:
+def resolve_registry_uri(
+    tracking_uri: str | None,
+    registry_uri: str | None,
+    *,
+    allow_workspace_fallback: bool = True,
+) -> str | None:
     """Determine a workspace model registry URI for MLflow operations.
 
     - If an explicit registry URI is provided, convert Unity Catalog URIs to their
@@ -29,8 +34,14 @@ def resolve_registry_uri(tracking_uri: str | None, registry_uri: str | None) -> 
     - If no registry URI is provided, infer one from a Databricks tracking URI.
     - For non-Databricks configurations, return ``None`` so MLflow uses its defaults.
     """
+    def _convert(uri: str) -> tuple[str, bool]:
+        normalized, converted = _normalize_databricks_uri(uri)
+        if converted and not allow_workspace_fallback:
+            return uri, False
+        return normalized, converted
+
     if registry_uri:
-        normalized, converted = _normalize_databricks_uri(registry_uri)
+        normalized, converted = _convert(registry_uri)
         if converted:
             warnings.warn(
                 (
@@ -44,8 +55,8 @@ def resolve_registry_uri(tracking_uri: str | None, registry_uri: str | None) -> 
     if not tracking_uri:
         return None
 
-    normalized, converted = _normalize_databricks_uri(tracking_uri)
-    if normalized.startswith(_WORKSPACE_PREFIX):
+    normalized, converted = _convert(tracking_uri)
+    if normalized.startswith((_WORKSPACE_PREFIX, _UC_PREFIX)):
         if converted:
             warnings.warn(
                 (

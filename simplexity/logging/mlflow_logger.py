@@ -33,9 +33,14 @@ class MLFlowLogger(Logger):
         run_name: str | None = None,
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
+        allow_workspace_fallback: bool = True,
     ):
         """Initialize MLflow logger."""
-        resolved_registry_uri = resolve_registry_uri(tracking_uri, registry_uri)
+        resolved_registry_uri = resolve_registry_uri(
+            tracking_uri,
+            registry_uri,
+            allow_workspace_fallback=allow_workspace_fallback,
+        )
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
         experiment = self._client.get_experiment_by_name(experiment_name)
         if experiment:

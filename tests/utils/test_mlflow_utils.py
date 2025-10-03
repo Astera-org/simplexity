@@ -20,6 +20,13 @@ def test_resolve_registry_uri_converts_uc_registry_uri(recwarn: pytest.WarningsR
     assert "Unity Catalog" in str(warning.message)
 
 
+def test_resolve_registry_uri_respects_disabled_fallback(recwarn: pytest.WarningsRecorder) -> None:
+    """Fallback can be disabled to keep Unity Catalog URIs intact."""
+    result = resolve_registry_uri(None, "databricks-uc", allow_workspace_fallback=False)
+    assert result == "databricks-uc"
+    assert not recwarn.list
+
+
 def test_resolve_registry_uri_infers_from_tracking() -> None:
     """Databricks tracking URIs are reused for the registry by default."""
     assert resolve_registry_uri("databricks://profile", None) == "databricks://profile"
@@ -31,6 +38,13 @@ def test_resolve_registry_uri_demotes_tracking_uc(recwarn: pytest.WarningsRecord
     assert result == "databricks://profile"
     warning = recwarn.pop(UserWarning)
     assert "Unity Catalog tracking URI" in str(warning.message)
+
+
+def test_resolve_registry_uri_tracking_fallback_toggle(recwarn: pytest.WarningsRecorder) -> None:
+    """Unity Catalog tracking URIs stay untouched when fallback is disabled."""
+    result = resolve_registry_uri("databricks-uc://profile", None, allow_workspace_fallback=False)
+    assert result == "databricks-uc://profile"
+    assert not recwarn.list
 
 
 def test_resolve_registry_uri_non_databricks() -> None:
