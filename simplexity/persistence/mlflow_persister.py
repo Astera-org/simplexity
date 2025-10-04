@@ -211,7 +211,8 @@ class MLFlowPersister(ModelPersister):
 
                 with contextlib.suppress(Exception):
                     self.client.create_registered_model(self.registered_model_name)
-            self._registered_model_checked = True
+            # Use object.__setattr__ to bypass frozen instance check
+            object.__setattr__(self, "_registered_model_checked", True)
 
         source = f"runs:/{self.run_id}/{artifact_path}"
         import contextlib
