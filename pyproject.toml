@@ -21,7 +21,7 @@ dependencies = [
     "jax",
     "jupyter",
     "matplotlib",
-    "mlflow",
+    "mlflow>=3.0.0",
     "optax",
     "orbax-checkpoint",
     "pandas",
