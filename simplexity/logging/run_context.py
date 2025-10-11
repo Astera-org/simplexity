@@ -85,6 +85,7 @@ class RunContext:
         log_hydra_artifacts: bool = True,
         log_git_info: bool = True,
         log_environment: bool = True,
+        create_persister: bool = True,
         tags: Mapping[str, Any] | None = None,
         logger: Logger | None = None,
         persister: MLFlowPersister | None = None,
@@ -99,6 +100,7 @@ class RunContext:
         self.log_environment_flag = log_environment
         self.tags = dict(tags) if tags else None
         self.strict = strict
+        self.create_persister = create_persister
 
         self.logger: Logger | None = logger
         self.persister: MLFlowPersister | None = persister
@@ -107,7 +109,7 @@ class RunContext:
         # 1) Instantiate logger/persister if not provided
         if self.logger is None:
             self.logger = typed_instantiate(self.cfg.logging.instance, Logger)
-        if self.persister is None:
+        if self.persister is None and self.create_persister:
             # Instantiate persister only if a persistence config is present
             try:
                 has_persistence = hasattr(self.cfg, "persistence") and hasattr(self.cfg.persistence, "instance")  # type: ignore[attr-defined]
