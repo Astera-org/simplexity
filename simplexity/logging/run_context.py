@@ -108,21 +108,28 @@ class RunContext:
         if self.logger is None:
             self.logger = typed_instantiate(self.cfg.logging.instance, Logger)
         if self.persister is None:
-            # Prefer using from_logger when available in cfg (common pattern)
+            # Instantiate persister only if a persistence config is present
             try:
-                self.persister = typed_instantiate(
-                    self.cfg.persistence.instance,
-                    MLFlowPersister,
-                    logger=self.logger,
-                    model_framework=self.model_framework,
-                )
+                has_persistence = hasattr(self.cfg, "persistence") and hasattr(self.cfg.persistence, "instance")  # type: ignore[attr-defined]
             except Exception:
-                # Fallback: instantiate with explicit client+run_id if config expects that
-                self.persister = typed_instantiate(
-                    self.cfg.persistence.instance,
-                    MLFlowPersister,
-                    model_framework=self.model_framework,
-                )
+                has_persistence = False
+
+            if has_persistence:
+                # Prefer using from_logger when available in cfg (common pattern)
+                try:
+                    self.persister = typed_instantiate(
+                        self.cfg.persistence.instance,
+                        MLFlowPersister,
+                        logger=self.logger,
+                        model_framework=self.model_framework,
+                    )
+                except Exception:
+                    # Fallback: instantiate with explicit client+run_id if config expects that
+                    self.persister = typed_instantiate(
+                        self.cfg.persistence.instance,
+                        MLFlowPersister,
+                        model_framework=self.model_framework,
+                    )
 
         # 2) Log resolved config and optional pre‑mutation snapshot
         self.logger.log_config(self.cfg, resolve=True)
