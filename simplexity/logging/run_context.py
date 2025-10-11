@@ -58,7 +58,7 @@ class RunContext:
     source_relpath : str | None, optional
         Source script path relative to repo root (e.g., "mess3_simple/run.py"), by default None.
     model_framework : ModelFramework, optional
-        Model framework enum for persistence routing, by default ModelFramework.Equinox.
+        Model framework enum for persistence routing, by default ModelFramework.Pytorch.
     log_hydra_artifacts : bool, optional
         Whether to upload `.hydra/` artifacts, by default True.
     log_git_info : bool, optional
@@ -73,6 +73,11 @@ class RunContext:
         Optional pre-instantiated persister; if None, created from cfg, by default None.
     strict : bool, optional
         If True, raise on provenance failures (e.g., missing source file). If False, warn, by default False.
+    # Standard tags schema (recommended):
+    # - run.kind: "train" | "sae" | "analysis"
+    # - task: experiment name (e.g., "mess3_simple")
+    # - seed: random seed (string)
+    # - source.run_id: parent/source run id (for analysis/SAE)
     """
 
     def __init__(
@@ -81,7 +86,7 @@ class RunContext:
         *,
         pre_cfg_unresolved: Mapping[str, Any] | None = None,
         source_relpath: str | None = None,
-        model_framework: ModelFramework = ModelFramework.Equinox,
+        model_framework: ModelFramework = ModelFramework.Pytorch,
         log_hydra_artifacts: bool = True,
         log_git_info: bool = True,
         log_environment: bool = True,
