@@ -19,12 +19,6 @@ if TYPE_CHECKING:
     from simplexity.logging.mlflow_logger import MLFlowLogger
 
 
-def _normalize_artifact_path(artifact_path: str) -> str:
-    """Return a normalized artifact path without surrounding slashes."""
-    artifact_path = artifact_path.strip()
-    return artifact_path.strip("/")
-
-
 class MLFlowPersister(ModelPersister):
     """Persist model checkpoints as MLflow artifacts, optionally reusing an existing run."""
 
@@ -52,7 +46,7 @@ class MLFlowPersister(ModelPersister):
     ):
         self.client = client
         self.run_id = run_id
-        self.artifact_path = _normalize_artifact_path(artifact_path)
+        self.artifact_path = artifact_path.strip().strip("/")
         self.model_framework = model_framework
         self.registered_model_name = registered_model_name
         self._temp_dir = temp_dir or tempfile.TemporaryDirectory()
