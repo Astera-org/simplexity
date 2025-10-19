@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import shutil
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
@@ -27,7 +28,7 @@ def _normalize_artifact_path(artifact_path: str) -> str:
 class MLFlowPersister(ModelPersister):
     """Persist model checkpoints as MLflow artifacts, optionally reusing an existing run."""
 
-    client: Any
+    client: MlflowClient
     run_id: str
     artifact_path: str
     model_framework: ModelFramework
@@ -36,12 +37,11 @@ class MLFlowPersister(ModelPersister):
     _base_dir: Path
     _artifact_dir: Path
     _local_persister: ModelPersister
-    _registered_model_checked: bool
     _managed_run: bool
 
     def __init__(
         self,
-        client: MlflowClient | Any,
+        client: MlflowClient,
         run_id: str,
         *,
         artifact_path: str = "models",
@@ -63,7 +63,6 @@ class MLFlowPersister(ModelPersister):
         self._artifact_dir = self._base_dir / self.artifact_path if self.artifact_path else self._base_dir
         self._artifact_dir.mkdir(parents=True, exist_ok=True)
         self._local_persister = self._build_local_persister(self._artifact_dir)
-        self._registered_model_checked = False
 
     @classmethod
     def from_experiment(
@@ -203,19 +202,16 @@ class MLFlowPersister(ModelPersister):
         if not self.registered_model_name:
             return
 
-        if not self._registered_model_checked:
-            try:
-                self.client.get_registered_model(self.registered_model_name)
-            except Exception:
-                import contextlib
-
-                with contextlib.suppress(Exception):
-                    self.client.create_registered_model(self.registered_model_name)
-            self._registered_model_checked = True
+        # Check if model exists, create if it doesn't
+        matches = self.client.search_registered_models(
+            filter_string=f"name = '{self.registered_model_name}'",
+            max_results=1,
+        )
+        if not matches:
+            with contextlib.suppress(Exception):
+                self.client.create_registered_model(self.registered_model_name)
 
         source = f"runs:/{self.run_id}/{artifact_path}"
-        import contextlib
-
         with contextlib.suppress(Exception):
             # Surface registration failures as warnings while allowing training to proceed.
             self.client.create_model_version(
