@@ -6,7 +6,7 @@ This project targets the Databricks **Workspace Model Registry** by default beca
 
 - Hydra config `logging=mlflow_logger` sets `tracking_uri=databricks` and `registry_uri=databricks`.
 - `simplexity.utils.mlflow_utils.resolve_registry_uri` downgrades Unity Catalog URIs (``databricks-uc``) to workspace URIs when `allow_workspace_fallback=True` (the default) and emits a warning so you know a downgrade happened.
-- `MLFlowLogger` and `MLFlowPersister.from_experiment` both call `resolve_registry_uri`, so any code path that uses Simplexity helpers gets the same fallback logic.
+- `MLFlowLogger` and the `MLFlowPersister` factory helpers call `resolve_registry_uri`, so any code path that uses Simplexity helpers gets the same fallback logic.
 - `examples/mlflow_workspace_registry_demo.py` mirrors this behaviour and can be used to sanity-check Databricks connectivity.
 
 ## Preparing for a Future Unity Catalog Migration
