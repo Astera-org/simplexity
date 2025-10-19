@@ -6,12 +6,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-chex = pytest.importorskip("chex")
-jax = pytest.importorskip("jax")
-
+from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.predictive_models.gru_rnn import GRURNN
 from simplexity.predictive_models.types import ModelFramework
+
+chex = pytest.importorskip("chex")
+jax = pytest.importorskip("jax")
 
 
 def get_model(seed: int) -> GRURNN:
@@ -102,12 +103,10 @@ def test_mlflow_persister_registers_versions(tmp_path: Path, mlflow_client_mock:
     persister.cleanup()
 
 
-def test_mlflow_persister_from_logger_reuses_run(
-    tmp_path: Path, mlflow_client_mock: tuple[MagicMock, Path]
-):
+def test_mlflow_persister_from_logger_reuses_run(tmp_path: Path, mlflow_client_mock: tuple[MagicMock, Path]):
     """Persister created from logger uses existing client/run without terminating it."""
 
-    class DummyLogger:
+    class DummyLogger(MLFlowLogger):
         def __init__(self, client: MagicMock):
             self._client = client
             self._run_id = "run_123"
