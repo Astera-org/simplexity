@@ -10,15 +10,15 @@ _WORKSPACE_PREFIX: Final = "databricks"
 _SCHEME_SEPARATOR: Final = "://"
 
 
-def _normalize_databricks_uri(uri: str) -> tuple[str, bool]:
+def _normalize_databricks_uri(uri: str) -> str:
     """Convert Databricks Unity Catalog URIs to workspace-compatible equivalents."""
     if uri == _UC_PREFIX:
-        return _WORKSPACE_PREFIX, True
+        return _WORKSPACE_PREFIX
     prefix = f"{_UC_PREFIX}{_SCHEME_SEPARATOR}"
     if uri.startswith(prefix):
         suffix = uri.split(_SCHEME_SEPARATOR, 1)[1]
-        return f"{_WORKSPACE_PREFIX}{_SCHEME_SEPARATOR}{suffix}", True
-    return uri, False
+        return f"{_WORKSPACE_PREFIX}{_SCHEME_SEPARATOR}{suffix}"
+    return uri
 
 
 def resolve_registry_uri(
@@ -34,39 +34,32 @@ def resolve_registry_uri(
     - If no registry URI is provided, infer one from a Databricks tracking URI.
     - For non-Databricks configurations, return ``None`` so MLflow uses its defaults.
     """
-
-    def _convert(uri: str) -> tuple[str, bool]:
-        normalized, converted = _normalize_databricks_uri(uri)
-        if converted and not allow_workspace_fallback:
-            return uri, False
-        return normalized, converted
-
     if registry_uri:
-        normalized, converted = _convert(registry_uri)
-        if converted:
-            warnings.warn(
-                (
-                    f"Unity Catalog registry URI '{registry_uri}' is not supported by this environment; "
-                    f"using workspace registry URI '{normalized}' instead."
-                ),
-                stacklevel=2,
-            )
-        return normalized
+        if allow_workspace_fallback:
+            normalized = _normalize_databricks_uri(registry_uri)
+            if normalized != registry_uri:
+                warnings.warn(
+                    (
+                        f"Unity Catalog registry URI '{registry_uri}' is not supported by this environment; "
+                        f"using workspace registry URI '{normalized}' instead."
+                    ),
+                    stacklevel=2,
+                )
+            return normalized
+        return registry_uri
 
-    if not tracking_uri:
-        return None
-
-    normalized, converted = _convert(tracking_uri)
-    if normalized.startswith((_WORKSPACE_PREFIX, _UC_PREFIX)):
-        if converted:
-            warnings.warn(
-                (
-                    f"Unity Catalog tracking URI '{tracking_uri}' detected; "
-                    f"falling back to workspace registry URI '{normalized}'."
-                ),
-                stacklevel=2,
-            )
-        return normalized
+    if tracking_uri:
+        normalized = _normalize_databricks_uri(tracking_uri)
+        if normalized.startswith((_WORKSPACE_PREFIX, _UC_PREFIX)):
+            if normalized != tracking_uri:
+                warnings.warn(
+                    (
+                        f"Unity Catalog tracking URI '{tracking_uri}' detected; "
+                        f"falling back to workspace registry URI '{normalized}'."
+                    ),
+                    stacklevel=2,
+                )
+            return normalized
 
     return None
 
