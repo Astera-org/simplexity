@@ -34,6 +34,7 @@ def resolve_registry_uri(
     - If no registry URI is provided, infer one from a Databricks tracking URI.
     - For non-Databricks configurations, return ``None`` so MLflow uses its defaults.
     """
+
     def _convert(uri: str) -> tuple[str, bool]:
         normalized, converted = _normalize_databricks_uri(uri)
         if converted and not allow_workspace_fallback:
