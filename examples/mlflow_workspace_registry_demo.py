@@ -14,6 +14,9 @@ from hydra.core.config_store import ConfigStore
 from mlflow.entities.model_registry import ModelVersion
 from omegaconf import MISSING
 
+from simplexity.logging.mlflow_logger import MLFlowLogger
+from simplexity.persistence.mlflow_persister import MLFlowPersister
+from simplexity.predictive_models.types import ModelFramework
 from simplexity.utils.mlflow_utils import resolve_registry_uri
 
 try:
@@ -67,14 +70,6 @@ LEGACY_CONFIG_NAME = "mlflow_unity_catalog_demo"
 config_store = ConfigStore.instance()
 config_store.store(name=CONFIG_NAME, node=DemoConfig)
 config_store.store(name=LEGACY_CONFIG_NAME, node=DemoConfig)
-
-
-def ensure_experiment(client: mlflow.MlflowClient, name: str) -> str:
-    """Ensure an experiment exists."""
-    experiment = client.get_experiment_by_name(name)
-    if experiment:
-        return experiment.experiment_id
-    return client.create_experiment(name)
 
 
 def await_model_version_ready(
@@ -141,93 +136,90 @@ def run_demo(config: DemoConfig) -> None:
     if resolved_registry_uri:
         mlflow.set_registry_uri(resolved_registry_uri)
 
-    client = mlflow.MlflowClient(tracking_uri=mlflow.get_tracking_uri(), registry_uri=mlflow.get_registry_uri())
-    experiment_id = ensure_experiment(client, config.experiment)
+    logger = MLFlowLogger(
+        experiment_name=config.experiment,
+        run_name=config.run_name,
+        tracking_uri=config.tracking_uri,
+        registry_uri=resolved_registry_uri,
+        allow_workspace_fallback=config.allow_workspace_fallback,
+    )
+    persister = MLFlowPersister.from_logger(
+        logger,
+        artifact_path=config.artifact_path,
+        model_framework=ModelFramework.Pytorch,
+        registered_model_name=config.registered_model_name,
+    )
 
     torch.manual_seed(7)
     model = TinyClassifier()
     sample_input = torch.randn(4, 4)
 
-    run_id: str = ""  # Initialize to avoid "possibly unbound" error
-    model_version: ModelVersion | None = None  # Initialize to avoid "possibly unbound" error
-
-    with mlflow.start_run(experiment_id=experiment_id, run_name=config.run_name) as run:
-        run_id = run.info.run_id
-        mlflow.log_params({"demo": "workspace_registry", "framework": "pytorch", "layers": len(list(model.modules()))})
-
-        # First log the model without registering it
-        mlflow.pytorch.log_model(  # type: ignore[attr-defined]
-            model,
-            artifact_path=config.artifact_path,
+    try:
+        logger.log_params(
+            {
+                "demo": "workspace_registry",
+                "framework": "pytorch",
+                "layers": len(list(model.modules())),
+            }
         )
-
-        # Then register the model separately
-        try:
-            client.create_registered_model(config.registered_model_name)
-            print(f"Created registered model: {config.registered_model_name}")
-        except Exception as e:
-            if "already exists" in str(e).lower():
-                print(f"Registered model {config.registered_model_name} already exists")
-            else:
-                raise
-
-        # Create model version using the model URI from the logged model
-        model_uri = f"runs:/{run_id}/{config.artifact_path}"
-        model_version = client.create_model_version(
-            name=config.registered_model_name,
-            source=model_uri,
-            run_id=run_id,
-            description="Demo model from workspace registry",
-        )
-        print(f"Created model version: {model_version.version}")
 
         predictions = model(sample_input).detach()
-        mlflow.log_artifact(
+        logger.log_artifact(
             _dump_tensor(predictions, "predictions.txt"),
             artifact_path="artifacts",
         )
 
-    # Wait for model version to be ready
-    if model_version is None:
-        raise RuntimeError("Failed to create model version")
-    ready_version = await_model_version_ready(
-        client,
-        config.registered_model_name,
-        model_version.version,
-        config.poll_interval,
-        config.poll_timeout,
-    )
+        persister.save_weights(model, step=0)
 
-    model_uri = f"models:/{config.registered_model_name}/{ready_version.version}"
-    loaded_model = mlflow.pytorch.load_model(model_uri)  # type: ignore[attr-defined]
-    restored_model = TinyClassifier()
-    restored_model.load_state_dict(loaded_model.state_dict())
+        run_info = logger.client.get_run(logger.run_id)
+        experiment_id = run_info.info.experiment_id
 
-    verification_input = torch.randn(2, 4)
-    original_output = model(verification_input)
-    restored_output = restored_model(verification_input)
-    if not torch.allclose(original_output, restored_output, atol=1e-5):
-        raise RuntimeError("Loaded weights differ from the original model outputs.")
+        model_version = search_model_version_for_run(
+            logger.client,
+            config.registered_model_name,
+            logger.run_id,
+        )
+        ready_version = await_model_version_ready(
+            logger.client,
+            config.registered_model_name,
+            model_version.version,
+            config.poll_interval,
+            config.poll_timeout,
+        )
 
-    run_url, model_url = build_databricks_urls(
-        config.databricks_host,
-        experiment_id,
-        run_id,
-        config.registered_model_name,
-        ready_version.version,
-    )
+        model_uri = f"models:/{config.registered_model_name}/{ready_version.version}"
+        loaded_model = mlflow.pytorch.load_model(model_uri)  # type: ignore[attr-defined]
+        restored_model = TinyClassifier()
+        restored_model.load_state_dict(loaded_model.state_dict())
 
-    info_lines = [
-        "MLflow workspace registry demo complete!",
-        f"Run ID: {run_id}",
-        f"Model URI: {model_uri}",
-        f"Model version status: {ready_version.status}",
-    ]
-    if run_url:
-        info_lines.append(f"Run UI: {run_url}")
-    if model_url:
-        info_lines.append(f"Model UI: {model_url}")
-    print("\n".join(info_lines))
+        verification_input = torch.randn(2, 4)
+        original_output = model(verification_input)
+        restored_output = restored_model(verification_input)
+        if not torch.allclose(original_output, restored_output, atol=1e-5):
+            raise RuntimeError("Loaded weights differ from the original model outputs.")
+
+        run_url, model_url = build_databricks_urls(
+            config.databricks_host,
+            experiment_id,
+            logger.run_id,
+            config.registered_model_name,
+            ready_version.version,
+        )
+
+        info_lines = [
+            "MLflow workspace registry demo complete!",
+            f"Run ID: {logger.run_id}",
+            f"Model URI: {model_uri}",
+            f"Model version status: {ready_version.status}",
+        ]
+        if run_url:
+            info_lines.append(f"Run UI: {run_url}")
+        if model_url:
+            info_lines.append(f"Model UI: {model_url}")
+        print("\n".join(info_lines))
+    finally:
+        persister.cleanup()
+        logger.close()
 
 
 def _dump_tensor(tensor: torch.Tensor, filename: str) -> str:
