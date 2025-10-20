@@ -37,8 +37,8 @@ class MLFlowLogger(Logger):
     ):
         """Initialize MLflow logger."""
         resolved_registry_uri = resolve_registry_uri(
-            registry_uri,
-            tracking_uri,
+            registry_uri=registry_uri,
+            tracking_uri=tracking_uri,
             allow_workspace_fallback=allow_workspace_fallback,
         )
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)

@@ -127,8 +127,8 @@ def build_databricks_urls(
 def run_demo(config: DemoConfig) -> None:
     """Run the MLflow workspace registry demo."""
     resolved_registry_uri = resolve_registry_uri(
-        config.tracking_uri,
-        config.registry_uri,
+        registry_uri=config.registry_uri,
+        tracking_uri=config.tracking_uri,
         allow_workspace_fallback=config.allow_workspace_fallback,
     )
     if config.tracking_uri:

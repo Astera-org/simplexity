@@ -4,49 +4,115 @@ from __future__ import annotations
 
 import pytest
 
-from simplexity.utils.mlflow_utils import resolve_registry_uri
+from simplexity.utils.mlflow_utils import SCHEME_SEPARATOR, UC_PREFIX, WORKSPACE_PREFIX, resolve_registry_uri
+
+FILE_URI = "file:///example"
+WORKSPACE_URI = WORKSPACE_PREFIX
+WORKSPACE_PROFILE_URI = f"{WORKSPACE_PREFIX}{SCHEME_SEPARATOR}example_profile"
+UC_URI = UC_PREFIX
+UC_PROFILE_URI = f"{UC_PREFIX}{SCHEME_SEPARATOR}example_profile"
 
 
-def test_resolve_registry_uri_prefers_explicit_workspace() -> None:
-    """Explicit workspace URIs are returned unchanged."""
-    assert resolve_registry_uri("databricks", "databricks") == "databricks"
+class TestResolveRegistryUri:
+    """Test class for resolve_registry_uri function."""
 
+    def test_no_uris_returns_none(self, recwarn: pytest.WarningsRecorder) -> None:
+        """No URIs return None."""
+        assert resolve_registry_uri() is None
+        assert not recwarn.list
 
-def test_resolve_registry_uri_converts_uc_registry_uri(recwarn: pytest.WarningsRecorder) -> None:
-    """Unity Catalog registry URIs are downgraded to workspace URIs with a warning."""
-    result = resolve_registry_uri("databricks-uc", None)
-    assert result == "databricks"
-    warning = recwarn.pop(UserWarning)
-    assert "Unity Catalog" in str(warning.message)
+    @pytest.mark.parametrize("allow_workspace_fallback", [True, False])
+    def test_file_uri_is_returned_unchanged(
+        self, allow_workspace_fallback: bool, recwarn: pytest.WarningsRecorder
+    ) -> None:
+        """File registry URIs are returned unchanged."""
+        registry_uri = FILE_URI
+        assert (
+            resolve_registry_uri(
+                registry_uri, tracking_uri="any_tracking_uri", allow_workspace_fallback=allow_workspace_fallback
+            )
+            == registry_uri
+        )
+        assert not recwarn.list
 
+    @pytest.mark.parametrize("registry_uri", [WORKSPACE_URI, WORKSPACE_PROFILE_URI])
+    @pytest.mark.parametrize("allow_workspace_fallback", [True, False])
+    def test_workspace_registry_uri_is_returned_unchanged(
+        self, registry_uri: str, allow_workspace_fallback: bool, recwarn: pytest.WarningsRecorder
+    ) -> None:
+        """Explicit workspace URIs are returned unchanged."""
+        assert (
+            resolve_registry_uri(
+                registry_uri, tracking_uri="any_tracking_uri", allow_workspace_fallback=allow_workspace_fallback
+            )
+            == registry_uri
+        )
+        assert not recwarn.list
 
-def test_resolve_registry_uri_respects_disabled_fallback(recwarn: pytest.WarningsRecorder) -> None:
-    """Fallback can be disabled to keep Unity Catalog URIs intact."""
-    result = resolve_registry_uri("databricks-uc", None, allow_workspace_fallback=False)
-    assert result == "databricks-uc"
-    assert not recwarn.list
+    @pytest.mark.parametrize("registry_uri", [UC_URI, UC_PROFILE_URI])
+    def test_uc_registry_uri_is_returned_unchanged_without_fallback(
+        self, registry_uri: str, recwarn: pytest.WarningsRecorder
+    ) -> None:
+        """Unity Catalog registry URIs are returned unchanged without fallback."""
+        assert (
+            resolve_registry_uri(registry_uri, tracking_uri="any_tracking_uri", allow_workspace_fallback=False)
+            == registry_uri
+        )
+        assert not recwarn.list
 
+    @pytest.mark.parametrize(
+        ("registry_uri", "resolved_uri"),
+        [
+            (UC_URI, WORKSPACE_URI),
+            (UC_PROFILE_URI, WORKSPACE_PROFILE_URI),
+        ],
+    )
+    def test_uc_registry_uri_is_downgraded_to_workspace_with_fallback(
+        self, registry_uri: str, resolved_uri: str, recwarn: pytest.WarningsRecorder
+    ) -> None:
+        """Unity Catalog registry URIs are downgraded to workspace URIs with fallback."""
+        assert (
+            resolve_registry_uri(registry_uri, tracking_uri="any_tracking_uri", allow_workspace_fallback=True)
+            == resolved_uri
+        )
+        warning = recwarn.pop(UserWarning)
+        assert "Unity Catalog URI" in str(warning.message)
 
-def test_resolve_registry_uri_infers_from_tracking() -> None:
-    """Databricks tracking URIs are reused for the registry by default."""
-    assert resolve_registry_uri(None, "databricks://profile") == "databricks://profile"
+    def test_non_databricks_tracking_uri_ignored(self, recwarn: pytest.WarningsRecorder) -> None:
+        assert resolve_registry_uri(tracking_uri=FILE_URI) is None
+        assert not recwarn.list
 
+    @pytest.mark.parametrize("tracking_uri", [WORKSPACE_URI, WORKSPACE_PROFILE_URI])
+    @pytest.mark.parametrize("allow_workspace_fallback", [True, False])
+    def test_workspace_tracking_uri_is_returned_unchanged(
+        self, tracking_uri: str, allow_workspace_fallback: bool, recwarn: pytest.WarningsRecorder
+    ) -> None:
+        """Explicit workspace URIs are returned unchanged."""
+        assert (
+            resolve_registry_uri(tracking_uri=tracking_uri, allow_workspace_fallback=allow_workspace_fallback)
+            == tracking_uri
+        )
+        assert not recwarn.list
 
-def test_resolve_registry_uri_demotes_tracking_uc(recwarn: pytest.WarningsRecorder) -> None:
-    """Unity Catalog tracking URIs fall back to workspace registry URIs."""
-    result = resolve_registry_uri(None, "databricks-uc://profile")
-    assert result == "databricks://profile"
-    warning = recwarn.pop(UserWarning)
-    assert "Unity Catalog tracking URI" in str(warning.message)
+    @pytest.mark.parametrize("tracking_uri", [UC_URI, UC_PROFILE_URI])
+    def test_uc_tracking_uri_is_returned_unchanged_without_fallback(
+        self, tracking_uri: str, recwarn: pytest.WarningsRecorder
+    ) -> None:
+        """Unity Catalog registry URIs are returned unchanged without fallback."""
+        assert resolve_registry_uri(tracking_uri=tracking_uri, allow_workspace_fallback=False) == tracking_uri
+        assert not recwarn.list
 
-
-def test_resolve_registry_uri_tracking_fallback_toggle(recwarn: pytest.WarningsRecorder) -> None:
-    """Unity Catalog tracking URIs stay untouched when fallback is disabled."""
-    result = resolve_registry_uri(None, "databricks-uc://profile", allow_workspace_fallback=False)
-    assert result == "databricks-uc://profile"
-    assert not recwarn.list
-
-
-def test_resolve_registry_uri_non_databricks() -> None:
-    """Non-Databricks tracking URIs leave the registry unset."""
-    assert resolve_registry_uri(None, "file:///tmp") is None
+    @pytest.mark.parametrize(
+        ("tracking_uri", "resolved_uri"),
+        [
+            (UC_URI, WORKSPACE_URI),
+            (UC_PROFILE_URI, WORKSPACE_PROFILE_URI),
+        ],
+    )
+    def test_uc_tracking_uri_is_downgraded_to_workspace_with_fallback(
+        self, tracking_uri: str, resolved_uri: str, recwarn: pytest.WarningsRecorder
+    ) -> None:
+        """Unity Catalog registry URIs are downgraded to workspace URIs with fallback."""
+        assert resolve_registry_uri(tracking_uri=tracking_uri, allow_workspace_fallback=True) == resolved_uri
+        warning = recwarn.pop(UserWarning)
+        assert "Unity Catalog URI" in str(warning.message)
