@@ -39,7 +39,7 @@ class MLFlowPersister(ModelPersister):
         run_id: str,
         *,
         artifact_path: str = "models",
-        model_framework: ModelFramework = ModelFramework.Equinox,
+        model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
         temp_dir: tempfile.TemporaryDirectory | None = None,
         managed_run: bool = False,
@@ -67,7 +67,7 @@ class MLFlowPersister(ModelPersister):
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
         artifact_path: str = "models",
-        model_framework: ModelFramework = ModelFramework.Equinox,
+        model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
         downgrade_unity_catalog: bool = True,
     ) -> MLFlowPersister:
@@ -101,7 +101,7 @@ class MLFlowPersister(ModelPersister):
         logger: MLFlowLogger,
         *,
         artifact_path: str = "models",
-        model_framework: ModelFramework = ModelFramework.Equinox,
+        model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
     ) -> MLFlowPersister:
         """Create a persister reusing an existing MLFlowLogger run."""
