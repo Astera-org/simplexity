@@ -22,8 +22,8 @@ def _normalize_databricks_uri(uri: str) -> str:
 
 
 def resolve_registry_uri(
-    tracking_uri: str | None,
     registry_uri: str | None,
+    tracking_uri: str | None,
     *,
     allow_workspace_fallback: bool = True,
 ) -> str | None:
