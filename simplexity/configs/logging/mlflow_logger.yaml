@@ -5,4 +5,4 @@ instance:
   run_name: ${run_name}
   tracking_uri: databricks
   registry_uri: databricks
-  allow_workspace_fallback: true
+  downgrade_unity_catalog: true

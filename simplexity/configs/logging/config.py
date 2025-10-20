@@ -30,7 +30,7 @@ class MLFlowLoggerConfig(LoggingInstanceConfig):
     run_name: str
     tracking_uri: str
     registry_uri: str | None = None
-    allow_workspace_fallback: bool = True
+    downgrade_unity_catalog: bool = True
 
 
 @dataclass

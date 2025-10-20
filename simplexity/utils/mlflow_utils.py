@@ -14,7 +14,7 @@ def resolve_registry_uri(
     registry_uri: str | None = None,
     *,
     tracking_uri: str | None = None,
-    allow_workspace_fallback: bool = True,
+    downgrade_unity_catalog: bool = True,
 ) -> str | None:
     """Determine a workspace model registry URI for MLflow operations."""
 
@@ -34,12 +34,12 @@ def resolve_registry_uri(
         return uri
 
     if registry_uri:
-        if allow_workspace_fallback:
+        if downgrade_unity_catalog:
             return convert_uri(registry_uri)
         return registry_uri
 
     if tracking_uri and tracking_uri.startswith("databricks"):
-        if allow_workspace_fallback:
+        if downgrade_unity_catalog:
             return convert_uri(tracking_uri)
         return tracking_uri
 

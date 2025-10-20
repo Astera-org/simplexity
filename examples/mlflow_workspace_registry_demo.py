@@ -61,7 +61,7 @@ class DemoConfig:
     poll_interval: float = 2.0
     poll_timeout: float = 300.0
     databricks_host: str | None = field(default_factory=lambda: os.getenv("DATABRICKS_HOST"))
-    allow_workspace_fallback: bool = True
+    downgrade_unity_catalog: bool = True
 
 
 CONFIG_NAME = "mlflow_workspace_registry_demo"
@@ -129,7 +129,7 @@ def run_demo(config: DemoConfig) -> None:
     resolved_registry_uri = resolve_registry_uri(
         registry_uri=config.registry_uri,
         tracking_uri=config.tracking_uri,
-        allow_workspace_fallback=config.allow_workspace_fallback,
+        downgrade_unity_catalog=config.downgrade_unity_catalog,
     )
     if config.tracking_uri:
         mlflow.set_tracking_uri(config.tracking_uri)
@@ -141,7 +141,7 @@ def run_demo(config: DemoConfig) -> None:
         run_name=config.run_name,
         tracking_uri=config.tracking_uri,
         registry_uri=resolved_registry_uri,
-        allow_workspace_fallback=config.allow_workspace_fallback,
+        downgrade_unity_catalog=config.downgrade_unity_catalog,
     )
     persister = MLFlowPersister.from_logger(
         logger,

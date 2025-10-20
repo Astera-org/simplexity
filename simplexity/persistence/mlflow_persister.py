@@ -69,7 +69,7 @@ class MLFlowPersister(ModelPersister):
         artifact_path: str = "models",
         model_framework: ModelFramework = ModelFramework.Equinox,
         registered_model_name: str | None = None,
-        allow_workspace_fallback: bool = True,
+        downgrade_unity_catalog: bool = True,
     ) -> MLFlowPersister:
         """Create a persister from an MLflow experiment."""
         import mlflow
@@ -77,7 +77,7 @@ class MLFlowPersister(ModelPersister):
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
-            allow_workspace_fallback=allow_workspace_fallback,
+            downgrade_unity_catalog=downgrade_unity_catalog,
         )
         client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
         experiment = client.get_experiment_by_name(experiment_name)
