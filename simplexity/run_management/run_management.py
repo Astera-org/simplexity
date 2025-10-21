@@ -1,4 +1,5 @@
 import logging
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,12 @@ def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
     if args and isinstance(args[0], DictConfig):
         return args[0]
     raise ValueError("No config found in arguments or kwargs.")
+
+
+def _working_tree_is_clean() -> bool:
+    """Check if the working tree is clean."""
+    result = subprocess.run(["git", "diff-index", "--quiet", "HEAD", "--"], capture_output=True, text=True)
+    return result.returncode == 0
 
 
 def _setup_logging(cfg: DictConfig) -> Logger | None:
@@ -54,8 +61,10 @@ def _log_hydra_artifacts(logger: Logger) -> None:
                 logging.warning("Failed to log Hydra artifact %s: %s", path, e)
 
 
-def _setup(cfg: DictConfig, verbose: bool) -> Components:
+def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
+    if strict:
+        assert _working_tree_is_clean(), "Working tree is dirty"
     logger = _setup_logging(cfg)
     if logger:
         logger.log_config(cfg, resolve=True)
@@ -63,6 +72,8 @@ def _setup(cfg: DictConfig, verbose: bool) -> Components:
         logger.log_git_info()
         if verbose:
             _log_hydra_artifacts(logger)
+    elif strict:
+        raise ValueError("No logger found")
     return Components(logger=logger)
 
 
@@ -72,13 +83,13 @@ def _cleanup(components: Components) -> None:
         components.logger.close()
 
 
-def managed_run(verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Manage a run."""
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             cfg = _get_config(args, kwargs)
-            components = _setup(cfg, verbose=verbose)
+            components = _setup(cfg, strict=strict, verbose=verbose)
             output = fn(*args, **kwargs, components=components)
             _cleanup(components)
             return output
