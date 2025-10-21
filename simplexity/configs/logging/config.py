@@ -29,6 +29,8 @@ class MLFlowLoggerConfig(LoggingInstanceConfig):
     experiment_name: str
     run_name: str
     tracking_uri: str
+    registry_uri: str | None = None
+    allow_workspace_fallback: bool = True
 
 
 @dataclass
