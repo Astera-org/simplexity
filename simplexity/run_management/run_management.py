@@ -6,6 +6,7 @@ from typing import Any
 
 from omegaconf import DictConfig
 
+from simplexity.configs.logging.config import Config as LoggingConfig
 from simplexity.logging.logger import Logger
 from simplexity.run_management.run_logging import (
     log_environment_artifacts,
@@ -45,8 +46,9 @@ def _setup_logging(cfg: DictConfig) -> Logger | None:
     """Setup the logging."""
     # Suppress databricks SDK INFO messages
     logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
-    if cfg.logging and cfg.logging.instance:
-        logger = typed_instantiate(cfg.logging.instance, Logger)
+    logging_config: LoggingConfig | None = getattr(cfg, "logging", None)
+    if logging_config:
+        logger = typed_instantiate(logging_config.instance, Logger)
         return logger
     return None
 
@@ -56,8 +58,9 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
     logger.log_params(cfg)
     log_git_info(logger)
     log_system_info(logger)
-    if cfg.tags:
-        logger.log_tags(cfg.tags)
+    tags = getattr(cfg, "tags", {})
+    if tags:
+        logger.log_tags(tags)
     if verbose:
         log_hydra_artifacts(logger)
         log_environment_artifacts(logger)
@@ -68,7 +71,8 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     if strict:
         assert _working_tree_is_clean(), "Working tree is dirty"
-        missing_required_tags = set(REQUIRED_TAGS) - set(cfg.tags)
+        tags = getattr(cfg, "tags", {})
+        missing_required_tags = set(REQUIRED_TAGS) - set(tags.keys())
         assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
     logger = _setup_logging(cfg)
     if logger:
