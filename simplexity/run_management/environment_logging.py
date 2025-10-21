@@ -1,6 +1,5 @@
 import inspect
 import logging
-import os
 import platform
 import sys
 import tempfile
@@ -14,20 +13,21 @@ from simplexity.utils.git import get_git_info
 
 def _get_calling_file_path() -> str | None:
     """Get the file path of the script that called the decorated function."""
+    # TODO: not the most robust, contains hardcoded heuristics for identifying internal modules
     try:
         # Get the current frame and walk up the stack to find the calling file
         current_frame = inspect.currentframe()
         if current_frame:
             # Walk up the stack to find the first non-built-in file that's not an internal module
             frame = current_frame.f_back
-            this_module_path = os.path.abspath(__file__)
-            run_management_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_management.py"))
+            this_module_path = Path(__file__).resolve()
+            run_management_path = this_module_path.parent / "run_management.py"
 
             # Get the project root to identify internal modules
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            project_root = this_module_path.parent.parent
 
             while frame:
-                frame_path = os.path.abspath(frame.f_code.co_filename)
+                frame_path = Path(frame.f_code.co_filename).resolve()
 
                 # Skip built-in modules
                 if frame.f_code.co_filename.startswith("<"):
@@ -41,20 +41,21 @@ def _get_calling_file_path() -> str | None:
 
                 # Skip internal library files (hydra, simplexity modules, etc.)
                 # Only skip if it's actually a library file, not a user script
-                if frame_path.startswith(project_root) and (
-                    "site-packages" in frame_path
-                    or "hydra" in frame_path.lower()
+                if (
+                    "site-packages" in str(frame_path)
+                    or "hydra" in str(frame_path).lower()
                     or (
-                        "simplexity" in frame_path.lower()
-                        and "simplexity/" in frame_path.lower()
-                        and not frame_path.endswith(".py")
+                        frame_path.is_relative_to(project_root)
+                        and "simplexity" in str(frame_path).lower()
+                        and "simplexity/" in str(frame_path).lower()
+                        and frame_path.suffix != ".py"
                     )
                 ):
                     frame = frame.f_back
                     continue
 
                 # This looks like a user script
-                return frame_path
+                return str(frame_path)
     except Exception:
         # If we can't get the calling file path, return None
         pass
