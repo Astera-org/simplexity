@@ -11,7 +11,6 @@ from simplexity.run_management.run_management import Components
 @simplexity.managed_run
 def main(cfg: DictConfig, components: Components) -> None:
     """Test the managed run decorator."""
-    print(f"Config: {cfg}")
     if components.logger:
         print(f"Logger: {components.logger.__class__.__name__}")
     else:

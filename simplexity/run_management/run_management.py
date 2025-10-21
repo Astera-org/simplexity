@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -26,6 +27,8 @@ def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
 
 def _setup_logging(cfg: DictConfig) -> Logger | None:
     """Setup the logging."""
+    # Suppress databricks SDK INFO messages
+    logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
     if cfg.logging and cfg.logging.instance:
         logger = typed_instantiate(cfg.logging.instance, Logger)
         logger.log_config(cfg)
