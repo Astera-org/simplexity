@@ -2,14 +2,17 @@ import logging
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
 from simplexity.logging.logger import Logger
-from simplexity.run_management.environment_logging import log_git_info
+from simplexity.run_management.environment_logging import (
+    log_environment_artifacts,
+    log_git_info,
+    log_hydra_artifacts,
+    log_system_info,
+)
 from simplexity.utils.hydra import typed_instantiate
 
 
@@ -45,23 +48,6 @@ def _setup_logging(cfg: DictConfig) -> Logger | None:
     return None
 
 
-_HYDRA_ARTIFACTS = ("config.yaml", "hydra.yaml", "overrides.yaml")
-
-
-def _log_hydra_artifacts(logger: Logger) -> None:
-    try:
-        hydra_dir = Path(HydraConfig.get().runtime.output_dir) / ".hydra"
-    except Exception:
-        return
-    for artifact in _HYDRA_ARTIFACTS:
-        path = hydra_dir / artifact
-        if path.exists():
-            try:
-                logger.log_artifact(str(path), artifact_path=".hydra")
-            except Exception as e:
-                logging.warning("Failed to log Hydra artifact %s: %s", path, e)
-
-
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     if strict:
@@ -71,8 +57,10 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
         logger.log_config(cfg, resolve=True)
         logger.log_params(cfg)
         log_git_info(logger)
+        log_system_info(logger)
         if verbose:
-            _log_hydra_artifacts(logger)
+            log_hydra_artifacts(logger)
+            log_environment_artifacts(logger)
     elif strict:
         raise ValueError("No logger found")
     return Components(logger=logger)

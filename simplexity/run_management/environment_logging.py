@@ -1,7 +1,10 @@
+import logging
 import platform
 import sys
 import tempfile
 from pathlib import Path
+
+from hydra.core.hydra_config import HydraConfig
 
 from simplexity.logging.logger import Logger
 from simplexity.utils.git import get_git_info
@@ -41,3 +44,19 @@ def log_system_info(logger: Logger) -> None:
             f.write(f"Processor: {platform.processor()}\n")
 
         logger.log_artifact(str(info_path), "environment")
+
+
+def log_hydra_artifacts(logger: Logger) -> None:
+    """Log Hydra artifacts for reproducibility."""
+    try:
+        hydra_dir = Path(HydraConfig.get().runtime.output_dir) / ".hydra"
+    except Exception:
+        return
+    hydra_artifacts = ["config.yaml", "hydra.yaml", "overrides.yaml"]
+    for artifact in hydra_artifacts:
+        path = hydra_dir / artifact
+        if path.exists():
+            try:
+                logger.log_artifact(str(path), artifact_path=".hydra")
+            except Exception as e:
+                logging.warning("Failed to log Hydra artifact %s: %s", path, e)
