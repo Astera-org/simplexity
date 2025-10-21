@@ -2,12 +2,37 @@
 
 from __future__ import annotations
 
+import configparser
 import warnings
+from pathlib import Path
 from typing import Final
 
 UC_PREFIX: Final = "databricks-uc"
 WORKSPACE_PREFIX: Final = "databricks"
 SCHEME_SEPARATOR: Final = "://"
+_CONFIG_PATH = Path(__file__).parent.parent.parent / "config.ini"
+
+
+def get_databricks_host() -> str | None:
+    """Load configuration from config.ini file."""
+    if not _CONFIG_PATH.exists():
+        print(f"Error: Configuration file not found at {_CONFIG_PATH}")
+        print("Please create a config.ini file based on config.ini.example")
+        return None
+
+    config = configparser.ConfigParser()
+    try:
+        config.read(_CONFIG_PATH)
+        if "databricks" not in config:
+            raise configparser.NoSectionError("databricks")
+        if "host" not in config["databricks"]:
+            raise configparser.NoOptionError("host", "databricks")
+
+        return config["databricks"]["host"]
+    except (configparser.NoSectionError, configparser.NoOptionError) as e:
+        print(f"Error reading configuration: {e}")
+        print("Please ensure config.ini has a [databricks] section with a 'host' key")
+        return None
 
 
 def resolve_registry_uri(
