@@ -16,6 +16,8 @@ from simplexity.run_management.environment_logging import (
 )
 from simplexity.utils.hydra import typed_instantiate
 
+REQUIRED_TAGS = ["research_step", "retention"]
+
 
 @dataclass
 class Components:
@@ -54,6 +56,8 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
     logger.log_params(cfg)
     log_git_info(logger)
     log_system_info(logger)
+    if cfg.tags:
+        logger.log_tags(cfg.tags)
     if verbose:
         log_hydra_artifacts(logger)
         log_environment_artifacts(logger)
@@ -64,6 +68,8 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     if strict:
         assert _working_tree_is_clean(), "Working tree is dirty"
+        missing_required_tags = set(REQUIRED_TAGS) - set(cfg.tags)
+        assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
     logger = _setup_logging(cfg)
     if logger:
         _do_logging(cfg, logger, verbose)

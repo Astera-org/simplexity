@@ -4,3 +4,8 @@ defaults:
 
 experiment_name: managed_run_demo
 run_name: managed_run_demo
+tags:
+  research_step: demo
+  retention: temp
+  example_tag_1: value1
+  example_tag_2: value2
