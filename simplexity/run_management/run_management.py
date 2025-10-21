@@ -9,6 +9,7 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
 from simplexity.logging.logger import Logger
+from simplexity.run_management.environment_logging import log_git_info
 from simplexity.utils.hydra import typed_instantiate
 
 
@@ -69,7 +70,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     if logger:
         logger.log_config(cfg, resolve=True)
         logger.log_params(cfg)
-        logger.log_git_info()
+        log_git_info(logger)
         if verbose:
             _log_hydra_artifacts(logger)
     elif strict:
