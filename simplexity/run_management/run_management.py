@@ -33,8 +33,6 @@ def _setup_logging(cfg: DictConfig) -> Logger | None:
     logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
     if cfg.logging and cfg.logging.instance:
         logger = typed_instantiate(cfg.logging.instance, Logger)
-        logger.log_config(cfg, resolve=True)
-        logger.log_params(cfg)
         return logger
     return None
 
@@ -59,8 +57,12 @@ def _log_hydra_artifacts(logger: Logger) -> None:
 def _setup(cfg: DictConfig, verbose: bool) -> Components:
     """Setup the run."""
     logger = _setup_logging(cfg)
-    if logger and verbose:
-        _log_hydra_artifacts(logger)
+    if logger:
+        logger.log_config(cfg, resolve=True)
+        logger.log_params(cfg)
+        logger.log_git_info()
+        if verbose:
+            _log_hydra_artifacts(logger)
     return Components(logger=logger)
 
 
