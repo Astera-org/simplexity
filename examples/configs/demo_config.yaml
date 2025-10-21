@@ -1,1 +1,6 @@
-key: value
+defaults:
+  - _self_
+  - logging: mlflow_logger
+
+experiment_name: managed_run_demo
+run_name: managed_run_demo

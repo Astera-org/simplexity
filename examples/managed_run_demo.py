@@ -4,13 +4,18 @@ import hydra
 from omegaconf import DictConfig
 
 import simplexity
+from simplexity.run_management.run_management import Components
 
 
 @hydra.main(config_path=str(Path(__file__).parent / "configs"), config_name="demo_config.yaml", version_base="1.2")
 @simplexity.managed_run
-def main(cfg: DictConfig) -> None:
+def main(cfg: DictConfig, components: Components) -> None:
     """Test the managed run decorator."""
     print(f"Config: {cfg}")
+    if components.logger:
+        print(f"Logger: {components.logger.__class__.__name__}")
+    else:
+        print("No logger found")
 
 
 if __name__ == "__main__":

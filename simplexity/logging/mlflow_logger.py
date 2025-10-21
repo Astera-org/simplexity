@@ -44,10 +44,10 @@ class MLFlowLogger(Logger):
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
         experiment = self._client.get_experiment_by_name(experiment_name)
         if experiment:
-            experiment_id = experiment.experiment_id
+            self._experiment_id = experiment.experiment_id
         else:
-            experiment_id = self._client.create_experiment(experiment_name)
-        run = self._client.create_run(experiment_id=experiment_id, run_name=run_name)
+            self._experiment_id = self._client.create_experiment(experiment_name)
+        run = self._client.create_run(experiment_id=self._experiment_id, run_name=run_name)
         self._run_id = run.info.run_id
         self._tracking_uri = tracking_uri
         self._registry_uri = resolved_registry_uri
@@ -56,6 +56,11 @@ class MLFlowLogger(Logger):
     def client(self) -> mlflow.MlflowClient:
         """Expose underlying MLflow client for integrations."""
         return self._client
+
+    @property
+    def experiment_id(self) -> str:
+        """Expose active MLflow experiment identifier."""
+        return self._experiment_id
 
     @property
     def run_id(self) -> str:

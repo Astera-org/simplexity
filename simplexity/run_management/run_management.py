@@ -1,7 +1,18 @@
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from omegaconf import DictConfig
+
+from simplexity.logging.logger import Logger
+from simplexity.utils.hydra import typed_instantiate
+
+
+@dataclass
+class Components:
+    """Components for the run."""
+
+    logger: Logger | None
 
 
 def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
@@ -13,14 +24,26 @@ def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
     raise ValueError("No config found in arguments or kwargs.")
 
 
-def _setup(cfg: DictConfig) -> None:
+def _setup_logging(cfg: DictConfig) -> Logger | None:
+    """Setup the logging."""
+    if cfg.logging and cfg.logging.instance:
+        logger = typed_instantiate(cfg.logging.instance, Logger)
+        logger.log_config(cfg)
+        logger.log_params(cfg)
+        return logger
+    return None
+
+
+def _setup(cfg: DictConfig) -> Components:
     """Setup the run."""
-    print(f"Managed run setup with config: {cfg}")
+    logger = _setup_logging(cfg)
+    return Components(logger=logger)
 
 
-def _cleanup(cfg: DictConfig) -> None:
+def _cleanup(components: Components) -> None:
     """Cleanup the run."""
-    print(f"Managed run cleanup with config: {cfg}")
+    if components.logger:
+        components.logger.close()
 
 
 def managed_run(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -28,9 +51,9 @@ def managed_run(fn: Callable[..., Any]) -> Callable[..., Any]:
 
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         cfg = _get_config(args, kwargs)
-        _setup(cfg)
-        output = fn(*args, **kwargs)
-        _cleanup(cfg)
+        components = _setup(cfg)
+        output = fn(*args, **kwargs, components=components)
+        _cleanup(components)
         return output
 
     return wrapper

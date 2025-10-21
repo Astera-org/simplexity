@@ -1,0 +1,8 @@
+name: mlflow_logger
+instance:
+  _target_: simplexity.logging.mlflow_logger.MLFlowLogger
+  experiment_name: /Shared/${experiment_name}
+  run_name: ${run_name}
+  tracking_uri: databricks
+  registry_uri: databricks
+  downgrade_unity_catalog: true
