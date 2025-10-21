@@ -8,7 +8,7 @@ from simplexity.run_management.run_management import Components
 
 
 @hydra.main(config_path=str(Path(__file__).parent / "configs"), config_name="demo_config.yaml", version_base="1.2")
-@simplexity.managed_run
+@simplexity.managed_run(verbose=True)
 def main(cfg: DictConfig, components: Components) -> None:
     """Test the managed run decorator."""
     if components.logger:

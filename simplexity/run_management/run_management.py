@@ -1,8 +1,10 @@
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
 from simplexity.logging.logger import Logger
@@ -31,15 +33,34 @@ def _setup_logging(cfg: DictConfig) -> Logger | None:
     logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
     if cfg.logging and cfg.logging.instance:
         logger = typed_instantiate(cfg.logging.instance, Logger)
-        logger.log_config(cfg)
+        logger.log_config(cfg, resolve=True)
         logger.log_params(cfg)
         return logger
     return None
 
 
-def _setup(cfg: DictConfig) -> Components:
+_HYDRA_ARTIFACTS = ("config.yaml", "hydra.yaml", "overrides.yaml")
+
+
+def _log_hydra_artifacts(logger: Logger) -> None:
+    try:
+        hydra_dir = Path(HydraConfig.get().runtime.output_dir) / ".hydra"
+    except Exception:
+        return
+    for artifact in _HYDRA_ARTIFACTS:
+        path = hydra_dir / artifact
+        if path.exists():
+            try:
+                logger.log_artifact(str(path), artifact_path=".hydra")
+            except Exception as e:
+                logging.warning("Failed to log Hydra artifact %s: %s", path, e)
+
+
+def _setup(cfg: DictConfig, verbose: bool) -> Components:
     """Setup the run."""
     logger = _setup_logging(cfg)
+    if logger and verbose:
+        _log_hydra_artifacts(logger)
     return Components(logger=logger)
 
 
@@ -49,14 +70,17 @@ def _cleanup(components: Components) -> None:
         components.logger.close()
 
 
-def managed_run(fn: Callable[..., Any]) -> Callable[..., Any]:
+def managed_run(verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Manage a run."""
 
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        cfg = _get_config(args, kwargs)
-        components = _setup(cfg)
-        output = fn(*args, **kwargs, components=components)
-        _cleanup(components)
-        return output
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            cfg = _get_config(args, kwargs)
+            components = _setup(cfg, verbose=verbose)
+            output = fn(*args, **kwargs, components=components)
+            _cleanup(components)
+            return output
 
-    return wrapper
+        return wrapper
+
+    return decorator
