@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from hydra.core.hydra_config import HydraConfig
+from hydra.utils import get_original_cwd
 
 from simplexity.logging.logger import Logger
 from simplexity.utils.git import get_git_info
@@ -60,3 +61,20 @@ def log_hydra_artifacts(logger: Logger) -> None:
                 logger.log_artifact(str(path), artifact_path=".hydra")
             except Exception as e:
                 logging.warning("Failed to log Hydra artifact %s: %s", path, e)
+
+
+def log_source_script(logger: Logger) -> None:
+    """Log the source script for reproducibility."""
+    try:
+        # Try to get the original working directory from Hydra, fallback to current directory
+        try:
+            repo_root = Path(get_original_cwd())
+        except Exception:
+            # If Hydra is not initialized, use current working directory
+            repo_root = Path.cwd()
+
+        script_path = repo_root / __file__  # TODO: replace with actual script path
+        if script_path.exists():
+            logger.log_artifact(str(script_path), artifact_path="source")
+    except Exception as e:
+        logging.warning("Failed to log source script: %s", e)

@@ -11,6 +11,7 @@ from simplexity.run_management.environment_logging import (
     log_environment_artifacts,
     log_git_info,
     log_hydra_artifacts,
+    log_source_script,
     log_system_info,
 )
 from simplexity.utils.hydra import typed_instantiate
@@ -48,19 +49,24 @@ def _setup_logging(cfg: DictConfig) -> Logger | None:
     return None
 
 
+def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
+    logger.log_config(cfg, resolve=True)
+    logger.log_params(cfg)
+    log_git_info(logger)
+    log_system_info(logger)
+    if verbose:
+        log_hydra_artifacts(logger)
+        log_environment_artifacts(logger)
+        log_source_script(logger)
+
+
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     if strict:
         assert _working_tree_is_clean(), "Working tree is dirty"
     logger = _setup_logging(cfg)
     if logger:
-        logger.log_config(cfg, resolve=True)
-        logger.log_params(cfg)
-        log_git_info(logger)
-        log_system_info(logger)
-        if verbose:
-            log_hydra_artifacts(logger)
-            log_environment_artifacts(logger)
+        _do_logging(cfg, logger, verbose)
     elif strict:
         raise ValueError("No logger found")
     return Components(logger=logger)
