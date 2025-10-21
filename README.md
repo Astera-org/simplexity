@@ -1,5 +1,7 @@
 # Simplexity
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Astera-org/simplexity)
+
 A library for exploring sequence prediction models from a Computational Mechanics perspective.
 
 ## Codebase Structure
@@ -63,6 +65,7 @@ uv run python simplexity/run_experiment.py --multirun
 ### Model Checkpointing
 
 The `ModelPersister` class is responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket.
+
 #### Using S3 Storage
 
 The `S3Persister`, can be configured using an `.ini` file, which should have the following structure:
