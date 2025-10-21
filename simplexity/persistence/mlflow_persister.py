@@ -8,13 +8,17 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import mlflow
+
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
 from simplexity.utils.mlflow_utils import resolve_registry_uri
 
 if TYPE_CHECKING:
+    import mlflow.pytorch as mlflow_pytorch
     from mlflow import MlflowClient
+    from torch.nn import Module as PytorchModel
 
     from simplexity.logging.mlflow_logger import MLFlowLogger
 
@@ -72,8 +76,6 @@ class MLFlowPersister(ModelPersister):
         downgrade_unity_catalog: bool = True,
     ) -> MLFlowPersister:
         """Create a persister from an MLflow experiment."""
-        import mlflow
-
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
@@ -146,6 +148,8 @@ class MLFlowPersister(ModelPersister):
 
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
         """Download MLflow artifacts and restore them into the provided model."""
+        if self.model_framework == ModelFramework.Pytorch:
+            return self._load_pytorch_weights(step)
         self._clear_step_dir(step)
         artifact_path = self._remote_step_path(step)
         try:
@@ -163,6 +167,13 @@ class MLFlowPersister(ModelPersister):
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
 
         return self._local_persister.load_weights(model, step)
+
+    def _load_pytorch_weights(self, step: int) -> PytorchModel:
+        """Load PyTorch weights from MLflow."""
+        version = str(step)
+        assert self.registered_model_name
+        model_uri = self.client.get_model_version_download_uri(self.registered_model_name, version)
+        return mlflow_pytorch.load_model(model_uri)
 
     def _build_local_persister(self, directory: Path) -> ModelPersister:
         if self.model_framework == ModelFramework.Equinox:
