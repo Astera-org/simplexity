@@ -7,7 +7,7 @@ from typing import Any
 from omegaconf import DictConfig
 
 from simplexity.logging.logger import Logger
-from simplexity.run_management.environment_logging import (
+from simplexity.run_management.run_logging import (
     log_environment_artifacts,
     log_git_info,
     log_hydra_artifacts,
