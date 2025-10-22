@@ -7,7 +7,9 @@ from typing import Any
 from omegaconf import DictConfig
 
 from simplexity.configs.logging.config import Config as LoggingConfig
+from simplexity.configs.persistence.config import Config as PersisterConfig
 from simplexity.logging.logger import Logger
+from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.run_logging import (
     log_environment_artifacts,
     log_git_info,
@@ -25,6 +27,7 @@ class Components:
     """Components for the run."""
 
     logger: Logger | None
+    persister: ModelPersister | None
 
 
 def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
@@ -67,6 +70,14 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
         log_source_script(logger)
 
 
+def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
+    """Setup the persister."""
+    persister_config: PersisterConfig | None = getattr(cfg, "persistence", None)
+    if persister_config:
+        return typed_instantiate(persister_config.instance, ModelPersister)
+    return None
+
+
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     if strict:
@@ -79,13 +90,16 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
         _do_logging(cfg, logger, verbose)
     elif strict:
         raise ValueError("No logger found")
-    return Components(logger=logger)
+    persister = _setup_persister(cfg)
+    return Components(logger=logger, persister=persister)
 
 
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
     if components.logger:
         components.logger.close()
+    if components.persister:
+        components.persister.cleanup()
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
