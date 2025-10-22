@@ -24,6 +24,10 @@ def main(cfg: DictConfig, components: Components) -> None:
             print("No model framework found")
     else:
         print("No persister found")
+    if components.predictive_model:
+        print(f"Predictive model: {components.predictive_model.__class__.__name__}")
+    else:
+        print("No predictive model found")
 
 
 if __name__ == "__main__":

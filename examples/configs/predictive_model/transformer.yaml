@@ -1,0 +1,15 @@
+instance:
+  _target_: transformer_lens.HookedTransformer
+  cfg:
+    _target_: transformer_lens.HookedTransformerConfig
+    d_model: 1
+    d_head: 1
+    n_heads: 1
+    n_layers: 1
+    n_ctx: 1
+    d_mlp: 1
+    d_vocab: 1
+    act_fn: "relu"
+    normalization_type: "LN"
+    device: "cpu"
+    seed: ${seed}

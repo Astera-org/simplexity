@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+import hydra
 from omegaconf import DictConfig
 
 from simplexity.configs.logging.config import Config as LoggingConfig
@@ -28,6 +29,7 @@ class Components:
 
     logger: Logger | None
     persister: ModelPersister | None
+    predictive_model: Any  # TODO: improve typing
 
 
 def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
@@ -78,6 +80,14 @@ def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
     return None
 
 
+def _setup_predictive_model(cfg: DictConfig) -> Any | None:
+    """Setup the predictive model."""
+    predictive_model_config = getattr(cfg, "predictive_model", None)
+    if predictive_model_config:
+        return hydra.utils.instantiate(predictive_model_config.instance)  # TODO: typed instantiate
+    return None
+
+
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     if strict:
@@ -91,7 +101,8 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     elif strict:
         raise ValueError("No logger found")
     persister = _setup_persister(cfg)
-    return Components(logger=logger, persister=persister)
+    predictive_model = _setup_predictive_model(cfg)
+    return Components(logger=logger, persister=persister, predictive_model=predictive_model)
 
 
 def _cleanup(components: Components) -> None:
