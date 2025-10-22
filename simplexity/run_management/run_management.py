@@ -85,6 +85,7 @@ def _setup_predictive_model(cfg: DictConfig) -> Any | None:
     predictive_model_config = getattr(cfg, "predictive_model", None)
     if predictive_model_config:
         return hydra.utils.instantiate(predictive_model_config.instance)  # TODO: typed instantiate
+        # TODO: load checkpoint using persister
     return None
 
 
@@ -101,6 +102,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     elif strict:
         raise ValueError("No logger found")
     persister = _setup_persister(cfg)
+    # TODO: set random seeds
     predictive_model = _setup_predictive_model(cfg)
     return Components(logger=logger, persister=persister, predictive_model=predictive_model)
 
