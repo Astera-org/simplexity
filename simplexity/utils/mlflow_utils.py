@@ -5,7 +5,10 @@ from __future__ import annotations
 import configparser
 import warnings
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from mlflow import MlflowClient
 
 UC_PREFIX: Final = "databricks-uc"
 WORKSPACE_PREFIX: Final = "databricks"
@@ -69,6 +72,14 @@ def resolve_registry_uri(
         return tracking_uri
 
     return None
+
+
+def maybe_terminate_run(client: MlflowClient, run_id: str) -> None:
+    """Terminate an MLflow run."""
+    terminal_statuses = ["FINISHED", "FAILED", "KILLED"]
+    status = client.get_run(run_id).info.status
+    if status not in terminal_statuses:
+        client.set_terminated(run_id)
 
 
 __all__ = ["resolve_registry_uri"]

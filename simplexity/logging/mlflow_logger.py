@@ -15,7 +15,7 @@ from mlflow.entities import Metric, Param, RunTag
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
-from simplexity.utils.mlflow_utils import resolve_registry_uri
+from simplexity.utils.mlflow_utils import maybe_terminate_run, resolve_registry_uri
 
 dotenv.load_dotenv()
 _DATABRICKS_HOST = os.getenv("DATABRICKS_HOST")
@@ -165,7 +165,7 @@ class MLFlowLogger(Logger):
 
     def close(self) -> None:
         """End the MLflow run."""
-        self._client.set_terminated(self._run_id)
+        maybe_terminate_run(self._client, self._run_id)
 
     def _log_batch(self, **kwargs: Any) -> None:
         """Log arbitrary data to MLflow."""

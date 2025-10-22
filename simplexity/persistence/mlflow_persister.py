@@ -13,7 +13,7 @@ import mlflow
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
-from simplexity.utils.mlflow_utils import resolve_registry_uri
+from simplexity.utils.mlflow_utils import maybe_terminate_run, resolve_registry_uri
 
 if TYPE_CHECKING:
     import mlflow.pytorch as mlflow_pytorch
@@ -87,7 +87,13 @@ class MLFlowPersister(ModelPersister):
             experiment_id = experiment.experiment_id
         else:
             experiment_id = client.create_experiment(experiment_name)
-        run = client.create_run(experiment_id=experiment_id, run_name=run_name)
+        runs = client.search_runs(
+            experiment_ids=[experiment_id], filter_string=f"attributes.run_name = '{run_name}'", max_results=1
+        )
+        if runs:
+            run = runs[0]
+        else:
+            run = client.create_run(experiment_id=experiment_id, run_name=run_name)
         return cls(
             client=client,
             run_id=run.info.run_id,
@@ -127,11 +133,7 @@ class MLFlowPersister(ModelPersister):
         if callable(persister_cleanup):
             persister_cleanup()
         if self._managed_run:
-            import contextlib
-
-            with contextlib.suppress(Exception):
-                # Cleanup is best-effort; ignore failures when ending the run.
-                self.client.set_terminated(self.run_id)
+            maybe_terminate_run(self.client, self.run_id)
         self._temp_dir.cleanup()
 
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
