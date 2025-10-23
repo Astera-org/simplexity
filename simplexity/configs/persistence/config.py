@@ -56,5 +56,5 @@ class S3PersisterConfig(PersistenceInstanceConfig):
 class Config:
     """Base configuration for persistence."""
 
-    name: Literal["local_equinox_persister", "local_penzai_persister", "s3_persister"]
+    name: Literal["local_equinox_persister", "local_penzai_persister", "mlflow_persister", "s3_persister"]
     instance: PersistenceInstanceConfig
