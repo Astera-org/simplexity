@@ -1,4 +1,5 @@
 import logging
+import random
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -48,6 +49,28 @@ def _working_tree_is_clean() -> bool:
     return result.returncode == 0
 
 
+def _set_random_seeds(seed: int | None) -> None:
+    """Seed available random number generators."""
+    if seed is None:
+        return
+    random.seed(seed)
+    try:
+        import numpy as np
+    except ModuleNotFoundError:
+        pass
+    else:
+        np.random.seed(seed)
+    try:
+        import torch
+    except ModuleNotFoundError:
+        pass
+    else:
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+
+
 def _setup_logging(cfg: DictConfig) -> Logger | None:
     """Setup the logging."""
     # Suppress databricks SDK INFO messages
@@ -94,9 +117,11 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     if strict:
         assert _working_tree_is_clean(), "Working tree is dirty"
+        assert cfg.get("seed", None) is not None, "Seed must be set"
         tags = getattr(cfg, "tags", {})
         missing_required_tags = set(REQUIRED_TAGS) - set(tags.keys())
         assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
+    _set_random_seeds(cfg.get("seed", None))
     logger = _setup_logging(cfg)
     if logger:
         if strict:
@@ -107,7 +132,6 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     elif strict:
         raise ValueError("No logger found")
     persister = _setup_persister(cfg)
-    # TODO: set random seeds
     predictive_model = _setup_predictive_model(cfg)
     return Components(logger=logger, persister=persister, predictive_model=predictive_model)
 
