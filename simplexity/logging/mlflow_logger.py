@@ -46,8 +46,6 @@ class MLFlowLogger(Logger):
             self._experiment_id = self._client.create_experiment(experiment_name)
         run = self._client.create_run(experiment_id=self._experiment_id, run_name=run_name)
         self._run_id = run.info.run_id
-        self._tracking_uri = tracking_uri
-        self._registry_uri = resolved_registry_uri
 
     @property
     def client(self) -> mlflow.MlflowClient:
@@ -67,12 +65,12 @@ class MLFlowLogger(Logger):
     @property
     def tracking_uri(self) -> str | None:
         """Return the tracking URI associated with this logger."""
-        return self._tracking_uri
+        return self._client.tracking_uri
 
     @property
     def registry_uri(self) -> str | None:
         """Return the model registry URI associated with this logger."""
-        return self._registry_uri
+        return self._client._registry_uri
 
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to MLflow."""
