@@ -75,7 +75,7 @@ def _setup_logging(cfg: DictConfig) -> Logger | None:
     """Setup the logging."""
     # Suppress databricks SDK INFO messages
     logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
-    logging_config: LoggingConfig | None = getattr(cfg, "logging", None)
+    logging_config: LoggingConfig | None = cfg.get("logging", None)
     if logging_config:
         logger = typed_instantiate(logging_config.instance, Logger)
         return logger
@@ -87,7 +87,7 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
     logger.log_params(cfg)
     log_git_info(logger)
     log_system_info(logger)
-    tags = getattr(cfg, "tags", {})
+    tags = cfg.get("tags", {})
     if tags:
         logger.log_tags(tags)
     if verbose:
@@ -98,7 +98,7 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
 
 def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
     """Setup the persister."""
-    persister_config: PersisterConfig | None = getattr(cfg, "persistence", None)
+    persister_config: PersisterConfig | None = cfg.get("persistence", None)
     if persister_config:
         return typed_instantiate(persister_config.instance, ModelPersister)
     return None
@@ -106,7 +106,7 @@ def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
 
 def _setup_predictive_model(cfg: DictConfig) -> Any | None:
     """Setup the predictive model."""
-    predictive_model_config = getattr(cfg, "predictive_model", None)
+    predictive_model_config = cfg.get("predictive_model", None)
     if predictive_model_config:
         return hydra.utils.instantiate(predictive_model_config.instance)  # TODO: typed instantiate
         # TODO: load checkpoint using persister
@@ -118,7 +118,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     if strict:
         assert _working_tree_is_clean(), "Working tree is dirty"
         assert cfg.get("seed", None) is not None, "Seed must be set"
-        tags = getattr(cfg, "tags", {})
+        tags: dict[str, Any] = cfg.get("tags", {})
         missing_required_tags = set(REQUIRED_TAGS) - set(tags.keys())
         assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
     _set_random_seeds(cfg.get("seed", None))
