@@ -33,6 +33,7 @@ class MLFlowLogger(Logger):
         downgrade_unity_catalog: bool = True,
     ):
         """Initialize MLflow logger."""
+        active_run = mlflow.active_run()
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
@@ -42,10 +43,15 @@ class MLFlowLogger(Logger):
         experiment = self._client.get_experiment_by_name(experiment_name)
         if experiment:
             self._experiment_id = experiment.experiment_id
+        elif active_run:
+            self._experiment_id = active_run.info.experiment_id
         else:
             self._experiment_id = self._client.create_experiment(experiment_name)
-        run = self._client.create_run(experiment_id=self._experiment_id, run_name=run_name)
-        self._run_id = run.info.run_id
+        if active_run:
+            self._run_id = active_run.info.run_id
+        else:
+            run = self._client.create_run(experiment_id=self._experiment_id, run_name=run_name)
+            self._run_id = run.info.run_id
 
     @property
     def client(self) -> mlflow.MlflowClient:

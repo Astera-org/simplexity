@@ -76,6 +76,7 @@ class MLFlowPersister(ModelPersister):
         downgrade_unity_catalog: bool = True,
     ) -> MLFlowPersister:
         """Create a persister from an MLflow experiment."""
+        active_run = mlflow.active_run()
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
@@ -85,6 +86,8 @@ class MLFlowPersister(ModelPersister):
         experiment = client.get_experiment_by_name(experiment_name)
         if experiment:
             experiment_id = experiment.experiment_id
+        elif active_run:
+            experiment_id = active_run.info.experiment_id
         else:
             experiment_id = client.create_experiment(experiment_name)
         runs = client.search_runs(
@@ -92,6 +95,8 @@ class MLFlowPersister(ModelPersister):
         )
         if runs:
             run = runs[0]
+        elif active_run:
+            run = active_run
         else:
             run = client.create_run(experiment_id=experiment_id, run_name=run_name)
         return cls(
