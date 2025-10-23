@@ -2,13 +2,16 @@ import logging
 import random
 import subprocess
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
 
 import hydra
+import mlflow
 from omegaconf import DictConfig
 
 from simplexity.configs.logging.config import Config as LoggingConfig
+from simplexity.configs.mlflow.config import Config as MLFlowConfig
 from simplexity.configs.persistence.config import Config as PersisterConfig
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
@@ -21,6 +24,7 @@ from simplexity.run_management.run_logging import (
     log_system_info,
 )
 from simplexity.utils.hydra import typed_instantiate
+from simplexity.utils.mlflow_utils import resolve_registry_uri
 
 REQUIRED_TAGS = ["research_step", "retention"]
 
@@ -71,6 +75,38 @@ def _set_random_seeds(seed: int | None) -> None:
             torch.cuda.manual_seed_all(seed)
 
 
+def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
+    """Setup the MLflow."""
+    mlflow_config: MLFlowConfig | None = cfg.get("mlflow", None)
+    if mlflow_config:
+        if mlflow_config.tracking_uri:
+            mlflow.set_tracking_uri(mlflow_config.tracking_uri)
+        resolved_registry_uri = resolve_registry_uri(
+            registry_uri=mlflow_config.registry_uri,
+            tracking_uri=mlflow_config.tracking_uri,
+            downgrade_unity_catalog=mlflow_config.downgrade_unity_catalog,
+        )
+        if resolved_registry_uri:
+            mlflow.set_registry_uri(mlflow_config.registry_uri)
+        experiment = mlflow.get_experiment_by_name(mlflow_config.experiment_name)
+        experiment_id = experiment.experiment_id if experiment else None
+        runs = mlflow.search_runs(
+            experiment_ids=[experiment_id] if experiment_id else None,
+            filter_string=f"attributes.run_name = '{mlflow_config.run_name}'",
+            max_results=1,
+            output_format="list",
+        )
+        assert isinstance(runs, list)
+        run_id = runs[0].info.run_id if runs else None
+        return mlflow.start_run(
+            run_id=run_id,
+            experiment_id=experiment_id,
+            run_name=mlflow_config.run_name,
+            log_system_metrics=True,
+        )
+    return nullcontext()
+
+
 def _setup_logging(cfg: DictConfig) -> Logger | None:
     """Setup the logging."""
     # Suppress databricks SDK INFO messages
@@ -104,13 +140,19 @@ def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
     return None
 
 
-def _setup_predictive_model(cfg: DictConfig) -> Any | None:
+def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -> Any | None:
     """Setup the predictive model."""
-    predictive_model_config = cfg.get("predictive_model", None)
+    model: Any | None = None
+    predictive_model_config: DictConfig | None = cfg.get("predictive_model", None)
     if predictive_model_config:
-        return hydra.utils.instantiate(predictive_model_config.instance)  # TODO: typed instantiate
-        # TODO: load checkpoint using persister
-    return None
+        instance_config = predictive_model_config.get("instance", None)
+        if instance_config:
+            model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
+        load_checkpoint_step = predictive_model_config.get("load_checkpoint_step", None)
+        if load_checkpoint_step and persister:
+            # model = persister.load_pytorch_model(load_checkpoint_step)
+            pass
+    return model
 
 
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
@@ -132,7 +174,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     elif strict:
         raise ValueError("No logger found")
     persister = _setup_persister(cfg)
-    predictive_model = _setup_predictive_model(cfg)
+    predictive_model = _setup_predictive_model(cfg, persister)
     return Components(logger=logger, persister=persister, predictive_model=predictive_model)
 
 
@@ -150,9 +192,10 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             cfg = _get_config(args, kwargs)
-            components = _setup(cfg, strict=strict, verbose=verbose)
-            output = fn(*args, **kwargs, components=components)
-            _cleanup(components)
+            with _setup_mlflow(cfg):
+                components = _setup(cfg, strict=strict, verbose=verbose)
+                output = fn(*args, **kwargs, components=components)
+                _cleanup(components)
             return output
 
         return wrapper
