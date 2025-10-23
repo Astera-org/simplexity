@@ -10,6 +10,7 @@ from omegaconf import DictConfig
 from simplexity.configs.logging.config import Config as LoggingConfig
 from simplexity.configs.persistence.config import Config as PersisterConfig
 from simplexity.logging.logger import Logger
+from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.run_logging import (
     log_environment_artifacts,
@@ -98,6 +99,10 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
         assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
     logger = _setup_logging(cfg)
     if logger:
+        if strict:
+            assert isinstance(logger, MLFlowLogger), "Logger must be an instance of MLFlowLogger"
+            assert logger.tracking_uri, "Tracking URI must be set"
+            assert logger.tracking_uri.startswith("databricks"), "Tracking URI must start with 'databricks'"
         _do_logging(cfg, logger, verbose)
     elif strict:
         raise ValueError("No logger found")
