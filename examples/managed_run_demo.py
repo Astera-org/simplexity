@@ -17,6 +17,10 @@ def main(cfg: Config, components: Components) -> None:
         print(f"Logger: {components.logger.__class__.__name__}")
     else:
         print("No logger found")
+    if components.generative_process:
+        print(f"Generative process: {components.generative_process.__class__.__name__}")
+    else:
+        print("No generative process found")
     if components.persister:
         print(f"Persister: {components.persister.__class__.__name__}")
         framework = getattr(components.persister, "model_framework", None)

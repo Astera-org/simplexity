@@ -2,6 +2,7 @@ defaults:
   - _self_
   - mlflow: databricks
   - logging: mlflow_logger
+  - generative_process: mess3
   - persistence: mlflow_persister
   - predictive_model: transformer
 

@@ -10,9 +10,11 @@ import hydra
 import mlflow
 from omegaconf import DictConfig
 
+from simplexity.configs.generative_process.config import Config as GenerativeProcessConfig
 from simplexity.configs.logging.config import Config as LoggingConfig
 from simplexity.configs.mlflow.config import Config as MLFlowConfig
 from simplexity.configs.persistence.config import Config as PersisterConfig
+from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.model_persister import ModelPersister
@@ -34,6 +36,7 @@ class Components:
     """Components for the run."""
 
     logger: Logger | None
+    generative_process: GenerativeProcess | None
     persister: ModelPersister | None
     predictive_model: Any  # TODO: improve typing
 
@@ -132,6 +135,14 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
         log_source_script(logger)
 
 
+def _setup_generative_process(cfg: DictConfig) -> GenerativeProcess | None:
+    """Setup the generative process."""
+    generative_process_config: GenerativeProcessConfig | None = cfg.get("generative_process", None)
+    if generative_process_config:
+        return typed_instantiate(generative_process_config.instance, GenerativeProcess)
+    return None
+
+
 def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
     """Setup the persister."""
     persister_config: PersisterConfig | None = cfg.get("persistence", None)
@@ -173,9 +184,12 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
         _do_logging(cfg, logger, verbose)
     elif strict:
         raise ValueError("No logger found")
+    generative_process = _setup_generative_process(cfg)
     persister = _setup_persister(cfg)
     predictive_model = _setup_predictive_model(cfg, persister)
-    return Components(logger=logger, persister=persister, predictive_model=predictive_model)
+    return Components(
+        logger=logger, generative_process=generative_process, persister=persister, predictive_model=predictive_model
+    )
 
 
 def _cleanup(components: Components) -> None:
