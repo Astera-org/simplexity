@@ -1,0 +1,14 @@
+name: mlflow_persister
+
+instance:
+  _target_: simplexity.persistence.mlflow_persister.MLFlowPersister.from_experiment
+  experiment_name: /Shared/${experiment_name}
+  run_name: ${run_name}
+  tracking_uri: databricks
+  registry_uri: databricks
+  artifact_path: models
+  model_framework:
+    _target_: simplexity.predictive_models.types.ModelFramework
+    _args_: [pytorch]
+  registered_model_name: demo_model
+  downgrade_unity_catalog: true
