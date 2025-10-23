@@ -9,6 +9,7 @@ class PersistenceInstanceConfig:
     _target_: Literal[
         "simplexity.persistence.local_equinox_persister.LocalEquinoxPersister",
         "simplexity.persistence.local_penzai_persister.LocalPenzaiPersister",
+        "simplexity.persistence.mlflow_persister.MLFlowPersister.from_experiment",
         "simplexity.persistence.s3_persister.S3Persister.from_config",
     ]
 
@@ -26,6 +27,20 @@ class LocalPenzaiPersisterConfig(PersistenceInstanceConfig):
     """Configuration for local penzai persister."""
 
     directory: str
+
+
+@dataclass
+class MLFlowPersisterConfig(PersistenceInstanceConfig):
+    """Configuration for MLflow persister."""
+
+    experiment_name: str
+    run_name: str
+    tracking_uri: str
+    registry_uri: str
+    artifact_path: str
+    model_framework: str
+    registered_model_name: str
+    downgrade_unity_catalog: bool
 
 
 @dataclass
