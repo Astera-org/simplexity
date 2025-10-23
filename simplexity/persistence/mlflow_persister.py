@@ -150,8 +150,6 @@ class MLFlowPersister(ModelPersister):
 
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
         """Download MLflow artifacts and restore them into the provided model."""
-        if self.model_framework == ModelFramework.Pytorch:
-            return self._load_pytorch_weights(step)
         self._clear_step_dir(step)
         artifact_path = self._remote_step_path(step)
         try:
@@ -170,9 +168,8 @@ class MLFlowPersister(ModelPersister):
 
         return self._local_persister.load_weights(model, step)
 
-    def _load_pytorch_weights(self, step: int) -> PytorchModel:
+    def load_pytorch_model(self, version: str) -> PytorchModel:
         """Load PyTorch weights from MLflow."""
-        version = str(step)
         assert self.registered_model_name
         model_uri = self.client.get_model_version_download_uri(self.registered_model_name, version)
         return mlflow_pytorch.load_model(model_uri)
