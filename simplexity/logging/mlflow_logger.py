@@ -26,7 +26,7 @@ class MLFlowLogger(Logger):
 
     def __init__(
         self,
-        experiment_name: str,
+        experiment_name: str | None = None,
         run_name: str | None = None,
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
@@ -40,13 +40,14 @@ class MLFlowLogger(Logger):
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        experiment = self._client.get_experiment_by_name(experiment_name)
-        if experiment:
-            self._experiment_id = experiment.experiment_id
+        if experiment_name:
+            experiment = self._client.get_experiment_by_name(experiment_name)
+            if experiment:
+                self._experiment_id = experiment.experiment_id
+            else:
+                self._experiment_id = self._client.create_experiment(experiment_name)
         elif active_run:
             self._experiment_id = active_run.info.experiment_id
-        else:
-            self._experiment_id = self._client.create_experiment(experiment_name)
         if active_run:
             self._run_id = active_run.info.run_id
         else:

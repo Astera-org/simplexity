@@ -65,7 +65,7 @@ class MLFlowPersister(ModelPersister):
     @classmethod
     def from_experiment(
         cls,
-        experiment_name: str,
+        experiment_name: str | None = None,
         *,
         run_name: str | None = None,
         tracking_uri: str | None = None,
@@ -83,13 +83,16 @@ class MLFlowPersister(ModelPersister):
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        experiment = client.get_experiment_by_name(experiment_name)
-        if experiment:
-            experiment_id = experiment.experiment_id
+        if experiment_name:
+            experiment = client.get_experiment_by_name(experiment_name)
+            if experiment:
+                experiment_id = experiment.experiment_id
+            else:
+                experiment_id = client.create_experiment(experiment_name)
         elif active_run:
             experiment_id = active_run.info.experiment_id
         else:
-            experiment_id = client.create_experiment(experiment_name)
+            experiment_id = client.create_experiment("default")
         runs = client.search_runs(
             experiment_ids=[experiment_id], filter_string=f"attributes.run_name = '{run_name}'", max_results=1
         )
