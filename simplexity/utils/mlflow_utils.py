@@ -7,6 +7,8 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+import mlflow
+
 if TYPE_CHECKING:
     from mlflow import MlflowClient
 
@@ -72,6 +74,44 @@ def resolve_registry_uri(
         return tracking_uri
 
     return None
+
+
+def get_experiment_id(
+    experiment_name: str | None = None,
+    client: MlflowClient | None = None,
+) -> str:
+    """Get the experiment id of an MLflow experiment."""
+    if experiment_name:
+        client = mlflow.MlflowClient() if client is None else client
+        experiment = client.get_experiment_by_name(experiment_name)
+        if experiment:
+            return experiment.experiment_id
+        return client.create_experiment(experiment_name)
+    active_run = mlflow.active_run()
+    if active_run:
+        return active_run.info.experiment_id
+    raise ValueError("No experiment name or active run found")
+
+
+def get_run_id(
+    experiment_id: str,
+    run_name: str | None = None,
+    client: MlflowClient | None = None,
+) -> str:
+    """Get the run id of an MLflow run."""
+    client = mlflow.MlflowClient() if client is None else client
+    if run_name:
+        runs = client.search_runs(
+            experiment_ids=[experiment_id], filter_string=f"attributes.run_name = '{run_name}'", max_results=1
+        )
+        if runs:
+            return runs[0].info.run_id
+        return client.create_run(experiment_id=experiment_id, run_name=run_name).info.run_id
+    active_run = mlflow.active_run()
+    if active_run:
+        return active_run.info.run_id
+    run = client.create_run(experiment_id=experiment_id, run_name=run_name)
+    return run.info.run_id
 
 
 def maybe_terminate_run(client: MlflowClient, run_id: str) -> None:

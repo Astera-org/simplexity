@@ -15,7 +15,7 @@ from mlflow.entities import Metric, Param, RunTag
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
-from simplexity.utils.mlflow_utils import maybe_terminate_run, resolve_registry_uri
+from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
 dotenv.load_dotenv()
 _DATABRICKS_HOST = os.getenv("DATABRICKS_HOST")
@@ -33,26 +33,14 @@ class MLFlowLogger(Logger):
         downgrade_unity_catalog: bool = True,
     ):
         """Initialize MLflow logger."""
-        active_run = mlflow.active_run()
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        if experiment_name:
-            experiment = self._client.get_experiment_by_name(experiment_name)
-            if experiment:
-                self._experiment_id = experiment.experiment_id
-            else:
-                self._experiment_id = self._client.create_experiment(experiment_name)
-        elif active_run:
-            self._experiment_id = active_run.info.experiment_id
-        if active_run:
-            self._run_id = active_run.info.run_id
-        else:
-            run = self._client.create_run(experiment_id=self._experiment_id, run_name=run_name)
-            self._run_id = run.info.run_id
+        self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self._client)
+        self._run_id = get_run_id(experiment_id=self._experiment_id, run_name=run_name, client=self._client)
 
     @property
     def client(self) -> mlflow.MlflowClient:

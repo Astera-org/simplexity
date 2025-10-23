@@ -13,7 +13,7 @@ import mlflow
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
-from simplexity.utils.mlflow_utils import maybe_terminate_run, resolve_registry_uri
+from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
 if TYPE_CHECKING:
     import mlflow.pytorch as mlflow_pytorch
@@ -70,41 +70,24 @@ class MLFlowPersister(ModelPersister):
         run_name: str | None = None,
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
+        downgrade_unity_catalog: bool = True,
         artifact_path: str = "models",
         model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
-        downgrade_unity_catalog: bool = True,
     ) -> MLFlowPersister:
         """Create a persister from an MLflow experiment."""
-        active_run = mlflow.active_run()
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        if experiment_name:
-            experiment = client.get_experiment_by_name(experiment_name)
-            if experiment:
-                experiment_id = experiment.experiment_id
-            else:
-                experiment_id = client.create_experiment(experiment_name)
-        elif active_run:
-            experiment_id = active_run.info.experiment_id
-        else:
-            experiment_id = client.create_experiment("default")
-        runs = client.search_runs(
-            experiment_ids=[experiment_id], filter_string=f"attributes.run_name = '{run_name}'", max_results=1
-        )
-        if runs:
-            run = runs[0]
-        elif active_run:
-            run = active_run
-        else:
-            run = client.create_run(experiment_id=experiment_id, run_name=run_name)
+        experiment_id = get_experiment_id(experiment_name=experiment_name, client=client)
+        run_id = get_run_id(experiment_id=experiment_id, run_name=run_name, client=client)
+        artifact_path = artifact_path.strip().strip("/")
         return cls(
             client=client,
-            run_id=run.info.run_id,
+            run_id=run_id,
             artifact_path=artifact_path,
             model_framework=model_framework,
             registered_model_name=registered_model_name,
