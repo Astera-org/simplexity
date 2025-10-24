@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from omegaconf import MISSING
+
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 
 
@@ -8,13 +10,13 @@ class Config:
     """Configuration for the training process."""
 
     seed: int
-    sequence_len: int
     batch_size: int
     num_steps: int
     log_every: int | None
     validate_every: int | None
     checkpoint_every: int | None
     optimizer: OptimizerConfig
+    sequence_len: int = MISSING
 
 
 def validate_config(cfg: Config) -> None:

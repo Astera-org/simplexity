@@ -9,12 +9,15 @@ from typing import Any, cast
 import hydra
 import mlflow
 from omegaconf import DictConfig, OmegaConf, open_dict
+from torch.nn import Module as PytorchModel
 
 from simplexity.configs.generative_process.config import Config as GenerativeProcessConfig
 from simplexity.configs.logging.config import Config as LoggingConfig
 from simplexity.configs.mlflow.config import Config as MLFlowConfig
 from simplexity.configs.persistence.config import Config as PersisterConfig
 from simplexity.configs.predictive_model.config import HookedTransformerConfig, is_hooked_transformer_config
+from simplexity.configs.training.config import Config as TrainingConfig
+from simplexity.configs.training.optimizer.config import is_pytorch_optimizer_config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
@@ -40,6 +43,7 @@ class Components:
     generative_process: GenerativeProcess | None
     persister: ModelPersister | None
     predictive_model: Any  # TODO: improve typing
+    optimizer: Any | None  # TODO: improve typing
 
 
 def _resolve_generative_process_config(generative_process_config: GenerativeProcessConfig) -> None:
@@ -63,6 +67,20 @@ def _resolve_hooked_transformer_config(
     hooked_transformer_config.cfg.d_vocab = d_vocab
 
 
+def _resolve_training_config(
+    training_config: TrainingConfig,
+    generative_process_config: GenerativeProcessConfig,
+    hooked_transformer_config: HookedTransformerConfig,
+) -> None:
+    """Resolve the TrainingConfig."""
+    if OmegaConf.is_missing(training_config, "sequence_len"):
+        use_bos = generative_process_config.bos_token is not None
+        use_eos = generative_process_config.eos_token is not None
+        n_ctx = hooked_transformer_config.cfg.n_ctx
+        sequence_len = n_ctx + 1 - int(use_bos) - int(use_eos)
+        training_config.sequence_len = sequence_len
+
+
 def _dynamic_resolve(cfg: DictConfig) -> None:
     generative_process_config: GenerativeProcessConfig | None = cfg.get("generative_process", None)
     if generative_process_config:
@@ -71,6 +89,9 @@ def _dynamic_resolve(cfg: DictConfig) -> None:
         if predictive_model_instance_config and is_hooked_transformer_config(predictive_model_instance_config):
             hooked_transformer_config = cast(HookedTransformerConfig, predictive_model_instance_config)
             _resolve_hooked_transformer_config(hooked_transformer_config, generative_process_config)
+            training_config: TrainingConfig | None = cfg.get("training", None)
+            if training_config:
+                _resolve_training_config(training_config, generative_process_config, hooked_transformer_config)
 
 
 def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
@@ -205,6 +226,21 @@ def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -
     return model
 
 
+def _setup_optimizer(cfg: DictConfig, predictive_model: Any | None) -> Any | None:
+    """Setup the optimizer."""
+    optimizer_config: DictConfig | None = OmegaConf.select(cfg, "training.optimizer", default=None)
+    if optimizer_config:
+        if is_pytorch_optimizer_config(optimizer_config):
+            if isinstance(predictive_model, PytorchModel):
+                return hydra.utils.instantiate(
+                    optimizer_config.instance, params=predictive_model.parameters()
+                )  # TODO: cast to OptimizerConfig
+            else:
+                raise ValueError("Predictive model has no parameters")
+        return hydra.utils.instantiate(optimizer_config.instance)  # TODO: typed instantiate
+    return None
+
+
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     if strict:
@@ -226,8 +262,13 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     generative_process = _setup_generative_process(cfg)
     persister = _setup_persister(cfg)
     predictive_model = _setup_predictive_model(cfg, persister)
+    optimizer = _setup_optimizer(cfg, predictive_model)
     return Components(
-        logger=logger, generative_process=generative_process, persister=persister, predictive_model=predictive_model
+        logger=logger,
+        generative_process=generative_process,
+        persister=persister,
+        predictive_model=predictive_model,
+        optimizer=optimizer,
     )
 
 

@@ -46,6 +46,10 @@ def main(cfg: Config, components: Components) -> None:
                     )
     else:
         print("No predictive model found")
+    if components.optimizer:
+        print(f"Optimizer: {components.optimizer.__class__.__name__}")
+    else:
+        print("No optimizer found")
 
 
 if __name__ == "__main__":
