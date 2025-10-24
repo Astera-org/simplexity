@@ -1,19 +1,20 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from omegaconf import MISSING
+from omegaconf import MISSING, DictConfig, OmegaConf
 
 
 @dataclass
 class ModelInstanceConfig:
     """Configuration for the model instance."""
 
+    _target_: Literal["simplexity.predictive_models.gru_rnn.build_gru_rnn", "transformer_lens.HookedTransformer"]
+
 
 @dataclass
 class GRURNNConfig(ModelInstanceConfig):
     """Configuration for GRU RNN model."""
 
-    _target_: Literal["simplexity.predictive_models.gru_rnn.build_gru_rnn"]
     embedding_size: int
     num_layers: int
     hidden_size: int
@@ -43,7 +44,6 @@ class HookedTransformerConfigConfig:
 class HookedTransformerConfig(ModelInstanceConfig):
     """Configuration for Transformer model."""
 
-    _target_: Literal["transformer_lens.HookedTransformer"]
     cfg: HookedTransformerConfigConfig
 
 
@@ -60,3 +60,8 @@ def validate_config(cfg: Config) -> None:
     """Validate the configuration."""
     if cfg.load_checkpoint_step is not None:
         assert cfg.load_checkpoint_step >= 0, "Load checkpoint step must be non-negative"
+
+
+def is_hooked_transformer_config(cfg: DictConfig) -> bool:
+    """Check if the configuration is a HookedTransformerConfig."""
+    return OmegaConf.select(cfg, "_target_") == "transformer_lens.HookedTransformer"

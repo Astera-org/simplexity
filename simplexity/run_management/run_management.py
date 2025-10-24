@@ -4,7 +4,7 @@ import subprocess
 from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import hydra
 import mlflow
@@ -14,7 +14,7 @@ from simplexity.configs.generative_process.config import Config as GenerativePro
 from simplexity.configs.logging.config import Config as LoggingConfig
 from simplexity.configs.mlflow.config import Config as MLFlowConfig
 from simplexity.configs.persistence.config import Config as PersisterConfig
-from simplexity.configs.predictive_model.config import HookedTransformerConfig
+from simplexity.configs.predictive_model.config import HookedTransformerConfig, is_hooked_transformer_config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
@@ -27,7 +27,7 @@ from simplexity.run_management.run_logging import (
     log_system_info,
 )
 from simplexity.utils.hydra import typed_instantiate
-from simplexity.utils.mlflow_utils import resolve_registry_uri
+from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_uri
 
 REQUIRED_TAGS = ["research_step", "retention"]
 
@@ -67,9 +67,10 @@ def _dynamic_resolve(cfg: DictConfig) -> None:
     generative_process_config: GenerativeProcessConfig | None = cfg.get("generative_process", None)
     if generative_process_config:
         _resolve_generative_process_config(generative_process_config)
-        predictive_model_config: DictConfig | None = cfg.get("predictive_model", None)
-        if isinstance(predictive_model_config, HookedTransformerConfig):
-            _resolve_hooked_transformer_config(predictive_model_config, generative_process_config)
+        predictive_model_instance_config: DictConfig | None = OmegaConf.select(cfg, "predictive_model.instance")
+        if predictive_model_instance_config and is_hooked_transformer_config(predictive_model_instance_config):
+            hooked_transformer_config = cast(HookedTransformerConfig, predictive_model_instance_config)
+            _resolve_hooked_transformer_config(hooked_transformer_config, generative_process_config)
 
 
 def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
@@ -130,10 +131,9 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
         )
         if resolved_registry_uri:
             mlflow.set_registry_uri(mlflow_config.registry_uri)
-        experiment = mlflow.get_experiment_by_name(mlflow_config.experiment_name)
-        experiment_id = experiment.experiment_id if experiment else None
+        experiment_id = get_experiment_id(mlflow_config.experiment_name)
         runs = mlflow.search_runs(
-            experiment_ids=[experiment_id] if experiment_id else None,
+            experiment_ids=[experiment_id],
             filter_string=f"attributes.run_name = '{mlflow_config.run_name}'",
             max_results=1,
             output_format="list",
