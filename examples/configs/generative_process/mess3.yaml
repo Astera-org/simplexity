@@ -5,3 +5,6 @@ instance:
   process_name: mess3
   x: 0.15
   a: 0.6
+
+bos_token: ???
+eos_token: null
