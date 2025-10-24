@@ -8,7 +8,7 @@ instance:
     n_layers: 1
     n_ctx: 1
     d_mlp: 1
-    d_vocab: 1
+    d_vocab: ???
     act_fn: "relu"
     normalization_type: "LN"
     device: "cpu"
