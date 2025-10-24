@@ -8,12 +8,13 @@ from typing import Any
 
 import hydra
 import mlflow
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from simplexity.configs.generative_process.config import Config as GenerativeProcessConfig
 from simplexity.configs.logging.config import Config as LoggingConfig
 from simplexity.configs.mlflow.config import Config as MLFlowConfig
 from simplexity.configs.persistence.config import Config as PersisterConfig
+from simplexity.configs.predictive_model.config import HookedTransformerConfig
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
@@ -41,13 +42,51 @@ class Components:
     predictive_model: Any  # TODO: improve typing
 
 
+def _resolve_generative_process_config(generative_process_config: GenerativeProcessConfig) -> None:
+    """Resolve the GenerativeProcessConfig."""
+    vocab_size = generative_process_config.vocab_size
+    if OmegaConf.is_missing(generative_process_config, "bos_token"):
+        generative_process_config.bos_token = vocab_size
+        vocab_size += 1
+    if OmegaConf.is_missing(generative_process_config, "eos_token"):
+        generative_process_config.eos_token = vocab_size
+
+
+def _resolve_hooked_transformer_config(
+    hooked_transformer_config: HookedTransformerConfig, generative_process_config: GenerativeProcessConfig
+) -> None:
+    """Resolve the HookedTransformerConfig."""
+    base_vocab_size = generative_process_config.vocab_size
+    use_bos = generative_process_config.bos_token is not None
+    use_eos = generative_process_config.eos_token is not None
+    d_vocab = base_vocab_size + int(use_bos) + int(use_eos)
+    hooked_transformer_config.cfg.d_vocab = d_vocab
+
+
+def _dynamic_resolve(cfg: DictConfig) -> None:
+    generative_process_config: GenerativeProcessConfig | None = cfg.get("generative_process", None)
+    if generative_process_config:
+        _resolve_generative_process_config(generative_process_config)
+        predictive_model_config: DictConfig | None = cfg.get("predictive_model", None)
+        if isinstance(predictive_model_config, HookedTransformerConfig):
+            _resolve_hooked_transformer_config(predictive_model_config, generative_process_config)
+
+
 def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
     """Get the config from the arguments."""
     if kwargs and "cfg" in kwargs:
-        return kwargs["cfg"]
-    if args and isinstance(args[0], DictConfig):
-        return args[0]
-    raise ValueError("No config found in arguments or kwargs.")
+        cfg = kwargs["cfg"]
+    elif args and isinstance(args[0], DictConfig):
+        cfg = args[0]
+    else:
+        raise ValueError("No config found in arguments or kwargs.")
+    with open_dict(cfg):
+        _dynamic_resolve(cfg)
+    # TODO: validate the config
+    OmegaConf.resolve(cfg)
+    OmegaConf.set_struct(cfg, True)
+    OmegaConf.set_readonly(cfg, True)
+    return cfg
 
 
 def _working_tree_is_clean() -> bool:
