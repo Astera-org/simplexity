@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import hydra
+import jax
+import jax.numpy as jnp
 import mlflow
 from omegaconf import DictConfig, OmegaConf, open_dict
 from torch.nn import Module as PytorchModel
@@ -17,6 +19,7 @@ from simplexity.configs.mlflow.config import Config as MLFlowConfig
 from simplexity.configs.persistence.config import Config as PersisterConfig
 from simplexity.configs.predictive_model.config import HookedTransformerConfig, is_hooked_transformer_config
 from simplexity.configs.training.config import Config as TrainingConfig
+from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.configs.training.optimizer.config import is_pytorch_optimizer_config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
@@ -41,6 +44,7 @@ class Components:
 
     logger: Logger | None
     generative_process: GenerativeProcess | None
+    initial_state: jax.Array | None
     persister: ModelPersister | None
     predictive_model: Any  # TODO: improve typing
     optimizer: Any | None  # TODO: improve typing
@@ -203,6 +207,14 @@ def _setup_generative_process(cfg: DictConfig) -> GenerativeProcess | None:
     return None
 
 
+def _setup_initial_state(cfg: DictConfig, generative_process: GenerativeProcess | None) -> jax.Array | None:
+    """Setup the initial state."""
+    if generative_process:
+        batch_size = OmegaConf.select(cfg, "training.batch_size", default=1)
+        return jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
+    return None
+
+
 def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
     """Setup the persister."""
     persister_config: PersisterConfig | None = cfg.get("persistence", None)
@@ -228,9 +240,10 @@ def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -
 
 def _setup_optimizer(cfg: DictConfig, predictive_model: Any | None) -> Any | None:
     """Setup the optimizer."""
-    optimizer_config: DictConfig | None = OmegaConf.select(cfg, "training.optimizer", default=None)
+    optimizer_config: OptimizerConfig | None = OmegaConf.select(cfg, "training.optimizer", default=None)
     if optimizer_config:
-        if is_pytorch_optimizer_config(optimizer_config):
+        optimizer_instance_config: DictConfig = OmegaConf.select(cfg, "training.optimizer.instance")
+        if is_pytorch_optimizer_config(optimizer_instance_config):
             if isinstance(predictive_model, PytorchModel):
                 return hydra.utils.instantiate(
                     optimizer_config.instance, params=predictive_model.parameters()
@@ -260,12 +273,14 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     elif strict:
         raise ValueError("No logger found")
     generative_process = _setup_generative_process(cfg)
+    initial_state = _setup_initial_state(cfg, generative_process)
     persister = _setup_persister(cfg)
     predictive_model = _setup_predictive_model(cfg, persister)
     optimizer = _setup_optimizer(cfg, predictive_model)
     return Components(
         logger=logger,
         generative_process=generative_process,
+        initial_state=initial_state,
         persister=persister,
         predictive_model=predictive_model,
         optimizer=optimizer,

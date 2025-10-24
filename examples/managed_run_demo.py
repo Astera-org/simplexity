@@ -1,11 +1,15 @@
 from pathlib import Path
 
 import hydra
+import jax
 import mlflow.pytorch as mlflow_pytorch
+import torch
+from mlflow.models.signature import infer_signature
 from torch.nn import Module as PytorchModel
 
 import simplexity
 from examples.configs.demo_config import Config
+from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.run_management.run_management import Components
 
 
@@ -39,11 +43,33 @@ def main(cfg: Config, components: Components) -> None:
                 registered_model_name = getattr(instance_config, "registered_model_name", None)
                 is_pytorch_model = isinstance(components.predictive_model, PytorchModel)
                 if is_pytorch_model and registered_model_name:
-                    mlflow_pytorch.log_model(
-                        components.predictive_model,
-                        name="demo",
-                        registered_model_name=registered_model_name,
-                    )
+                    if components.generative_process and components.initial_state is not None:
+                        _, inputs, _ = generate_data_batch(
+                            components.initial_state,
+                            components.generative_process,
+                            cfg.training.batch_size,
+                            cfg.training.sequence_len,
+                            jax.random.key(cfg.seed),
+                            bos_token=cfg.generative_process.bos_token,
+                            eos_token=cfg.generative_process.eos_token,
+                        )
+                        outputs: torch.Tensor = components.predictive_model(inputs)
+                        signature = infer_signature(
+                            model_input=inputs.detach().cpu().numpy(),
+                            model_output=outputs.detach().cpu().numpy(),
+                        )
+                        mlflow_pytorch.log_model(
+                            components.predictive_model,
+                            name="demo",
+                            registered_model_name=registered_model_name,
+                            signature=signature,
+                        )
+                    else:
+                        mlflow_pytorch.log_model(
+                            components.predictive_model,
+                            name="demo",
+                            registered_model_name=registered_model_name,
+                        )
     else:
         print("No predictive model found")
     if components.optimizer:
