@@ -53,7 +53,7 @@ class Config:
 
     name: str
     instance: ModelInstanceConfig
-    load_checkpoint_step: int | None
+    load_checkpoint_step: int | None = None
 
 
 def validate_config(cfg: Config) -> None:

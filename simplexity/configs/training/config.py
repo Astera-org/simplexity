@@ -12,11 +12,11 @@ class Config:
     seed: int
     batch_size: int
     num_steps: int
-    log_every: int | None
-    validate_every: int | None
-    checkpoint_every: int | None
     optimizer: OptimizerConfig
     sequence_len: int = MISSING
+    log_every: int | None = None
+    validate_every: int | None = None
+    checkpoint_every: int | None = None
 
 
 def validate_config(cfg: Config) -> None:

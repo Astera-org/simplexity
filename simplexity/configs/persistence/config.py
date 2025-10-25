@@ -33,14 +33,14 @@ class LocalPenzaiPersisterConfig(PersistenceInstanceConfig):
 class MLFlowPersisterConfig(PersistenceInstanceConfig):
     """Configuration for MLflow persister."""
 
-    experiment_name: str
-    run_name: str
-    tracking_uri: str
-    registry_uri: str
-    artifact_path: str
-    model_framework: str
-    registered_model_name: str
-    downgrade_unity_catalog: bool
+    experiment_name: str | None = None
+    run_name: str | None = None
+    tracking_uri: str | None = None
+    registry_uri: str | None = None
+    artifact_path: str = "models"
+    model_framework: str = "pytorch"
+    registered_model_name: str | None = None
+    downgrade_unity_catalog: bool = True
 
 
 @dataclass
