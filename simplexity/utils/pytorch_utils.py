@@ -81,24 +81,7 @@ def torch_to_jax(torch_tensor: torch.Tensor) -> jax.Array:
 
 
 def resolve_device(device_spec: str | None = "auto") -> str:
-    """Resolve device specification to actual PyTorch device string.
-
-    Args:
-        device_spec: One of "auto", "cuda", "mps", "cpu", or None (treated as "auto")
-
-    Returns:
-        Resolved device string: "cuda", "mps", or "cpu"
-
-    Raises:
-        ValueError: If device_spec is not a recognized device type
-        RuntimeError: If a specific device is requested but unavailable
-
-    Examples:
-        >>> resolve_device("auto")  # On CUDA machine
-        'cuda'
-        >>> resolve_device("cpu")
-        'cpu'
-    """
+    """Resolve device specification to actual PyTorch device string."""
     if device_spec is None or device_spec == "auto":
         if torch.cuda.is_available():
             return "cuda"
@@ -108,14 +91,14 @@ def resolve_device(device_spec: str | None = "auto") -> str:
             return "cpu"
 
     if device_spec == "cuda":
-        if not torch.cuda.is_available():
-            raise RuntimeError("CUDA requested but CUDA is not available")
-        return "cuda"
+        if torch.cuda.is_available():
+            return "cuda"
+        raise RuntimeError("CUDA requested but CUDA is not available")
 
     if device_spec == "mps":
-        if not torch.backends.mps.is_available():
-            raise RuntimeError("MPS requested but MPS is not available")
-        return "mps"
+        if torch.backends.mps.is_available():
+            return "mps"
+        raise RuntimeError("MPS requested but MPS is not available")
 
     if device_spec == "cpu":
         return "cpu"
