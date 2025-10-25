@@ -1,9 +1,12 @@
+import logging
+import logging.config
 from pathlib import Path
 
 import hydra
 import jax
 import mlflow.pytorch as mlflow_pytorch
 import torch
+import yaml
 from mlflow.models.signature import infer_signature
 from torch.nn import Module as PytorchModel
 
@@ -11,6 +14,17 @@ import simplexity
 from examples.configs.demo_config import Config
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.run_management.run_management import Components
+
+
+def configure_logging() -> None:
+    """Load the logging configuration for the demo."""
+    config_path = Path(__file__).parent / "configs" / "logging.yaml"
+    if config_path.exists():
+        with config_path.open(encoding="utf-8") as config_file:
+            logging_cfg = yaml.safe_load(config_file)
+        logging.config.dictConfig(logging_cfg)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
 
 @hydra.main(config_path=str(Path(__file__).parent / "configs"), config_name="demo_config.yaml", version_base="1.2")
@@ -79,4 +93,5 @@ def main(cfg: Config, components: Components) -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()
