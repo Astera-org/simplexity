@@ -34,6 +34,7 @@ from simplexity.run_management.run_logging import (
 )
 from simplexity.utils.hydra import typed_instantiate
 from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_uri
+from simplexity.utils.pytorch_utils import resolve_device
 
 REQUIRED_TAGS = ["research_step", "retention"]
 
@@ -69,6 +70,7 @@ def _resolve_hooked_transformer_config(
     use_eos = generative_process_config.eos_token is not None
     d_vocab = base_vocab_size + int(use_bos) + int(use_eos)
     hooked_transformer_config.cfg.d_vocab = d_vocab
+    hooked_transformer_config.cfg.device = resolve_device(hooked_transformer_config.cfg.device)
 
 
 def _resolve_training_config(
