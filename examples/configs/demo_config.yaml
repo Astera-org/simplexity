@@ -7,8 +7,8 @@ defaults:
   - predictive_model: transformer
   - training: short
 
-experiment_name: managed_run_demo
-run_name: managed_run_demo
+experiment_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
+run_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
 seed: 0
 tags:
   research_step: demo
