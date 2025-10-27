@@ -1,0 +1,11 @@
+# Test configuration for RLVR training
+defaults:
+  - _self_
+  - generative_process@training_data_generator: rpn_arithmetic
+  - predictive_model: pytorch_transformer
+  - logging: null  # Disable logging for testing
+  - training@rlvr_training: rlvr_test
+
+seed: 42
+experiment_name: pytorch_arithmetic_rlvr_test
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_${experiment_name}_${seed}

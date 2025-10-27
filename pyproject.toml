@@ -37,6 +37,7 @@ cuda = ["jax[cuda12_pip]"]
 dev = ["jaxtyping", "nbqa", "pyright", "pytest", "pytest-cov", "ruff"]
 mac = ["jax-metal"]
 pytorch = ["torch"]
+rlvr = ["torch", "transformers", "trl", "accelerate"]
 
 [tool.ruff]
 line-length = 120

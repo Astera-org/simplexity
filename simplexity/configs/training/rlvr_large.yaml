@@ -1,0 +1,38 @@
+# RLVR training configuration - large scale
+defaults:
+  - _self_
+
+# Basic training parameters
+seed: ${seed}
+num_epochs: 50
+samples_per_epoch: 5000
+max_prompt_length: 40
+max_generation_length: 80
+complexity_range: [1, 5]
+
+# PPO-specific parameters
+ppo_steps: 500
+learning_rate: 3.0e-6
+batch_size: 16
+mini_batch_size: 8
+gradient_accumulation_steps: 2
+ppo_epochs: 4
+cliprange: 0.2
+cliprange_value: 0.2
+vf_coef: 0.1
+target_kl: 0.05
+early_stopping: true
+
+# Generation parameters
+temperature: 0.8
+top_p: 0.95
+
+# Reward parameters
+reward_type: "combined"
+boxed_weight: 0.2
+correct_weight: 0.8
+
+# Logging and checkpointing
+log_every: 1
+checkpoint_every: 10
+max_batches_per_epoch: 50
