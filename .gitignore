@@ -10,3 +10,6 @@ config.ini
 *temp*
 # MLflow tracking data
 mlruns/
+conda.yaml
+requirements.txt
+requirements_minimal.txt
