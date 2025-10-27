@@ -15,10 +15,10 @@ dependencies = [
     "boto3>=1.37.24",
     "chex",
     "dotenv",
-    "equinox",
+    "equinox>=0.13.0",
     "hydra-core",
     "hydra-optuna-sweeper",
-    "jax",
+    "jax>=0.8.0",
     "jupyter",
     "matplotlib",
     "mlflow>=3.0.0",
@@ -27,12 +27,27 @@ dependencies = [
     "pandas",
     "penzai",
     "plotly",
+    "torch>=2.9.0",
+    "transformer-lens>=2.15.4",
     "treescope",
 ]
 
 [project.optional-dependencies]
 aws = ["boto3"]
-cuda = ["jax[cuda12_pip]"]
+cuda = [
+    "jax[cuda12_pip]",
+    "jax-cuda12-plugin>=0.8.0",
+    "jax-cuda12-pjrt>=0.8.0",
+    "nvidia-cuda-runtime-cu12>=12.6.0",
+    "nvidia-cudnn-cu12>=9.8.0",
+    "nvidia-cublas-cu12>=12.6.0",
+    "nvidia-cufft-cu12>=11.3.0",
+    "nvidia-curand-cu12>=10.3.0",
+    "nvidia-cusolver-cu12>=11.7.0",
+    "nvidia-cusparse-cu12>=12.5.0",
+    "nvidia-cuda-cupti-cu12>=12.6.0",
+    "nvidia-cuda-nvcc-cu12>=12.8.0",
+]
 dev = ["jaxtyping", "nbqa", "pyright", "pytest", "pytest-cov", "ruff"]
 mac = ["jax-metal"]
 pytorch = ["torch", "transformer-lens"]
