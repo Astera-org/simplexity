@@ -1,5 +1,6 @@
 import logging
 import logging.config
+import time
 from pathlib import Path
 
 import hydra
@@ -14,6 +15,7 @@ import simplexity
 from examples.configs.demo_config import Config
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.run_management.run_management import Components
+from simplexity.utils.pip_utils import create_requirements_file
 
 
 def configure_logging() -> None:
@@ -57,6 +59,10 @@ def main(cfg: Config, components: Components) -> None:
                 registered_model_name = getattr(instance_config, "registered_model_name", None)
                 is_pytorch_model = isinstance(components.predictive_model, PytorchModel)
                 if is_pytorch_model and registered_model_name:
+                    timestamp = int(time.time())
+                    name = f"demo_{timestamp}"
+                    registered_model_name = f"{registered_model_name}_{timestamp}"
+                    pip_requirements = create_requirements_file()
                     if components.generative_process and components.initial_state is not None:
                         _, inputs, _ = generate_data_batch(
                             components.initial_state,
@@ -74,15 +80,17 @@ def main(cfg: Config, components: Components) -> None:
                         )
                         mlflow_pytorch.log_model(
                             components.predictive_model,
-                            name="demo",
+                            name=name,
                             registered_model_name=registered_model_name,
                             signature=signature,
+                            pip_requirements=pip_requirements,
                         )
                     else:
                         mlflow_pytorch.log_model(
                             components.predictive_model,
-                            name="demo",
+                            name=name,
                             registered_model_name=registered_model_name,
+                            pip_requirements=pip_requirements,
                         )
     else:
         print("No predictive model found")
