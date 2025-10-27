@@ -1,4 +1,5 @@
 import logging
+import os
 import random
 import subprocess
 from collections.abc import Callable
@@ -115,6 +116,35 @@ def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
     OmegaConf.set_struct(cfg, True)
     OmegaConf.set_readonly(cfg, True)
     return cfg
+
+
+def _setup_environment() -> None:
+    """Setup the environment."""
+    if not os.environ.get("MLFLOW_LOCK_MODEL_DEPENDENCIES"):
+        os.environ["MLFLOW_LOCK_MODEL_DEPENDENCIES"] = "true"
+
+    # Set JAX platform to use CUDA for NVIDIA GPU
+    if not os.environ.get("JAX_PLATFORMS"):
+        os.environ["JAX_PLATFORMS"] = "cuda"
+        print(f"Set JAX_PLATFORMS to: {os.environ['JAX_PLATFORMS']}")
+    else:
+        print(f"JAX_PLATFORMS already set to: {os.environ['JAX_PLATFORMS']}")
+
+    # Enable fallback to driver compilation if ptxas is not available
+    if not os.environ.get("XLA_FLAGS"):
+        os.environ["XLA_FLAGS"] = "--xla_gpu_unsafe_fallback_to_driver_on_ptxas_not_found"
+        print("Set XLA_FLAGS to enable driver fallback for CUDA compilation")
+
+
+def _uv_sync() -> None:
+    """Sync the uv environment."""
+    args = ["uv", "sync", "--extra", "pytorch"]
+    device = resolve_device()
+    if device == "cuda":
+        args.extend(["--extra", "cuda"])
+    elif device == "mps":
+        args.extend(["--extra", "mac"])
+    subprocess.run(args, check=True)
 
 
 def _working_tree_is_clean() -> bool:
@@ -258,12 +288,17 @@ def _setup_optimizer(cfg: DictConfig, predictive_model: Any | None) -> Any | Non
 
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
+    _setup_environment()
     if strict:
+        _uv_sync()
         assert _working_tree_is_clean(), "Working tree is dirty"
         assert cfg.get("seed", None) is not None, "Seed must be set"
         tags: dict[str, Any] = cfg.get("tags", {})
         missing_required_tags = set(REQUIRED_TAGS) - set(tags.keys())
         assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
+        lock_dependencies = os.environ.get("MLFLOW_LOCK_MODEL_DEPENDENCIES")
+        assert lock_dependencies, "MLFLOW_LOCK_MODEL_DEPENDENCIES must be set"
+        assert lock_dependencies == "true", "MLFLOW_LOCK_MODEL_DEPENDENCIES must be set to true"
     _set_random_seeds(cfg.get("seed", None))
     logger = _setup_logging(cfg)
     if logger:
