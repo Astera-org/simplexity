@@ -26,9 +26,9 @@ class MLFlowLoggerConfig(LoggingInstanceConfig):
     """Configuration for MLFlow logger."""
 
     # _target_: MLFlowLogger
-    experiment_name: str
-    run_name: str
-    tracking_uri: str
+    experiment_name: str | None = None
+    run_name: str | None = None
+    tracking_uri: str | None = None
     registry_uri: str | None = None
     downgrade_unity_catalog: bool = True
 
