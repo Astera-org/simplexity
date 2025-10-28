@@ -1,0 +1,5 @@
+experiment_name: /Shared/${experiment_name}
+run_name: ${run_name}
+tracking_uri: databricks
+registry_uri: databricks
+downgrade_unity_catalog: true
