@@ -267,8 +267,6 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
 
 def _setup_logging(cfg: DictConfig) -> Logger | None:
     """Setup the logging."""
-    # Suppress databricks SDK INFO messages
-    logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
     logging_config: LoggingConfig | None = cfg.get("logging", None)
     if logging_config:
         logger = typed_instantiate(logging_config.instance, Logger)
@@ -341,7 +339,7 @@ def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -
             SIMPLEXITY_LOGGER.info(f"[predictive model] instantiated predictive model: {model.__class__.__name__}")
         load_checkpoint_step = predictive_model_config.get("load_checkpoint_step", None)
         if load_checkpoint_step and persister:
-            # model = persister.load_pytorch_model(load_checkpoint_step)
+            # model = persister.load_pytorch_model(load_checkpoint_step)  # TODO: load checkpoint
             SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
     else:
         SIMPLEXITY_LOGGER.info("[predictive model] no predictive model config found")
