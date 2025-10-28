@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from omegaconf import MISSING
+
 ProcessName = Literal[
     "days_of_week",
     "even_ones",
@@ -120,5 +122,5 @@ class Config:
     name: ProcessName
     vocab_size: int
     instance: ProcessInstanceConfig
-    bos_token: int | None
-    eos_token: int | None
+    bos_token: int | None = MISSING
+    eos_token: int | None = MISSING
