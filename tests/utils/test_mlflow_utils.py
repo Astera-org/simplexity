@@ -2,9 +2,22 @@
 
 from __future__ import annotations
 
-import pytest
+from types import SimpleNamespace
+from unittest.mock import create_autospec
 
-from simplexity.utils.mlflow_utils import SCHEME_SEPARATOR, UC_PREFIX, WORKSPACE_PREFIX, resolve_registry_uri
+import pytest
+from mlflow.client import MlflowClient
+from pytest_mock import MockerFixture
+
+from simplexity.utils.mlflow_utils import (
+    SCHEME_SEPARATOR,
+    UC_PREFIX,
+    WORKSPACE_PREFIX,
+    get_experiment_id,
+    # get_run_id,
+    # maybe_terminate_run,
+    resolve_registry_uri,
+)
 
 FILE_URI = "file:///example"
 WORKSPACE_URI = WORKSPACE_PREFIX
@@ -113,3 +126,52 @@ class TestResolveRegistryUri:
         assert resolve_registry_uri(tracking_uri=tracking_uri) == resolved_uri
         warning = recwarn.pop(UserWarning)
         assert "Unity Catalog URI" in str(warning.message)
+
+
+class TestGetExperimentId:
+    """Test class for get_experiment_id function."""
+
+    def test_named_experiment_exists(self) -> None:
+        """Get experiment ID."""
+        existing_experiment = SimpleNamespace(experiment_id="test_experiment_id")
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.get_experiment_by_name.return_value = existing_experiment
+        assert get_experiment_id(experiment_name="test_experiment_name", client=mock_client) == "test_experiment_id"
+        mock_client.get_experiment_by_name.assert_called_once_with("test_experiment_name")
+        mock_client.create_experiment.assert_not_called()
+
+    def test_named_experiment_does_not_exist(self) -> None:
+        """Get experiment ID."""
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.get_experiment_by_name.return_value = None
+        mock_client.create_experiment.return_value = "test_experiment_id"
+        assert get_experiment_id(experiment_name="test_experiment_name", client=mock_client) == "test_experiment_id"
+        mock_client.get_experiment_by_name.assert_called_once_with("test_experiment_name")
+        mock_client.create_experiment.assert_called_once_with("test_experiment_name")
+
+    def test_active_run_exists(self, mocker: MockerFixture) -> None:
+        """Get experiment ID."""
+        active_run = SimpleNamespace(info=SimpleNamespace(experiment_id="test_experiment_id"))
+        mocker.patch("mlflow.active_run", return_value=active_run)
+        assert get_experiment_id() == "test_experiment_id"
+
+    def test_no_experiment_name_or_active_run(self) -> None:
+        """Get experiment ID."""
+        with pytest.raises(RuntimeError):
+            get_experiment_id()
+
+
+# class TestGetRunId:
+#     """Test class for get_run_id function."""
+
+#     def test_get_run_id(self) -> None:
+#         """Get run ID."""
+#         assert get_run_id(experiment_id="example") == "example"
+
+
+# class TestMaybeTerminateRun:
+#     """Test class for maybe_terminate_run function."""
+
+#     def test_maybe_terminate_run(self) -> None:
+#         """Maybe terminate run."""
+#         assert maybe_terminate_run(client=client, run_id="example") == "example"

@@ -109,7 +109,7 @@ def get_experiment_id(
     if active_run:
         SIMPLEXITY_LOGGER.info(f"[mlflow] active run exists with experiment id: {active_run.info.experiment_id}")
         return active_run.info.experiment_id
-    raise ValueError("No experiment name or active run found")
+    raise RuntimeError("No experiment name or active run found")
 
 
 def get_run_id(
