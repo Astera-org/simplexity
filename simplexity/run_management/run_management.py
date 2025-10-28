@@ -37,6 +37,8 @@ from simplexity.utils.hydra import typed_instantiate
 from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_uri
 from simplexity.utils.pytorch_utils import resolve_device
 
+SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
+
 DEFAULT_ENVIRONMNENT_VARIABLES = {
     "MLFLOW_LOCK_MODEL_DEPENDENCIES": "true",
     "JAX_PLATFORMS": "cuda",
@@ -60,20 +62,20 @@ class Components:
 def _resolve_generative_process_config(generative_process_config: GenerativeProcessConfig) -> None:
     """Resolve the GenerativeProcessConfig."""
     vocab_size = generative_process_config.vocab_size
-    logging.info(f"[generative process] Base vocab size: {vocab_size}")
+    SIMPLEXITY_LOGGER.info(f"[generative process] Base vocab size: {vocab_size}")
     if OmegaConf.is_missing(generative_process_config, "bos_token"):
         generative_process_config.bos_token = vocab_size
-        logging.info(f"[generative process] BOS token resolved to: {generative_process_config.bos_token}")
+        SIMPLEXITY_LOGGER.info(f"[generative process] BOS token resolved to: {generative_process_config.bos_token}")
         vocab_size += 1
     elif generative_process_config.bos_token is not None:
-        logging.info(f"[generative process] BOS token defined as: {generative_process_config.bos_token}")
+        SIMPLEXITY_LOGGER.info(f"[generative process] BOS token defined as: {generative_process_config.bos_token}")
     if OmegaConf.is_missing(generative_process_config, "eos_token"):
         generative_process_config.eos_token = vocab_size
-        logging.info(f"[generative process] EOS token resolved to: {generative_process_config.eos_token}")
+        SIMPLEXITY_LOGGER.info(f"[generative process] EOS token resolved to: {generative_process_config.eos_token}")
         vocab_size += 1
     elif generative_process_config.eos_token is not None:
-        logging.info(f"[generative process] EOS token defined as: {generative_process_config.eos_token}")
-    logging.info(f"[generative process] Total vocab size: {vocab_size}")
+        SIMPLEXITY_LOGGER.info(f"[generative process] EOS token defined as: {generative_process_config.eos_token}")
+    SIMPLEXITY_LOGGER.info(f"[generative process] Total vocab size: {vocab_size}")
 
 
 def _resolve_hooked_transformer_config(
@@ -85,9 +87,9 @@ def _resolve_hooked_transformer_config(
     use_eos = generative_process_config.eos_token is not None
     d_vocab = base_vocab_size + int(use_bos) + int(use_eos)
     hooked_transformer_config.cfg.d_vocab = d_vocab
-    logging.info(f"[predictive model] d_vocab resolved to: {d_vocab}")
+    SIMPLEXITY_LOGGER.info(f"[predictive model] d_vocab resolved to: {d_vocab}")
     hooked_transformer_config.cfg.device = resolve_device(hooked_transformer_config.cfg.device)
-    logging.info(f"[predictive model] device resolved to: {hooked_transformer_config.cfg.device}")
+    SIMPLEXITY_LOGGER.info(f"[predictive model] device resolved to: {hooked_transformer_config.cfg.device}")
 
 
 def _resolve_training_config(
@@ -102,9 +104,9 @@ def _resolve_training_config(
         n_ctx = hooked_transformer_config.cfg.n_ctx
         sequence_len = n_ctx + 1 - int(use_bos) - int(use_eos)
         training_config.sequence_len = sequence_len
-        logging.info(f"[training] sequence len resolved to: {sequence_len}")
+        SIMPLEXITY_LOGGER.info(f"[training] sequence len resolved to: {sequence_len}")
     else:
-        logging.info(f"[training] sequence len defined as: {training_config.sequence_len}")
+        SIMPLEXITY_LOGGER.info(f"[training] sequence len defined as: {training_config.sequence_len}")
 
 
 def _dynamic_resolve(cfg: DictConfig) -> None:
@@ -142,9 +144,9 @@ def _setup_environment() -> None:
     for key, value in DEFAULT_ENVIRONMNENT_VARIABLES.items():
         if not os.environ.get(key):
             os.environ[key] = value
-            logging.info(f"[environment] {key} set to: {os.environ[key]}")
+            SIMPLEXITY_LOGGER.info(f"[environment] {key} set to: {os.environ[key]}")
         else:
-            logging.info(f"[environment] {key} already set to: {os.environ[key]}")
+            SIMPLEXITY_LOGGER.info(f"[environment] {key} already set to: {os.environ[key]}")
 
 
 def _uv_sync() -> None:
@@ -169,25 +171,25 @@ def _set_random_seeds(seed: int | None) -> None:
     if seed is None:
         return
     random.seed(seed)
-    logging.info(f"[random] seed set to: {seed}")
+    SIMPLEXITY_LOGGER.info(f"[random] seed set to: {seed}")
     try:
         import numpy as np
     except ModuleNotFoundError:
         pass
     else:
         np.random.seed(seed)
-        logging.info(f"[numpy] seed set to: {seed}")
+        SIMPLEXITY_LOGGER.info(f"[numpy] seed set to: {seed}")
     try:
         import torch
     except ModuleNotFoundError:
         pass
     else:
         torch.manual_seed(seed)
-        logging.info(f"[torch] seed set to: {seed}")
+        SIMPLEXITY_LOGGER.info(f"[torch] seed set to: {seed}")
         if torch.cuda.is_available():
             torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
-            logging.info(f"[torch] CUDA seed set to: {seed}")
+            SIMPLEXITY_LOGGER.info(f"[torch] CUDA seed set to: {seed}")
 
 
 def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
@@ -196,7 +198,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
     if mlflow_config:
         if mlflow_config.tracking_uri:
             mlflow.set_tracking_uri(mlflow_config.tracking_uri)
-            logging.info(f"[mlflow] tracking uri: {mlflow.get_tracking_uri()}")
+            SIMPLEXITY_LOGGER.info(f"[mlflow] tracking uri: {mlflow.get_tracking_uri()}")
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=mlflow_config.registry_uri,
             tracking_uri=mlflow_config.tracking_uri,
@@ -204,7 +206,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
         )
         if resolved_registry_uri:
             mlflow.set_registry_uri(mlflow_config.registry_uri)
-            logging.info(f"[mlflow] registry uri: {mlflow.get_registry_uri()}")
+            SIMPLEXITY_LOGGER.info(f"[mlflow] registry uri: {mlflow.get_registry_uri()}")
         experiment_id = get_experiment_id(mlflow_config.experiment_name)
         runs = mlflow.search_runs(
             experiment_ids=[experiment_id],
@@ -215,11 +217,13 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
         assert isinstance(runs, list)
         if runs:
             run_id = runs[0].info.run_id
-            logging.info(f"[mlflow] run with name '{mlflow_config.run_name}' already exists with id: {run_id}")
+            SIMPLEXITY_LOGGER.info(
+                f"[mlflow] run with name '{mlflow_config.run_name}' already exists with id: {run_id}"
+            )
         else:
             run_id = None
-            logging.info(f"[mlflow] run with name '{mlflow_config.run_name}' does not yet exist")
-        logging.info(
+            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{mlflow_config.run_name}' does not yet exist")
+        SIMPLEXITY_LOGGER.info(
             f"[mlflow] starting run with: "
             f"{{id: {run_id}, experiment id: {experiment_id}, run name: {mlflow_config.run_name}}}"
         )
@@ -239,9 +243,9 @@ def _setup_logging(cfg: DictConfig) -> Logger | None:
     logging_config: LoggingConfig | None = cfg.get("logging", None)
     if logging_config:
         logger = typed_instantiate(logging_config.instance, Logger)
-        logging.info(f"[logging] instantiated logger: {logger.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info(f"[logging] instantiated logger: {logger.__class__.__name__}")
         return logger
-    logging.info("[logging] no logging config found")
+    SIMPLEXITY_LOGGER.info("[logging] no logging config found")
     return None
 
 
@@ -264,9 +268,11 @@ def _setup_generative_process(cfg: DictConfig) -> GenerativeProcess | None:
     generative_process_config: GenerativeProcessConfig | None = cfg.get("generative_process", None)
     if generative_process_config:
         generative_process = typed_instantiate(generative_process_config.instance, GenerativeProcess)
-        logging.info(f"[generative process] instantiated generative process: {generative_process.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info(
+            f"[generative process] instantiated generative process: {generative_process.__class__.__name__}"
+        )
         return generative_process
-    logging.info("[generative process] no generative process config found")
+    SIMPLEXITY_LOGGER.info("[generative process] no generative process config found")
     return None
 
 
@@ -275,7 +281,7 @@ def _setup_initial_state(cfg: DictConfig, generative_process: GenerativeProcess 
     if generative_process:
         batch_size = OmegaConf.select(cfg, "training.batch_size", default=1)
         initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
-        logging.info(f"[generative process] instantiated initial state with shape: {initial_state.shape}")
+        SIMPLEXITY_LOGGER.info(f"[generative process] instantiated initial state with shape: {initial_state.shape}")
         return initial_state
     return None
 
@@ -285,9 +291,9 @@ def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
     persister_config: PersisterConfig | None = cfg.get("persistence", None)
     if persister_config:
         persister = typed_instantiate(persister_config.instance, ModelPersister)
-        logging.info(f"[persister] instantiated persister: {persister.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info(f"[persister] instantiated persister: {persister.__class__.__name__}")
         return persister
-    logging.info("[persister] no persister config found")
+    SIMPLEXITY_LOGGER.info("[persister] no persister config found")
     return None
 
 
@@ -299,13 +305,13 @@ def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -
         instance_config = predictive_model_config.get("instance", None)
         if instance_config:
             model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
-            logging.info(f"[predictive model] instantiated predictive model: {model.__class__.__name__}")
+            SIMPLEXITY_LOGGER.info(f"[predictive model] instantiated predictive model: {model.__class__.__name__}")
         load_checkpoint_step = predictive_model_config.get("load_checkpoint_step", None)
         if load_checkpoint_step and persister:
             # model = persister.load_pytorch_model(load_checkpoint_step)
-            logging.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
+            SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
     else:
-        logging.info("[predictive model] no predictive model config found")
+        SIMPLEXITY_LOGGER.info("[predictive model] no predictive model config found")
     return model
 
 
@@ -319,14 +325,14 @@ def _setup_optimizer(cfg: DictConfig, predictive_model: Any | None) -> Any | Non
                 optimizer = hydra.utils.instantiate(
                     optimizer_config.instance, params=predictive_model.parameters()
                 )  # TODO: cast to OptimizerConfig
-                logging.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
+                SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
                 return optimizer
             else:
                 raise ValueError("Predictive model has no parameters")
         optimizer = hydra.utils.instantiate(optimizer_config.instance)  # TODO: typed instantiate
-        logging.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
         return optimizer
-    logging.info("[optimizer] no optimizer config found")
+    SIMPLEXITY_LOGGER.info("[optimizer] no optimizer config found")
     return None
 
 
@@ -386,10 +392,10 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 with _setup_mlflow(cfg):
                     components = _setup(cfg, strict=strict, verbose=verbose)
                     output = fn(*args, **kwargs, components=components)
-                    _cleanup(components)
+                _cleanup(components)
                 return output
             except Exception as e:
-                logging.error(f"[run] error: {e}")
+                SIMPLEXITY_LOGGER.error(f"[run] error: {e}")
                 raise e
 
         return wrapper

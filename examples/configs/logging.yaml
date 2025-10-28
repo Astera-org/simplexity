@@ -18,7 +18,7 @@ loggers:
     handlers: []
     propagate: true
   simplexity:
-    level: WARNING
+    level: DEBUG
     handlers: []
     propagate: true
   absl:

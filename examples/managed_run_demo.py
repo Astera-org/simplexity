@@ -17,6 +17,8 @@ from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.run_management.run_management import Components
 from simplexity.utils.pip_utils import create_requirements_file
 
+SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
+
 
 def configure_logging() -> None:
     """Load the logging configuration for the demo."""
@@ -40,9 +42,9 @@ def main(cfg: Config, components: Components) -> None:
     assert components.optimizer is not None
     framework = getattr(components.persister, "model_framework", None)
     if framework:
-        logging.info(f"[persister] model framework: {framework}")
+        SIMPLEXITY_LOGGER.info(f"[persister] model framework: {framework}")
     else:
-        logging.info("No model framework found")
+        SIMPLEXITY_LOGGER.info("No model framework found")
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
         instance_config = getattr(cfg.persistence, "instance", None)
