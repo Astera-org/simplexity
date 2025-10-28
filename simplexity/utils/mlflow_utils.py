@@ -126,12 +126,16 @@ def get_run_id(
         if runs:
             SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' already exists with id: {runs[0].info.run_id}")
             return runs[0].info.run_id
-        run: Run = client.create_run(experiment_id=experiment_id, run_name=run_name).info.run_id
+        run: Run = client.create_run(experiment_id=experiment_id, run_name=run_name)
         SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' created with id: {run.info.run_id}")
         return run.info.run_id
     active_run = mlflow.active_run()
     if active_run:
         SIMPLEXITY_LOGGER.info(f"[mlflow] active run exists with id: {active_run.info.run_id}")
+        if active_run.info.experiment_id != experiment_id:
+            raise RuntimeError(
+                f"Active run experiment id {active_run.info.experiment_id} does not match experiment id {experiment_id}"
+            )
         return active_run.info.run_id
     run = client.create_run(experiment_id=experiment_id, run_name=run_name)
     SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' created with id: {run.info.run_id}")

@@ -14,7 +14,7 @@ from simplexity.utils.mlflow_utils import (
     UC_PREFIX,
     WORKSPACE_PREFIX,
     get_experiment_id,
-    # get_run_id,
+    get_run_id,
     # maybe_terminate_run,
     resolve_registry_uri,
 )
@@ -161,12 +161,68 @@ class TestGetExperimentId:
             get_experiment_id()
 
 
-# class TestGetRunId:
-#     """Test class for get_run_id function."""
+class TestGetRunId:
+    """Test class for get_run_id function."""
 
-#     def test_get_run_id(self) -> None:
-#         """Get run ID."""
-#         assert get_run_id(experiment_id="example") == "example"
+    def test_named_run_exists(self) -> None:
+        """Get run ID."""
+        existing_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id"))
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.search_runs.return_value = [existing_run]
+        assert (
+            get_run_id(experiment_id="test_experiment_id", run_name="test_run_name", client=mock_client)
+            == "test_run_id"
+        )
+        mock_client.search_runs.assert_called_once_with(
+            experiment_ids=["test_experiment_id"], filter_string="attributes.run_name = 'test_run_name'", max_results=1
+        )
+        mock_client.create_run.assert_not_called()
+
+    def test_named_run_does_not_exist(self) -> None:
+        """Get run ID."""
+        new_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id"))
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.search_runs.return_value = []
+        mock_client.create_run.return_value = new_run
+        assert (
+            get_run_id(experiment_id="test_experiment_id", run_name="test_run_name", client=mock_client)
+            == "test_run_id"
+        )
+        mock_client.search_runs.assert_called_once_with(
+            experiment_ids=["test_experiment_id"], filter_string="attributes.run_name = 'test_run_name'", max_results=1
+        )
+        mock_client.create_run.assert_called_once_with(experiment_id="test_experiment_id", run_name="test_run_name")
+
+    def test_active_run_exists(self, mocker: MockerFixture) -> None:
+        """Get run ID."""
+        active_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id", experiment_id="test_experiment_id"))
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mocker.patch("mlflow.active_run", return_value=active_run)
+        assert get_run_id(experiment_id="test_experiment_id", client=mock_client) == "test_run_id"
+        mock_client.search_runs.assert_not_called()
+        mock_client.create_run.assert_not_called()
+
+    def test_active_run_experiment_id_does_not_match_experiment_id(self, mocker: MockerFixture) -> None:
+        """Get run ID."""
+        active_run = SimpleNamespace(
+            info=SimpleNamespace(run_id="test_run_id", experiment_id="different_experiment_id")
+        )
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mocker.patch("mlflow.active_run", return_value=active_run)
+        with pytest.raises(RuntimeError):
+            get_run_id(experiment_id="test_experiment_id", client=mock_client)
+        mock_client.search_runs.assert_not_called()
+        mock_client.create_run.assert_not_called()
+
+    def test_no_run_name_or_active_run(self, mocker: MockerFixture) -> None:
+        """Get run ID."""
+        new_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id"))
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.create_run.return_value = new_run
+        mocker.patch("mlflow.active_run", return_value=None)
+        assert get_run_id(experiment_id="test_experiment_id", client=mock_client) == "test_run_id"
+        mock_client.search_runs.assert_not_called()
+        mock_client.create_run.assert_called_once_with(experiment_id="test_experiment_id", run_name=None)
 
 
 # class TestMaybeTerminateRun:
