@@ -2,8 +2,9 @@ import logging
 import os
 import random
 import subprocess
-from collections.abc import Callable
-from contextlib import nullcontext
+import warnings
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -58,6 +59,33 @@ class Components:
     persister: ModelPersister | None
     predictive_model: Any  # TODO: improve typing
     optimizer: Any | None  # TODO: improve typing
+
+
+@contextmanager
+def _suppress_pydantic_field_attribute_warning() -> Iterator[None]:
+    """Temporarily ignore noisy Pydantic field attribute warnings from dependencies.
+
+    If Hydra instantiates a HookedTransformer, it imports transformer_lens, which in turn imports W&B (wandb).
+    As soon as W&B loads, it builds a large set of Pydantic models (for example in wandb/automations/automations.py).
+    Those models declare fields like:
+
+    ```python
+    created_at: Annotated[datetime, Field(repr=False, frozen=True, alias="createdAt")]
+    ```
+
+    Pydantic v2 interprets those Field(...) arguments, spots repr=False and frozen=True,
+    and issues UnsupportedFieldAttributeWarning because those keywords are only meaningful for dataclass fields,
+    they have no effect on a BaseModel.
+    """
+    try:
+        from pydantic.warnings import UnsupportedFieldAttributeWarning
+    except ModuleNotFoundError:
+        yield
+        return
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
+        yield
 
 
 def _resolve_generative_process_config(generative_process_config: GenerativeProcessConfig) -> None:
@@ -305,7 +333,8 @@ def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -
     if predictive_model_config:
         instance_config = predictive_model_config.get("instance", None)
         if instance_config:
-            model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
+            with _suppress_pydantic_field_attribute_warning():
+                model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
             SIMPLEXITY_LOGGER.info(f"[predictive model] instantiated predictive model: {model.__class__.__name__}")
         load_checkpoint_step = predictive_model_config.get("load_checkpoint_step", None)
         if load_checkpoint_step and persister:
