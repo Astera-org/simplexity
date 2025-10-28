@@ -15,7 +15,7 @@ from simplexity.utils.mlflow_utils import (
     WORKSPACE_PREFIX,
     get_experiment_id,
     get_run_id,
-    # maybe_terminate_run,
+    maybe_terminate_run,
     resolve_registry_uri,
 )
 
@@ -225,9 +225,24 @@ class TestGetRunId:
         mock_client.create_run.assert_called_once_with(experiment_id="test_experiment_id", run_name=None)
 
 
-# class TestMaybeTerminateRun:
-#     """Test class for maybe_terminate_run function."""
+class TestMaybeTerminateRun:
+    """Test class for maybe_terminate_run function."""
 
-#     def test_maybe_terminate_run(self) -> None:
-#         """Maybe terminate run."""
-#         assert maybe_terminate_run(client=client, run_id="example") == "example"
+    def test_active_run(self) -> None:
+        """Maybe terminate run."""
+        active_run = SimpleNamespace(info=SimpleNamespace(status="RUNNING"))
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.get_run.return_value = active_run
+        maybe_terminate_run(client=mock_client, run_id="test_run_id")
+        mock_client.get_run.assert_called_once_with("test_run_id")
+        mock_client.set_terminated.assert_called_once_with("test_run_id")
+
+    @pytest.mark.parametrize("status", ["FINISHED", "FAILED", "KILLED"])
+    def test_active_run_is_not_running(self, status: str) -> None:
+        """Maybe terminate run."""
+        terminated_run = SimpleNamespace(info=SimpleNamespace(status=status))
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.get_run.return_value = terminated_run
+        maybe_terminate_run(client=mock_client, run_id="test_run_id")
+        mock_client.get_run.assert_called_once_with("test_run_id")
+        mock_client.set_terminated.assert_not_called()
