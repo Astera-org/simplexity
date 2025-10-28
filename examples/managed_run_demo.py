@@ -40,11 +40,6 @@ def main(cfg: Config, components: Components) -> None:
     assert components.persister is not None
     assert components.predictive_model is not None
     assert components.optimizer is not None
-    framework = getattr(components.persister, "model_framework", None)
-    if framework:
-        SIMPLEXITY_LOGGER.info(f"[persister] model framework: {framework}")
-    else:
-        SIMPLEXITY_LOGGER.info("No model framework found")
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
         instance_config = getattr(cfg.persistence, "instance", None)
@@ -75,7 +70,7 @@ def main(cfg: Config, components: Components) -> None:
                         model_output=outputs.detach().cpu().numpy(),
                     )
                     kwargs["signature"] = signature
-                mlflow_pytorch.log_model(**kwargs)
+                # mlflow_pytorch.log_model(**kwargs)
 
 
 if __name__ == "__main__":

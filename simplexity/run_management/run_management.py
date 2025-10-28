@@ -321,6 +321,9 @@ def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
     if persister_config:
         persister = typed_instantiate(persister_config.instance, ModelPersister)
         SIMPLEXITY_LOGGER.info(f"[persister] instantiated persister: {persister.__class__.__name__}")
+        framework = getattr(persister, "model_framework", None)
+        if framework:
+            SIMPLEXITY_LOGGER.info(f"[persister] model framework: {framework}")
         return persister
     SIMPLEXITY_LOGGER.info("[persister] no persister config found")
     return None
