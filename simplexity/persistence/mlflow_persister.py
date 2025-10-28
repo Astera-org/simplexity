@@ -13,7 +13,7 @@ import mlflow
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
-from simplexity.utils.mlflow_utils import resolve_registry_uri
+from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
 if TYPE_CHECKING:
     import mlflow.pytorch as mlflow_pytorch
@@ -65,15 +65,15 @@ class MLFlowPersister(ModelPersister):
     @classmethod
     def from_experiment(
         cls,
-        experiment_name: str,
+        experiment_name: str | None = None,
         *,
         run_name: str | None = None,
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
+        downgrade_unity_catalog: bool = True,
         artifact_path: str = "models",
         model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
-        downgrade_unity_catalog: bool = True,
     ) -> MLFlowPersister:
         """Create a persister from an MLflow experiment."""
         resolved_registry_uri = resolve_registry_uri(
@@ -82,15 +82,12 @@ class MLFlowPersister(ModelPersister):
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        experiment = client.get_experiment_by_name(experiment_name)
-        if experiment:
-            experiment_id = experiment.experiment_id
-        else:
-            experiment_id = client.create_experiment(experiment_name)
-        run = client.create_run(experiment_id=experiment_id, run_name=run_name)
+        experiment_id = get_experiment_id(experiment_name=experiment_name, client=client)
+        run_id = get_run_id(experiment_id=experiment_id, run_name=run_name, client=client)
+        artifact_path = artifact_path.strip().strip("/")
         return cls(
             client=client,
-            run_id=run.info.run_id,
+            run_id=run_id,
             artifact_path=artifact_path,
             model_framework=model_framework,
             registered_model_name=registered_model_name,
@@ -127,11 +124,7 @@ class MLFlowPersister(ModelPersister):
         if callable(persister_cleanup):
             persister_cleanup()
         if self._managed_run:
-            import contextlib
-
-            with contextlib.suppress(Exception):
-                # Cleanup is best-effort; ignore failures when ending the run.
-                self.client.set_terminated(self.run_id)
+            maybe_terminate_run(self.client, self.run_id)
         self._temp_dir.cleanup()
 
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
@@ -148,8 +141,6 @@ class MLFlowPersister(ModelPersister):
 
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
         """Download MLflow artifacts and restore them into the provided model."""
-        if self.model_framework == ModelFramework.Pytorch:
-            return self._load_pytorch_weights(step)
         self._clear_step_dir(step)
         artifact_path = self._remote_step_path(step)
         try:
@@ -168,9 +159,8 @@ class MLFlowPersister(ModelPersister):
 
         return self._local_persister.load_weights(model, step)
 
-    def _load_pytorch_weights(self, step: int) -> PytorchModel:
+    def load_pytorch_model(self, version: str) -> PytorchModel:
         """Load PyTorch weights from MLflow."""
-        version = str(step)
         assert self.registered_model_name
         model_uri = self.client.get_model_version_download_uri(self.registered_model_name, version)
         return mlflow_pytorch.load_model(model_uri)

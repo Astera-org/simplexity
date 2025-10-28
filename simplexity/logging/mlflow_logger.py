@@ -1,11 +1,8 @@
 import json
 import os
-import platform
-import sys
 import tempfile
 import time
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
 import dotenv
@@ -18,7 +15,7 @@ from mlflow.entities import Metric, Param, RunTag
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
-from simplexity.utils.mlflow_utils import resolve_registry_uri
+from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
 dotenv.load_dotenv()
 _DATABRICKS_HOST = os.getenv("DATABRICKS_HOST")
@@ -29,7 +26,7 @@ class MLFlowLogger(Logger):
 
     def __init__(
         self,
-        experiment_name: str,
+        experiment_name: str | None = None,
         run_name: str | None = None,
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
@@ -42,20 +39,18 @@ class MLFlowLogger(Logger):
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        experiment = self._client.get_experiment_by_name(experiment_name)
-        if experiment:
-            experiment_id = experiment.experiment_id
-        else:
-            experiment_id = self._client.create_experiment(experiment_name)
-        run = self._client.create_run(experiment_id=experiment_id, run_name=run_name)
-        self._run_id = run.info.run_id
-        self._tracking_uri = tracking_uri
-        self._registry_uri = resolved_registry_uri
+        self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self._client)
+        self._run_id = get_run_id(experiment_id=self._experiment_id, run_name=run_name, client=self._client)
 
     @property
     def client(self) -> mlflow.MlflowClient:
         """Expose underlying MLflow client for integrations."""
         return self._client
+
+    @property
+    def experiment_id(self) -> str:
+        """Expose active MLflow experiment identifier."""
+        return self._experiment_id
 
     @property
     def run_id(self) -> str:
@@ -65,12 +60,12 @@ class MLFlowLogger(Logger):
     @property
     def tracking_uri(self) -> str | None:
         """Return the tracking URI associated with this logger."""
-        return self._tracking_uri
+        return self._client.tracking_uri
 
     @property
     def registry_uri(self) -> str | None:
         """Return the model registry URI associated with this logger."""
-        return self._registry_uri
+        return self._client._registry_uri
 
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to MLflow."""
@@ -161,41 +156,9 @@ class MLFlowLogger(Logger):
                 json.dump(data, f, indent=2)
             self._client.log_artifact(self._run_id, json_path)
 
-    def log_environment_artifacts(self) -> None:
-        """Log environment configuration files as MLflow artifacts for reproducibility.
-
-        Logs dependency lockfile, project configuration, and system information
-        to help reproduce the exact environment used for training.
-        """
-        # Log dependency lockfile (most important for reproducibility)
-        uv_lock_path = Path("uv.lock")
-        if uv_lock_path.exists():
-            self._client.log_artifact(self._run_id, str(uv_lock_path), "environment")
-
-        # Log project configuration
-        pyproject_path = Path("pyproject.toml")
-        if pyproject_path.exists():
-            self._client.log_artifact(self._run_id, str(pyproject_path), "environment")
-
-        # Generate and log system information
-        self._log_system_info()
-
-    def _log_system_info(self) -> None:
-        """Generate and log system information as an artifact."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            info_path = os.path.join(temp_dir, "system_info.txt")
-            with open(info_path, "w") as f:
-                f.write(f"Python version: {sys.version}\n")
-                f.write(f"Platform: {platform.platform()}\n")
-                f.write(f"Architecture: {platform.architecture()}\n")
-                f.write(f"Machine: {platform.machine()}\n")
-                f.write(f"Processor: {platform.processor()}\n")
-
-            self._client.log_artifact(self._run_id, info_path, "environment")
-
     def close(self) -> None:
         """End the MLflow run."""
-        self._client.set_terminated(self._run_id)
+        maybe_terminate_run(client=self._client, run_id=self._run_id)
 
     def _log_batch(self, **kwargs: Any) -> None:
         """Log arbitrary data to MLflow."""
