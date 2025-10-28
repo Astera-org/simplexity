@@ -39,8 +39,8 @@ class MLFlowLogger(Logger):
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self._client)
-        self._run_id = get_run_id(experiment_id=self._experiment_id, run_name=run_name, client=self._client)
+        self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self.client)
+        self._run_id = get_run_id(experiment_id=self.experiment_id, run_name=run_name, client=self.client)
 
     @property
     def client(self) -> mlflow.MlflowClient:
@@ -60,19 +60,19 @@ class MLFlowLogger(Logger):
     @property
     def tracking_uri(self) -> str | None:
         """Return the tracking URI associated with this logger."""
-        return self._client.tracking_uri
+        return self.client.tracking_uri
 
     @property
     def registry_uri(self) -> str | None:
         """Return the model registry URI associated with this logger."""
-        return self._client._registry_uri
+        return self.client._registry_uri
 
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to MLflow."""
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = os.path.join(temp_dir, "config.yaml")
             OmegaConf.save(config, config_path, resolve=resolve)
-            self._client.log_artifact(self._run_id, config_path)
+            self.client.log_artifact(self.run_id, config_path)
 
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
         """Log metrics to MLflow."""
@@ -127,7 +127,7 @@ class MLFlowLogger(Logger):
         **kwargs,
     ) -> None:
         """Log a figure to MLflow using MLflowClient.log_figure."""
-        self._client.log_figure(self._run_id, figure, artifact_file, **kwargs)
+        self.client.log_figure(self.run_id, figure, artifact_file, **kwargs)
 
     def log_image(
         self,
@@ -142,11 +142,11 @@ class MLFlowLogger(Logger):
         if not artifact_file and not (key and step is not None):
             raise ValueError("Must provide either artifact_file or both key and step parameters")
 
-        self._client.log_image(self._run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
+        self.client.log_image(self.run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
 
     def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
         """Log an artifact (file or directory) to MLflow."""
-        self._client.log_artifact(self._run_id, local_path, artifact_path)
+        self.client.log_artifact(self.run_id, local_path, artifact_path)
 
     def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
         """Log a JSON object as an artifact to MLflow."""
@@ -154,12 +154,12 @@ class MLFlowLogger(Logger):
             json_path = os.path.join(temp_dir, artifact_name)
             with open(json_path, "w") as f:
                 json.dump(data, f, indent=2)
-            self._client.log_artifact(self._run_id, json_path)
+            self.client.log_artifact(self.run_id, json_path)
 
     def close(self) -> None:
         """End the MLflow run."""
-        maybe_terminate_run(run_id=self._run_id, client=self._client)
+        maybe_terminate_run(run_id=self.run_id, client=self.client)
 
     def _log_batch(self, **kwargs: Any) -> None:
         """Log arbitrary data to MLflow."""
-        self._client.log_batch(self._run_id, **kwargs, synchronous=False)
+        self.client.log_batch(self.run_id, **kwargs, synchronous=False)
