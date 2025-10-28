@@ -18,14 +18,12 @@ from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_t
 if TYPE_CHECKING:
     from mlflow import MlflowClient
 
-    from simplexity.logging.mlflow_logger import MLFlowLogger
-
 
 class MLFlowPersister(ModelPersister):
     """Persist model checkpoints as MLflow artifacts, optionally reusing an existing run."""
 
-    client: MlflowClient
-    run_id: str
+    _client: MlflowClient
+    _run_id: str
     artifact_path: str
     model_framework: ModelFramework
     registered_model_name: str | None
@@ -37,20 +35,29 @@ class MLFlowPersister(ModelPersister):
 
     def __init__(
         self,
-        client: MlflowClient,
-        run_id: str,
-        *,
+        experiment_name: str | None = None,
+        run_name: str | None = None,
+        tracking_uri: str | None = None,
+        registry_uri: str | None = None,
+        downgrade_unity_catalog: bool = True,
         artifact_path: str = "models",
         model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
-        temp_dir: tempfile.TemporaryDirectory | None = None,
         managed_run: bool = False,
+        temp_dir: tempfile.TemporaryDirectory | None = None,
     ):
-        self.client = client
-        self.run_id = run_id
-        self.artifact_path = artifact_path.strip().strip("/")
-        self.model_framework = model_framework
-        self.registered_model_name = registered_model_name
+        """Create a persister from an MLflow experiment."""
+        resolved_registry_uri = resolve_registry_uri(
+            registry_uri=registry_uri,
+            tracking_uri=tracking_uri,
+            downgrade_unity_catalog=downgrade_unity_catalog,
+        )
+        self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
+        self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self.client)
+        self._run_id = get_run_id(experiment_id=self.experiment_id, run_name=run_name, client=self.client)
+        self._artifact_path = artifact_path.strip().strip("/")
+        self._model_framework = model_framework
+        self._registered_model_name = registered_model_name
         self._temp_dir = temp_dir or tempfile.TemporaryDirectory()
         self._managed_run = managed_run
 
@@ -60,56 +67,30 @@ class MLFlowPersister(ModelPersister):
         self._artifact_dir.mkdir(parents=True, exist_ok=True)
         self._local_persister = self._build_local_persister(self._artifact_dir)
 
-    @classmethod
-    def from_experiment(
-        cls,
-        experiment_name: str | None = None,
-        *,
-        run_name: str | None = None,
-        tracking_uri: str | None = None,
-        registry_uri: str | None = None,
-        downgrade_unity_catalog: bool = True,
-        artifact_path: str = "models",
-        model_framework: ModelFramework = ModelFramework.Pytorch,
-        registered_model_name: str | None = None,
-    ) -> MLFlowPersister:
-        """Create a persister from an MLflow experiment."""
-        resolved_registry_uri = resolve_registry_uri(
-            registry_uri=registry_uri,
-            tracking_uri=tracking_uri,
-            downgrade_unity_catalog=downgrade_unity_catalog,
-        )
-        client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        experiment_id = get_experiment_id(experiment_name=experiment_name, client=client)
-        run_id = get_run_id(experiment_id=experiment_id, run_name=run_name, client=client)
-        artifact_path = artifact_path.strip().strip("/")
-        return cls(
-            client=client,
-            run_id=run_id,
-            artifact_path=artifact_path,
-            model_framework=model_framework,
-            registered_model_name=registered_model_name,
-            managed_run=True,
-        )
+    @property
+    def client(self) -> mlflow.MlflowClient:
+        """Expose underlying MLflow client for integrations."""
+        return self._client
 
-    @classmethod
-    def from_logger(
-        cls,
-        logger: MLFlowLogger,
-        *,
-        artifact_path: str = "models",
-        model_framework: ModelFramework = ModelFramework.Pytorch,
-        registered_model_name: str | None = None,
-    ) -> MLFlowPersister:
-        """Create a persister reusing an existing MLFlowLogger run."""
-        return cls(
-            client=logger.client,
-            run_id=logger.run_id,
-            artifact_path=artifact_path,
-            model_framework=model_framework,
-            registered_model_name=registered_model_name,
-            managed_run=False,
-        )
+    @property
+    def experiment_id(self) -> str:
+        """Expose active MLflow experiment identifier."""
+        return self._experiment_id
+
+    @property
+    def run_id(self) -> str:
+        """Expose active MLflow run identifier."""
+        return self._run_id
+
+    @property
+    def tracking_uri(self) -> str | None:
+        """Return the tracking URI associated with this persister."""
+        return self.client.tracking_uri
+
+    @property
+    def registry_uri(self) -> str | None:
+        """Return the model registry URI associated with this persister."""
+        return self.client._registry_uri
 
     @property
     def local_persister(self) -> ModelPersister:

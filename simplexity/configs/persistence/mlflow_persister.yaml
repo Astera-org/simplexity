@@ -1,7 +1,7 @@
 name: mlflow_persister
 
 instance:
-  _target_: simplexity.persistence.mlflow_persister.MLFlowPersister.from_experiment
+  _target_: simplexity.persistence.mlflow_persister.MLFlowPersister
   experiment_name: /Shared/${experiment_name}
   run_name: ${run_name}
   tracking_uri: databricks
