@@ -82,7 +82,7 @@ def test_mlflow_persister_round_trip(tmp_path: Path, mlflow_client_mock: tuple[M
 def test_mlflow_persister_registers_versions(tmp_path: Path, mlflow_client_mock: tuple[MagicMock, Path]):
     """Model versions are registered when a name is provided."""
     client, _ = mlflow_client_mock
-    client.get_registered_model.side_effect = Exception("missing")
+    client.search_registered_models.return_value = []
 
     persister = MLFlowPersister(
         client=client,
