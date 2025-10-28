@@ -31,7 +31,6 @@ class MLFlowPersister(ModelPersister):
     _base_dir: Path
     _artifact_dir: Path
     _local_persister: ModelPersister
-    _managed_run: bool
 
     def __init__(
         self,
@@ -43,7 +42,6 @@ class MLFlowPersister(ModelPersister):
         artifact_path: str = "models",
         model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
-        managed_run: bool = False,
         temp_dir: tempfile.TemporaryDirectory | None = None,
     ):
         """Create a persister from an MLflow experiment."""
@@ -59,7 +57,6 @@ class MLFlowPersister(ModelPersister):
         self._model_framework = model_framework
         self._registered_model_name = registered_model_name
         self._temp_dir = temp_dir or tempfile.TemporaryDirectory()
-        self._managed_run = managed_run
 
         # Local staging directories mirror the remote artifact layout for round-tripping.
         self._base_dir = Path(self._temp_dir.name)
@@ -102,8 +99,7 @@ class MLFlowPersister(ModelPersister):
         persister_cleanup = getattr(self._local_persister, "cleanup", None)
         if callable(persister_cleanup):
             persister_cleanup()
-        if self._managed_run:
-            maybe_terminate_run(self.run_id, client=self.client)
+        maybe_terminate_run(self.run_id, client=self.client)
         self._temp_dir.cleanup()
 
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
