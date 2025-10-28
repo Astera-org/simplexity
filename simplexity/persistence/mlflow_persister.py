@@ -124,7 +124,7 @@ class MLFlowPersister(ModelPersister):
         if callable(persister_cleanup):
             persister_cleanup()
         if self._managed_run:
-            maybe_terminate_run(self.client, self.run_id)
+            maybe_terminate_run(self.run_id, client=self.client)
         self._temp_dir.cleanup()
 
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:

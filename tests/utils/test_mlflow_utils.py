@@ -233,7 +233,7 @@ class TestMaybeTerminateRun:
         active_run = SimpleNamespace(info=SimpleNamespace(status="RUNNING"))
         mock_client = create_autospec(MlflowClient, instance=True)
         mock_client.get_run.return_value = active_run
-        maybe_terminate_run(client=mock_client, run_id="test_run_id")
+        maybe_terminate_run(run_id="test_run_id", client=mock_client)
         mock_client.get_run.assert_called_once_with("test_run_id")
         mock_client.set_terminated.assert_called_once_with("test_run_id")
 
@@ -243,6 +243,6 @@ class TestMaybeTerminateRun:
         terminated_run = SimpleNamespace(info=SimpleNamespace(status=status))
         mock_client = create_autospec(MlflowClient, instance=True)
         mock_client.get_run.return_value = terminated_run
-        maybe_terminate_run(client=mock_client, run_id="test_run_id")
+        maybe_terminate_run(run_id="test_run_id", client=mock_client)
         mock_client.get_run.assert_called_once_with("test_run_id")
         mock_client.set_terminated.assert_not_called()

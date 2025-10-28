@@ -22,6 +22,9 @@ SCHEME_SEPARATOR: Final = "://"
 _CONFIG_PATH = Path(__file__).parent.parent.parent / "config.ini"
 
 
+TERMINAL_STATES = ["FINISHED", "FAILED", "KILLED"]
+
+
 def get_databricks_host() -> str | None:
     """Load configuration from config.ini file."""
     if not _CONFIG_PATH.exists():
@@ -142,11 +145,11 @@ def get_run_id(
     return run.info.run_id
 
 
-def maybe_terminate_run(client: MlflowClient, run_id: str) -> None:
+def maybe_terminate_run(run_id: str, client: MlflowClient | None = None) -> None:
     """Terminate an MLflow run."""
-    terminal_statuses = ["FINISHED", "FAILED", "KILLED"]
+    client = mlflow.MlflowClient() if client is None else client
     status = client.get_run(run_id).info.status
-    if status not in terminal_statuses:
+    if status not in TERMINAL_STATES:
         SIMPLEXITY_LOGGER.info(f"[mlflow] terminating run with id: {run_id}")
         client.set_terminated(run_id)
     else:

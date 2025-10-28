@@ -158,7 +158,7 @@ class MLFlowLogger(Logger):
 
     def close(self) -> None:
         """End the MLflow run."""
-        maybe_terminate_run(client=self._client, run_id=self._run_id)
+        maybe_terminate_run(run_id=self._run_id, client=self._client)
 
     def _log_batch(self, **kwargs: Any) -> None:
         """Log arbitrary data to MLflow."""
