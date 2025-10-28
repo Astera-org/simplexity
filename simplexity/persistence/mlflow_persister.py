@@ -16,9 +16,7 @@ from simplexity.predictive_models.types import ModelFramework
 from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
 if TYPE_CHECKING:
-    import mlflow.pytorch as mlflow_pytorch
     from mlflow import MlflowClient
-    from torch.nn import Module as PytorchModel
 
     from simplexity.logging.mlflow_logger import MLFlowLogger
 
@@ -158,12 +156,6 @@ class MLFlowPersister(ModelPersister):
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
 
         return self._local_persister.load_weights(model, step)
-
-    def load_pytorch_model(self, version: str) -> PytorchModel:
-        """Load PyTorch weights from MLflow."""
-        assert self.registered_model_name
-        model_uri = self.client.get_model_version_download_uri(self.registered_model_name, version)
-        return mlflow_pytorch.load_model(model_uri)
 
     def _build_local_persister(self, directory: Path) -> ModelPersister:
         if self.model_framework == ModelFramework.Equinox:
