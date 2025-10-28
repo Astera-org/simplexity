@@ -38,6 +38,7 @@ from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_ur
 from simplexity.utils.pytorch_utils import resolve_device
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
+logging.captureWarnings(True)
 
 DEFAULT_ENVIRONMNENT_VARIABLES = {
     "MLFLOW_LOCK_MODEL_DEPENDENCIES": "true",
