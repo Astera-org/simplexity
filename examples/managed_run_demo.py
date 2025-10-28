@@ -53,14 +53,11 @@ def main(cfg: Config, components: Components) -> None:
             is_pytorch_model = isinstance(components.predictive_model, PytorchModel)
             if is_pytorch_model and registered_model_name:
                 timestamp = int(time.time())
-                name = f"demo_{timestamp}"
-                registered_model_name = f"{registered_model_name}_{timestamp}"
-                pip_requirements = create_requirements_file()
                 kwargs = {
                     "pytorch_model": components.predictive_model,
-                    "name": name,
-                    "registered_model_name": registered_model_name,
-                    "pip_requirements": pip_requirements,
+                    "name": f"demo_{timestamp}",
+                    "registered_model_name": f"{registered_model_name}_{timestamp}",
+                    "pip_requirements": create_requirements_file(),
                 }
                 if components.generative_process and components.initial_state is not None:
                     _, inputs, _ = generate_data_batch(
