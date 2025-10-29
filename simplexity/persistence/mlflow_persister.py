@@ -35,6 +35,12 @@ def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) 
         return LocalPytorchPersister(directory=artifact_dir)
 
 
+def _clear_subdirectory(subdirectory: Path) -> None:
+    if subdirectory.exists():
+        shutil.rmtree(subdirectory)
+    subdirectory.parent.mkdir(parents=True, exist_ok=True)
+
+
 class MLFlowPersister(ModelPersister):
     """Persist model checkpoints as MLflow artifacts, optionally reusing an existing run."""
 
@@ -114,8 +120,8 @@ class MLFlowPersister(ModelPersister):
 
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
-        self._clear_step_dir(step)
         step_dir = self._artifact_dir / str(step)
+        _clear_subdirectory(step_dir)
         local_persister = self._get_local_persister(model)
         local_persister.save_weights(model, step)
         artifact_path = self._remote_step_path(step)
@@ -127,7 +133,8 @@ class MLFlowPersister(ModelPersister):
 
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
         """Download MLflow artifacts and restore them into the provided model."""
-        self._clear_step_dir(step)
+        step_dir = self._artifact_dir / str(step)
+        _clear_subdirectory(step_dir)
         artifact_path = self._remote_step_path(step)
         try:
             downloaded_path = Path(
@@ -165,12 +172,6 @@ class MLFlowPersister(ModelPersister):
             parts.append(self.artifact_path)
         parts.append(str(step))
         return "/".join(parts)
-
-    def _clear_step_dir(self, step: int) -> None:
-        step_dir = self._artifact_dir / str(step)
-        if step_dir.exists():
-            shutil.rmtree(step_dir)
-        step_dir.parent.mkdir(parents=True, exist_ok=True)
 
     def _maybe_register_model(self, artifact_path: str) -> None:
         if not self.registered_model_name:
