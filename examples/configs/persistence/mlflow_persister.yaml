@@ -7,5 +7,4 @@ instance:
   tracking_uri:
   registry_uri:
   artifact_path: models
-  registered_model_name: demo_model
   downgrade_unity_catalog: true

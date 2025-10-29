@@ -44,14 +44,13 @@ def main(cfg: Config, components: Components) -> None:
     if is_mlflow_persister:
         instance_config = getattr(cfg.persistence, "instance", None)
         if instance_config:
-            registered_model_name = getattr(instance_config, "registered_model_name", None)
             is_pytorch_model = isinstance(components.predictive_model, PytorchModel)
-            if is_pytorch_model and registered_model_name:
+            if is_pytorch_model:
                 timestamp = int(time.time())
                 kwargs = {
                     "pytorch_model": components.predictive_model,
                     "name": f"demo_{timestamp}",
-                    "registered_model_name": f"{registered_model_name}_{timestamp}",
+                    "registered_model_name": f"demo_model_{timestamp}",
                     "pip_requirements": create_requirements_file(),
                 }
                 if components.generative_process and components.initial_state is not None:
@@ -70,7 +69,7 @@ def main(cfg: Config, components: Components) -> None:
                         model_output=outputs.detach().cpu().numpy(),
                     )
                     kwargs["signature"] = signature
-                # mlflow_pytorch.log_model(**kwargs)
+                mlflow_pytorch.log_model(**kwargs)
 
 
 if __name__ == "__main__":
