@@ -50,7 +50,6 @@ class MLFlowPersister(ModelPersister):
     _experiment_id: str
     _run_id: str
     _artifact_path: str
-    _registered_model_name: str | None
     _temp_dir: tempfile.TemporaryDirectory
     _artifact_dir: Path
     _local_persisters: dict[ModelFramework, LocalPersister]
@@ -63,7 +62,6 @@ class MLFlowPersister(ModelPersister):
         registry_uri: str | None = None,
         downgrade_unity_catalog: bool = True,
         artifact_path: str = "models",
-        registered_model_name: str | None = None,
     ):
         """Create a persister from an MLflow experiment."""
         resolved_registry_uri = resolve_registry_uri(
@@ -75,7 +73,6 @@ class MLFlowPersister(ModelPersister):
         self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self.client)
         self._run_id = get_run_id(experiment_id=self.experiment_id, run_name=run_name, client=self.client)
         self._artifact_path = artifact_path.strip().strip("/")
-        self._registered_model_name = registered_model_name
         self._temp_dir = tempfile.TemporaryDirectory()
         self._artifact_dir = (
             Path(self._temp_dir.name) / self._artifact_path if self._artifact_path else Path(self._temp_dir.name)
@@ -108,19 +105,14 @@ class MLFlowPersister(ModelPersister):
         """Return the model registry URI associated with this persister."""
         return self.client._registry_uri
 
-    @property
-    def registered_model_name(self) -> str | None:
-        """Return the registered model name associated with this persister."""
-        return self._registered_model_name
-
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
         local_persister = self._get_local_persister(model)
         step_dir = local_persister.directory / str(step)
         _clear_subdirectory(step_dir)
         local_persister.save_weights(model, step)
-        artifact_path = f"{self._artifact_path}/{step}"
-        self.client.log_artifacts(self.run_id, str(step_dir), artifact_path=artifact_path)
+        framework_dir = step_dir.parent
+        self.client.log_artifacts(self.run_id, str(framework_dir), artifact_path=self._artifact_path)
 
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
         """Download MLflow artifacts and restore them into the provided model."""
@@ -131,7 +123,7 @@ class MLFlowPersister(ModelPersister):
         downloaded_path = self.client.download_artifacts(
             self.run_id,
             artifact_path,
-            dst_path=str(step_dir),
+            dst_path=str(step_dir.parent),
         )
         if not Path(downloaded_path).exists():
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
