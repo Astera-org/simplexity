@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from omegaconf import DictConfig
+
 
 @dataclass
 class OptimizerInstanceConfig:
@@ -45,3 +47,11 @@ class Config:
 
     name: Literal["adam", "pytorch_adam"]
     instance: OptimizerInstanceConfig | PytorchOptimizerInstanceConfig
+
+
+def is_pytorch_optimizer_config(cfg: DictConfig) -> bool:
+    """Check if the configuration is a PyTorch optimizer configuration."""
+    target: str | None = cfg.get("_target_", None)
+    if target is None:
+        return False
+    return target.startswith("torch.optim.")

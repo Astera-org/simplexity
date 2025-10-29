@@ -272,6 +272,7 @@ class TestMLFlowLoggerPlotting:
         mock_client_class.return_value = mock_client
         mock_client.get_experiment_by_name.return_value = None
         mock_client.create_experiment.return_value = "exp_123"
+        mock_client.search_runs.return_value = []
         mock_run = MagicMock()
         mock_run.info.run_id = "run_456"
         mock_client.create_run.return_value = mock_run
@@ -293,6 +294,7 @@ class TestMLFlowLoggerPlotting:
         mock_client_class.return_value = mock_client
         mock_client.get_experiment_by_name.return_value = None
         mock_client.create_experiment.return_value = "exp_123"
+        mock_client.search_runs.return_value = []
         mock_run = MagicMock()
         mock_run.info.run_id = "run_456"
         mock_client.create_run.return_value = mock_run
@@ -316,6 +318,7 @@ class TestMLFlowLoggerPlotting:
         mock_client_class.return_value = mock_client
         mock_client.get_experiment_by_name.return_value = None
         mock_client.create_experiment.return_value = "exp_123"
+        mock_client.search_runs.return_value = []
         mock_run = MagicMock()
         mock_run.info.run_id = "run_456"
         mock_client.create_run.return_value = mock_run
