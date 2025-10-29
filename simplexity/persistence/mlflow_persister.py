@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import mlflow
+import mlflow.pytorch as mlflow_pytorch
 
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.model_persister import ModelPersister
@@ -18,6 +19,7 @@ from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_t
 
 if TYPE_CHECKING:
     from mlflow import MlflowClient
+    from torch.nn import Module as PytorchModel
 
 
 def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) -> LocalPersister:
@@ -138,6 +140,12 @@ class MLFlowPersister(ModelPersister):
         if not Path(downloaded_path).exists():
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
         return local_persister.load_weights(model, step)
+
+    def load_pytorch_model(self, version: str) -> PytorchModel:
+        """Load PyTorch weights from MLflow."""
+        assert self.registered_model_name
+        model_uri = self.client.get_model_version_download_uri(self.registered_model_name, version)
+        return mlflow_pytorch.load_model(model_uri)
 
     def cleanup(self) -> None:
         """Remove temporary resources and optionally end the MLflow run."""
