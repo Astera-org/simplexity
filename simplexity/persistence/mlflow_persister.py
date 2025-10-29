@@ -112,13 +112,6 @@ class MLFlowPersister(ModelPersister):
         """Return the registered model name associated with this persister."""
         return self._registered_model_name
 
-    def cleanup(self) -> None:
-        """Remove temporary resources and optionally end the MLflow run."""
-        for persister in self._local_persisters.values():
-            persister.cleanup()
-        maybe_terminate_run(self.run_id, client=self.client)
-        self._temp_dir.cleanup()
-
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
         self._clear_step_dir(step)
@@ -152,6 +145,13 @@ class MLFlowPersister(ModelPersister):
 
         local_persister = self._get_local_persister(model)
         return local_persister.load_weights(model, step)
+
+    def cleanup(self) -> None:
+        """Remove temporary resources and optionally end the MLflow run."""
+        for persister in self._local_persisters.values():
+            persister.cleanup()
+        maybe_terminate_run(self.run_id, client=self.client)
+        self._temp_dir.cleanup()
 
     def _get_local_persister(self, model: PredictiveModel) -> LocalPersister:
         model_framework = get_model_framework(model)
