@@ -28,7 +28,6 @@ class MLFlowPersister(ModelPersister):
     model_framework: ModelFramework
     registered_model_name: str | None
     _temp_dir: tempfile.TemporaryDirectory
-    _base_dir: Path
     _artifact_dir: Path
     _local_persister: ModelPersister
 
@@ -42,7 +41,6 @@ class MLFlowPersister(ModelPersister):
         artifact_path: str = "models",
         model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
-        temp_dir: tempfile.TemporaryDirectory | None = None,
     ):
         """Create a persister from an MLflow experiment."""
         resolved_registry_uri = resolve_registry_uri(
@@ -56,11 +54,12 @@ class MLFlowPersister(ModelPersister):
         self._artifact_path = artifact_path.strip().strip("/")
         self._model_framework = model_framework
         self._registered_model_name = registered_model_name
-        self._temp_dir = temp_dir or tempfile.TemporaryDirectory()
+        self._temp_dir = tempfile.TemporaryDirectory()
 
         # Local staging directories mirror the remote artifact layout for round-tripping.
-        self._base_dir = Path(self._temp_dir.name)
-        self._artifact_dir = self._base_dir / self.artifact_path if self.artifact_path else self._base_dir
+        self._artifact_dir = (
+            Path(self._temp_dir.name) / self.artifact_path if self.artifact_path else Path(self._temp_dir.name)
+        )
         self._artifact_dir.mkdir(parents=True, exist_ok=True)
         self._local_persister = self._build_local_persister(self._artifact_dir)
 
@@ -123,7 +122,7 @@ class MLFlowPersister(ModelPersister):
                 self.client.download_artifacts(
                     self.run_id,
                     artifact_path,
-                    dst_path=str(self._base_dir),
+                    dst_path=str(self._temp_dir.name),
                 )
             )
         except Exception as exc:  # pragma: no cover - exercised via mocks
