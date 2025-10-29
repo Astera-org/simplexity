@@ -72,7 +72,7 @@ class MLFlowLogger(Logger):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = os.path.join(temp_dir, "config.yaml")
             OmegaConf.save(config, config_path, resolve=resolve)
-            self._client.log_artifact(self._run_id, config_path)
+            self.client.log_artifact(self.run_id, config_path)
 
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
         """Log metrics to MLflow."""
@@ -127,7 +127,7 @@ class MLFlowLogger(Logger):
         **kwargs,
     ) -> None:
         """Log a figure to MLflow using MLflowClient.log_figure."""
-        self._client.log_figure(self._run_id, figure, artifact_file, **kwargs)
+        self.client.log_figure(self.run_id, figure, artifact_file, **kwargs)
 
     def log_image(
         self,
@@ -142,11 +142,11 @@ class MLFlowLogger(Logger):
         if not artifact_file and not (key and step is not None):
             raise ValueError("Must provide either artifact_file or both key and step parameters")
 
-        self._client.log_image(self._run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
+        self.client.log_image(self.run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
 
     def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
         """Log an artifact (file or directory) to MLflow."""
-        self._client.log_artifact(self._run_id, local_path, artifact_path)
+        self.client.log_artifact(self.run_id, local_path, artifact_path)
 
     def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
         """Log a JSON object as an artifact to MLflow."""
@@ -158,8 +158,8 @@ class MLFlowLogger(Logger):
 
     def close(self) -> None:
         """End the MLflow run."""
-        maybe_terminate_run(self._client, self._run_id)
+        maybe_terminate_run(run_id=self._run_id, client=self._client)
 
     def _log_batch(self, **kwargs: Any) -> None:
         """Log arbitrary data to MLflow."""
-        self._client.log_batch(self._run_id, **kwargs, synchronous=False)
+        self.client.log_batch(self.run_id, **kwargs, synchronous=False)

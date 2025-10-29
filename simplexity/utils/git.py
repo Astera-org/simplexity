@@ -10,7 +10,6 @@ def _sanitize_remote(remote: str) -> str:
 
     Args:
         remote: The git remote URL
-
     Returns:
         Sanitized remote URL without credentials
     """
@@ -44,7 +43,6 @@ def _find_git_root(start: Path) -> Path | None:
 
     Args:
         start: Starting path to search from
-
     Returns:
         Path to git repository root, or None if not found
     """
@@ -70,7 +68,6 @@ def get_git_info(repo_path: Path | None = None) -> dict[str, str]:
 
     Args:
         repo_path: Path to the git repository
-
     Returns:
         Dictionary with git information (commit, branch, dirty state, remote)
     """

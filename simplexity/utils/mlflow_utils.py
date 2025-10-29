@@ -22,6 +22,9 @@ SCHEME_SEPARATOR: Final = "://"
 _CONFIG_PATH = Path(__file__).parent.parent.parent / "config.ini"
 
 
+TERMINAL_STATES = ["FINISHED", "FAILED", "KILLED"]
+
+
 def get_databricks_host() -> str | None:
     """Load configuration from config.ini file."""
     if not _CONFIG_PATH.exists():
@@ -109,7 +112,7 @@ def get_experiment_id(
     if active_run:
         SIMPLEXITY_LOGGER.info(f"[mlflow] active run exists with experiment id: {active_run.info.experiment_id}")
         return active_run.info.experiment_id
-    raise ValueError("No experiment name or active run found")
+    raise RuntimeError("No experiment name or active run found")
 
 
 def get_run_id(
@@ -126,23 +129,27 @@ def get_run_id(
         if runs:
             SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' already exists with id: {runs[0].info.run_id}")
             return runs[0].info.run_id
-        run: Run = client.create_run(experiment_id=experiment_id, run_name=run_name).info.run_id
+        run: Run = client.create_run(experiment_id=experiment_id, run_name=run_name)
         SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' created with id: {run.info.run_id}")
         return run.info.run_id
     active_run = mlflow.active_run()
     if active_run:
         SIMPLEXITY_LOGGER.info(f"[mlflow] active run exists with id: {active_run.info.run_id}")
+        if active_run.info.experiment_id != experiment_id:
+            raise RuntimeError(
+                f"Active run experiment id {active_run.info.experiment_id} does not match experiment id {experiment_id}"
+            )
         return active_run.info.run_id
     run = client.create_run(experiment_id=experiment_id, run_name=run_name)
     SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' created with id: {run.info.run_id}")
     return run.info.run_id
 
 
-def maybe_terminate_run(client: MlflowClient, run_id: str) -> None:
+def maybe_terminate_run(run_id: str, client: MlflowClient | None = None) -> None:
     """Terminate an MLflow run."""
-    terminal_statuses = ["FINISHED", "FAILED", "KILLED"]
+    client = mlflow.MlflowClient() if client is None else client
     status = client.get_run(run_id).info.status
-    if status not in terminal_statuses:
+    if status not in TERMINAL_STATES:
         SIMPLEXITY_LOGGER.info(f"[mlflow] terminating run with id: {run_id}")
         client.set_terminated(run_id)
     else:
