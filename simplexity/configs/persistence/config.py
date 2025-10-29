@@ -38,8 +38,6 @@ class MLFlowPersisterConfig(PersistenceInstanceConfig):
     tracking_uri: str | None = None
     registry_uri: str | None = None
     artifact_path: str = "models"
-    model_framework: str = "pytorch"
-    registered_model_name: str | None = None
     downgrade_unity_catalog: bool = True
 
 
