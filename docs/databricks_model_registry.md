@@ -6,8 +6,7 @@ This project targets the Databricks **Workspace Model Registry** by default beca
 
 - Hydra config `logging=mlflow_logger` sets `tracking_uri=databricks` and `registry_uri=databricks`.
 - `simplexity.utils.mlflow_utils.resolve_registry_uri` downgrades Unity Catalog URIs (`databricks-uc`) to workspace URIs when `downgrade_unity_catalog=True` (the default) and emits a warning so you know a downgrade happened.
-- `MLFlowLogger` and the `MLFlowPersister` factory helpers call `resolve_registry_uri`, so any code path that uses Simplexity helpers gets the same fallback logic.
-- `examples/mlflow_workspace_registry_demo.py` mirrors this behaviour and can be used to sanity-check Databricks connectivity.
+- `MLFlowLogger` and `MLFlowPersister` call `resolve_registry_uri`, so any code path that uses Simplexity helpers gets the same fallback logic.
 
 ## Preparing for a Future Unity Catalog Migration
 
@@ -16,7 +15,7 @@ To keep migration friction low we expose an `downgrade_unity_catalog` flag every
 - **Logger config** (`simplexity/configs/logging/mlflow_logger.yaml`):
   - Set `registry_uri: databricks-uc` once your workspace is UC-enabled.
   - Flip `downgrade_unity_catalog: false` to stop the automatic downgrade.
-- **Programmatic use**: `MLFlowLogger(..., downgrade_unity_catalog=False)` or `MLFlowPersister.from_experiment(..., downgrade_unity_catalog=False)` preserves Unity Catalog URIs.
+- **Programmatic use**: `MLFlowLogger(..., downgrade_unity_catalog=False)` or `MLFlowPersister(..., downgrade_unity_catalog=False)` preserves Unity Catalog URIs.
 - **Environment variables**: you can still rely on `MLFLOW_TRACKING_URI` / `MLFLOW_REGISTRY_URI`. When fallback is disabled those values are forwarded unchanged.
 
 Because the flag defaults to `True`, current jobs continue working even if a Unity Catalog URI is supplied accidentally—Simplexity automatically falls back to the workspace registry and logs a warning. When you are ready to migrate, toggling the flag allows UC usage without touching the codebase.
@@ -28,7 +27,7 @@ Because the flag defaults to `True`, current jobs continue working even if a Uni
 3. **Update configuration**:
    - Set `registry_uri` (and optionally `tracking_uri`) to the appropriate `databricks-uc` endpoint.
    - Set `downgrade_unity_catalog: false` to surface real UC connectivity errors instead of silently downgrading.
-4. **Smoke test** using `examples/mlflow_workspace_registry_demo.py` with the updated config. The script will now run against UC and should register the demo model there.
+4. **Smoke test** using the MLflow logger and persister with the updated config. The components will now run against UC and should register models there.
 5. **Monitor warnings**: once fallback is disabled, any remaining downgrade warnings indicate stale configs or code paths that still pass the workspace URI.
 
 ## Operational Notes
