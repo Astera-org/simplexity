@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import shutil
 import tempfile
 from pathlib import Path
@@ -122,7 +121,6 @@ class MLFlowPersister(ModelPersister):
         local_persister.save_weights(model, step)
         artifact_path = f"{self._artifact_path}/{step}"
         self.client.log_artifacts(self.run_id, str(step_dir), artifact_path=artifact_path)
-        self._maybe_register_model(artifact_path)
 
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
         """Download MLflow artifacts and restore them into the provided model."""
@@ -151,25 +149,3 @@ class MLFlowPersister(ModelPersister):
         if model_framework not in self._local_persisters:
             self._local_persisters[model_framework] = _build_local_persister(model_framework, self._artifact_dir)
         return self._local_persisters[model_framework]
-
-    def _maybe_register_model(self, artifact_path: str) -> None:
-        if not self.registered_model_name:
-            return
-
-        # Check if model exists, create if it doesn't
-        matches = self.client.search_registered_models(
-            filter_string=f"name = '{self.registered_model_name}'",
-            max_results=1,
-        )
-        if not matches:
-            with contextlib.suppress(Exception):
-                self.client.create_registered_model(self.registered_model_name)
-
-        source = f"runs:/{self.run_id}/{artifact_path}"
-        with contextlib.suppress(Exception):
-            # Surface registration failures as warnings while allowing training to proceed.
-            self.client.create_model_version(
-                name=self.registered_model_name,
-                source=source,
-                run_id=self.run_id,
-            )
