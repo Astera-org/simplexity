@@ -156,4 +156,3 @@ def test_mlflow_persister_pytorch_cleanup(tmp_path: Path):
     persister.cleanup()
     assert run_status() == "FINISHED"
     assert not local_persister.directory.exists()
->>>>>>> origin/main

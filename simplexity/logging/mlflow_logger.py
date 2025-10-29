@@ -39,8 +39,8 @@ class MLFlowLogger(Logger):
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self._client)
-        self._run_id = get_run_id(experiment_id=self._experiment_id, run_name=run_name, client=self._client)
+        self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self.client)
+        self._run_id = get_run_id(experiment_id=self.experiment_id, run_name=run_name, client=self.client)
 
     @property
     def client(self) -> mlflow.MlflowClient:
@@ -60,12 +60,12 @@ class MLFlowLogger(Logger):
     @property
     def tracking_uri(self) -> str | None:
         """Return the tracking URI associated with this logger."""
-        return self._client.tracking_uri
+        return self.client.tracking_uri
 
     @property
     def registry_uri(self) -> str | None:
         """Return the model registry URI associated with this logger."""
-        return self._client._registry_uri
+        return self.client._registry_uri
 
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to MLflow."""
@@ -154,11 +154,11 @@ class MLFlowLogger(Logger):
             json_path = os.path.join(temp_dir, artifact_name)
             with open(json_path, "w") as f:
                 json.dump(data, f, indent=2)
-            self._client.log_artifact(self._run_id, json_path)
+            self.client.log_artifact(self.run_id, json_path)
 
     def close(self) -> None:
         """End the MLflow run."""
-        maybe_terminate_run(run_id=self._run_id, client=self._client)
+        maybe_terminate_run(run_id=self.run_id, client=self.client)
 
     def _log_batch(self, **kwargs: Any) -> None:
         """Log arbitrary data to MLflow."""
