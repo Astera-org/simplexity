@@ -78,8 +78,6 @@ class MLFlowPersister(ModelPersister):
         self._artifact_path = artifact_path.strip().strip("/")
         self._registered_model_name = registered_model_name
         self._temp_dir = tempfile.TemporaryDirectory()
-
-        # Local staging directories mirror the remote artifact layout for round-tripping.
         self._artifact_dir = (
             Path(self._temp_dir.name) / self._artifact_path if self._artifact_path else Path(self._temp_dir.name)
         )
