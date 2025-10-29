@@ -121,10 +121,7 @@ class MLFlowPersister(ModelPersister):
         _clear_subdirectory(step_dir)
         local_persister.save_weights(model, step)
         artifact_path = f"{self._artifact_path}/{step}"
-        try:
-            self.client.log_artifacts(self.run_id, str(step_dir), artifact_path=artifact_path)
-        except Exception as exc:  # pragma: no cover - exercised via mocks
-            raise RuntimeError(f"Failed to log model artifacts to MLflow at step {step}") from exc
+        self.client.log_artifacts(self.run_id, str(step_dir), artifact_path=artifact_path)
         self._maybe_register_model(artifact_path)
 
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
