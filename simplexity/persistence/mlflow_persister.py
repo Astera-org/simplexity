@@ -24,15 +24,18 @@ def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) 
     if model_framework == ModelFramework.Equinox:
         from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 
-        return LocalEquinoxPersister(directory=artifact_dir)
+        directory = artifact_dir / "equinox"
+        return LocalEquinoxPersister(directory=directory)
     if model_framework == ModelFramework.Penzai:
         from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 
-        return LocalPenzaiPersister(directory=artifact_dir)
+        directory = artifact_dir / "penzai"
+        return LocalPenzaiPersister(directory=directory)
     if model_framework == ModelFramework.Pytorch:
         from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 
-        return LocalPytorchPersister(directory=artifact_dir)
+        directory = artifact_dir / "pytorch"
+        return LocalPytorchPersister(directory=directory)
 
 
 def _clear_subdirectory(subdirectory: Path) -> None:
@@ -109,20 +112,15 @@ class MLFlowPersister(ModelPersister):
         return self.client._registry_uri
 
     @property
-    def artifact_path(self) -> str:
-        """Return the artifact path associated with this persister."""
-        return self._artifact_path
-
-    @property
     def registered_model_name(self) -> str | None:
         """Return the registered model name associated with this persister."""
         return self._registered_model_name
 
     def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
-        step_dir = self._artifact_dir / str(step)
-        _clear_subdirectory(step_dir)
         local_persister = self._get_local_persister(model)
+        step_dir = local_persister.directory / str(step)
+        _clear_subdirectory(step_dir)
         local_persister.save_weights(model, step)
         artifact_path = f"{self._artifact_path}/{step}"
         try:
@@ -133,7 +131,8 @@ class MLFlowPersister(ModelPersister):
 
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
         """Download MLflow artifacts and restore them into the provided model."""
-        step_dir = self._artifact_dir / str(step)
+        local_persister = self._get_local_persister(model)
+        step_dir = local_persister.directory / str(step)
         _clear_subdirectory(step_dir)
         artifact_path = f"{self._artifact_path}/{step}"
         try:
@@ -141,7 +140,7 @@ class MLFlowPersister(ModelPersister):
                 self.client.download_artifacts(
                     self.run_id,
                     artifact_path,
-                    dst_path=str(self._temp_dir.name),
+                    dst_path=str(step_dir),
                 )
             )
         except Exception as exc:  # pragma: no cover - exercised via mocks
@@ -150,7 +149,6 @@ class MLFlowPersister(ModelPersister):
         if not downloaded_path.exists():
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
 
-        local_persister = self._get_local_persister(model)
         return local_persister.load_weights(model, step)
 
     def cleanup(self) -> None:
