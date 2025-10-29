@@ -48,7 +48,15 @@ cuda = [
     "nvidia-cuda-cupti-cu12>=12.6.0",
     "nvidia-cuda-nvcc-cu12>=12.8.0",
 ]
-dev = ["jaxtyping", "nbqa", "pyright", "pytest", "pytest-cov", "ruff"]
+dev = [
+    "jaxtyping",
+    "nbqa",
+    "pyright",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "ruff",
+]
 mac = ["jax-metal"]
 pytorch = ["torch", "transformer-lens"]
 
