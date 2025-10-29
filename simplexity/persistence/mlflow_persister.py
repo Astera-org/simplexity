@@ -124,7 +124,7 @@ class MLFlowPersister(ModelPersister):
         _clear_subdirectory(step_dir)
         local_persister = self._get_local_persister(model)
         local_persister.save_weights(model, step)
-        artifact_path = self._remote_step_path(step)
+        artifact_path = f"{self._artifact_path}/{step}"
         try:
             self.client.log_artifacts(self.run_id, str(step_dir), artifact_path=artifact_path)
         except Exception as exc:  # pragma: no cover - exercised via mocks
@@ -135,7 +135,7 @@ class MLFlowPersister(ModelPersister):
         """Download MLflow artifacts and restore them into the provided model."""
         step_dir = self._artifact_dir / str(step)
         _clear_subdirectory(step_dir)
-        artifact_path = self._remote_step_path(step)
+        artifact_path = f"{self._artifact_path}/{step}"
         try:
             downloaded_path = Path(
                 self.client.download_artifacts(
@@ -165,13 +165,6 @@ class MLFlowPersister(ModelPersister):
         if model_framework not in self._local_persisters:
             self._local_persisters[model_framework] = _build_local_persister(model_framework, self._artifact_dir)
         return self._local_persisters[model_framework]
-
-    def _remote_step_path(self, step: int) -> str:
-        parts: list[str] = []
-        if self.artifact_path:
-            parts.append(self.artifact_path)
-        parts.append(str(step))
-        return "/".join(parts)
 
     def _maybe_register_model(self, artifact_path: str) -> None:
         if not self.registered_model_name:
