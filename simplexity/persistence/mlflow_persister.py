@@ -12,11 +12,26 @@ import mlflow
 
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
-from simplexity.predictive_models.types import ModelFramework
+from simplexity.predictive_models.types import ModelFramework, get_model_framework
 from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
 if TYPE_CHECKING:
     from mlflow import MlflowClient
+
+
+def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) -> ModelPersister:
+    if model_framework == ModelFramework.Equinox:
+        from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
+
+        return LocalEquinoxPersister(directory=artifact_dir)
+    if model_framework == ModelFramework.Penzai:
+        from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
+
+        return LocalPenzaiPersister(directory=artifact_dir)
+    if model_framework == ModelFramework.Pytorch:
+        from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
+
+        return LocalPytorchPersister(directory=artifact_dir)
 
 
 class MLFlowPersister(ModelPersister):
@@ -25,7 +40,6 @@ class MLFlowPersister(ModelPersister):
     _client: MlflowClient
     _run_id: str
     artifact_path: str
-    model_framework: ModelFramework
     registered_model_name: str | None
     _temp_dir: tempfile.TemporaryDirectory
     _artifact_dir: Path
@@ -39,7 +53,6 @@ class MLFlowPersister(ModelPersister):
         registry_uri: str | None = None,
         downgrade_unity_catalog: bool = True,
         artifact_path: str = "models",
-        model_framework: ModelFramework = ModelFramework.Pytorch,
         registered_model_name: str | None = None,
     ):
         """Create a persister from an MLflow experiment."""
@@ -52,7 +65,6 @@ class MLFlowPersister(ModelPersister):
         self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self.client)
         self._run_id = get_run_id(experiment_id=self.experiment_id, run_name=run_name, client=self.client)
         self._artifact_path = artifact_path.strip().strip("/")
-        self._model_framework = model_framework
         self._registered_model_name = registered_model_name
         self._temp_dir = tempfile.TemporaryDirectory()
 
@@ -61,7 +73,7 @@ class MLFlowPersister(ModelPersister):
             Path(self._temp_dir.name) / self.artifact_path if self.artifact_path else Path(self._temp_dir.name)
         )
         self._artifact_dir.mkdir(parents=True, exist_ok=True)
-        self._local_persister = self._build_local_persister(self._artifact_dir)
+        self._local_persisters: dict[ModelFramework, ModelPersister] = {}
 
     @property
     def client(self) -> mlflow.MlflowClient:
@@ -133,20 +145,11 @@ class MLFlowPersister(ModelPersister):
 
         return self._local_persister.load_weights(model, step)
 
-    def _build_local_persister(self, directory: Path) -> ModelPersister:
-        if self.model_framework == ModelFramework.Equinox:
-            from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
-
-            return LocalEquinoxPersister(directory)
-        if self.model_framework == ModelFramework.Penzai:
-            from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
-
-            return LocalPenzaiPersister(directory)
-        if self.model_framework == ModelFramework.Pytorch:
-            from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
-
-            return LocalPytorchPersister(directory)
-        raise ValueError(f"Unsupported model framework: {self.model_framework}")
+    def _get_local_persister(self, model: PredictiveModel) -> ModelPersister:
+        model_framework = get_model_framework(model)
+        if model_framework not in self._local_persisters:
+            self._local_persisters[model_framework] = _build_local_persister(model_framework, self._artifact_dir)
+        return self._local_persisters[model_framework]
 
     def _remote_step_path(self, step: int) -> str:
         parts: list[str] = []
