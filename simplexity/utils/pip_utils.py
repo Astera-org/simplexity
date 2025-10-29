@@ -54,7 +54,7 @@ def create_requirements_file(pyproject_path: str | Path = "pyproject.toml") -> s
     requirements_path = pyproject_path.parent / "requirements.txt"
     try:
         subprocess.run(
-            ["uv", "pip", "compile", str(pyproject_path), "--output-file", str(requirements_path)],
+            ["uv", "export", "--format", "requirements-txt", "--output-file", str(requirements_path)],
             check=True,
             capture_output=True,
             text=True,
