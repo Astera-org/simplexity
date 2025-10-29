@@ -130,20 +130,13 @@ class MLFlowPersister(ModelPersister):
         step_dir = local_persister.directory / str(step)
         _clear_subdirectory(step_dir)
         artifact_path = f"{self._artifact_path}/{step}"
-        try:
-            downloaded_path = Path(
-                self.client.download_artifacts(
-                    self.run_id,
-                    artifact_path,
-                    dst_path=str(step_dir),
-                )
-            )
-        except Exception as exc:  # pragma: no cover - exercised via mocks
-            raise RuntimeError(f"Failed to download model artifacts from MLflow at step {step}") from exc
-
-        if not downloaded_path.exists():
+        downloaded_path = self.client.download_artifacts(
+            self.run_id,
+            artifact_path,
+            dst_path=str(step_dir),
+        )
+        if not Path(downloaded_path).exists():
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
-
         return local_persister.load_weights(model, step)
 
     def cleanup(self) -> None:
