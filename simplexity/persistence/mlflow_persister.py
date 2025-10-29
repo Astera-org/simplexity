@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import mlflow
 
+from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
     from mlflow import MlflowClient
 
 
-def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) -> ModelPersister:
+def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) -> LocalPersister:
     if model_framework == ModelFramework.Equinox:
         from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 
@@ -38,12 +39,13 @@ class MLFlowPersister(ModelPersister):
     """Persist model checkpoints as MLflow artifacts, optionally reusing an existing run."""
 
     _client: MlflowClient
+    _experiment_id: str
     _run_id: str
-    artifact_path: str
-    registered_model_name: str | None
+    _artifact_path: str
+    _registered_model_name: str | None
     _temp_dir: tempfile.TemporaryDirectory
     _artifact_dir: Path
-    _local_persister: ModelPersister
+    _local_persisters: dict[ModelFramework, LocalPersister]
 
     def __init__(
         self,
@@ -70,10 +72,10 @@ class MLFlowPersister(ModelPersister):
 
         # Local staging directories mirror the remote artifact layout for round-tripping.
         self._artifact_dir = (
-            Path(self._temp_dir.name) / self.artifact_path if self.artifact_path else Path(self._temp_dir.name)
+            Path(self._temp_dir.name) / self._artifact_path if self._artifact_path else Path(self._temp_dir.name)
         )
         self._artifact_dir.mkdir(parents=True, exist_ok=True)
-        self._local_persisters: dict[ModelFramework, ModelPersister] = {}
+        self._local_persisters = {}
 
     @property
     def client(self) -> mlflow.MlflowClient:
@@ -101,15 +103,19 @@ class MLFlowPersister(ModelPersister):
         return self.client._registry_uri
 
     @property
-    def local_persister(self) -> ModelPersister:
-        """Expose the backing local persister (primarily for testing)."""
-        return self._local_persister
+    def artifact_path(self) -> str:
+        """Return the artifact path associated with this persister."""
+        return self._artifact_path
+
+    @property
+    def registered_model_name(self) -> str | None:
+        """Return the registered model name associated with this persister."""
+        return self._registered_model_name
 
     def cleanup(self) -> None:
         """Remove temporary resources and optionally end the MLflow run."""
-        persister_cleanup = getattr(self._local_persister, "cleanup", None)
-        if callable(persister_cleanup):
-            persister_cleanup()
+        for persister in self._local_persisters.values():
+            persister.cleanup()
         maybe_terminate_run(self.run_id, client=self.client)
         self._temp_dir.cleanup()
 
@@ -117,7 +123,8 @@ class MLFlowPersister(ModelPersister):
         """Serialize weights locally and upload them as MLflow artifacts."""
         self._clear_step_dir(step)
         step_dir = self._artifact_dir / str(step)
-        self._local_persister.save_weights(model, step)
+        local_persister = self._get_local_persister(model)
+        local_persister.save_weights(model, step)
         artifact_path = self._remote_step_path(step)
         try:
             self.client.log_artifacts(self.run_id, str(step_dir), artifact_path=artifact_path)
@@ -143,9 +150,10 @@ class MLFlowPersister(ModelPersister):
         if not downloaded_path.exists():
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
 
-        return self._local_persister.load_weights(model, step)
+        local_persister = self._get_local_persister(model)
+        return local_persister.load_weights(model, step)
 
-    def _get_local_persister(self, model: PredictiveModel) -> ModelPersister:
+    def _get_local_persister(self, model: PredictiveModel) -> LocalPersister:
         model_framework = get_model_framework(model)
         if model_framework not in self._local_persisters:
             self._local_persisters[model_framework] = _build_local_persister(model_framework, self._artifact_dir)
