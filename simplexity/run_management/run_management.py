@@ -34,7 +34,7 @@ from simplexity.run_management.run_logging import (
     log_source_script,
     log_system_info,
 )
-from simplexity.utils.hydra import typed_instantiate
+from simplexity.utils.hydra import get_targets, typed_instantiate
 from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_uri
 from simplexity.utils.pytorch_utils import resolve_device
 
@@ -53,12 +53,12 @@ REQUIRED_TAGS = ["research_step", "retention"]
 class Components:
     """Components for the run."""
 
-    logger: Logger | None
-    generative_process: GenerativeProcess | None
-    initial_state: jax.Array | None
-    persister: ModelPersister | None
-    predictive_model: Any  # TODO: improve typing
-    optimizer: Any | None  # TODO: improve typing
+    loggers: list[Logger] | None = None
+    generative_process: GenerativeProcess | None = None
+    initial_state: jax.Array | None = None
+    persister: ModelPersister | None = None
+    predictive_model: Any | None = None  # TODO: improve typing
+    optimizer: Any | None = None  # TODO: improve typing
 
 
 @contextmanager
@@ -265,15 +265,14 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
     return nullcontext()
 
 
-def _setup_logging(cfg: DictConfig) -> Logger | None:
+def _setup_logging(cfg: DictConfig, instance_key: str) -> Logger:
     """Setup the logging."""
-    logging_config: LoggingConfig | None = cfg.get("logging", None)
-    if logging_config:
-        logger = typed_instantiate(logging_config.instance, Logger)
+    logging_instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if logging_instance_config:
+        logger = typed_instantiate(logging_instance_config, Logger)
         SIMPLEXITY_LOGGER.info(f"[logging] instantiated logger: {logger.__class__.__name__}")
         return logger
-    SIMPLEXITY_LOGGER.info("[logging] no logging config found")
-    return None
+    raise KeyError
 
 
 def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
@@ -381,34 +380,37 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
         assert lock_dependencies, "MLFLOW_LOCK_MODEL_DEPENDENCIES must be set"
         assert lock_dependencies == "true", "MLFLOW_LOCK_MODEL_DEPENDENCIES must be set to true"
     _set_random_seeds(cfg.get("seed", None))
-    logger = _setup_logging(cfg)
-    if logger:
+    components = Components()
+    targets = get_targets(cfg)
+    logger_targets = [target for target in targets if target.startswith("simplexity.logging.")]
+    if logger_targets:
+        loggers = [_setup_logging(cfg, logger_target) for logger_target in logger_targets]
         if strict:
-            assert isinstance(logger, MLFlowLogger), "Logger must be an instance of MLFlowLogger"
-            assert logger.tracking_uri, "Tracking URI must be set"
-            assert logger.tracking_uri.startswith("databricks"), "Tracking URI must start with 'databricks'"
-        _do_logging(cfg, logger, verbose)
-    elif strict:
-        raise ValueError("No logger found")
-    generative_process = _setup_generative_process(cfg)
-    initial_state = _setup_initial_state(cfg, generative_process)
-    persister = _setup_persister(cfg)
-    predictive_model = _setup_predictive_model(cfg, persister)
-    optimizer = _setup_optimizer(cfg, predictive_model)
-    return Components(
-        logger=logger,
-        generative_process=generative_process,
-        initial_state=initial_state,
-        persister=persister,
-        predictive_model=predictive_model,
-        optimizer=optimizer,
-    )
+            mlflow_loggers = [logger for logger in loggers if isinstance(logger, MLFlowLogger)]
+            assert mlflow_loggers, "Logger must be an instance of MLFlowLogger"
+            assert any(
+                logger.tracking_uri and logger.tracking_uri.startswith("databricks") for logger in mlflow_loggers
+            ), "Tracking URI must start with 'databricks'"
+        for logger in loggers:
+            _do_logging(cfg, logger, verbose)
+        components.loggers = loggers
+    else:
+        SIMPLEXITY_LOGGER.info("[logging] no logging configs found")
+        if strict:
+            raise ValueError(f"Config must contain 1 logger, {len(logger_targets)} found")
+    components.generative_process = _setup_generative_process(cfg)
+    components.initial_state = _setup_initial_state(cfg, components.generative_process)
+    components.persister = _setup_persister(cfg)
+    components.predictive_model = _setup_predictive_model(cfg, components.persister)
+    components.optimizer = _setup_optimizer(cfg, components.predictive_model)
+    return components
 
 
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
-    if components.logger:
-        components.logger.close()
+    if components.loggers:
+        for logger in components.loggers:
+            logger.close()
     if components.persister:
         components.persister.cleanup()
 
