@@ -221,6 +221,20 @@ def _set_random_seeds(seed: int | None) -> None:
             SIMPLEXITY_LOGGER.info(f"[torch] CUDA seed set to: {seed}")
 
 
+def _assert_reproducibile(cfg: DictConfig) -> None:
+    assert _working_tree_is_clean(), "Working tree is dirty"
+    assert cfg.get("seed", None) is not None, "Seed must be set"
+    lock_dependencies = os.environ.get("MLFLOW_LOCK_MODEL_DEPENDENCIES")
+    assert lock_dependencies, "MLFLOW_LOCK_MODEL_DEPENDENCIES must be set"
+    assert lock_dependencies == "true", "MLFLOW_LOCK_MODEL_DEPENDENCIES must be set to true"
+
+
+def _assert_tagged(cfg: DictConfig) -> None:
+    tags: dict[str, Any] = cfg.get("tags", {})
+    missing_required_tags = set(REQUIRED_TAGS) - set(tags.keys())
+    assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
+
+
 def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
     """Setup the MLflow."""
     mlflow_config: MLFlowConfig | None = cfg.get("mlflow", None)
@@ -265,7 +279,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
     return nullcontext()
 
 
-def _setup_logging(cfg: DictConfig, instance_key: str) -> Logger:
+def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     """Setup the logging."""
     logging_instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if logging_instance_config:
@@ -289,7 +303,26 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
         log_source_script(logger)
 
 
-def _setup_generative_process(cfg: DictConfig, instance_key: str) -> GenerativeProcess:
+def _setup_logging(cfg: DictConfig, targets: list[str], *, strict: bool, verbose: bool) -> list[Logger] | None:
+    logger_targets = [target for target in targets if target.startswith("simplexity.logging.")]
+    if logger_targets:
+        loggers = [_instantiate_logger(cfg, logger_target) for logger_target in logger_targets]
+        if strict:
+            mlflow_loggers = [logger for logger in loggers if isinstance(logger, MLFlowLogger)]
+            assert mlflow_loggers, "Logger must be an instance of MLFlowLogger"
+            assert any(
+                logger.tracking_uri and logger.tracking_uri.startswith("databricks") for logger in mlflow_loggers
+            ), "Tracking URI must start with 'databricks'"
+        for logger in loggers:
+            _do_logging(cfg, logger, verbose)
+        return loggers
+    SIMPLEXITY_LOGGER.info("[logging] no logging configs found")
+    if strict:
+        raise ValueError(f"Config must contain 1 logger, {len(logger_targets)} found")
+    return None
+
+
+def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> GenerativeProcess:
     """Setup the generative process."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
@@ -301,7 +334,7 @@ def _setup_generative_process(cfg: DictConfig, instance_key: str) -> GenerativeP
     raise KeyError
 
 
-def _setup_initial_state(cfg: DictConfig, generative_process: GenerativeProcess) -> jax.Array:
+def _create_initial_state(cfg: DictConfig, generative_process: GenerativeProcess) -> jax.Array:
     """Setup the initial state."""
     batch_size = OmegaConf.select(cfg, "training.batch_size", default=1)
     initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
@@ -309,7 +342,19 @@ def _setup_initial_state(cfg: DictConfig, generative_process: GenerativeProcess)
     return initial_state
 
 
-def _setup_persister(cfg: DictConfig, instance_key: str) -> ModelPersister:
+def _setup_generative_processes(
+    cfg: DictConfig, targets: list[str]
+) -> tuple[list[GenerativeProcess] | None, list[jax.Array] | None]:
+    generative_process_targets = [target for target in targets if target.startswith("simplexity.generative_process.")]
+    if generative_process_targets:
+        generative_processes = [_instantiate_generative_process(cfg, target) for target in generative_process_targets]
+        initial_states = [_create_initial_state(cfg, process) for process in generative_processes]
+        return generative_processes, initial_states
+    SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
+    return None, None
+
+
+def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister:
     """Setup the persister."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
@@ -319,7 +364,25 @@ def _setup_persister(cfg: DictConfig, instance_key: str) -> ModelPersister:
     raise KeyError
 
 
-def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -> Any | None:
+def _setup_persisters(cfg: DictConfig, targets: list[str]) -> list[ModelPersister] | None:
+    persister_targets = [target for target in targets if target.startswith("simplexity.persister.")]
+    if persister_targets:
+        return [_instantiate_persister(cfg, target) for target in persister_targets]
+    SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
+    return None
+
+
+def _get_persister(persisters: list[ModelPersister] | None) -> ModelPersister | None:
+    if persisters:
+        if len(persisters) == 1:
+            return persisters[0]
+        SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model model checkpoint loading will be skipped")
+        return None
+    SIMPLEXITY_LOGGER.warning("No persister found, any model checkpoint loading will be skipped")
+    return None
+
+
+def _setup_predictive_model(cfg: DictConfig, persisters: list[ModelPersister] | None) -> Any | None:
     """Setup the predictive model."""
     model: Any | None = None
     predictive_model_config: DictConfig | None = cfg.get("predictive_model", None)
@@ -330,9 +393,13 @@ def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -
                 model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
             SIMPLEXITY_LOGGER.info(f"[predictive model] instantiated predictive model: {model.__class__.__name__}")
         load_checkpoint_step = predictive_model_config.get("load_checkpoint_step", None)
-        if load_checkpoint_step and persister:
-            # model = persister.load_pytorch_model(load_checkpoint_step)  # TODO: load checkpoint
-            SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
+        if load_checkpoint_step:
+            persister = _get_persister(persisters)
+            if persister:
+                # model = persister.load_pytorch_model(load_checkpoint_step)  # TODO: load checkpoint
+                SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
+            else:
+                raise RuntimeError("Unable to load model checkpoint")
     else:
         SIMPLEXITY_LOGGER.info("[predictive model] no predictive model config found")
     return model
@@ -364,54 +431,17 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     _setup_environment()
     if strict:
         _uv_sync()
-        assert _working_tree_is_clean(), "Working tree is dirty"
-        assert cfg.get("seed", None) is not None, "Seed must be set"
-        tags: dict[str, Any] = cfg.get("tags", {})
-        missing_required_tags = set(REQUIRED_TAGS) - set(tags.keys())
-        assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
-        lock_dependencies = os.environ.get("MLFLOW_LOCK_MODEL_DEPENDENCIES")
-        assert lock_dependencies, "MLFLOW_LOCK_MODEL_DEPENDENCIES must be set"
-        assert lock_dependencies == "true", "MLFLOW_LOCK_MODEL_DEPENDENCIES must be set to true"
+        _assert_reproducibile(cfg)
+        _assert_tagged(cfg)
     _set_random_seeds(cfg.get("seed", None))
     components = Components()
     targets = get_targets(cfg)
-    logger_targets = [target for target in targets if target.startswith("simplexity.logging.")]
-    if logger_targets:
-        loggers = [_setup_logging(cfg, logger_target) for logger_target in logger_targets]
-        if strict:
-            mlflow_loggers = [logger for logger in loggers if isinstance(logger, MLFlowLogger)]
-            assert mlflow_loggers, "Logger must be an instance of MLFlowLogger"
-            assert any(
-                logger.tracking_uri and logger.tracking_uri.startswith("databricks") for logger in mlflow_loggers
-            ), "Tracking URI must start with 'databricks'"
-        for logger in loggers:
-            _do_logging(cfg, logger, verbose)
-        components.loggers = loggers
-    else:
-        SIMPLEXITY_LOGGER.info("[logging] no logging configs found")
-        if strict:
-            raise ValueError(f"Config must contain 1 logger, {len(logger_targets)} found")
-    generative_process_targets = [target for target in targets if target.startswith("simplexity.generative_process.")]
-    if generative_process_targets:
-        components.generative_processes = [
-            _setup_generative_process(cfg, target) for target in generative_process_targets
-        ]
-        components.initial_states = [_setup_initial_state(cfg, process) for process in components.generative_processes]
-
-    else:
-        SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
-    persister_targets = [target for target in targets if target.startswith("simplexity.persister.")]
-    if persister_targets:
-        components.persisters = [_setup_persister(cfg, target) for target in persister_targets]
-    else:
-        SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
-    persister = None
-    if components.persisters:
-        if len(components.persisters) == 1:
-            persister = components.persisters[0]
-        else:
-            SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model checkpoint loading will be skipped")
-    components.predictive_model = _setup_predictive_model(cfg, persister)
+    components.loggers = _setup_logging(cfg, targets, strict=strict, verbose=verbose)
+    generative_processes, initial_states = _setup_generative_processes(cfg, targets)
+    components.generative_processes = generative_processes
+    components.initial_states = initial_states
+    components.persisters = _setup_persisters(cfg, targets)
+    components.predictive_model = _setup_predictive_model(cfg, components.persisters)
     components.optimizer = _setup_optimizer(cfg, components.predictive_model)
     return components
 
