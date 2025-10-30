@@ -1,48 +1,21 @@
 from dataclasses import dataclass
-from typing import Literal
 
+from omegaconf import DictConfig
 
-@dataclass
-class LoggingInstanceConfig:
-    """Configuration for the logging instance."""
-
-    _target_: Literal[
-        "simplexity.logging.file_logger.FileLogger",
-        "simplexity.logging.mlflow_logger.MLFlowLogger",
-        "simplexity.logging.print_logger.PrintLogger",
-    ]
-
-
-@dataclass
-class FileLoggerConfig(LoggingInstanceConfig):
-    """Configuration for file logger."""
-
-    # _target_: FileLogger
-    file_path: str
-
-
-@dataclass
-class MLFlowLoggerConfig(LoggingInstanceConfig):
-    """Configuration for MLFlow logger."""
-
-    # _target_: MLFlowLogger
-    experiment_name: str | None = None
-    run_name: str | None = None
-    tracking_uri: str | None = None
-    registry_uri: str | None = None
-    downgrade_unity_catalog: bool = True
-
-
-@dataclass
-class PrintLoggerConfig(LoggingInstanceConfig):
-    """Configuration for print logger."""
-
-    # _target_: PrintLogger
+from simplexity.configs.config import InstanceConfig
 
 
 @dataclass
 class Config:
     """Base configuration for logging."""
 
-    name: Literal["file_logger", "mlflow_logger", "print_logger"]
-    instance: LoggingInstanceConfig
+    name: str
+    instance: InstanceConfig
+
+
+def is_logger_config(cfg: DictConfig) -> bool:
+    """Check if the configuration is a LoggingInstanceConfig."""
+    target = cfg.get("_target_", None)
+    if isinstance(target, str):
+        return target.startswith("simplexity.logging.")
+    return False

@@ -3,16 +3,11 @@ from typing import Literal
 
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-
-@dataclass
-class ModelInstanceConfig:
-    """Configuration for the model instance."""
-
-    _target_: Literal["simplexity.predictive_models.gru_rnn.build_gru_rnn", "transformer_lens.HookedTransformer"]
+from simplexity.configs.config import InstanceConfig
 
 
 @dataclass
-class GRURNNConfig(ModelInstanceConfig):
+class GRURNNConfig(InstanceConfig):
     """Configuration for GRU RNN model."""
 
     embedding_size: int
@@ -41,7 +36,7 @@ class HookedTransformerConfigConfig:
 
 
 @dataclass
-class HookedTransformerConfig(ModelInstanceConfig):
+class HookedTransformerConfig(InstanceConfig):
     """Configuration for Transformer model."""
 
     cfg: HookedTransformerConfigConfig
@@ -52,7 +47,7 @@ class Config:
     """Base configuration for predictive models."""
 
     name: str
-    instance: ModelInstanceConfig
+    instance: InstanceConfig
     load_checkpoint_step: int | None = None
 
 
@@ -60,6 +55,14 @@ def validate_config(cfg: Config) -> None:
     """Validate the configuration."""
     if cfg.load_checkpoint_step is not None:
         assert cfg.load_checkpoint_step >= 0, "Load checkpoint step must be non-negative"
+
+
+def is_model_config(cfg: DictConfig) -> bool:
+    """Check if the configuration is a PersistenceInstanceConfig."""
+    target = cfg.get("_target_", None)
+    if isinstance(target, str):
+        return target.startswith("simplexity.persistence.")
+    return False
 
 
 def is_hooked_transformer_config(cfg: DictConfig) -> bool:
