@@ -35,8 +35,8 @@ def configure_logging() -> None:
 @simplexity.managed_run(strict=False, verbose=True)
 def main(cfg: Config, components: Components) -> None:
     """Test the managed run decorator."""
-    assert components.logger is not None
-    assert components.generative_process is not None
+    assert components.loggers is not None
+    assert components.generative_processes is not None
     assert components.persister is not None
     assert components.predictive_model is not None
     assert components.optimizer is not None
@@ -53,10 +53,10 @@ def main(cfg: Config, components: Components) -> None:
                     "registered_model_name": f"demo_model_{timestamp}",
                     "pip_requirements": create_requirements_file(),
                 }
-                if components.generative_process and components.initial_state is not None:
+                if components.generative_processes and components.initial_states is not None:
                     _, inputs, _ = generate_data_batch(
-                        components.initial_state,
-                        components.generative_process,
+                        components.initial_states[0],
+                        components.generative_processes[0],
                         cfg.training.batch_size,
                         cfg.training.sequence_len,
                         jax.random.key(cfg.seed),

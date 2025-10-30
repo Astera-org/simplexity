@@ -54,8 +54,8 @@ class Components:
     """Components for the run."""
 
     loggers: list[Logger] | None = None
-    generative_process: GenerativeProcess | None = None
-    initial_state: jax.Array | None = None
+    generative_processes: list[GenerativeProcess] | None = None
+    initial_states: list[jax.Array] | None = None
     persister: ModelPersister | None = None
     predictive_model: Any | None = None  # TODO: improve typing
     optimizer: Any | None = None  # TODO: improve typing
@@ -289,27 +289,24 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
         log_source_script(logger)
 
 
-def _setup_generative_process(cfg: DictConfig) -> GenerativeProcess | None:
+def _setup_generative_process(cfg: DictConfig, instance_key: str) -> GenerativeProcess:
     """Setup the generative process."""
-    generative_process_config: GenerativeProcessConfig | None = cfg.get("generative_process", None)
-    if generative_process_config:
-        generative_process = typed_instantiate(generative_process_config.instance, GenerativeProcess)
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        generative_process = typed_instantiate(instance_config, GenerativeProcess)
         SIMPLEXITY_LOGGER.info(
             f"[generative process] instantiated generative process: {generative_process.__class__.__name__}"
         )
         return generative_process
-    SIMPLEXITY_LOGGER.info("[generative process] no generative process config found")
-    return None
+    raise KeyError
 
 
-def _setup_initial_state(cfg: DictConfig, generative_process: GenerativeProcess | None) -> jax.Array | None:
+def _setup_initial_state(cfg: DictConfig, generative_process: GenerativeProcess) -> jax.Array:
     """Setup the initial state."""
-    if generative_process:
-        batch_size = OmegaConf.select(cfg, "training.batch_size", default=1)
-        initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
-        SIMPLEXITY_LOGGER.info(f"[generative process] instantiated initial state with shape: {initial_state.shape}")
-        return initial_state
-    return None
+    batch_size = OmegaConf.select(cfg, "training.batch_size", default=1)
+    initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
+    SIMPLEXITY_LOGGER.info(f"[generative process] instantiated initial state with shape: {initial_state.shape}")
+    return initial_state
 
 
 def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
@@ -398,8 +395,15 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
         SIMPLEXITY_LOGGER.info("[logging] no logging configs found")
         if strict:
             raise ValueError(f"Config must contain 1 logger, {len(logger_targets)} found")
-    components.generative_process = _setup_generative_process(cfg)
-    components.initial_state = _setup_initial_state(cfg, components.generative_process)
+    generative_process_targets = [target for target in targets if target.startswith("simplexity.generative_process.")]
+    if generative_process_targets:
+        components.generative_processes = [
+            _setup_generative_process(cfg, target) for target in generative_process_targets
+        ]
+        components.initial_states = [_setup_initial_state(cfg, process) for process in components.generative_processes]
+
+    else:
+        SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
     components.persister = _setup_persister(cfg)
     components.predictive_model = _setup_predictive_model(cfg, components.persister)
     components.optimizer = _setup_optimizer(cfg, components.predictive_model)
