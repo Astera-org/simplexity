@@ -56,7 +56,7 @@ class Components:
     loggers: list[Logger] | None = None
     generative_processes: list[GenerativeProcess] | None = None
     initial_states: list[jax.Array] | None = None
-    persister: ModelPersister | None = None
+    persisters: list[ModelPersister] | None = None
     predictive_model: Any | None = None  # TODO: improve typing
     optimizer: Any | None = None  # TODO: improve typing
 
@@ -309,18 +309,14 @@ def _setup_initial_state(cfg: DictConfig, generative_process: GenerativeProcess)
     return initial_state
 
 
-def _setup_persister(cfg: DictConfig) -> ModelPersister | None:
+def _setup_persister(cfg: DictConfig, instance_key: str) -> ModelPersister:
     """Setup the persister."""
-    persister_config: PersisterConfig | None = cfg.get("persistence", None)
-    if persister_config:
-        persister = typed_instantiate(persister_config.instance, ModelPersister)
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        persister = typed_instantiate(instance_config, ModelPersister)
         SIMPLEXITY_LOGGER.info(f"[persister] instantiated persister: {persister.__class__.__name__}")
-        framework = getattr(persister, "model_framework", None)
-        if framework:
-            SIMPLEXITY_LOGGER.info(f"[persister] model framework: {framework}")
         return persister
-    SIMPLEXITY_LOGGER.info("[persister] no persister config found")
-    return None
+    raise KeyError
 
 
 def _setup_predictive_model(cfg: DictConfig, persister: ModelPersister | None) -> Any | None:
@@ -404,8 +400,18 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
 
     else:
         SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
-    components.persister = _setup_persister(cfg)
-    components.predictive_model = _setup_predictive_model(cfg, components.persister)
+    persister_targets = [target for target in targets if target.startswith("simplexity.persister.")]
+    if persister_targets:
+        components.persisters = [_setup_persister(cfg, target) for target in persister_targets]
+    else:
+        SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
+    persister = None
+    if components.persisters:
+        if len(components.persisters) == 1:
+            persister = components.persisters[0]
+        else:
+            SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model checkpoint loading will be skipped")
+    components.predictive_model = _setup_predictive_model(cfg, persister)
     components.optimizer = _setup_optimizer(cfg, components.predictive_model)
     return components
 
@@ -415,8 +421,9 @@ def _cleanup(components: Components) -> None:
     if components.loggers:
         for logger in components.loggers:
             logger.close()
-    if components.persister:
-        components.persister.cleanup()
+    if components.persisters:
+        for persister in components.persisters:
+            persister.cleanup()
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:

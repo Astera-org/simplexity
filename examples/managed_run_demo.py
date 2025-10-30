@@ -37,7 +37,7 @@ def main(cfg: Config, components: Components) -> None:
     """Test the managed run decorator."""
     assert components.loggers is not None
     assert components.generative_processes is not None
-    assert components.persister is not None
+    assert components.persisters is not None
     assert components.predictive_model is not None
     assert components.optimizer is not None
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
