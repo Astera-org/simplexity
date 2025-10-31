@@ -39,7 +39,7 @@ from simplexity.run_management.run_logging import (
     log_source_script,
     log_system_info,
 )
-from simplexity.utils.hydra import dynamic_resolve, get_config, get_targets, typed_instantiate
+from simplexity.utils.hydra import dynamic_resolve, filter_targets, get_config, get_targets, typed_instantiate
 from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_uri
 from simplexity.utils.pytorch_utils import resolve_device
 
@@ -229,7 +229,7 @@ def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
 
 
 def _setup_logging(cfg: DictConfig, targets: list[str], *, strict: bool, verbose: bool) -> list[Logger] | None:
-    logger_targets = [target for target in targets if target.startswith("simplexity.logging.")]
+    logger_targets = filter_targets(cfg, targets, "simplexity.logging.")
     if logger_targets:
         loggers = [_instantiate_logger(cfg, logger_target) for logger_target in logger_targets]
         if strict:
@@ -291,7 +291,7 @@ def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_
 def _setup_generative_processes(
     cfg: DictConfig, targets: list[str]
 ) -> tuple[list[GenerativeProcess] | None, list[jax.Array] | None]:
-    generative_process_targets = [target for target in targets if target.startswith("simplexity.generative_process.")]
+    generative_process_targets = filter_targets(cfg, targets, "simplexity.generative_process.")
     if generative_process_targets:
         generative_processes = []
         for target in generative_process_targets:
@@ -320,7 +320,7 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
 
 
 def _setup_persisters(cfg: DictConfig, targets: list[str]) -> list[ModelPersister] | None:
-    persister_targets = [target for target in targets if target.startswith("simplexity.persister.")]
+    persister_targets = filter_targets(cfg, targets, "simplexity.persister.")
     if persister_targets:
         return [_instantiate_persister(cfg, target) for target in persister_targets]
     SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
@@ -351,13 +351,12 @@ def _setup_predictive_model(cfg: DictConfig, persisters: list[ModelPersister] | 
     model: Any | None = None
     predictive_model_config: DictConfig | None = cfg.get("predictive_model", None)
     if predictive_model_config:
-        if is_hooked_transformer_config(predictive_model_config):
-            assert isinstance(predictive_model_config, HookedTransformerConfig)
-            _resolve_hooked_transformer_config(
-                predictive_model_config, vocab_size=4
-            )  # TODO: get vocab size from generative processes
-        instance_config = predictive_model_config.get("instance", None)
+        instance_config: DictConfig | None = predictive_model_config.get("instance", None)
         if instance_config:
+            if is_hooked_transformer_config(instance_config):
+                _resolve_hooked_transformer_config(
+                    instance_config, vocab_size=4
+                )  # TODO: get vocab size from generative processes
             with _suppress_pydantic_field_attribute_warning():
                 model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
             SIMPLEXITY_LOGGER.info(f"[predictive model] instantiated predictive model: {model.__class__.__name__}")
@@ -396,7 +395,7 @@ def _setup_optimizer(cfg: DictConfig, predictive_model: Any | None) -> Any | Non
 
 
 def _get_special_token(cfg: DictConfig, targets: list[str], token: str) -> int | None:
-    generative_process_targets = [target for target in targets if target.startswith("simplexity.generative_process.")]
+    generative_process_targets = filter_targets(cfg, targets, "simplexity.generative_process.")
     token_value: int | None = None
     for target in generative_process_targets:
         target_parent = target.rsplit(".", 1)[0]

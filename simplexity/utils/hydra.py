@@ -1,24 +1,39 @@
 from collections.abc import Callable
-from typing import Any, Literal, TypeVar
+from typing import Any, TypeVar
 
 import hydra
 from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf.errors import MissingMandatoryValue
 
 T = TypeVar("T")
-TARGET = Literal["_target_"]
+TARGET: str = "_target_"
 
 
 def get_targets(cfg: DictConfig, *, nested: bool = False) -> list[str]:
     """Get targets."""
     targets: list[str] = []
-    for k, v in cfg.items():
-        if isinstance(v, DictConfig):
-            if TARGET in cfg:
-                targets.append(str(k))
-            if TARGET not in cfg or nested:
-                targets.extend([f"{k}.{target}" for target in get_targets(v, nested=nested)])
+    for key in cfg:
+        try:
+            value = cfg[key]
+        except MissingMandatoryValue:
+            continue
+        if isinstance(value, DictConfig):
+            if TARGET in value:
+                targets.append(str(key))
+            if TARGET not in value or nested:
+                targets.extend([f"{key}.{target}" for target in get_targets(value, nested=nested)])
 
     return targets
+
+
+def filter_targets(cfg: DictConfig, targets: list[str], prefix: str) -> list[str]:
+    """Filter targets by prefix."""
+    filtered_targets: list[str] = []
+    for target in targets:
+        target_value = OmegaConf.select(cfg, f"{target}._target_", throw_on_missing=False)
+        if isinstance(target_value, str) and target_value.startswith(prefix):
+            filtered_targets.append(target)
+    return filtered_targets
 
 
 def get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:

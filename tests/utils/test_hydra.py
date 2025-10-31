@@ -119,7 +119,7 @@ def test_get_targets_ignore_nested() -> None:
     assert get_targets(cfg, nested=False) == ["instance1"]
 
 
-    def test_get_targets_ignore_nested() -> None:
+def test_get_targets_include_nested() -> None:
     cfg = DictConfig(
         {
             "instance1": DictConfig(
@@ -143,4 +143,6 @@ def test_get_targets_ignore_nested() -> None:
             ),
         }
     )
-    assert set(get_targets(cfg, nested=True)) == set(["instance1", "instance1.instance2", "instance1.instance2.instance3"])
+    assert set(get_targets(cfg, nested=True)) == set(
+        ["instance1", "instance1.instance2", "instance1.instance2.instance3"]
+    )
