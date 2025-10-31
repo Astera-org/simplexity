@@ -214,21 +214,7 @@ def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     raise KeyError
 
 
-def _do_logging(cfg: DictConfig, logger: Logger, verbose: bool) -> None:
-    logger.log_config(cfg, resolve=True)
-    logger.log_params(cfg)
-    log_git_info(logger)
-    log_system_info(logger)
-    tags = cfg.get("tags", {})
-    if tags:
-        logger.log_tags(tags)
-    if verbose:
-        log_hydra_artifacts(logger)
-        log_environment_artifacts(logger)
-        log_source_script(logger)
-
-
-def _setup_logging(cfg: DictConfig, targets: list[str], *, strict: bool, verbose: bool) -> list[Logger] | None:
+def _setup_logging(cfg: DictConfig, targets: list[str], *, strict: bool) -> list[Logger] | None:
     logger_targets = filter_targets(cfg, targets, "simplexity.logging.")
     if logger_targets:
         loggers = [_instantiate_logger(cfg, logger_target) for logger_target in logger_targets]
@@ -238,8 +224,6 @@ def _setup_logging(cfg: DictConfig, targets: list[str], *, strict: bool, verbose
             assert any(
                 logger.tracking_uri and logger.tracking_uri.startswith("databricks") for logger in mlflow_loggers
             ), "Tracking URI must start with 'databricks'"
-        for logger in loggers:
-            _do_logging(cfg, logger, verbose)
         return loggers
     SIMPLEXITY_LOGGER.info("[logging] no logging configs found")
     if strict:
@@ -291,7 +275,7 @@ def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_
 def _setup_generative_processes(
     cfg: DictConfig, targets: list[str]
 ) -> tuple[list[GenerativeProcess] | None, list[jax.Array] | None]:
-    generative_process_targets = filter_targets(cfg, targets, "simplexity.generative_process.")
+    generative_process_targets = filter_targets(cfg, targets, "simplexity.generative_processes.")
     if generative_process_targets:
         generative_processes = []
         for target in generative_process_targets:
@@ -320,7 +304,7 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
 
 
 def _setup_persisters(cfg: DictConfig, targets: list[str]) -> list[ModelPersister] | None:
-    persister_targets = filter_targets(cfg, targets, "simplexity.persister.")
+    persister_targets = filter_targets(cfg, targets, "simplexity.persistence.")
     if persister_targets:
         return [_instantiate_persister(cfg, target) for target in persister_targets]
     SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
@@ -436,6 +420,23 @@ def _setup_training(cfg: DictConfig, targets: list[str]) -> None:
         _resolve_training_config(training_config, n_ctx=n_ctx, use_bos=use_bos, use_eos=use_eos)
 
 
+def _do_logging(cfg: DictConfig, loggers: list[Logger] | None, verbose: bool) -> None:
+    if loggers is None:
+        return
+    for logger in loggers:
+        logger.log_config(cfg, resolve=True)
+        logger.log_params(cfg)
+        log_git_info(logger)
+        log_system_info(logger)
+        tags = cfg.get("tags", {})
+        if tags:
+            logger.log_tags(tags)
+        if verbose:
+            log_hydra_artifacts(logger)
+            log_environment_artifacts(logger)
+            log_source_script(logger)
+
+
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     """Setup the run."""
     _setup_environment()
@@ -446,7 +447,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     _set_random_seeds(cfg.get("seed", None))
     components = Components()
     targets = get_targets(cfg)
-    components.loggers = _setup_logging(cfg, targets, strict=strict, verbose=verbose)
+    components.loggers = _setup_logging(cfg, targets, strict=strict)
     generative_processes, initial_states = _setup_generative_processes(cfg, targets)
     components.generative_processes = generative_processes
     components.initial_states = initial_states
@@ -454,6 +455,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.predictive_model = _setup_predictive_model(cfg, components.persisters)
     components.optimizer = _setup_optimizer(cfg, components.predictive_model)
     _setup_training(cfg, targets)
+    _do_logging(cfg, components.loggers, verbose)
     return components
 
 
