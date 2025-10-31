@@ -3,7 +3,7 @@ from typing import Literal
 
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from simplexity.configs.config import InstanceConfig
+from simplexity.configs.instance_config import InstanceConfig
 
 
 @dataclass

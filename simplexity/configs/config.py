@@ -16,13 +16,6 @@ from simplexity.configs.training.config import validate_config as validate_train
 
 
 @dataclass
-class InstanceConfig:
-    """Config for an object that can be instantiated by hydra."""
-
-    _target_: str
-
-
-@dataclass
 class Config:
     """Configuration for the experiment."""
 

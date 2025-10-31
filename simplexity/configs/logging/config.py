@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from omegaconf import DictConfig
 
-from simplexity.configs.config import InstanceConfig
+from simplexity.configs.instance_config import InstanceConfig
 
 
 @dataclass
