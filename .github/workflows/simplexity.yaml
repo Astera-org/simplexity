@@ -29,12 +29,58 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for diff-cover
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      - name: Run tests with coverage
-        run: uv run --extra aws --extra dev --extra cuda --extra pytorch pytest --capture=no --verbose
+      - name: Run tests with coverage (PRs - no fail threshold)
+        if: github.event_name == 'pull_request'
+        run: |
+          # For PRs, don't fail on overall coverage - we'll check new code separately
+          uv run --extra aws --extra dev --extra cuda --extra pytorch pytest \
+            --capture=no \
+            --verbose \
+            --cov-fail-under=0
+
+      - name: Run tests with coverage (pushes to main - strict)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # For pushes to main, enforce strict coverage on all code
+          uv run --extra aws --extra dev --extra cuda --extra pytorch pytest \
+            --capture=no \
+            --verbose
+
+      - name: Run tests with coverage (other pushes)
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: |
+          uv run --extra aws --extra dev --extra cuda --extra pytorch pytest \
+            --capture=no \
+            --verbose \
+            --cov-fail-under=0
+
+      - name: Check coverage for new code (PRs only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Get the base branch (usually main)
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+          echo "Checking coverage for new code against base branch: ${BASE_BRANCH}"
+          # Run diff-cover to check only new/changed code
+          # Fail if new code coverage is below 80%
+          uv run --extra dev diff-cover coverage.xml \
+            --compare-branch=origin/${BASE_BRANCH} \
+            --fail-under=80 \
+            --markdown-report diff-coverage-report.md || exit 1
+          echo "::notice::New code coverage check passed (80% threshold)"
+          cat diff-coverage-report.md
+
+      - name: Report overall coverage (warning only for PRs)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Show overall coverage summary as informational
+          echo "::notice::Overall codebase coverage summary (informational only):"
+          uv run --extra dev python -m coverage report || echo "Coverage report command not available"
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5

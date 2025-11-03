@@ -34,6 +34,7 @@ dependencies = [
 aws = ["boto3"]
 cuda = ["jax[cuda12_pip]"]
 dev = [
+    "diff-cover",
     "jaxtyping",
     "nbqa",
     "pyright",

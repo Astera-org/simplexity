@@ -17,5 +17,6 @@ mlruns/
 coverage.xml
 htmlcov/
 *.cover
+diff-coverage-report.md
 .hypothesis/
 .pytest_cache/
