@@ -95,6 +95,9 @@ addopts = [
     # New code in PRs is still strictly checked via diff-cover (80% threshold)
     # To check overall coverage locally, use: pytest --cov-fail-under=80
 ]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 [tool.coverage.run]
 source = ["simplexity"]
