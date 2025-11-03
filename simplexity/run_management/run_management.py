@@ -40,7 +40,13 @@ from simplexity.run_management.run_logging import (
     log_source_script,
     log_system_info,
 )
-from simplexity.utils.hydra import dynamic_resolve, filter_targets, get_config, get_targets, typed_instantiate
+from simplexity.utils.config_utils import (
+    dynamic_resolve,
+    filter_instance_keys,
+    get_config,
+    get_instance_keys,
+    typed_instantiate,
+)
 from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_uri
 from simplexity.utils.pytorch_utils import resolve_device
 
@@ -215,10 +221,10 @@ def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     raise KeyError
 
 
-def _setup_logging(cfg: DictConfig, targets: list[str], *, strict: bool) -> list[Logger] | None:
-    logger_targets = filter_targets(cfg, targets, is_logger_target)
-    if logger_targets:
-        loggers = [_instantiate_logger(cfg, logger_target) for logger_target in logger_targets]
+def _setup_logging(cfg: DictConfig, instance_keys: list[str], *, strict: bool) -> list[Logger] | None:
+    instance_keys = filter_instance_keys(cfg, instance_keys, is_logger_target)
+    if instance_keys:
+        loggers = [_instantiate_logger(cfg, instance_key) for instance_key in instance_keys]
         if strict:
             mlflow_loggers = [logger for logger in loggers if isinstance(logger, MLFlowLogger)]
             assert mlflow_loggers, "Logger must be an instance of MLFlowLogger"
@@ -228,7 +234,7 @@ def _setup_logging(cfg: DictConfig, targets: list[str], *, strict: bool) -> list
         return loggers
     SIMPLEXITY_LOGGER.info("[logging] no logging configs found")
     if strict:
-        raise ValueError(f"Config must contain 1 logger, {len(logger_targets)} found")
+        raise ValueError(f"Config must contain 1 logger, {len(instance_keys)} found")
     return None
 
 
@@ -274,15 +280,15 @@ def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_
 
 
 def _setup_generative_processes(
-    cfg: DictConfig, targets: list[str]
+    cfg: DictConfig, instance_keys: list[str]
 ) -> tuple[list[GenerativeProcess] | None, list[jax.Array] | None]:
-    generative_process_targets = filter_targets(cfg, targets, is_generative_process_target)
-    if generative_process_targets:
+    instance_keys = filter_instance_keys(cfg, instance_keys, is_generative_process_target)
+    if instance_keys:
         generative_processes = []
-        for target in generative_process_targets:
-            generative_process = _instantiate_generative_process(cfg, target)
-            target_parent = target.rsplit(".", 1)[0]
-            generative_process_config: GenerativeProcessConfig | None = OmegaConf.select(cfg, target_parent)
+        for instance_key in instance_keys:
+            generative_process = _instantiate_generative_process(cfg, instance_key)
+            config_key = instance_key.rsplit(".", 1)[0]
+            generative_process_config: GenerativeProcessConfig | None = OmegaConf.select(cfg, config_key)
             if generative_process_config is None:
                 raise RuntimeError("Error selecting generative process config")
             base_vocab_size = generative_process.vocab_size
@@ -304,10 +310,10 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
     raise KeyError
 
 
-def _setup_persisters(cfg: DictConfig, targets: list[str]) -> list[ModelPersister] | None:
-    persister_targets = filter_targets(cfg, targets, is_model_persister_target)
-    if persister_targets:
-        return [_instantiate_persister(cfg, target) for target in persister_targets]
+def _setup_persisters(cfg: DictConfig, instance_keys: list[str]) -> list[ModelPersister] | None:
+    instance_keys = filter_instance_keys(cfg, instance_keys, is_model_persister_target)
+    if instance_keys:
+        return [_instantiate_persister(cfg, instance_key) for instance_key in instance_keys]
     SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
     return None
 
@@ -357,19 +363,19 @@ def _load_checkpoint(cfg: DictConfig, target: str, persisters: list[ModelPersist
 
 
 def _setup_predictive_models(
-    cfg: DictConfig, targets: list[str], persisters: list[ModelPersister] | None
+    cfg: DictConfig, instance_keys: list[str], persisters: list[ModelPersister] | None
 ) -> list[Any] | None:
     """Setup the predictive model."""
     models = []
-    predictive_model_targets = filter_targets(cfg, targets, is_predictive_model_target)
-    for target in predictive_model_targets:
-        instance_config = OmegaConf.select(cfg, target, throw_on_missing=True)
+    instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
+    for instance_key in instance_keys:
+        instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
         if instance_config and is_hooked_transformer_config(instance_config):
             _resolve_hooked_transformer_config(
                 instance_config, vocab_size=4
             )  # TODO: get vocab size from generative processes
-        models.append(_instantiate_predictive_model(cfg, target))
-        _load_checkpoint(cfg, target, persisters)
+        models.append(_instantiate_predictive_model(cfg, instance_key))
+        _load_checkpoint(cfg, instance_key, persisters)
     if models:
         return models
     SIMPLEXITY_LOGGER.info("[predictive model] no predictive model config found")
@@ -406,12 +412,12 @@ def _setup_optimizer(cfg: DictConfig, predictive_models: list[Any] | None) -> An
     return None
 
 
-def _get_special_token(cfg: DictConfig, targets: list[str], token: str) -> int | None:
-    generative_process_targets = filter_targets(cfg, targets, is_generative_process_target)
+def _get_special_token(cfg: DictConfig, instance_keys: list[str], token: str) -> int | None:
+    instance_keys = filter_instance_keys(cfg, instance_keys, is_generative_process_target)
     token_value: int | None = None
-    for target in generative_process_targets:
-        target_parent = target.rsplit(".", 1)[0]
-        generative_process_config: DictConfig | None = OmegaConf.select(cfg, target_parent, throw_on_missing=True)
+    for instance_key in instance_keys:
+        config_key = instance_key.rsplit(".", 1)[0]
+        generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key, throw_on_missing=True)
         if generative_process_config is None:
             raise RuntimeError("Error selecting generative process config")
         new_token_value: int = generative_process_config.get(f"{token}_token")
@@ -436,15 +442,15 @@ def _resolve_training_config(cfg: TrainingConfig, *, n_ctx: int, use_bos: bool, 
         SIMPLEXITY_LOGGER.info(f"[training] sequence len defined as: {cfg.sequence_len}")
 
 
-def _setup_training(cfg: DictConfig, targets: list[str]) -> None:
+def _setup_training(cfg: DictConfig, instance_keys: list[str]) -> None:
     training_config: TrainingConfig | None = cfg.get("training", None)
     if training_config:
         n_ctx: int = OmegaConf.select(
             cfg,
             "predictive_model.instance.cfg.n_ctx",
         )
-        use_bos = _get_special_token(cfg, targets, "bos") is not None
-        use_eos = _get_special_token(cfg, targets, "eos") is not None
+        use_bos = _get_special_token(cfg, instance_keys, "bos") is not None
+        use_eos = _get_special_token(cfg, instance_keys, "eos") is not None
         _resolve_training_config(training_config, n_ctx=n_ctx, use_bos=use_bos, use_eos=use_eos)
 
 
@@ -474,15 +480,15 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
         _assert_tagged(cfg)
     _set_random_seeds(cfg.get("seed", None))
     components = Components()
-    targets = get_targets(cfg)
-    components.loggers = _setup_logging(cfg, targets, strict=strict)
-    generative_processes, initial_states = _setup_generative_processes(cfg, targets)
+    instance_keys = get_instance_keys(cfg)
+    components.loggers = _setup_logging(cfg, instance_keys, strict=strict)
+    generative_processes, initial_states = _setup_generative_processes(cfg, instance_keys)
     components.generative_processes = generative_processes
     components.initial_states = initial_states
-    components.persisters = _setup_persisters(cfg, targets)
-    components.predictive_models = _setup_predictive_models(cfg, targets, components.persisters)
+    components.persisters = _setup_persisters(cfg, instance_keys)
+    components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizer = _setup_optimizer(cfg, components.predictive_models)
-    _setup_training(cfg, targets)
+    _setup_training(cfg, instance_keys)
     _do_logging(cfg, components.loggers, verbose)
     return components
 

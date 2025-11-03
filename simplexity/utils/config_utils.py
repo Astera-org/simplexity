@@ -9,9 +9,9 @@ T = TypeVar("T")
 TARGET: str = "_target_"
 
 
-def get_targets(cfg: DictConfig, *, nested: bool = False) -> list[str]:
-    """Get targets."""
-    targets: list[str] = []
+def get_instance_keys(cfg: DictConfig, *, nested: bool = False) -> list[str]:
+    """Get instance keys."""
+    instance_keys: list[str] = []
     for key in cfg:
         try:
             value = cfg[key]
@@ -19,21 +19,21 @@ def get_targets(cfg: DictConfig, *, nested: bool = False) -> list[str]:
             continue
         if isinstance(value, DictConfig):
             if TARGET in value:
-                targets.append(str(key))
+                instance_keys.append(str(key))
             if TARGET not in value or nested:
-                targets.extend([f"{key}.{target}" for target in get_targets(value, nested=nested)])
+                instance_keys.extend([f"{key}.{target}" for target in get_instance_keys(value, nested=nested)])
 
-    return targets
+    return instance_keys
 
 
-def filter_targets(cfg: DictConfig, targets: list[str], filter_fn: Callable[[str], bool]) -> list[str]:
-    """Filter targets by prefix."""
-    filtered_targets: list[str] = []
-    for target in targets:
-        target_value = OmegaConf.select(cfg, f"{target}._target_", throw_on_missing=False)
-        if isinstance(target_value, str) and filter_fn(target_value):
-            filtered_targets.append(target)
-    return filtered_targets
+def filter_instance_keys(cfg: DictConfig, instance_keys: list[str], filter_fn: Callable[[str], bool]) -> list[str]:
+    """Filter instance keys by filter function to their targets."""
+    filtered_instance_keys: list[str] = []
+    for instance_key in instance_keys:
+        target = OmegaConf.select(cfg, f"{instance_key}._target_", throw_on_missing=False)
+        if isinstance(target, str) and filter_fn(target):
+            filtered_instance_keys.append(instance_key)
+    return filtered_instance_keys
 
 
 def get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:

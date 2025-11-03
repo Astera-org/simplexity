@@ -1,9 +1,10 @@
 from omegaconf import DictConfig, ListConfig
 
-from simplexity.utils.hydra import TARGET, get_targets
+from simplexity.utils.config_utils import TARGET, get_instance_keys
 
 
-def test_get_targets_no_targets() -> None:
+def test_get_instance_keys_no_targets() -> None:
+    """Test getting instance keys when there are no targets."""
     cfg = DictConfig(
         {
             "int_item": 1,
@@ -12,10 +13,11 @@ def test_get_targets_no_targets() -> None:
             "dict_item": DictConfig({"a": 1, "b": 2, "c": 3}),
         }
     )
-    assert get_targets(cfg) == []
+    assert not get_instance_keys(cfg)
 
 
-def test_get_targets_target_config() -> None:
+def test_get_instance_keys_target_config() -> None:
+    """Test getting instance keys when there is a target config."""
     cfg = DictConfig(
         {
             TARGET: "some_callable",
@@ -23,10 +25,11 @@ def test_get_targets_target_config() -> None:
             "kwargs": DictConfig({"arg4": 4, "arg5": 5, "arg6": 6}),
         }
     )
-    assert get_targets(cfg) == []
+    assert not get_instance_keys(cfg)
 
 
-def test_get_targets_top_level() -> None:
+def test_get_instance_keys_top_level() -> None:
+    """Test getting instance keys when there are top level targets."""
     cfg = DictConfig(
         {
             "instance1": DictConfig(
@@ -52,10 +55,11 @@ def test_get_targets_top_level() -> None:
             ),
         }
     )
-    assert set(get_targets(cfg)) == set(["instance1", "instance2", "instance3"])
+    assert set(get_instance_keys(cfg)) == set(["instance1", "instance2", "instance3"])
 
 
-def test_get_targets_multi_level() -> None:
+def test_get_instance_keys_multi_level() -> None:
+    """Test getting instance keys when there are multi level targets."""
     cfg = DictConfig(
         {
             "instance1": DictConfig(
@@ -89,10 +93,17 @@ def test_get_targets_multi_level() -> None:
             ),
         }
     )
-    assert set(get_targets(cfg)) == set(["instance1", "level2.instance2", "level2.level3.instance3"])
+    assert set(get_instance_keys(cfg)) == set(
+        [
+            "instance1",
+            "level2.instance2",
+            "level2.level3.instance3",
+        ]
+    )
 
 
-def test_get_targets_ignore_nested() -> None:
+def test_get_instance_keys_ignore_nested() -> None:
+    """Test getting instance keys when there are nested targets."""
     cfg = DictConfig(
         {
             "instance1": DictConfig(
@@ -116,10 +127,11 @@ def test_get_targets_ignore_nested() -> None:
             ),
         }
     )
-    assert get_targets(cfg, nested=False) == ["instance1"]
+    assert get_instance_keys(cfg, nested=False) == ["instance1"]
 
 
-def test_get_targets_include_nested() -> None:
+def test_get_instance_keys_include_nested() -> None:
+    """Test getting instance keys when there are nested targets and include nested is True."""
     cfg = DictConfig(
         {
             "instance1": DictConfig(
@@ -143,6 +155,6 @@ def test_get_targets_include_nested() -> None:
             ),
         }
     )
-    assert set(get_targets(cfg, nested=True)) == set(
+    assert set(get_instance_keys(cfg, nested=True)) == set(
         ["instance1", "instance1.instance2", "instance1.instance2.instance3"]
     )
