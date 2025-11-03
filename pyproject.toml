@@ -91,13 +91,12 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
-    # Note: --cov-fail-under is not set by default to allow gradual improvement
-    # New code in PRs is still strictly checked via diff-cover (80% threshold)
+    # Note: --cov-fail-under is intentionally not set here to allow gradual improvement
+    # of overall coverage. The CI workflow explicitly sets --cov-fail-under=0 to track
+    # coverage without blocking. New code in PRs is strictly checked via diff-cover (80% threshold).
     # To check overall coverage locally, use: pytest --cov-fail-under=80
 ]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.coverage.run]
 source = ["simplexity"]

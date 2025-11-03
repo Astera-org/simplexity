@@ -61,11 +61,15 @@ jobs:
           # Run diff-cover to check only new/changed code
           # Fail if new code coverage is below 80%
           # Note: diff-cover only needs --extra dev (tests need all extras for integration testing)
-          uv run --extra dev diff-cover coverage.xml \
+          if uv run --extra dev diff-cover coverage.xml \
             --compare-branch=origin/${BASE_BRANCH} \
             --fail-under=80 \
-            --markdown-report diff-coverage-report.md || exit 1
-          echo "::notice::New code coverage check passed (80% threshold)"
+            --markdown-report diff-coverage-report.md; then
+            echo "::notice::New code coverage check passed (80% threshold)"
+          else
+            echo "::error::New code coverage is below 80% threshold"
+            exit 1
+          fi
         continue-on-error: false
 
       - name: Upload diff coverage report

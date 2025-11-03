@@ -148,6 +148,8 @@ uv run --extra dev --extra pytorch pytest --cov-fail-under=80
 
 # Check coverage for new code only (compares against main branch)
 # This is what CI checks - new code must meet 80% threshold
+# Note: Requires pytest to be run first to generate coverage.xml
+uv run --extra dev --extra pytorch pytest --cov-fail-under=0
 uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
 
 # View HTML coverage report (generated in htmlcov/)
