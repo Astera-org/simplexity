@@ -60,6 +60,12 @@ def test_functionality(model_fixture: Model):
 - Test with different random seeds
 - Verify shape and dtype consistency
 
+### Coverage Requirements
+- Minimum test coverage: 80% (enforced in CI and locally)
+- Coverage is automatically checked when running `pytest`
+- HTML coverage reports are generated in `htmlcov/` directory
+- CI will fail if coverage drops below the threshold
+
 ## Architecture Patterns
 
 ### Module Structure
@@ -103,7 +109,7 @@ Before submitting code, ensure it passes:
 1. `uv run --extra dev ruff check` - Linting
 2. `uv run --extra dev ruff format --check` - Formatting
 3. `uv run --extra dev --extra pytorch pyright` - Type checking  
-4. `uv run --extra dev --extra pytorch pytest` - Tests
+4. `uv run --extra dev --extra pytorch pytest` - Tests with coverage (must meet 80% threshold)
 
 ## Common Commands
 
@@ -122,6 +128,13 @@ uv run --extra dev --extra pytorch pyright
 
 # Run tests
 uv run --extra dev --extra pytorch pytest
+
+# Run tests with coverage (will fail if below 80%)
+uv run --extra dev --extra pytorch pytest
+
+# View HTML coverage report (generated in htmlcov/)
+uv run --extra dev --extra pytorch pytest
+# Then open htmlcov/index.html in a browser
 
 # Train a model
 uv run python simplexity/train_model.py

@@ -33,8 +33,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: pytest
-        run: uv run --extra aws --extra dev --extra cuda --extra pytorch pytest --capture=no --verbose --cov --cov-report=xml
+      - name: Run tests with coverage
+        run: uv run --extra aws --extra dev --extra cuda --extra pytorch pytest --capture=no --verbose
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
@@ -42,3 +42,5 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: Astera-org/simplexity
           verbose: true
+          files: ./coverage.xml
+          fail_ci_if_error: false

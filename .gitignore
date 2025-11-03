@@ -10,3 +10,12 @@ config.ini
 *temp*
 # MLflow tracking data
 mlruns/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+.hypothesis/
+.pytest_cache/
