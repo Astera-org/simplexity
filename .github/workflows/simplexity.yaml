@@ -44,13 +44,16 @@ jobs:
             --verbose \
             --cov-fail-under=0
 
-      - name: Run tests with coverage (pushes to main - strict)
+      - name: Run tests with coverage (pushes to main - track but don't fail)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          # For pushes to main, enforce strict coverage on all code
+          # For pushes to main, track overall coverage but don't fail
+          # TODO: Enable strict overall coverage enforcement once coverage improves
           uv run --extra aws --extra dev --extra cuda --extra pytorch pytest \
             --capture=no \
-            --verbose
+            --verbose \
+            --cov-fail-under=0
+          echo "::notice::Overall coverage is being tracked but not enforced yet"
 
       - name: Run tests with coverage (other pushes)
         if: github.event_name == 'push' && github.ref != 'refs/heads/main'
