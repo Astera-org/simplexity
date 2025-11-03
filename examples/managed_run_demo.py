@@ -39,7 +39,7 @@ def main(cfg: Config, components: Components) -> None:
     assert components.generative_processes is not None
     assert components.persisters is not None
     assert components.predictive_models is not None
-    assert components.optimizer is not None
+    assert components.optimizers is not None
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
         for model in components.predictive_models:

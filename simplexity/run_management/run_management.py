@@ -40,6 +40,7 @@ from simplexity.run_management.run_logging import (
     log_source_script,
     log_system_info,
 )
+from simplexity.training.optimizer import is_optimizer_target
 from simplexity.utils.config_utils import (
     dynamic_resolve,
     filter_instance_keys,
@@ -70,7 +71,7 @@ class Components:
     initial_states: list[jax.Array] | None = None
     persisters: list[ModelPersister] | None = None
     predictive_models: list[Any] | None = None  # TODO: improve typing
-    optimizer: Any | None = None  # TODO: improve typing
+    optimizers: list[Any] | None = None  # TODO: improve typing
 
 
 @contextmanager
@@ -392,23 +393,33 @@ def _get_predictive_model(predictive_models: list[Any] | None) -> Any | None:
     return None
 
 
-def _setup_optimizer(cfg: DictConfig, predictive_models: list[Any] | None) -> Any | None:
+def _instantiate_optimizer(cfg: DictConfig, instance_key: str, predictive_model: Any | None) -> Any:
     """Setup the optimizer."""
-    optimizer_config: OptimizerConfig | None = OmegaConf.select(cfg, "training.optimizer", default=None)
-    if optimizer_config:
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
         optimizer_instance_config: DictConfig = OmegaConf.select(cfg, "training.optimizer.instance")
         if is_pytorch_optimizer_config(optimizer_instance_config):
-            predictive_model = _get_predictive_model(predictive_models)
             if predictive_model and isinstance(predictive_model, PytorchModel):
-                optimizer = hydra.utils.instantiate(optimizer_config.instance, params=predictive_model.parameters())
+                optimizer = hydra.utils.instantiate(instance_config, params=predictive_model.parameters())
                 SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
                 return optimizer
             SIMPLEXITY_LOGGER.warning("Predictive model has no parameters, optimizer will be skipped")
             return None
-        optimizer = hydra.utils.instantiate(optimizer_config.instance)  # TODO: typed instantiate
+        optimizer = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
         SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
         return optimizer
-    SIMPLEXITY_LOGGER.info("[optimizer] no optimizer config found")
+    raise KeyError
+
+
+def _setup_optimizers(
+    cfg: DictConfig, instance_keys: list[str], predictive_models: list[Any] | None
+) -> list[Any] | None:
+    """Setup the optimizer."""
+    instance_keys = filter_instance_keys(cfg, instance_keys, is_optimizer_target)
+    if instance_keys:
+        model = _get_predictive_model(predictive_models)
+        return [_instantiate_optimizer(cfg, instance_key, model) for instance_key in instance_keys]
+    SIMPLEXITY_LOGGER.info("[optimizer] no optimizer configs found")
     return None
 
 
@@ -487,7 +498,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.initial_states = initial_states
     components.persisters = _setup_persisters(cfg, instance_keys)
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
-    components.optimizer = _setup_optimizer(cfg, components.predictive_models)
+    components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
     _setup_training(cfg, instance_keys)
     _do_logging(cfg, components.loggers, verbose)
     return components
