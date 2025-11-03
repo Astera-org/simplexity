@@ -28,10 +28,11 @@ from simplexity.configs.predictive_model.config import HookedTransformerConfig, 
 from simplexity.configs.training.config import Config as TrainingConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.configs.training.optimizer.config import is_pytorch_optimizer_config
-from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.logging.logger import Logger
+from simplexity.generative_processes.generative_process import GenerativeProcess, is_generative_process_target
+from simplexity.logging.logger import Logger, is_logger_target
 from simplexity.logging.mlflow_logger import MLFlowLogger
-from simplexity.persistence.model_persister import ModelPersister
+from simplexity.persistence.model_persister import ModelPersister, is_model_persister_target
+from simplexity.predictive_models.predictive_model import is_predictive_model_target
 from simplexity.run_management.run_logging import (
     log_environment_artifacts,
     log_git_info,
@@ -62,7 +63,7 @@ class Components:
     generative_processes: list[GenerativeProcess] | None = None
     initial_states: list[jax.Array] | None = None
     persisters: list[ModelPersister] | None = None
-    predictive_model: Any | None = None  # TODO: improve typing
+    predictive_models: list[Any] | None = None  # TODO: improve typing
     optimizer: Any | None = None  # TODO: improve typing
 
 
@@ -215,7 +216,7 @@ def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
 
 
 def _setup_logging(cfg: DictConfig, targets: list[str], *, strict: bool) -> list[Logger] | None:
-    logger_targets = filter_targets(cfg, targets, "simplexity.logging.")
+    logger_targets = filter_targets(cfg, targets, is_logger_target)
     if logger_targets:
         loggers = [_instantiate_logger(cfg, logger_target) for logger_target in logger_targets]
         if strict:
@@ -275,7 +276,7 @@ def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_
 def _setup_generative_processes(
     cfg: DictConfig, targets: list[str]
 ) -> tuple[list[GenerativeProcess] | None, list[jax.Array] | None]:
-    generative_process_targets = filter_targets(cfg, targets, "simplexity.generative_processes.")
+    generative_process_targets = filter_targets(cfg, targets, is_generative_process_target)
     if generative_process_targets:
         generative_processes = []
         for target in generative_process_targets:
@@ -304,7 +305,7 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
 
 
 def _setup_persisters(cfg: DictConfig, targets: list[str]) -> list[ModelPersister] | None:
-    persister_targets = filter_targets(cfg, targets, "simplexity.persistence.")
+    persister_targets = filter_targets(cfg, targets, is_model_persister_target)
     if persister_targets:
         return [_instantiate_persister(cfg, target) for target in persister_targets]
     SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
@@ -330,47 +331,74 @@ def _resolve_hooked_transformer_config(cfg: HookedTransformerConfig, *, vocab_si
     SIMPLEXITY_LOGGER.info(f"[predictive model] device resolved to: {cfg.cfg.device}")
 
 
-def _setup_predictive_model(cfg: DictConfig, persisters: list[ModelPersister] | None) -> Any | None:
+def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
     """Setup the predictive model."""
-    model: Any | None = None
-    predictive_model_config: DictConfig | None = cfg.get("predictive_model", None)
-    if predictive_model_config:
-        instance_config: DictConfig | None = predictive_model_config.get("instance", None)
-        if instance_config:
-            if is_hooked_transformer_config(instance_config):
-                _resolve_hooked_transformer_config(
-                    instance_config, vocab_size=4
-                )  # TODO: get vocab size from generative processes
-            with _suppress_pydantic_field_attribute_warning():
-                model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
-            SIMPLEXITY_LOGGER.info(f"[predictive model] instantiated predictive model: {model.__class__.__name__}")
-        load_checkpoint_step = predictive_model_config.get("load_checkpoint_step", None)
-        if load_checkpoint_step:
-            persister = _get_persister(persisters)
-            if persister:
-                # model = persister.load_pytorch_model(load_checkpoint_step)  # TODO: load checkpoint
-                SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
-            else:
-                raise RuntimeError("Unable to load model checkpoint")
-    else:
-        SIMPLEXITY_LOGGER.info("[predictive model] no predictive model config found")
-    return model
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        with _suppress_pydantic_field_attribute_warning():
+            predictive_model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
+        SIMPLEXITY_LOGGER.info(
+            f"[predictive model] instantiated predictive model: {predictive_model.__class__.__name__}"
+        )
+        return predictive_model
+    raise KeyError
 
 
-def _setup_optimizer(cfg: DictConfig, predictive_model: Any | None) -> Any | None:
+def _load_checkpoint(cfg: DictConfig, target: str, persisters: list[ModelPersister] | None) -> None:
+    """Load the checkpoint."""
+    load_checkpoint_step = cfg.get("load_checkpoint_step", None)
+    if load_checkpoint_step:
+        persister = _get_persister(persisters)
+        if persister:
+            # model = persister.load_pytorch_model(load_checkpoint_step)  # TODO: load checkpoint
+            SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
+        else:
+            raise RuntimeError("Unable to load model checkpoint")
+
+
+def _setup_predictive_models(
+    cfg: DictConfig, targets: list[str], persisters: list[ModelPersister] | None
+) -> list[Any] | None:
+    """Setup the predictive model."""
+    models = []
+    predictive_model_targets = filter_targets(cfg, targets, is_predictive_model_target)
+    for target in predictive_model_targets:
+        instance_config = OmegaConf.select(cfg, target, throw_on_missing=True)
+        if instance_config and is_hooked_transformer_config(instance_config):
+            _resolve_hooked_transformer_config(
+                instance_config, vocab_size=4
+            )  # TODO: get vocab size from generative processes
+        models.append(_instantiate_predictive_model(cfg, target))
+        _load_checkpoint(cfg, target, persisters)
+    if models:
+        return models
+    SIMPLEXITY_LOGGER.info("[predictive model] no predictive model config found")
+    return None
+
+
+def _get_predictive_model(predictive_models: list[Any] | None) -> Any | None:
+    if predictive_models:
+        if len(predictive_models) == 1:
+            return predictive_models[0]
+        SIMPLEXITY_LOGGER.warning("Multiple predictive models found, any model checkpoint loading will be skipped")
+        return None
+    SIMPLEXITY_LOGGER.warning("No predictive model found, any model checkpoint loading will be skipped")
+    return None
+
+
+def _setup_optimizer(cfg: DictConfig, predictive_models: list[Any] | None) -> Any | None:
     """Setup the optimizer."""
     optimizer_config: OptimizerConfig | None = OmegaConf.select(cfg, "training.optimizer", default=None)
     if optimizer_config:
         optimizer_instance_config: DictConfig = OmegaConf.select(cfg, "training.optimizer.instance")
         if is_pytorch_optimizer_config(optimizer_instance_config):
-            if isinstance(predictive_model, PytorchModel):
-                optimizer = hydra.utils.instantiate(
-                    optimizer_config.instance, params=predictive_model.parameters()
-                )  # TODO: cast to OptimizerConfig
+            predictive_model = _get_predictive_model(predictive_models)
+            if predictive_model and isinstance(predictive_model, PytorchModel):
+                optimizer = hydra.utils.instantiate(optimizer_config.instance, params=predictive_model.parameters())
                 SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
                 return optimizer
-            else:
-                raise ValueError("Predictive model has no parameters")
+            SIMPLEXITY_LOGGER.warning("Predictive model has no parameters, optimizer will be skipped")
+            return None
         optimizer = hydra.utils.instantiate(optimizer_config.instance)  # TODO: typed instantiate
         SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
         return optimizer
@@ -379,7 +407,7 @@ def _setup_optimizer(cfg: DictConfig, predictive_model: Any | None) -> Any | Non
 
 
 def _get_special_token(cfg: DictConfig, targets: list[str], token: str) -> int | None:
-    generative_process_targets = filter_targets(cfg, targets, "simplexity.generative_process.")
+    generative_process_targets = filter_targets(cfg, targets, is_generative_process_target)
     token_value: int | None = None
     for target in generative_process_targets:
         target_parent = target.rsplit(".", 1)[0]
@@ -452,8 +480,8 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.generative_processes = generative_processes
     components.initial_states = initial_states
     components.persisters = _setup_persisters(cfg, targets)
-    components.predictive_model = _setup_predictive_model(cfg, components.persisters)
-    components.optimizer = _setup_optimizer(cfg, components.predictive_model)
+    components.predictive_models = _setup_predictive_models(cfg, targets, components.persisters)
+    components.optimizer = _setup_optimizer(cfg, components.predictive_models)
     _setup_training(cfg, targets)
     _do_logging(cfg, components.loggers, verbose)
     return components

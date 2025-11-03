@@ -26,12 +26,12 @@ def get_targets(cfg: DictConfig, *, nested: bool = False) -> list[str]:
     return targets
 
 
-def filter_targets(cfg: DictConfig, targets: list[str], prefix: str) -> list[str]:
+def filter_targets(cfg: DictConfig, targets: list[str], filter_fn: Callable[[str], bool]) -> list[str]:
     """Filter targets by prefix."""
     filtered_targets: list[str] = []
     for target in targets:
         target_value = OmegaConf.select(cfg, f"{target}._target_", throw_on_missing=False)
-        if isinstance(target_value, str) and target_value.startswith(prefix):
+        if isinstance(target_value, str) and filter_fn(target_value):
             filtered_targets.append(target)
     return filtered_targets
 

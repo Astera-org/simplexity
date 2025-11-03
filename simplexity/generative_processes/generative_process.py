@@ -94,3 +94,8 @@ class GenerativeProcess(eqx.Module, Generic[State]):
     def log_probability(self, observations: jax.Array) -> jax.Array:
         """Compute the log probability of the process generating a sequence of observations."""
         ...
+
+
+def is_generative_process_target(target: str) -> bool:
+    """Check if the target is a generative process target."""
+    return target.startswith("simplexity.generative_processes.")

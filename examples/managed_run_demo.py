@@ -38,17 +38,15 @@ def main(cfg: Config, components: Components) -> None:
     assert components.loggers is not None
     assert components.generative_processes is not None
     assert components.persisters is not None
-    assert components.predictive_model is not None
+    assert components.predictive_models is not None
     assert components.optimizer is not None
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
-        instance_config = getattr(cfg.persistence, "instance", None)
-        if instance_config:
-            is_pytorch_model = isinstance(components.predictive_model, PytorchModel)
-            if is_pytorch_model:
+        for model in components.predictive_models:
+            if isinstance(model, PytorchModel):
                 timestamp = int(time.time())
                 kwargs = {
-                    "pytorch_model": components.predictive_model,
+                    "pytorch_model": model,
                     "name": f"demo_{timestamp}",
                     "registered_model_name": f"demo_model_{timestamp}",
                     "pip_requirements": create_requirements_file(),
@@ -63,7 +61,7 @@ def main(cfg: Config, components: Components) -> None:
                         bos_token=cfg.generative_process.bos_token,
                         eos_token=cfg.generative_process.eos_token,
                     )
-                    outputs: torch.Tensor = components.predictive_model(inputs)
+                    outputs: torch.Tensor = model(inputs)
                     signature = infer_signature(
                         model_input=inputs.detach().cpu().numpy(),
                         model_output=outputs.detach().cpu().numpy(),
