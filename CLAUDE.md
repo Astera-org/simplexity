@@ -9,6 +9,7 @@ Simplexity is a research-oriented machine learning library focused on computatio
 ## Code Style and Conventions
 
 ### Python Style
+
 - **Line Length**: Maximum 120 characters
 - **Python Version**: 3.12+
 - **Formatting**: Use `ruff format` for automatic formatting
@@ -18,12 +19,14 @@ Simplexity is a research-oriented machine learning library focused on computatio
 - **Import Order**: Managed by ruff's isort rules (standard library, third-party, local)
 
 ### Code Quality Standards
+
 1. **Type Safety**: All code must pass `pyright` type checking in standard mode
 2. **Testing**: Write pytest tests for new functionality, maintain high coverage
 3. **No Comments**: Avoid inline comments; code should be self-documenting through clear naming and structure
 4. **Functional Style**: Prefer functional programming patterns, especially when working with JAX
 
 ### Naming Conventions
+
 - **Files**: Use snake_case for all Python files
 - **Classes**: Use PascalCase for classes
 - **Functions/Methods**: Use snake_case
@@ -33,12 +36,14 @@ Simplexity is a research-oriented machine learning library focused on computatio
 ## Testing Guidelines
 
 ### Test Structure
+
 - Place tests in the `tests/` directory mirroring the source structure
 - Use pytest fixtures for common test setup
 - Test files must start with `test_`
 - Test functions must start with `test_`
 
 ### Test Patterns
+
 ```python
 @pytest.fixture
 def model_fixture() -> Model:
@@ -47,22 +52,34 @@ def model_fixture() -> Model:
 def test_functionality(model_fixture: Model):
     # Arrange
     input_data = ...
-    
+
     # Act
     result = model_fixture.process(input_data)
-    
+
     # Assert
     chex.assert_trees_all_close(result, expected)
 ```
 
 ### JAX-specific Testing
+
 - Use `chex` for JAX array assertions
 - Test with different random seeds
 - Verify shape and dtype consistency
 
+### Coverage Requirements
+
+- **New code**: Minimum 80% coverage (strictly enforced in PRs via `diff-cover`)
+- **Existing code**: Overall coverage is monitored but won't block updates (allowing gradual improvement)
+- **PRs**: Only new/changed code must meet 80% threshold (checked via `diff-cover`)
+- **Main branch**: Overall coverage is tracked but not enforced (to allow updates while improving coverage)
+- HTML coverage reports are generated in `htmlcov/` directory
+- Diff coverage reports show coverage of only new/changed lines in PRs
+- **Goal**: Gradually improve overall coverage while ensuring all new code meets standards
+
 ## Architecture Patterns
 
 ### Module Structure
+
 ```
 simplexity/
 ├── configs/          # Hydra configuration files
@@ -77,6 +94,7 @@ simplexity/
 ```
 
 ### Design Patterns
+
 1. **Protocol Classes**: Use `typing.Protocol` for defining interfaces
 2. **Abstract Base Classes**: Use `eqx.Module` with `@abstractmethod` for base classes
 3. **Builder Pattern**: Provide builder functions for complex object construction
@@ -100,10 +118,12 @@ simplexity/
 ## CI/CD Requirements
 
 Before submitting code, ensure it passes:
+
 1. `uv run --extra dev ruff check` - Linting
 2. `uv run --extra dev ruff format --check` - Formatting
-3. `uv run --extra dev --extra pytorch pyright` - Type checking  
+3. `uv run --extra dev --extra pytorch pyright` - Type checking
 4. `uv run --extra dev --extra pytorch pytest` - Tests
+5. `uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=80` - New code coverage (must meet 80% threshold)
 
 ## Common Commands
 
@@ -120,8 +140,20 @@ uv run --extra dev ruff format
 # Type check
 uv run --extra dev --extra pytorch pyright
 
-# Run tests
+# Run tests (coverage is tracked but won't fail)
 uv run --extra dev --extra pytorch pytest
+
+# Check overall coverage threshold (optional - will fail if below 80%)
+uv run --extra dev --extra pytorch pytest --cov-fail-under=80
+
+# Check coverage for new code only (compares against main branch)
+# This is what CI checks - new code must meet 80% threshold
+# Note: Requires pytest to be run first to generate coverage.xml
+uv run --extra dev --extra pytorch pytest --cov-fail-under=0
+uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
+
+# View HTML coverage report (generated in htmlcov/)
+# After running pytest, open htmlcov/index.html in a browser
 
 # Train a model
 uv run python simplexity/train_model.py
@@ -130,6 +162,7 @@ uv run python simplexity/train_model.py
 ## Pull Request Guidelines
 
 When reviewing or creating PRs:
+
 1. Ensure all CI checks pass
 2. Maintain or improve test coverage
 3. Follow existing patterns and conventions

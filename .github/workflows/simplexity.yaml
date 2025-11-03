@@ -29,12 +29,63 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for diff-cover
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      - name: pytest
-        run: uv run --extra aws --extra dev --extra cuda --extra pytorch pytest --capture=no --verbose --cov --cov-report=xml
+      - name: Run tests with coverage
+        run: |
+          # Run tests with coverage tracking (no threshold enforcement)
+          # Coverage is tracked but won't fail - new code in PRs is checked via diff-cover
+          # TODO: Enable strict overall coverage enforcement once coverage improves
+          # Note: --cov-fail-under=0 is explicit but redundant since pyproject.toml doesn't set a threshold
+          uv run --extra aws --extra dev --extra cuda --extra pytorch pytest \
+            --capture=no \
+            --verbose \
+            --cov-fail-under=0
+          # Verify coverage.xml was generated (required for diff-cover and Codecov)
+          # This is ensured by --cov-report=xml in pyproject.toml, but we verify for clarity
+          if [ ! -f coverage.xml ]; then
+            echo "::error::coverage.xml not found - coverage reporting may have failed"
+            exit 1
+          fi
+
+      - name: Check coverage for new code (PRs only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Get the base branch (usually main)
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+          echo "Checking coverage for new code against base branch: ${BASE_BRANCH}"
+          # Run diff-cover to check only new/changed code
+          # Fail if new code coverage is below 80%
+          # Note: diff-cover only needs --extra dev (tests need all extras for integration testing)
+          if uv run --extra dev diff-cover coverage.xml \
+            --compare-branch=origin/${BASE_BRANCH} \
+            --fail-under=80 \
+            --markdown-report diff-coverage-report.md; then
+            echo "::notice::New code coverage check passed (80% threshold)"
+          else
+            echo "::error::New code coverage is below 80% threshold"
+            exit 1
+          fi
+        continue-on-error: false
+
+      - name: Upload diff coverage report
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reportPath = 'diff-coverage-report.md';
+            if (fs.existsSync(reportPath)) {
+              const report = fs.readFileSync(reportPath, 'utf8');
+              fs.appendFileSync(
+                process.env.GITHUB_STEP_SUMMARY,
+                `## Diff Coverage Report\n\n${report}\n`
+              );
+            }
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
@@ -42,3 +93,5 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: Astera-org/simplexity
           verbose: true
+          files: ./coverage.xml
+          fail_ci_if_error: false

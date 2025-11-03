@@ -34,6 +34,7 @@ dependencies = [
 aws = ["boto3"]
 cuda = ["jax[cuda12_pip]"]
 dev = [
+    "diff-cover",
     "jaxtyping",
     "nbqa",
     "pyright",
@@ -77,3 +78,52 @@ convention = "google"
 
 [tool.pyright]
 typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=simplexity",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    # Note: --cov-fail-under is intentionally not set here to allow gradual improvement
+    # of overall coverage. The CI workflow explicitly sets --cov-fail-under=0 to track
+    # coverage without blocking. New code in PRs is strictly checked via diff-cover (80% threshold).
+    # To check overall coverage locally, use: pytest --cov-fail-under=80
+]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+
+[tool.coverage.run]
+source = ["simplexity"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "*/build/*",
+    "*/dist/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+show_missing = true
+skip_covered = false
+precision = 2
+# Note: fail_under is not set to allow gradual improvement
+# New code in PRs is strictly checked via diff-cover (80% threshold)
+# To enforce overall coverage, set fail_under = 80.0
