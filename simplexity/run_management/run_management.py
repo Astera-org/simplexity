@@ -370,6 +370,26 @@ def _get_persister(persisters: list[ModelPersister] | None) -> ModelPersister | 
     return None
 
 
+def _get_vocab_size(cfg: DictConfig, instance_keys: list[str]) -> int | None:
+    """Get the vocab size."""
+    instance_keys = filter_instance_keys(cfg, instance_keys, is_generative_process_target)
+    vocab_size: int | None = None
+    for instance_key in instance_keys:
+        config_key = instance_key.rsplit(".", 1)[0]
+        generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key, throw_on_missing=True)
+        if generative_process_config is None:
+            raise RuntimeError("Error selecting generative process config")
+        new_vocab_size: int = generative_process_config.get("base_vocab_size")
+        if vocab_size is None:
+            vocab_size = new_vocab_size
+        elif new_vocab_size != vocab_size:
+            SIMPLEXITY_LOGGER.warning(
+                "[generative process] Multiple generative processes with conflicting base vocab sizes"
+            )
+            return None
+    return vocab_size
+
+
 @dynamic_resolve
 def _resolve_hooked_transformer_config(cfg: HookedTransformerConfig, *, vocab_size: int) -> None:
     """Resolve the HookedTransformerConfig."""
@@ -413,9 +433,9 @@ def _setup_predictive_models(
     for instance_key in instance_keys:
         instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
         if instance_config and is_hooked_transformer_config(instance_config):
-            _resolve_hooked_transformer_config(
-                instance_config, vocab_size=4
-            )  # TODO: get vocab size from generative processes
+            vocab_size = _get_vocab_size(cfg, instance_keys)
+            if vocab_size:
+                _resolve_hooked_transformer_config(instance_config, vocab_size=vocab_size)
         models.append(_instantiate_predictive_model(cfg, instance_key))
         _load_checkpoint(cfg, instance_key, persisters)
     if models:
