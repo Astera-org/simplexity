@@ -227,8 +227,14 @@ def haiku(
     syllable_length: list[int],
     vocab_probs: list[float] | None = None,
 ) -> jnp.ndarray:
+    """
+    Build a looping haiku HMM:
+      line 1 … -> newline -> line 2 … -> newline -> line 3 … -> EOP -> line 1 …
+    Returns tensor of shape (V+2, S, S) = (emissions, from_state, to_state).
+    """
     num_lines = len(syllable_limits)
     assert len(vocab_map) == len(syllable_length), "vocab_map and syllable_length must match"
+
     V = len(vocab_map)
     NEWLINE_ID = V
     EOP_ID = V + 1
@@ -238,9 +244,10 @@ def haiku(
     for L in syllable_limits:
         offsets.append(total_states)
         total_states += L + 1
-    num_states = total_states + 1
 
-    T = jnp.zeros((num_states, num_states, V + 1))
+    num_states = total_states
+
+    T = jnp.zeros((num_states, num_states, V + 2), dtype=jnp.float32)
 
     for line_idx, limit in enumerate(syllable_limits):
         base = offsets[line_idx]
@@ -249,6 +256,7 @@ def haiku(
         for used in range(limit):
             state_idx = base + used
             remaining = limit - used
+
             allowed_tokens = [i for i, syl in enumerate(syllable_length) if syl <= remaining]
 
             if vocab_probs is None:
