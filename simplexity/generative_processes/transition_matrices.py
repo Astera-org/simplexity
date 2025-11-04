@@ -238,7 +238,6 @@ def haiku(
     for L in syllable_limits:
         offsets.append(total_states)
         total_states += L + 1
-    terminal_state = total_states
     num_states = total_states + 1
 
     T = jnp.zeros((num_states, num_states, V + 1))
@@ -274,7 +273,6 @@ def haiku(
             first_state = offsets[0]
             T = T.at[done_state, first_state, EOP_ID].set(1.0)
 
-    T = T.at[terminal_state, terminal_state, NEWLINE_ID].set(1.0)
     T = jnp.transpose(T, (2, 0, 1))
     return T
 
