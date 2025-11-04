@@ -1,5 +1,8 @@
 name: post_quantum
-base_vocab_size: 3
+base_vocab_size: ???
+bos_token: ???
+eos_token: null
+vocab_size: ???
 instance:
   _target_: simplexity.generative_processes.builder.build_generalized_hidden_markov_model
   process_name: post_quantum

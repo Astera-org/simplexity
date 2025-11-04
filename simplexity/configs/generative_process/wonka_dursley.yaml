@@ -1,5 +1,5 @@
 name: wonka_dursley
-base_vocab_size: 6
+base_vocab_size: ???
 instance:
   _target_: simplexity.generative_processes.builder.build_nonergodic_hidden_markov_model
   process_names: [mr_name, mr_name]
@@ -14,3 +14,4 @@ instance:
     - [0, 1, 2, 4]
 bos_token: 5
 eos_token:
+vocab_size: ???
