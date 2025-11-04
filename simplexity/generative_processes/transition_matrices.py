@@ -264,7 +264,7 @@ def rrxor(pR1: float, pR2: float) -> jax.Array:
 
     Steady-state distribution = [2, 1, 1, 1, 1] / 6
     """
-    s = {"S": 0, "0": 1, "1": 2, "T": 3, "F": 4}
+    s = {"S": 0, "0": 1, "1": 2, "F": 3, "T": 4}
 
     transition_matrices = jnp.zeros((2, 5, 5))
     transition_matrices = transition_matrices.at[0, s["S"], s["0"]].set(pR1)
