@@ -221,6 +221,60 @@ def no_consecutive_ones(p: float) -> jax.Array:
         ]
     )
 
+def haiku(
+    syllable_limits: list[int],
+    vocab_map: list[str],
+    syllable_length: list[int],
+    vocab_probs: list[float] | None = None,
+) -> jnp.ndarray:
+    num_lines = len(syllable_limits)
+    assert len(vocab_map) == len(syllable_length), "vocab_map and syllable_length must match"
+    V = len(vocab_map)
+    NEWLINE_ID = V
+
+    offsets = []
+    total_states = 0
+    for L in syllable_limits:
+        offsets.append(total_states)
+        total_states += L + 1
+    terminal_state = total_states
+    num_states = total_states + 1
+
+    T = jnp.zeros((num_states, num_states, V + 1))
+
+    for line_idx, limit in enumerate(syllable_limits):
+        base = offsets[line_idx]
+        done_state = base + limit
+
+        for used in range(limit):
+            state_idx = base + used
+            remaining = limit - used
+            allowed_tokens = [i for i, syl in enumerate(syllable_length) if syl <= remaining]
+
+            if vocab_probs is None:
+                probs = jnp.ones((len(allowed_tokens),), dtype=jnp.float32)
+                probs = probs / probs.sum()
+            else:
+                raw = jnp.array([vocab_probs[i] for i in allowed_tokens], dtype=jnp.float32)
+                probs = raw / raw.sum()
+
+            for p_idx, tok_idx in enumerate(allowed_tokens):
+                syl = syllable_length[tok_idx]
+                if syl < remaining:
+                    next_state = base + (used + syl)
+                else:
+                    next_state = done_state
+                T = T.at[state_idx, next_state, tok_idx].set(probs[p_idx])
+
+        if line_idx < num_lines - 1:
+            next_state = offsets[line_idx + 1]
+            T = T.at[done_state, next_state, NEWLINE_ID].set(1.0)
+        else:
+            T = T.at[done_state, terminal_state, NEWLINE_ID].set(1.0)
+
+    T = T.at[terminal_state, terminal_state, NEWLINE_ID].set(1.0)
+    return T
+
 
 def _validate_post_quantum_conditions(alpha: jax.Array, beta: float) -> None:
     if not (alpha > 1 > beta > 0):
@@ -367,6 +421,7 @@ HMM_MATRIX_FUNCTIONS = {
     "rrxor": rrxor,
     "sns": sns,
     "zero_one_random": zero_one_random,
+    "haiku": haiku,
 }
 
 GHMM_MATRIX_FUNCTIONS = HMM_MATRIX_FUNCTIONS | {
