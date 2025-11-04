@@ -1,7 +1,8 @@
 import pytest
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf.errors import ReadonlyConfigError
 
-from simplexity.utils.config_utils import TARGET, filter_instance_keys, get_config, get_instance_keys
+from simplexity.utils.config_utils import TARGET, dynamic_resolve, filter_instance_keys, get_config, get_instance_keys
 
 
 def test_get_instance_keys_no_targets() -> None:
@@ -200,3 +201,21 @@ def test_get_config_from_no_args() -> None:
     """Test getting config from no args."""
     with pytest.raises(ValueError, match="No config found in arguments or kwargs."):
         get_config((), {})
+
+
+def test_dynamic_resolve() -> None:
+    """Test dynamic resolve."""
+
+    @dynamic_resolve
+    def mutate_cfg(cfg: DictConfig) -> None:
+        cfg.key = "new_value"
+        cfg.new_key = "new_value"
+
+    cfg = DictConfig({"key": "value"})
+    mutate_cfg(cfg)
+    assert cfg.key == "new_value"
+    assert cfg.new_key == "new_value"
+    assert OmegaConf.is_struct(cfg)
+    assert OmegaConf.is_readonly(cfg)
+    with pytest.raises(ReadonlyConfigError, match="readonly|Readonly|read-only"):
+        cfg.key = "newer_value"
