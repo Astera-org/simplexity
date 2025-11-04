@@ -231,6 +231,7 @@ def haiku(
     Build a looping haiku HMM:
       line 1 … -> newline -> line 2 … -> newline -> line 3 … -> EOP -> line 1 …
     Returns tensor of shape (V+2, S, S) = (emissions, from_state, to_state).
+    Loops arbitrarily.
     """
     num_lines = len(syllable_limits)
     assert len(vocab_map) == len(syllable_length), "vocab_map and syllable_length must match"
