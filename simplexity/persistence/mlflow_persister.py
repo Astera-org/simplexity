@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import shutil
 import tempfile
 from pathlib import Path
@@ -17,11 +16,7 @@ from simplexity.predictive_models.types import ModelFramework, get_model_framewo
 from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
 if TYPE_CHECKING:
-    import mlflow.pytorch as mlflow_pytorch
     from mlflow import MlflowClient
-    from torch.nn import Module as PytorchModel
-
-    from simplexity.logging.mlflow_logger import MLFlowLogger
 
 
 def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) -> LocalPersister:
