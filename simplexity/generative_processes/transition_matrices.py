@@ -273,6 +273,7 @@ def haiku(
             T = T.at[done_state, terminal_state, NEWLINE_ID].set(1.0)
 
     T = T.at[terminal_state, terminal_state, NEWLINE_ID].set(1.0)
+    T = jnp.transpose(T, (2, 0, 1))
     return T
 
 
