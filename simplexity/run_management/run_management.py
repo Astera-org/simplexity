@@ -65,53 +65,53 @@ REQUIRED_TAGS = ["research_step", "retention"]
 class Components:
     """Components for the run."""
 
-    loggers: list[Logger] | None = None
-    generative_processes: list[GenerativeProcess] | None = None
-    initial_states: list[jax.Array] | None = None
-    persisters: list[ModelPersister] | None = None
-    predictive_models: list[Any] | None = None  # TODO: improve typing
-    optimizers: list[Any] | None = None  # TODO: improve typing
+    loggers: dict[str, Logger] | None = None
+    generative_processes: dict[str, GenerativeProcess] | None = None
+    initial_states: dict[str, jax.Array] | None = None
+    persisters: dict[str, ModelPersister] | None = None
+    predictive_models: dict[str, Any] | None = None  # TODO: improve typing
+    optimizers: dict[str, Any] | None = None  # TODO: improve typing
 
     @property
     def logger(self) -> Logger | None:
         """Get the logger."""
         if self.loggers and len(self.loggers) == 1:
-            return self.loggers[0]
+            return next(iter(self.loggers.values()))
         return None
 
     @property
     def generative_process(self) -> GenerativeProcess | None:
         """Get the generative process."""
         if self.generative_processes and len(self.generative_processes) == 1:
-            return self.generative_processes[0]
+            return next(iter(self.generative_processes.values()))
         return None
 
     @property
     def initial_state(self) -> jax.Array | None:
         """Get the initial state."""
         if self.initial_states and len(self.initial_states) == 1:
-            return self.initial_states[0]
+            return next(iter(self.initial_states.values()))
         return None
 
     @property
     def persister(self) -> ModelPersister | None:
         """Get the persister."""
         if self.persisters and len(self.persisters) == 1:
-            return self.persisters[0]
+            return next(iter(self.persisters.values()))
         return None
 
     @property
     def predictive_model(self) -> Any | None:
         """Get the predictive model."""
         if self.predictive_models and len(self.predictive_models) == 1:
-            return self.predictive_models[0]
+            return next(iter(self.predictive_models.values()))
         return None
 
     @property
     def optimizer(self) -> Any | None:
         """Get the optimizer."""
         if self.optimizers and len(self.optimizers) == 1:
-            return self.optimizers[0]
+            return next(iter(self.optimizers.values()))
         return None
 
 
@@ -263,12 +263,12 @@ def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     raise KeyError
 
 
-def _setup_logging(cfg: DictConfig, instance_keys: list[str], *, strict: bool) -> list[Logger] | None:
+def _setup_logging(cfg: DictConfig, instance_keys: list[str], *, strict: bool) -> dict[str, Logger] | None:
     instance_keys = filter_instance_keys(cfg, instance_keys, is_logger_target)
     if instance_keys:
-        loggers = [_instantiate_logger(cfg, instance_key) for instance_key in instance_keys]
+        loggers = {instance_key: _instantiate_logger(cfg, instance_key) for instance_key in instance_keys}
         if strict:
-            mlflow_loggers = [logger for logger in loggers if isinstance(logger, MLFlowLogger)]
+            mlflow_loggers = [logger for logger in loggers.values() if isinstance(logger, MLFlowLogger)]
             assert mlflow_loggers, "Logger must be an instance of MLFlowLogger"
             assert any(
                 logger.tracking_uri and logger.tracking_uri.startswith("databricks") for logger in mlflow_loggers
@@ -324,10 +324,10 @@ def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_
 
 def _setup_generative_processes(
     cfg: DictConfig, instance_keys: list[str]
-) -> tuple[list[GenerativeProcess] | None, list[jax.Array] | None]:
+) -> tuple[dict[str, GenerativeProcess] | None, dict[str, jax.Array] | None]:
     instance_keys = filter_instance_keys(cfg, instance_keys, is_generative_process_target)
     if instance_keys:
-        generative_processes = []
+        generative_processes = {}
         for instance_key in instance_keys:
             generative_process = _instantiate_generative_process(cfg, instance_key)
             config_key = instance_key.rsplit(".", 1)[0]
@@ -336,8 +336,10 @@ def _setup_generative_processes(
                 raise RuntimeError("Error selecting generative process config")
             base_vocab_size = generative_process.vocab_size
             _resolve_generative_process_config(generative_process_config, base_vocab_size)
-            generative_processes.append(generative_process)
-        initial_states = [_create_initial_state(cfg, process) for process in generative_processes]
+            generative_processes[instance_key] = generative_process
+        initial_states = {
+            instance_key: _create_initial_state(cfg, process) for instance_key, process in generative_processes.items()
+        }
         return generative_processes, initial_states
     SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
     return None, None
@@ -353,18 +355,18 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
     raise KeyError
 
 
-def _setup_persisters(cfg: DictConfig, instance_keys: list[str]) -> list[ModelPersister] | None:
+def _setup_persisters(cfg: DictConfig, instance_keys: list[str]) -> dict[str, ModelPersister] | None:
     instance_keys = filter_instance_keys(cfg, instance_keys, is_model_persister_target)
     if instance_keys:
-        return [_instantiate_persister(cfg, instance_key) for instance_key in instance_keys]
+        return {instance_key: _instantiate_persister(cfg, instance_key) for instance_key in instance_keys}
     SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
     return None
 
 
-def _get_persister(persisters: list[ModelPersister] | None) -> ModelPersister | None:
+def _get_persister(persisters: dict[str, ModelPersister] | None) -> ModelPersister | None:
     if persisters:
         if len(persisters) == 1:
-            return persisters[0]
+            return next(iter(persisters.values()))
         SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model model checkpoint loading will be skipped")
         return None
     SIMPLEXITY_LOGGER.warning("No persister found, any model checkpoint loading will be skipped")
@@ -413,7 +415,7 @@ def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
     raise KeyError
 
 
-def _load_checkpoint(cfg: DictConfig, target: str, persisters: list[ModelPersister] | None) -> None:
+def _load_checkpoint(cfg: DictConfig, target: str, persisters: dict[str, ModelPersister] | None) -> None:
     """Load the checkpoint."""
     load_checkpoint_step = cfg.get("load_checkpoint_step", None)
     if load_checkpoint_step:
@@ -426,10 +428,10 @@ def _load_checkpoint(cfg: DictConfig, target: str, persisters: list[ModelPersist
 
 
 def _setup_predictive_models(
-    cfg: DictConfig, instance_keys: list[str], persisters: list[ModelPersister] | None
-) -> list[Any] | None:
+    cfg: DictConfig, instance_keys: list[str], persisters: dict[str, ModelPersister] | None
+) -> dict[str, Any] | None:
     """Setup the predictive model."""
-    models = []
+    models = {}
     model_instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
     for instance_key in model_instance_keys:
         instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
@@ -437,7 +439,7 @@ def _setup_predictive_models(
             vocab_size = _get_vocab_size(cfg, instance_keys)
             if vocab_size:
                 _resolve_hooked_transformer_config(instance_config, vocab_size=vocab_size)
-        models.append(_instantiate_predictive_model(cfg, instance_key))
+        models[instance_key] = _instantiate_predictive_model(cfg, instance_key)
         _load_checkpoint(cfg, instance_key, persisters)
     if models:
         return models
@@ -445,10 +447,10 @@ def _setup_predictive_models(
     return None
 
 
-def _get_predictive_model(predictive_models: list[Any] | None) -> Any | None:
+def _get_predictive_model(predictive_models: dict[str, Any] | None) -> Any | None:
     if predictive_models:
         if len(predictive_models) == 1:
-            return predictive_models[0]
+            return next(iter(predictive_models.values()))
         SIMPLEXITY_LOGGER.warning("Multiple predictive models found, any model checkpoint loading will be skipped")
         return None
     SIMPLEXITY_LOGGER.warning("No predictive model found, any model checkpoint loading will be skipped")
@@ -474,13 +476,13 @@ def _instantiate_optimizer(cfg: DictConfig, instance_key: str, predictive_model:
 
 
 def _setup_optimizers(
-    cfg: DictConfig, instance_keys: list[str], predictive_models: list[Any] | None
-) -> list[Any] | None:
+    cfg: DictConfig, instance_keys: list[str], predictive_models: dict[str, Any] | None
+) -> dict[str, Any] | None:
     """Setup the optimizer."""
     instance_keys = filter_instance_keys(cfg, instance_keys, is_optimizer_target)
     if instance_keys:
         model = _get_predictive_model(predictive_models)
-        return [_instantiate_optimizer(cfg, instance_key, model) for instance_key in instance_keys]
+        return {instance_key: _instantiate_optimizer(cfg, instance_key, model) for instance_key in instance_keys}
     SIMPLEXITY_LOGGER.info("[optimizer] no optimizer configs found")
     return None
 
@@ -527,10 +529,10 @@ def _setup_training(cfg: DictConfig, instance_keys: list[str]) -> None:
         _resolve_training_config(training_config, n_ctx=n_ctx, use_bos=use_bos, use_eos=use_eos)
 
 
-def _do_logging(cfg: DictConfig, loggers: list[Logger] | None, verbose: bool) -> None:
+def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, verbose: bool) -> None:
     if loggers is None:
         return
-    for logger in loggers:
+    for logger in loggers.values():
         logger.log_config(cfg, resolve=True)
         logger.log_params(cfg)
         log_git_info(logger)
@@ -569,10 +571,10 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
     if components.loggers:
-        for logger in components.loggers:
+        for logger in components.loggers.values():
             logger.close()
     if components.persisters:
-        for persister in components.persisters:
+        for persister in components.persisters.values():
             persister.cleanup()
 
 

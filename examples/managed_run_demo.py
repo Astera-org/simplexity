@@ -42,7 +42,7 @@ def main(cfg: Config, components: Components) -> None:
     assert components.optimizers is not None
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
-        for model in components.predictive_models:
+        for model in components.predictive_models.values():
             if isinstance(model, PytorchModel):
                 timestamp = int(time.time())
                 kwargs = {
@@ -52,9 +52,11 @@ def main(cfg: Config, components: Components) -> None:
                     "pip_requirements": create_requirements_file(),
                 }
                 if components.generative_processes and components.initial_states is not None:
+                    # Get the first generative process and corresponding initial state (keys match)
+                    first_key = next(iter(components.generative_processes.keys()))
                     _, inputs, _ = generate_data_batch(
-                        components.initial_states[0],
-                        components.generative_processes[0],
+                        components.initial_states[first_key],
+                        components.generative_processes[first_key],
                         cfg.training.batch_size,
                         cfg.training.sequence_len,
                         jax.random.key(cfg.seed),
