@@ -10,10 +10,11 @@ class Config:
     """Base configuration for predictive models."""
 
     name: str
-    base_vocab_size: int  # TODO: Make missing
     instance: InstanceConfig
+    base_vocab_size: int = MISSING
     bos_token: int | None = MISSING
     eos_token: int | None = MISSING
+    vocab_size: int = MISSING
 
 
 def is_generative_process_config(cfg: DictConfig) -> bool:

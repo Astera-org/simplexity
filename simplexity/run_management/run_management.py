@@ -318,6 +318,7 @@ def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_
         vocab_size += 1
     elif cfg.eos_token is not None:
         SIMPLEXITY_LOGGER.info(f"[generative process] EOS token defined as: {cfg.eos_token}")
+    cfg.vocab_size = vocab_size
     SIMPLEXITY_LOGGER.info(f"[generative process] Total vocab size: {vocab_size}")
 
 
@@ -379,7 +380,7 @@ def _get_vocab_size(cfg: DictConfig, instance_keys: list[str]) -> int | None:
         generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key, throw_on_missing=True)
         if generative_process_config is None:
             raise RuntimeError("Error selecting generative process config")
-        new_vocab_size: int = generative_process_config.get("base_vocab_size")
+        new_vocab_size: int = generative_process_config.get("vocab_size")
         if vocab_size is None:
             vocab_size = new_vocab_size
         elif new_vocab_size != vocab_size:
@@ -429,8 +430,8 @@ def _setup_predictive_models(
 ) -> list[Any] | None:
     """Setup the predictive model."""
     models = []
-    instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
-    for instance_key in instance_keys:
+    model_instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
+    for instance_key in model_instance_keys:
         instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
         if instance_config and is_hooked_transformer_config(instance_config):
             vocab_size = _get_vocab_size(cfg, instance_keys)
