@@ -21,5 +21,5 @@ def is_generative_process_config(cfg: DictConfig) -> bool:
     """Check if the configuration is ."""
     target = cfg.get("_target_", None)
     if isinstance(target, str):
-        return target.startswith("simplexity.persistence.")
+        return target.startswith("simplexity.generative_processes.")
     return False
