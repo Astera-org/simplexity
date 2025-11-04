@@ -25,7 +25,18 @@ def evaluation_step(
 ) -> dict[str, jax.Array]:
     """Compute evaluation metrics for a PyTorch model."""
     model.eval()
+    try:
+        device = next(model.parameters()).device
+    except Exception:
+        device = None
     with torch.no_grad():
+        # Ensure data on model device and dtype for token indices
+        if device is not None:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+        if inputs.dtype != torch.long:
+            inputs = inputs.long()
+
         logits: torch.Tensor = model(inputs)
         metrics = {}
 
