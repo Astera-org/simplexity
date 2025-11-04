@@ -591,6 +591,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 return output
             except Exception as e:
                 SIMPLEXITY_LOGGER.error(f"[run] error: {e}")
+                # TODO: cleanup
                 raise e
 
         return wrapper
