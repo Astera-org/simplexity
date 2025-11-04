@@ -267,15 +267,12 @@ def haiku(
                     next_state = done_state
                 T = T.at[state_idx, next_state, tok_idx].set(probs[p_idx])
 
-        # line-done transitions
         if line_idx < num_lines - 1:
-            # emit newline, go to next line start
             next_state = offsets[line_idx + 1]
-            T[done_state, next_state, NEWLINE_ID] = 1.0
+            T = T.at[done_state, next_state, NEWLINE_ID].set(1.0)
         else:
-            # LAST line: emit EOP, go back to FIRST line start
             first_state = offsets[0]
-            T[done_state, first_state, EOP_ID] = 1.0
+            T = T.at[done_state, first_state, EOP_ID].set(1.0)
 
     T = T.at[terminal_state, terminal_state, NEWLINE_ID].set(1.0)
     T = jnp.transpose(T, (2, 0, 1))
