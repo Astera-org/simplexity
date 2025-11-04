@@ -1,6 +1,7 @@
+import pytest
 from omegaconf import DictConfig, ListConfig
 
-from simplexity.utils.config_utils import TARGET, get_instance_keys
+from simplexity.utils.config_utils import TARGET, filter_instance_keys, get_config, get_instance_keys
 
 
 def test_get_instance_keys_no_targets() -> None:
@@ -158,3 +159,44 @@ def test_get_instance_keys_include_nested() -> None:
     assert set(get_instance_keys(cfg, nested=True)) == set(
         ["instance1", "instance1.instance2", "instance1.instance2.instance3"]
     )
+
+
+def test_filter_instance_keys() -> None:
+    """Test filtering instance keys."""
+    cfg = DictConfig(
+        {
+            "instance1": DictConfig(
+                {
+                    TARGET: "some_callable",
+                }
+            ),
+            "instance2": DictConfig(
+                {
+                    TARGET: "some_other_callable",
+                }
+            ),
+        }
+    )
+
+    def is_some_callable(target: str) -> bool:
+        return target == "some_callable"
+
+    assert filter_instance_keys(cfg, ["instance1", "instance2"], is_some_callable) == ["instance1"]
+
+
+def test_get_config_from_kwargs() -> None:
+    """Test getting config from kwargs."""
+    cfg = DictConfig({"key": "value"})
+    assert get_config((), {"cfg": cfg}) == cfg
+
+
+def test_get_config_from_args() -> None:
+    """Test getting config from args."""
+    cfg = DictConfig({"key": "value"})
+    assert get_config((cfg,), {}) == cfg
+
+
+def test_get_config_from_no_args() -> None:
+    """Test getting config from no args."""
+    with pytest.raises(ValueError, match="No config found in arguments or kwargs."):
+        get_config((), {})
