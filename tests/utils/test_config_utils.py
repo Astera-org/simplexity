@@ -2,7 +2,14 @@ import pytest
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf.errors import ReadonlyConfigError
 
-from simplexity.utils.config_utils import TARGET, dynamic_resolve, filter_instance_keys, get_config, get_instance_keys
+from simplexity.utils.config_utils import (
+    TARGET,
+    dynamic_resolve,
+    filter_instance_keys,
+    get_config,
+    get_instance_keys,
+    typed_instantiate,
+)
 
 
 def test_get_instance_keys_no_targets() -> None:
@@ -219,3 +226,26 @@ def test_dynamic_resolve() -> None:
     assert OmegaConf.is_readonly(cfg)
     with pytest.raises(ReadonlyConfigError, match="readonly|Readonly|read-only"):
         cfg.key = "newer_value"
+
+
+def test_typed_instantiate() -> None:
+    """Test typed instantiate with built-in str type."""
+    cfg = DictConfig({"_target_": "builtins.str", "object": 42})
+    obj = typed_instantiate(cfg, str)
+    assert obj == "42"
+    assert isinstance(obj, str)
+
+
+def test_typed_instantiate_with_kwargs() -> None:
+    """Test typed instantiate with keyword arguments."""
+    cfg = DictConfig({"_target_": "builtins.str"})
+    obj = typed_instantiate(cfg, str, object=42)
+    assert obj == "42"
+    assert isinstance(obj, str)
+
+
+def test_typed_instantiate_type_error() -> None:
+    """Test typed instantiate raises AssertionError when type doesn't match."""
+    cfg = DictConfig({"_target_": "builtins.str", "object": 42})
+    with pytest.raises(AssertionError):
+        typed_instantiate(cfg, int)

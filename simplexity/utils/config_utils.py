@@ -1,11 +1,10 @@
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any
 
 import hydra
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.errors import MissingMandatoryValue
 
-T = TypeVar("T")
 TARGET: str = "_target_"
 
 
@@ -60,7 +59,7 @@ def dynamic_resolve(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-def typed_instantiate(config: Any, expected_type: type[T], **kwargs) -> T:
+def typed_instantiate[T](config: Any, expected_type: type[T], **kwargs) -> T:
     """Instantiate an object from config with proper typing."""
     obj = hydra.utils.instantiate(config, **kwargs)
     assert isinstance(obj, expected_type)
