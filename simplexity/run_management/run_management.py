@@ -72,6 +72,48 @@ class Components:
     predictive_models: list[Any] | None = None  # TODO: improve typing
     optimizers: list[Any] | None = None  # TODO: improve typing
 
+    @property
+    def logger(self) -> Logger | None:
+        """Get the logger."""
+        if self.loggers and len(self.loggers) == 1:
+            return self.loggers[0]
+        return None
+
+    @property
+    def generative_process(self) -> GenerativeProcess | None:
+        """Get the generative process."""
+        if self.generative_processes and len(self.generative_processes) == 1:
+            return self.generative_processes[0]
+        return None
+
+    @property
+    def initial_state(self) -> jax.Array | None:
+        """Get the initial state."""
+        if self.initial_states and len(self.initial_states) == 1:
+            return self.initial_states[0]
+        return None
+
+    @property
+    def persister(self) -> ModelPersister | None:
+        """Get the persister."""
+        if self.persisters and len(self.persisters) == 1:
+            return self.persisters[0]
+        return None
+
+    @property
+    def predictive_model(self) -> Any | None:
+        """Get the predictive model."""
+        if self.predictive_models and len(self.predictive_models) == 1:
+            return self.predictive_models[0]
+        return None
+
+    @property
+    def optimizer(self) -> Any | None:
+        """Get the optimizer."""
+        if self.optimizers and len(self.optimizers) == 1:
+            return self.optimizers[0]
+        return None
+
 
 @contextmanager
 def _suppress_pydantic_field_attribute_warning() -> Iterator[None]:
