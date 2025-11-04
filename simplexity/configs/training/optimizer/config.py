@@ -9,6 +9,7 @@ from simplexity.configs.instance_config import InstanceConfig
 class Config:
     """Base configuration for predictive models."""
 
+    name: str
     instance: InstanceConfig
 
 

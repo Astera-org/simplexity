@@ -8,7 +8,7 @@ from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
-from simplexity.utils.hydra import typed_instantiate
+from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.pytorch_utils import torch_to_jax
 
 try:

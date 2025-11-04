@@ -8,8 +8,8 @@ from penzai.models.transformer.variants.llamalike_common import LlamalikeTransfo
 from penzai.nn.layer import Layer as PenzaiModel
 
 from simplexity.configs.evaluation.config import Config as ValidateConfig
+from simplexity.configs.instance_config import InstanceConfig
 from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.configs.training.optimizer.config import AdamConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
@@ -83,8 +83,8 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
         validate_every=75,
         checkpoint_every=100,
         optimizer=OptimizerConfig(
-            name="adam",
-            instance=AdamConfig(
+            name="optax_adam",
+            instance=InstanceConfig(
                 _target_="optax.adam",
                 learning_rate=0.001,
                 b1=0.9,
