@@ -26,7 +26,6 @@ from simplexity.configs.generative_process.config import Config as GenerativePro
 from simplexity.configs.mlflow.config import Config as MLFlowConfig
 from simplexity.configs.predictive_model.config import HookedTransformerConfig, is_hooked_transformer_config
 from simplexity.configs.training.config import Config as TrainingConfig
-from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.configs.training.optimizer.config import is_pytorch_optimizer_config
 from simplexity.generative_processes.generative_process import GenerativeProcess, is_generative_process_target
 from simplexity.logging.logger import Logger, is_logger_target
@@ -54,7 +53,7 @@ from simplexity.utils.pytorch_utils import resolve_device
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 logging.captureWarnings(True)
 
-DEFAULT_ENVIRONMNENT_VARIABLES = {
+DEFAULT_ENVIRONMENT_VARIABLES = {
     "MLFLOW_LOCK_MODEL_DEPENDENCIES": "true",
     "JAX_PLATFORMS": "cuda",
     "XLA_FLAGS": "--xla_gpu_unsafe_fallback_to_driver_on_ptxas_not_found",
@@ -103,7 +102,7 @@ def _suppress_pydantic_field_attribute_warning() -> Iterator[None]:
 
 def _setup_environment() -> None:
     """Setup the environment."""
-    for key, value in DEFAULT_ENVIRONMNENT_VARIABLES.items():
+    for key, value in DEFAULT_ENVIRONMENT_VARIABLES.items():
         if not os.environ.get(key):
             os.environ[key] = value
             SIMPLEXITY_LOGGER.info(f"[environment] {key} set to: {os.environ[key]}")
