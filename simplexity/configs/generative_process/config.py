@@ -10,7 +10,7 @@ class Config:
     """Base configuration for predictive models."""
 
     name: str
-    vocab_size: int  # TODO: Make missing
+    base_vocab_size: int  # TODO: Make missing
     instance: InstanceConfig
     bos_token: int | None = MISSING
     eos_token: int | None = MISSING

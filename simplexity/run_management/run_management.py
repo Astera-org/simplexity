@@ -303,7 +303,7 @@ def _create_initial_state(cfg: DictConfig, generative_process: GenerativeProcess
 @dynamic_resolve
 def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_size: int) -> None:
     """Resolve the GenerativeProcessConfig."""
-    cfg.vocab_size = base_vocab_size
+    cfg.base_vocab_size = base_vocab_size
     SIMPLEXITY_LOGGER.info(f"[generative process] Base vocab size: {base_vocab_size}")
     vocab_size = base_vocab_size
     if OmegaConf.is_missing(cfg, "bos_token"):

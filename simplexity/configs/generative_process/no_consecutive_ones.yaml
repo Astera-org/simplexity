@@ -1,5 +1,5 @@
 name: no_consecutive_ones
-vocab_size: 2
+base_vocab_size: 2
 instance:
   _target_: simplexity.generative_processes.builder.build_hidden_markov_model
   process_name: no_consecutive_ones

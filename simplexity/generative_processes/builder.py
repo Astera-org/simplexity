@@ -34,12 +34,12 @@ def build_transition_matrices(matrix_functions: dict[str, Callable], process_nam
 
 def add_begin_of_sequence_token(transition_matrix: jax.Array, initial_state: jax.Array | None = None) -> jax.Array:
     """Augments transition matrices with a BOS token."""
-    vocab_size, num_states, _ = transition_matrix.shape
-    augmented_matrix = jnp.zeros((vocab_size + 1, num_states + 1, num_states + 1), dtype=transition_matrix.dtype)
-    augmented_matrix = augmented_matrix.at[:vocab_size, :num_states, :num_states].set(transition_matrix)
+    base_vocab_size, num_states, _ = transition_matrix.shape
+    augmented_matrix = jnp.zeros((base_vocab_size + 1, num_states + 1, num_states + 1), dtype=transition_matrix.dtype)
+    augmented_matrix = augmented_matrix.at[:base_vocab_size, :num_states, :num_states].set(transition_matrix)
     if initial_state is None:
         initial_state = stationary_state(transition_matrix.sum(axis=0).T)
-    return augmented_matrix.at[vocab_size, num_states, :num_states].set(initial_state)
+    return augmented_matrix.at[base_vocab_size, num_states, :num_states].set(initial_state)
 
 
 def build_hidden_markov_model(
