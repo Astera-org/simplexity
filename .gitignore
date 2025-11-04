@@ -11,6 +11,18 @@ config.ini
 *temp*
 # MLflow tracking data
 mlruns/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+diff-coverage-report.md
+.hypothesis/
+.pytest_cache/
+
+# Environment files
 conda.yaml
 requirements.txt
 requirements_minimal.txt
