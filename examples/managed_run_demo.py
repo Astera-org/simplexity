@@ -43,6 +43,9 @@ def main(cfg: Config, components: simplexity.Components) -> None:
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
         for model in components.predictive_models.values():
+            persister = components.get_persister()
+            if persister:
+                persister.save_weights(model, 0)
             if isinstance(model, PytorchModel):
                 timestamp = int(time.time())
                 kwargs = {

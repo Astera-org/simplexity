@@ -116,7 +116,6 @@ def _working_tree_is_clean() -> bool:
 
 
 def _set_random_seeds(seed: int | None) -> None:
-    """Seed available random number generators."""
     if seed is None:
         return
     random.seed(seed)
@@ -156,7 +155,6 @@ def _assert_tagged(cfg: DictConfig) -> None:
 
 
 def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
-    """Setup the MLflow."""
     mlflow_config: MLFlowConfig | None = cfg.get("mlflow", None)
     if mlflow_config:
         if mlflow_config.tracking_uri:
@@ -361,16 +359,14 @@ def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
     raise KeyError
 
 
-def _load_checkpoint(cfg: DictConfig, target: str, persisters: dict[str, ModelPersister] | None) -> None:
+def _load_checkpoint(model: Any, persisters: dict[str, ModelPersister] | None, load_checkpoint_step: int) -> None:
     """Load the checkpoint."""
-    load_checkpoint_step = cfg.get("load_checkpoint_step", None)
-    if load_checkpoint_step:
-        persister = _get_persister(persisters)
-        if persister:
-            # model = persister.load_pytorch_model(load_checkpoint_step)  # TODO: load checkpoint
-            SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
-        else:
-            raise RuntimeError("Unable to load model checkpoint")
+    persister = _get_persister(persisters)
+    if persister:
+        persister.load_weights(model, load_checkpoint_step)
+        SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
+    else:
+        raise RuntimeError("Unable to load model checkpoint")
 
 
 def _setup_predictive_models(
@@ -385,8 +381,12 @@ def _setup_predictive_models(
             vocab_size = _get_vocab_size(cfg, instance_keys)
             if vocab_size:
                 _resolve_hooked_transformer_config(instance_config, vocab_size=vocab_size)
-        models[instance_key] = _instantiate_predictive_model(cfg, instance_key)
-        _load_checkpoint(cfg, instance_key, persisters)
+        model = _instantiate_predictive_model(cfg, instance_key)
+        step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
+        load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
+        if load_checkpoint_step is not None:
+            _load_checkpoint(model, persisters, load_checkpoint_step)
+        models[instance_key] = model
     if models:
         return models
     SIMPLEXITY_LOGGER.info("[predictive model] no predictive model config found")
