@@ -38,8 +38,6 @@ def get_python_version(pyproject_path: str | Path = "pyproject.toml") -> str:
     if python_version_match is None:
         raise ValueError("Python version not found in pyproject.toml")
     pyproject_python_version = python_version_match.group(1).strip()
-    if not pyproject_python_version:
-        return "python"
     if pyproject_python_version[0] in {">", "<", "=", "!", "~"}:
         return f"python{pyproject_python_version}"
     return f"python=={pyproject_python_version}"
