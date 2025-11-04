@@ -4,6 +4,7 @@ from typing import Literal
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.configs.instance_config import InstanceConfig
+from simplexity.predictive_models.predictive_model import is_predictive_model_target
 
 
 @dataclass
@@ -61,7 +62,7 @@ def is_model_config(cfg: DictConfig) -> bool:
     """Check if the configuration is a PersistenceInstanceConfig."""
     target = cfg.get("_target_", None)
     if isinstance(target, str):
-        return target.startswith("simplexity.persistence.")
+        return is_predictive_model_target(target)
     return False
 
 
