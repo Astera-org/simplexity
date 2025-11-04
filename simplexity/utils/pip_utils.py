@@ -74,11 +74,15 @@ def get_minimal_requirements(requirements_path: Path | str = "requirements.txt")
         "# Minimal requirements for MLflow model serving",
         "# Generated from requirements.txt\n",
     ]
+    # Regex pattern to match all PEP 508 version specifier operators:
+    # ==, !=, >=, <=, ~=, ===, >, <, =
+    # This matches the operators in order (longest first) to avoid partial matches
+    version_specifier_pattern = r"(===|~=|==|!=|>=|<=|>|<|=)"
     with open(requirements_path) as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#"):
-                package_name = re.split(r"[>=<]", line)[0]
+                package_name = re.split(version_specifier_pattern, line, maxsplit=1)[0].strip()
                 if package_name in MINIMAL_DEPS:
                     minimal_requirements_lines.append(line)
     return "\n".join(minimal_requirements_lines) + "\n"
