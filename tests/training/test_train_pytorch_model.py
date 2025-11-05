@@ -8,9 +8,9 @@ import torch
 import torch.nn as nn
 
 from simplexity.configs.evaluation.config import Config as ValidateConfig
+from simplexity.configs.instance_config import InstanceConfig
 from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
-from simplexity.configs.training.optimizer.config import PytorchAdamConfig
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
@@ -100,7 +100,7 @@ def test_train(model: torch.nn.Module, tmp_path: Path):
         checkpoint_every=100,
         optimizer=OptimizerConfig(
             name="pytorch_adam",
-            instance=PytorchAdamConfig(
+            instance=InstanceConfig(
                 _target_="torch.optim.AdamW",
                 lr=0.001,
                 betas=(0.9, 0.999),

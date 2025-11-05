@@ -9,7 +9,7 @@ from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train_model import train
-from simplexity.utils.hydra import typed_instantiate
+from simplexity.utils.config_utils import typed_instantiate
 
 
 @hydra.main(config_path="configs", config_name="train_model.yaml", version_base="1.2")

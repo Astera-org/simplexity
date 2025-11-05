@@ -17,8 +17,8 @@ from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.equinox_trainer import EquinoxTrainer
+from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.equinox import vmap_model
-from simplexity.utils.hydra import typed_instantiate
 from simplexity.utils.penzai import use_penzai_model
 
 

@@ -78,3 +78,29 @@ def torch_to_jax(torch_tensor: torch.Tensor) -> jax.Array:
         numpy_array = torch_tensor.detach().cpu().numpy()
         jax_array = jnp.array(numpy_array)
         return jax_array
+
+
+def resolve_device(device_spec: str | None = "auto") -> str:
+    """Resolve device specification to actual PyTorch device string."""
+    if device_spec is None or device_spec == "auto":
+        if torch.cuda.is_available():
+            return "cuda"
+        elif torch.backends.mps.is_available():
+            return "mps"
+        else:
+            return "cpu"
+
+    if device_spec == "cuda":
+        if torch.cuda.is_available():
+            return "cuda"
+        raise RuntimeError("CUDA requested but CUDA is not available")
+
+    if device_spec == "mps":
+        if torch.backends.mps.is_available():
+            return "mps"
+        raise RuntimeError("MPS requested but MPS is not available")
+
+    if device_spec == "cpu":
+        return "cpu"
+
+    raise ValueError(f"Unknown device specification: {device_spec}")

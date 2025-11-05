@@ -26,7 +26,7 @@ def test_gruformer():
     sequences = jax.random.randint(key, (batch_size, sequence_length), 0, vocab_size)
     inputs = pz.nx.wrap(sequences, "batch", "seq")
     outputs = model(inputs)
-    assert isinstance(outputs, pz.nx.NamedArray)
+    assert isinstance(outputs, pz.nx.NamedArray)  # type: ignore
     assert outputs.named_axes == {
         "batch": batch_size,
         "seq": sequence_length,

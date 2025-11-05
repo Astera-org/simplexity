@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import jax
@@ -8,8 +9,8 @@ from penzai.models.transformer.variants.llamalike_common import LlamalikeTransfo
 from penzai.nn.layer import Layer as PenzaiModel
 
 from simplexity.configs.evaluation.config import Config as ValidateConfig
+from simplexity.configs.instance_config import InstanceConfig
 from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.configs.training.optimizer.config import AdamConfig
 from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
@@ -20,6 +21,16 @@ from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train_model import train
 from simplexity.utils.equinox import vmap_model
 from simplexity.utils.penzai import use_penzai_model
+
+
+@dataclass
+class AdamConfig(InstanceConfig):
+    learning_rate: float
+    b1: float
+    b2: float
+    eps: float
+    eps_root: float
+    nesterov: bool
 
 
 @pytest.fixture
@@ -83,7 +94,7 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
         validate_every=75,
         checkpoint_every=100,
         optimizer=OptimizerConfig(
-            name="adam",
+            name="optax_adam",
             instance=AdamConfig(
                 _target_="optax.adam",
                 learning_rate=0.001,

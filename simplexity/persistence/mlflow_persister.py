@@ -134,7 +134,7 @@ class MLFlowPersister(ModelPersister):
         for persister in self._local_persisters.values():
             persister.cleanup()
         self._temp_dir.cleanup()
-        maybe_terminate_run(self.run_id, client=self.client)
+        maybe_terminate_run(run_id=self.run_id, client=self.client)
 
     def _get_local_persister(self, model: PredictiveModel) -> LocalPersister:
         model_framework = get_model_framework(model)

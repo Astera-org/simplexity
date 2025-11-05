@@ -1,5 +1,6 @@
 .pytest_cache/
 .ruff_cache/
+.uv_cache/
 .venv/
 .vscode/
 __pycache__/
@@ -20,3 +21,8 @@ htmlcov/
 diff-coverage-report.md
 .hypothesis/
 .pytest_cache/
+
+# Environment files
+conda.yaml
+requirements.txt
+requirements_minimal.txt
