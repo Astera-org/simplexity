@@ -154,7 +154,7 @@ def _assert_tagged(cfg: DictConfig) -> None:
     assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
 
 
-def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
+def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
     mlflow_config: MLFlowConfig | None = cfg.get("mlflow", None)
     if mlflow_config:
         if mlflow_config.tracking_uri:
@@ -166,7 +166,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext:
             downgrade_unity_catalog=mlflow_config.downgrade_unity_catalog,
         )
         if resolved_registry_uri:
-            mlflow.set_registry_uri(mlflow_config.registry_uri)
+            mlflow.set_registry_uri(resolved_registry_uri)
             SIMPLEXITY_LOGGER.info(f"[mlflow] registry uri: {mlflow.get_registry_uri()}")
         experiment_id = get_experiment_id(mlflow_config.experiment_name)
         runs = mlflow.search_runs(
