@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from simplexity.utils.pip_utils import (
+    create_minimal_requirements_file,
     create_requirements_file,
     get_minimal_requirements,
     get_python_version,
@@ -90,3 +91,21 @@ def test_get_minimal_requirements_no_file(tmp_path: Path):
     """Test get_minimal_requirements function."""
     with pytest.raises(FileNotFoundError, match="requirements.txt not found. Run setup_mlflow_uv.py first."):
         get_minimal_requirements("this_file_does_not_exist.txt")
+
+
+def test_create_minimal_requirements_file(tmp_path: Path):
+    """Test create_minimal_requirements_file function."""
+    requirements_path = tmp_path / "requirements.txt"
+    requirements_path.write_text("torch==2.0.0")
+    minimal_requirements_path = create_minimal_requirements_file(requirements_path)
+    assert minimal_requirements_path == str(tmp_path / "requirements_minimal.txt")
+    assert Path(minimal_requirements_path).exists()
+    with open(minimal_requirements_path) as f:
+        assert (
+            f.read()
+            == """# Minimal requirements for MLflow model serving
+# Generated from requirements.txt
+
+torch==2.0.0
+"""
+        )
