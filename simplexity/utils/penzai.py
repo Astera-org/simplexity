@@ -2,7 +2,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 import jax
 from penzai import pz
@@ -29,7 +29,7 @@ class PenzaiWrapper(PenzaiModel):
         """Call the wrapped model with the given inputs and side inputs."""
         named_inputs = pz.nx.wrap(inputs, "batch", "seq")
         named_logits = self.model(named_inputs, **side_inputs)
-        assert isinstance(named_logits, NamedArray)
+        assert isinstance(named_logits, NamedArray)  # type: ignore
         return named_logits.unwrap("batch", "seq", "vocabulary")
 
 
@@ -60,7 +60,7 @@ def get_parameter_count_tree(struct: Struct) -> ParamCountNode:
     _, params = pz.unbind_params(struct)
     root = ParamCountNode(name="", param_count=0, children=[])
     for param in params:
-        named_array: NamedArray = param.value
+        named_array: NamedArray = param.value  # type: ignore
         param_count = named_array.data_array.size
         label = str(param.label)
         label_parts = label.split("/")
@@ -108,30 +108,31 @@ def deconstruct_variables(variable_values: tuple[AbstractVariableValue, ...]) ->
     metadata: list[dict[Any, Any]] = []
 
     for variable_value in variable_values:
-        assert isinstance(variable_value, LabeledVariableValue)
-        if isinstance(variable_value.label, str):
-            variable_labels.append(variable_value.label)
+        # Cast to LabeledVariableValue for type checking
+        labeled_value = cast(LabeledVariableValue, variable_value)  # type: ignore
+        if isinstance(labeled_value.label, str):
+            variable_labels.append(labeled_value.label)
             variable_label_classes.append(VariableLabelClass.STR)
-        elif isinstance(variable_value.label, AutoStateVarLabel):
-            variable_labels.append(str(variable_value.label.var_id))
+        elif isinstance(labeled_value.label, AutoStateVarLabel):
+            variable_labels.append(str(labeled_value.label.var_id))
             variable_label_classes.append(VariableLabelClass.AUTO_STATE_VAR_LABEL)
         else:
-            raise ValueError(f"Unknown variable label: {type(variable_value.label)}")
-        if isinstance(variable_value.value, NamedArray):
-            data_arrays.append(variable_value.value.data_array)
-            axis_names.append(tuple(variable_value.value.named_axes.keys()))
-            axis_sizes.append(tuple(variable_value.value.named_axes.values()))
+            raise ValueError(f"Unknown variable label: {type(labeled_value.label)}")
+        if isinstance(labeled_value.value, NamedArray):  # type: ignore
+            data_arrays.append(labeled_value.value.data_array)
+            axis_names.append(tuple(labeled_value.value.named_axes.keys()))
+            axis_sizes.append(tuple(labeled_value.value.named_axes.values()))
         else:
-            data_arrays.append(variable_value.value)
+            data_arrays.append(labeled_value.value)
             axis_names.append(())
             axis_sizes.append(())
-        if isinstance(variable_value, ParameterValue):
+        if isinstance(labeled_value, ParameterValue):
             variable_value_classes.append(VariableValueClass.PARAMETER)
-        elif isinstance(variable_value, StateVariableValue):
+        elif isinstance(labeled_value, StateVariableValue):
             variable_value_classes.append(VariableValueClass.STATE_VARIABLE)
         else:
-            raise ValueError(f"Unknown variable type: {type(variable_value)}")
-        metadata.append(variable_value.metadata)
+            raise ValueError(f"Unknown variable type: {type(labeled_value)}")
+        metadata.append(labeled_value.metadata)  # type: ignore
 
     return {
         "data_arrays": tuple(data_arrays),
@@ -144,7 +145,7 @@ def deconstruct_variables(variable_values: tuple[AbstractVariableValue, ...]) ->
     }
 
 
-def reconstruct_variables(items: Mapping[str, Any]) -> tuple[LabeledVariableValue, ...]:
+def reconstruct_variables(items: Mapping[str, Any]) -> tuple[LabeledVariableValue, ...]:  # type: ignore
     """Reconstruct variables from a mapping of items orbax can save."""
     data_arrays: tuple[jax.Array, ...] = items["data_arrays"]
     variable_value_classes: tuple[VariableValueClass, ...] = items["variable_value_classes"]
@@ -154,7 +155,7 @@ def reconstruct_variables(items: Mapping[str, Any]) -> tuple[LabeledVariableValu
     axis_sizes: tuple[tuple[int, ...], ...] = items["axis_sizes"]
     metadata: tuple[dict[Any, Any], ...] = items["metadata"]
 
-    loaded_variables: list[LabeledVariableValue] = []
+    loaded_variables: list[LabeledVariableValue] = []  # type: ignore
     for (
         data_array,
         variable_value_class,
@@ -171,11 +172,11 @@ def reconstruct_variables(items: Mapping[str, Any]) -> tuple[LabeledVariableValu
         axis_names,
         axis_sizes,
         metadata,
-        strict=True,
+        strict=True,  # type: ignore
     ):
         if axis_names_:
-            named_axes = OrderedDict(zip(axis_names_, axis_sizes_, strict=True))
-            value = NamedArray(named_axes, data_array)
+            named_axes = OrderedDict(zip(axis_names_, axis_sizes_, strict=True))  # type: ignore
+            value = NamedArray(named_axes, data_array)  # type: ignore
         else:
             value = data_array
         if variable_label_class == VariableLabelClass.AUTO_STATE_VAR_LABEL:

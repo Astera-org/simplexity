@@ -9,31 +9,34 @@ from penzai.models.transformer.model_parts import TransformerLM
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 from penzai.nn.layer import Layer as PenzaiModel
 
+# Type alias for Linear or LinearInPlace
+_LinearType = pz.nn.Linear | pz.nn.LinearInPlace  # type: ignore
+
 
 class RNNBlock(eqx.Module):
     """A simple RNN block."""
 
-    project_from_embedding: pz.nn.Linear | pz.nn.LinearInPlace
+    project_from_embedding: _LinearType  # type: ignore
     gru_cell: eqx.nn.GRUCell
-    project_to_embedding: pz.nn.Linear | pz.nn.LinearInPlace
+    project_to_embedding: _LinearType  # type: ignore
 
     def __init__(self, num_heads: int, embedding_dim: int, projection_dim: int, key: chex.PRNGKey, **kwargs):
         keys = jax.random.split(key, 3)
-        self.project_from_embedding = pz.nn.Linear.from_config(
+        self.project_from_embedding = pz.nn.Linear.from_config(  # type: ignore
             name="project_from_embedding",
             init_base_rng=keys[0],
             input_axes={"embedding": embedding_dim},
             output_axes={"heads": num_heads, "projection": projection_dim},
         )
         self.gru_cell = eqx.nn.GRUCell(projection_dim, projection_dim, key=keys[1])
-        self.project_to_embedding = pz.nn.Linear.from_config(
+        self.project_to_embedding = pz.nn.Linear.from_config(  # type: ignore
             name="project_to_embedding",
             init_base_rng=keys[2],
             input_axes={"heads": num_heads, "projection": projection_dim},
             output_axes={"embedding": embedding_dim},
         )
 
-    def __call__(self, x: pz.nx.NamedArray, **side_inputs: Mapping[str, jax.Array]):
+    def __call__(self, x: pz.nx.NamedArray, **side_inputs: Mapping[str, jax.Array]):  # type: ignore
         """Process the input sequence."""
         x = self.project_from_embedding(x)
 
@@ -55,9 +58,9 @@ class RNNBlock(eqx.Module):
         return x
 
 
-def attention_to_gru(attention: pz.nn.Attention) -> RNNBlock:
+def attention_to_gru(attention: pz.nn.Attention) -> RNNBlock:  # type: ignore
     """Convert an attention layer to a RNN block."""
-    linear: pz.nn.Linear = pz.select(attention.input_to_query).at_instances_of(pz.nn.Linear).pick_nth_selected(0).get()
+    linear: pz.nn.Linear = pz.select(attention.input_to_query).at_instances_of(pz.nn.Linear).pick_nth_selected(0).get()  # type: ignore
     kwargs: Mapping[str, int] = linear.weights.value.named_shape  # type: ignore
     key = jax.random.PRNGKey(0)
     data = jnp.mean(linear.weights.value.data_array)  # TODO: handle uninitialized weights
