@@ -12,7 +12,6 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from simplexity.configs.instance_config import InstanceConfig
 from simplexity.predictive_models.predictive_model import is_predictive_model_target
 
-
 # ============================================================================
 # Base Config
 # ============================================================================
