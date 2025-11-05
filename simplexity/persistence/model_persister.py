@@ -28,8 +28,3 @@ class ModelPersister(eqx.Module):
     def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
         """Load weights into an existing model instance."""
         ...
-
-
-def is_model_persister_target(target: str) -> bool:
-    """Check if the target is a model persister target."""
-    return target.startswith("simplexity.persistence.")

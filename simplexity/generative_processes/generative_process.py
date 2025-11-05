@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import chex
 import equinox as eqx
@@ -8,7 +8,7 @@ import jax
 State = TypeVar("State")
 
 
-class GenerativeProcess(eqx.Module, Generic[State]):
+class GenerativeProcess[State](eqx.Module):
     """A generative process is a probabilistic model that can be used to generate data."""
 
     @property
@@ -94,8 +94,3 @@ class GenerativeProcess(eqx.Module, Generic[State]):
     def log_probability(self, observations: jax.Array) -> jax.Array:
         """Compute the log probability of the process generating a sequence of observations."""
         ...
-
-
-def is_generative_process_target(target: str) -> bool:
-    """Check if the target is a generative process target."""
-    return target.startswith("simplexity.generative_processes.")

@@ -92,8 +92,3 @@ class Logger(ABC):
     def close(self) -> None:
         """Close the logger."""
         ...
-
-
-def is_logger_target(target: str) -> bool:
-    """Check if the target is a logger target."""
-    return target.startswith("simplexity.logging.")
