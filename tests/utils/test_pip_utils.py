@@ -2,7 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from simplexity.utils.pip_utils import create_requirements_file, get_python_version
+from simplexity.utils.pip_utils import (
+    create_requirements_file,
+    get_minimal_requirements,
+    get_python_version,
+)
 
 
 def test_get_python_version_with_specific_version(tmp_path: Path):
@@ -46,3 +50,43 @@ def test_create_requirements_file_no_file(tmp_path: Path):
     """Test create_requirements_file function."""
     with pytest.raises(FileNotFoundError, match="pyproject.toml not found at"):
         create_requirements_file("this_file_does_not_exist.toml")
+
+
+def test_get_minimal_requirements(tmp_path: Path):
+    """Test get_minimal_requirements function."""
+    requirements_path = tmp_path / "requirements.txt"
+    requirements_path.write_text("""
+cloudpickle>2.0.0
+equinox==0.13.0
+hydra-core==1.2.0
+jax==0.8.0
+jupyter==2.0.0
+matplotlib==3.5.0
+mlflow!=2.0.0
+numpy<=1.24.0
+optax==0.1.0
+pandas===2.0.0
+penzai==0.1.0
+scikit-learn~=1.2.0
+torch=2.0.0
+transformer-lens>=2.15.4
+""")
+    assert (
+        get_minimal_requirements(requirements_path)
+        == """# Minimal requirements for MLflow model serving
+# Generated from requirements.txt
+
+cloudpickle>2.0.0
+mlflow!=2.0.0
+numpy<=1.24.0
+pandas===2.0.0
+scikit-learn~=1.2.0
+torch=2.0.0
+"""
+    )
+
+
+def test_get_minimal_requirements_no_file(tmp_path: Path):
+    """Test get_minimal_requirements function."""
+    with pytest.raises(FileNotFoundError, match="requirements.txt not found. Run setup_mlflow_uv.py first."):
+        get_minimal_requirements("this_file_does_not_exist.txt")
