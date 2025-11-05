@@ -351,7 +351,12 @@ def validate_model_config(cfg: ModelConfig) -> None:
         raise ValueError(
             f"ModelConfig.instance._target_ must be a predictive model target, got {cfg.instance._target_}"
         )
-    if is_hooked_transformer_config(cfg.instance):
+    # If this is a HookedTransformerConfig, validate it fully if we have access to the nested cfg
+    if (
+        cfg.instance._target_ == "transformer_lens.HookedTransformer"
+        and hasattr(cfg.instance, "cfg")
+        and isinstance(cfg.instance, HookedTransformerConfig)
+    ):
         validate_hooked_transformer_config(cfg.instance)
     validate_optional_name(cfg.name, "ModelConfig")
     if cfg.load_checkpoint_step is not None:
