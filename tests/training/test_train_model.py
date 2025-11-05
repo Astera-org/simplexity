@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import jax
@@ -20,6 +21,16 @@ from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.training.train_model import train
 from simplexity.utils.equinox import vmap_model
 from simplexity.utils.penzai import use_penzai_model
+
+
+@dataclass
+class AdamConfig(InstanceConfig):
+    learning_rate: float
+    b1: float
+    b2: float
+    eps: float
+    eps_root: float
+    nesterov: bool
 
 
 @pytest.fixture
@@ -84,7 +95,7 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
         checkpoint_every=100,
         optimizer=OptimizerConfig(
             name="optax_adam",
-            instance=InstanceConfig(
+            instance=AdamConfig(
                 _target_="optax.adam",
                 learning_rate=0.001,
                 b1=0.9,
