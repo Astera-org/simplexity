@@ -468,7 +468,7 @@ def _setup_training(cfg: DictConfig, instance_keys: list[str]) -> None:
     if training_config:
         n_ctx: int = OmegaConf.select(
             cfg,
-            "predictive_model.instance.cfg.n_ctx",
+            "predictive_model.instance.cfg.n_ctx",  # TODO: make more flexible
         )
         use_bos = _get_special_token(cfg, instance_keys, "bos") is not None
         use_eos = _get_special_token(cfg, instance_keys, "eos") is not None
