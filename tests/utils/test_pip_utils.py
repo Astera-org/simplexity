@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from simplexity.utils.pip_utils import get_python_version
+from simplexity.utils.pip_utils import create_requirements_file, get_python_version
 
 
 def test_get_python_version_with_specific_version(tmp_path: Path):
@@ -31,3 +31,18 @@ def test_get_python_version_no_file():
     """Test get_python_version function."""
     with pytest.raises(FileNotFoundError, match="pyproject.toml not found at"):
         get_python_version("this_file_does_not_exist.toml")
+
+
+def test_create_requirements_file(tmp_path: Path):
+    """Test create_requirements_file function."""
+    pyproject_toml = tmp_path / "pyproject.toml"
+    pyproject_toml.write_text('[project]\nrequires-python = "3.12"')
+    requirements_path = create_requirements_file(pyproject_toml)
+    assert requirements_path == str(tmp_path / "requirements.txt")
+    assert Path(requirements_path).exists()
+
+
+def test_create_requirements_file_no_file(tmp_path: Path):
+    """Test create_requirements_file function."""
+    with pytest.raises(FileNotFoundError, match="pyproject.toml not found at"):
+        create_requirements_file("this_file_does_not_exist.toml")
