@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from simplexity.utils.pip_utils import (
+    create_conda_yaml_file,
     create_minimal_requirements_file,
     create_requirements_file,
     fix_dependency_mismatches,
@@ -112,7 +113,36 @@ torch==2.0.0
         )
 
 
-def test_fix_dependency_mismatches_no_file(tmp_path: Path):
+def test_fix_dependency_mismatches_no_file():
     """Test fix_dependency_mismatches function."""
     with pytest.raises(FileNotFoundError, match="requirements.txt not found. Run setup_mlflow_uv.py first."):
         fix_dependency_mismatches("this_file_does_not_exist.txt")
+
+
+def test_create_conda_yaml_file(tmp_path: Path):
+    """Test create_conda_yaml_file function."""
+    pyproject_toml = tmp_path / "pyproject.toml"
+    pyproject_toml.write_text('[project]\nrequires-python = "3.12"')
+    conda_yaml_path = create_conda_yaml_file(pyproject_toml)
+    assert conda_yaml_path == str(tmp_path / "conda.yaml")
+    assert Path(conda_yaml_path).exists()
+    with open(conda_yaml_path) as f:
+        assert (
+            f.read()
+            == """name: simplexity-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python==3.12
+  - pip
+  - pip:
+    - -r requirements.txt
+"""
+        )
+
+
+def test_create_conda_yaml_file_no_file():
+    """Test create_conda_yaml_file function."""
+    with pytest.raises(FileNotFoundError, match="pyproject.toml not found at"):
+        create_conda_yaml_file("this_file_does_not_exist.toml")
