@@ -8,16 +8,18 @@ import pytest
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.configs.evaluation.config import Config as ValidateConfig
-from simplexity.configs.instance_config import InstanceConfig
-from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
 from simplexity.predictive_models.predictive_model import PredictiveModel
+from simplexity.run_management.structured_configs import (
+    InstanceConfig,
+    OptimizerConfig,
+    TrainingConfig,
+    ValidationConfig,
+)
 from simplexity.training.train_model import train
 from simplexity.utils.equinox import vmap_model
 from simplexity.utils.penzai import use_penzai_model
@@ -85,7 +87,7 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    training_cfg = TrainConfig(
+    training_cfg = TrainingConfig(
         seed=0,
         sequence_len=32,
         batch_size=64,
@@ -106,7 +108,7 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
             ),
         ),
     )
-    validation_cfg = ValidateConfig(
+    validation_cfg = ValidationConfig(
         seed=0,
         sequence_len=32,
         batch_size=64,

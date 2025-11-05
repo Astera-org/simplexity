@@ -7,8 +7,7 @@ from penzai.nn.layer import Layer as PenzaiModel
 from penzai.toolshed.basic_training import InternalTrainerState
 from penzai.toolshed.basic_training import StatefulTrainer as PenzaiTrainer
 
-from simplexity.configs.evaluation.config import Config as ValidateConfig
-from simplexity.configs.training.config import Config as TrainConfig
+from simplexity.run_management.structured_configs import TrainingConfig as TrainConfig, ValidationConfig as ValidateConfig
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.evaluation.metric_functions import cross_entropy_fn
 from simplexity.generative_processes.generative_process import GenerativeProcess

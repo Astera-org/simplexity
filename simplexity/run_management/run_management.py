@@ -21,11 +21,6 @@ import mlflow
 from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
-from simplexity.configs.generative_process.config import Config as GenerativeProcessConfig
-from simplexity.configs.mlflow.config import Config as MLFlowConfig
-from simplexity.configs.predictive_model.config import HookedTransformerConfig, is_hooked_transformer_config
-from simplexity.configs.training.config import Config as TrainingConfig
-from simplexity.configs.training.optimizer.config import is_pytorch_optimizer_config
 from simplexity.generative_processes.generative_process import GenerativeProcess, is_generative_process_target
 from simplexity.logging.logger import Logger, is_logger_target
 from simplexity.logging.mlflow_logger import MLFlowLogger
@@ -38,6 +33,14 @@ from simplexity.run_management.run_logging import (
     log_hydra_artifacts,
     log_source_script,
     log_system_info,
+)
+from simplexity.run_management.structured_configs import (
+    GenerativeProcessConfig,
+    HookedTransformerConfig,
+    MLFlowConfig,
+    TrainingConfig,
+    is_hooked_transformer_config,
+    is_pytorch_optimizer_config,
 )
 from simplexity.training.optimizer import is_optimizer_target
 from simplexity.utils.config_utils import (

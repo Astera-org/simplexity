@@ -4,10 +4,10 @@ from collections.abc import Iterable
 import jax
 import jax.numpy as jnp
 
-from simplexity.configs.evaluation.config import Config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
+from simplexity.run_management.structured_configs import ValidationConfig as Config
 from simplexity.utils.pytorch_utils import torch_to_jax
 
 try:

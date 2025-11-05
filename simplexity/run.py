@@ -3,11 +3,12 @@ from contextlib import nullcontext
 import hydra
 from omegaconf import DictConfig
 
-from simplexity.configs.config import Config, validate_config
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
+from simplexity.run_management.structured_configs import MainConfig as Config
+from simplexity.run_management.structured_configs import validate_config
 from simplexity.training.train_model import train
 from simplexity.utils.config_utils import typed_instantiate
 

@@ -7,7 +7,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from simplexity.configs.evaluation.config import Config
+from simplexity.run_management.structured_configs import ValidationConfig as Config
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 

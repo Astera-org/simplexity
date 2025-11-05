@@ -5,18 +5,27 @@ scattered across various config.py files in the configs directory.
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from simplexity.configs.instance_config import InstanceConfig
 from simplexity.predictive_models.predictive_model import is_predictive_model_target
 
 # ============================================================================
 # Base Config
 # ============================================================================
 
-# InstanceConfig is already defined in configs/instance_config.py and imported above
+
+@dataclass
+class InstanceConfig:
+    """Config for an object that can be instantiated by hydra."""
+
+    _target_: str
+
+    def __init__(self, _target_: str, **kwargs: Any):
+        self._target_ = _target_
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
 
 # ============================================================================

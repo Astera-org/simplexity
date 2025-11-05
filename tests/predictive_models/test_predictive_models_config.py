@@ -2,7 +2,7 @@ from pathlib import Path
 
 from omegaconf import DictConfig, OmegaConf
 
-from simplexity.configs.predictive_model.config import is_hooked_transformer_config
+from simplexity.run_management.structured_configs import is_hooked_transformer_config
 
 CONFIG_DIR = Path("tests/predictive_models")
 

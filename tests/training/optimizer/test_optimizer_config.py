@@ -2,7 +2,7 @@ from pathlib import Path
 
 from omegaconf import DictConfig, OmegaConf
 
-from simplexity.configs.training.optimizer.config import is_pytorch_optimizer_config
+from simplexity.run_management.structured_configs import is_pytorch_optimizer_config
 
 CONFIG_DIR = Path("tests/training/optimizer")
 

@@ -7,11 +7,11 @@ import pytest
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.configs.evaluation.config import Config
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
 from simplexity.predictive_models.predictive_model import PredictiveModel
+from simplexity.run_management.structured_configs import ValidationConfig as Config
 from simplexity.utils.equinox import vmap_model
 from simplexity.utils.penzai import use_penzai_model
 

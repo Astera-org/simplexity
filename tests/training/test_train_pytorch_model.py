@@ -7,14 +7,16 @@ import pytest
 import torch
 import torch.nn as nn
 
-from simplexity.configs.evaluation.config import Config as ValidateConfig
-from simplexity.configs.instance_config import InstanceConfig
-from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
+from simplexity.run_management.structured_configs import (
+    InstanceConfig,
+    OptimizerConfig,
+    TrainingConfig,
+    ValidationConfig,
+)
 from simplexity.training.train_pytorch_model import train
 
 
@@ -90,7 +92,7 @@ def test_train(model: torch.nn.Module, tmp_path: Path):
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    training_cfg = TrainConfig(
+    training_cfg = TrainingConfig(
         seed=0,
         sequence_len=32,
         batch_size=64,
@@ -110,7 +112,7 @@ def test_train(model: torch.nn.Module, tmp_path: Path):
             ),
         ),
     )
-    validation_cfg = ValidateConfig(
+    validation_cfg = ValidationConfig(
         seed=0,
         sequence_len=32,
         batch_size=64,
