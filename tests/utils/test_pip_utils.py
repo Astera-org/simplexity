@@ -5,6 +5,7 @@ import pytest
 from simplexity.utils.pip_utils import (
     create_minimal_requirements_file,
     create_requirements_file,
+    fix_dependency_mismatches,
     get_minimal_requirements,
     get_python_version,
 )
@@ -109,3 +110,9 @@ def test_create_minimal_requirements_file(tmp_path: Path):
 torch==2.0.0
 """
         )
+
+
+def test_fix_dependency_mismatches_no_file(tmp_path: Path):
+    """Test fix_dependency_mismatches function."""
+    with pytest.raises(FileNotFoundError, match="requirements.txt not found. Run setup_mlflow_uv.py first."):
+        fix_dependency_mismatches("this_file_does_not_exist.txt")
