@@ -48,7 +48,7 @@ def _get_calling_file_path() -> str | None:
                         frame_path.is_relative_to(project_root)
                         and "simplexity" in str(frame_path).lower()
                         and "simplexity/" in str(frame_path).lower()
-                        and frame_path.suffix != ".py"
+                        and frame_path.suffix == ".py"
                     )
                 ):
                     frame = frame.f_back
