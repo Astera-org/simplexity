@@ -6,6 +6,8 @@ import hydra
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.errors import MissingMandatoryValue
 
+from simplexity.exceptions import ConfigValidationError
+
 TARGET: str = "_target_"
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
@@ -41,7 +43,7 @@ def _validate(
         return False
     try:
         validate_fn(config)
-    except ValueError as e:
+    except ConfigValidationError as e:
         component_prefix = f"[{component_name}] " if component_name else ""
         SIMPLEXITY_LOGGER.warning(f"{component_prefix}error validating config: {e}")
         return False
