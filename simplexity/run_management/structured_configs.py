@@ -236,7 +236,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
             )
         if bos_token < 0:
             raise ConfigValidationError(f"GenerativeProcessConfig.bos_token must be non-negative, got {bos_token}")
-        if not OmegaConf.is_missing(cfg, "vocab_size") and vocab_size is not None and bos_token >= vocab_size:
+        if not OmegaConf.is_missing(cfg, "vocab_size") and bos_token >= vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.bos_token ({bos_token}) must be < vocab_size ({vocab_size})"
             )
@@ -250,7 +250,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
             )
         if eos_token < 0:
             raise ConfigValidationError(f"GenerativeProcessConfig.eos_token must be non-negative, got {eos_token}")
-        if not OmegaConf.is_missing(cfg, "vocab_size") and vocab_size is not None and eos_token >= vocab_size:
+        if not OmegaConf.is_missing(cfg, "vocab_size") and eos_token >= vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.eos_token ({eos_token}) must be < vocab_size ({vocab_size})"
             )
@@ -270,6 +270,8 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     else:
         if not isinstance(vocab_size, int):
             raise ConfigValidationError(f"GenerativeProcessConfig.vocab_size must be an int, got {type(vocab_size)}")
+        if vocab_size <= 0:
+            raise ConfigValidationError(f"GenerativeProcessConfig.vocab_size must be positive, got {vocab_size}")
         # Only validate consistency if base_vocab_size is also resolved
         if not OmegaConf.is_missing(cfg, "base_vocab_size") and isinstance(base_vocab_size, int):
             expected_vocab_size = base_vocab_size + (bos_token is not None) + (eos_token is not None)
