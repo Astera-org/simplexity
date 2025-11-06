@@ -528,57 +528,6 @@ def validate_training_config(cfg: DictConfig) -> None:
 
 
 # ============================================================================
-# Validation Config
-# ============================================================================
-
-
-@dataclass
-class ValidationConfig:
-    """Configuration for the validation."""
-
-    seed: int
-    sequence_len: int
-    batch_size: int
-    num_steps: int
-    log_every: int | None
-
-
-def validate_validation_config(cfg: DictConfig) -> None:
-    """Validate the configuration.
-
-    Args:
-        cfg: A DictConfig with ValidationConfig fields (from Hydra).
-    """
-    sequence_len = cfg.get("sequence_len")
-    batch_size = cfg.get("batch_size")
-    num_steps = cfg.get("num_steps")
-    log_every = cfg.get("log_every")
-
-    if not isinstance(sequence_len, int):
-        raise ValueError(f"ValidationConfig.sequence_len must be an int, got {type(sequence_len)}")
-    if sequence_len <= 0:
-        raise ValueError(f"ValidationConfig.sequence_len must be positive, got {sequence_len}")
-
-    if not isinstance(batch_size, int):
-        raise ValueError(f"ValidationConfig.batch_size must be an int, got {type(batch_size)}")
-    if batch_size <= 0:
-        raise ValueError(f"ValidationConfig.batch_size must be positive, got {batch_size}")
-
-    if not isinstance(num_steps, int):
-        raise ValueError(f"ValidationConfig.num_steps must be an int, got {type(num_steps)}")
-    if num_steps <= 0:
-        raise ValueError(f"ValidationConfig.num_steps must be positive, got {num_steps}")
-
-    if log_every is not None:
-        if not isinstance(log_every, int):
-            raise ValueError(f"ValidationConfig.log_every must be an int or None, got {type(log_every)}")
-        if log_every <= 0:
-            raise ValueError(f"ValidationConfig.log_every must be positive, got {log_every}")
-        if log_every > num_steps:
-            raise ValueError(f"ValidationConfig.log_every ({log_every}) must be <= num_steps ({num_steps})")
-
-
-# ============================================================================
 # MLflow Config
 # ============================================================================
 
