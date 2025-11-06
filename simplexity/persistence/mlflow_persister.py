@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import mlflow
-import omegaconf
+from omegaconf import OmegaConf
 
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.model_persister import ModelPersister
@@ -144,7 +144,7 @@ class MLFlowPersister(ModelPersister):
                 config_path,
                 dst_path=str(temp_dir),
             )
-            run_config = omegaconf.OmegaConf.load(downloaded_config_path)
+            run_config = OmegaConf.load(downloaded_config_path)
 
         model = typed_instantiate(run_config.predictive_model.instance, run_config.predictive_model.instance._target_)
 
