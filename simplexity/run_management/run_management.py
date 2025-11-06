@@ -170,10 +170,13 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
         if mlflow_config.tracking_uri:
             mlflow.set_tracking_uri(mlflow_config.tracking_uri)
             SIMPLEXITY_LOGGER.info(f"[mlflow] tracking uri: {mlflow.get_tracking_uri()}")
+        downgrade_unity_catalog = (
+            mlflow_config.downgrade_unity_catalog if mlflow_config.downgrade_unity_catalog is not None else True
+        )
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=mlflow_config.registry_uri,
             tracking_uri=mlflow_config.tracking_uri,
-            downgrade_unity_catalog=mlflow_config.downgrade_unity_catalog,
+            downgrade_unity_catalog=downgrade_unity_catalog,
         )
         if resolved_registry_uri:
             mlflow.set_registry_uri(resolved_registry_uri)
