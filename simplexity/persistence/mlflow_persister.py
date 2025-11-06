@@ -133,7 +133,7 @@ class MLFlowPersister(ModelPersister):
         if not Path(downloaded_path).exists():
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
         return local_persister.load_weights(model, step)
-    
+
     def load_model(self, step: int = 0) -> PredictiveModel:
         """Load a model from a specified MLflow run and step."""
         config_path = self._config_path
@@ -145,7 +145,7 @@ class MLFlowPersister(ModelPersister):
                 dst_path=str(temp_dir),
             )
             run_config = omegaconf.OmegaConf.load(downloaded_config_path)
-            
+
         model = typed_instantiate(run_config.predictive_model.instance, run_config.predictive_model.instance._target_)
 
         return self.load_weights(model, step)
