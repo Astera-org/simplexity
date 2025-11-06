@@ -589,17 +589,17 @@ class MLFlowConfig:
 
     experiment_name: str
     run_name: str
-    tracking_uri: str
-    registry_uri: str
-    downgrade_unity_catalog: bool
+    tracking_uri: str | None = None
+    registry_uri: str | None = None
+    downgrade_unity_catalog: bool = True
 
 
 def _validate_uri(uri: str, field_name: str) -> None:
     """Validate that a string is a valid URI."""
-    if not isinstance(uri, str):
-        raise ValueError(f"{field_name} must be a string, got {type(uri)}")
     if not uri.strip():
         raise ValueError(f"{field_name} cannot be empty")
+    if uri.startswith("databricks"):
+        return
     try:
         parsed = urlparse(uri)
         # Allow file://, http://, https://, databricks://, etc.
@@ -627,176 +627,7 @@ def validate_mlflow_config(cfg: DictConfig) -> None:
         raise ValueError("MLFlowConfig.run_name must be a non-empty string")
     if not isinstance(downgrade_unity_catalog, bool):
         raise ValueError(f"MLFlowConfig.downgrade_unity_catalog must be a bool, got {type(downgrade_unity_catalog)}")
-    _validate_uri(tracking_uri, "MLFlowConfig.tracking_uri")
-    _validate_uri(registry_uri, "MLFlowConfig.registry_uri")
-
-
-# ============================================================================
-# Main Config
-# ============================================================================
-
-
-@dataclass
-class MainConfig:
-    """Configuration for the experiment."""
-
-    training_data_generator: GenerativeProcessConfig
-    validation_data_generator: GenerativeProcessConfig | None
-    predictive_model: ModelConfig
-    persistence: PersistenceConfig | None
-    logging: LoggingConfig | None
-    training: TrainingConfig
-    validation: ValidationConfig | None
-
-    seed: int
-    experiment_name: str
-    run_name: str
-
-
-def validation_required(cfg: DictConfig) -> bool:
-    """Check if validation is required."""
-    training = cfg.get("training")
-    if training is None:
-        return False
-    validate_every = training.get("validate_every")
-    num_steps = training.get("num_steps")
-    return validate_every is not None and validate_every > 0 and num_steps is not None and validate_every <= num_steps
-
-
-def persistence_required(cfg: DictConfig) -> bool:
-    """Check if persistence is required."""
-    predictive_model = cfg.get("predictive_model")
-    training = cfg.get("training")
-    if training is None:
-        return False
-    checkpoint_every = training.get("checkpoint_every")
-    num_steps = training.get("num_steps")
-    return (predictive_model is not None and predictive_model.get("load_checkpoint_step") is not None) or (
-        checkpoint_every is not None
-        and checkpoint_every > 0
-        and num_steps is not None
-        and checkpoint_every <= num_steps
-    )
-
-
-def logging_required(cfg: DictConfig) -> bool:
-    """Check if logging is required."""
-    training = cfg.get("training")
-    if training is None:
-        return False
-    log_every = training.get("log_every")
-    num_steps = training.get("num_steps")
-    if log_every is not None and log_every > 0 and num_steps is not None and log_every <= num_steps:
-        return True
-    validation = cfg.get("validation")
-    if validation is None:
-        return False
-    validation_log_every = validation.get("log_every")
-    validation_num_steps = validation.get("num_steps")
-    return bool(
-        validation_required(cfg)
-        and validation_log_every is not None
-        and validation_log_every > 0
-        and validation_num_steps is not None
-        and validation_log_every <= validation_num_steps
-    )
-
-
-def validate_config(cfg: DictConfig) -> None:
-    """Validate the configuration with comprehensive checks.
-
-    Args:
-        cfg: A DictConfig matching the MainConfig structure (from Hydra).
-    """
-    # Validate top-level fields
-    seed = cfg.get("seed")
-    experiment_name = cfg.get("experiment_name")
-    run_name = cfg.get("run_name")
-
-    if not isinstance(seed, int):
-        raise ValueError(f"MainConfig.seed must be an int, got {type(seed)}")
-    if not isinstance(experiment_name, str) or not experiment_name.strip():
-        raise ValueError("MainConfig.experiment_name must be a non-empty string")
-    if not isinstance(run_name, str) or not run_name.strip():
-        raise ValueError("MainConfig.run_name must be a non-empty string")
-
-    # Validate sub-configs
-    training_data_generator = cfg.get("training_data_generator")
-    predictive_model = cfg.get("predictive_model")
-    training = cfg.get("training")
-    logging = cfg.get("logging")
-    persistence = cfg.get("persistence")
-    validation = cfg.get("validation")
-    validation_data_generator = cfg.get("validation_data_generator")
-
-    if training_data_generator is None:
-        raise ValueError("MainConfig.training_data_generator is required")
-    if predictive_model is None:
-        raise ValueError("MainConfig.predictive_model is required")
-    if training is None:
-        raise ValueError("MainConfig.training is required")
-
-    validate_generative_process_config(training_data_generator)
-    validate_model_config(predictive_model)
-    validate_training_config(training)
-
-    # Validate optional components
-    if logging is not None:
-        validate_logging_config(logging)
-    if persistence is not None:
-        validate_persistence_config(persistence)
-
-    # Validate validation configuration
-    if validation_required(cfg):
-        if validation is None:
-            raise ValueError("Validation is required but not configured")
-        validate_validation_config(validation)
-        if validation_data_generator is None:
-            raise ValueError("Validation data generator is required but not configured")
-        validate_generative_process_config(validation_data_generator)
-    else:
-        if validation is not None:
-            raise ValueError("Validation is configured but not required (validate_every is None or invalid)")
-        if validation_data_generator is not None:
-            raise ValueError("Validation data generator is configured but not required")
-
-    # Validate persistence requirement
-    if persistence_required(cfg):
-        if persistence is None:
-            raise ValueError("Persistence is required but not configured")
-    else:
-        if persistence is not None:
-            raise ValueError("Persistence is configured but not required")
-
-    # Validate logging requirement
-    if logging is not None:
-        if not logging_required(cfg):
-            raise ValueError("Logging is configured but not required")
-    else:
-        if logging_required(cfg):
-            raise ValueError("Logging is required but not configured")
-
-    # Cross-config validation: vocab size consistency
-    training_vocab_size = training_data_generator.get("vocab_size")
-    if validation_data_generator is not None:
-        validation_vocab_size = validation_data_generator.get("vocab_size")
-        if training_vocab_size != validation_vocab_size:
-            raise ValueError(
-                f"Vocab size mismatch: training_data_generator.vocab_size ({training_vocab_size}) "
-                f"!= validation_data_generator.vocab_size ({validation_vocab_size})"
-            )
-
-    # Cross-config validation: sequence length consistency
-    training_seq_len = training.get("sequence_len")
-    if validation is not None:
-        validation_seq_len = validation.get("sequence_len")
-        if training_seq_len != validation_seq_len:
-            # This is a warning, not an error, but we'll validate it
-            # Some models might support different sequence lengths, but it's unusual
-            pass  # Could add a warning here if needed
-
-    # Cross-config validation: seed consistency (optional, but worth checking)
-    training_seed = training.get("seed")
-    if training_seed != seed:
-        # This is allowed but might be intentional
-        pass  # Could add a warning here if needed
+    if tracking_uri is not None:
+        _validate_uri(tracking_uri, "MLFlowConfig.tracking_uri")
+    if registry_uri is not None:
+        _validate_uri(registry_uri, "MLFlowConfig.registry_uri")
