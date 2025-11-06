@@ -2,7 +2,59 @@ import pytest
 from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.run_management.structured_configs import is_logger_config, is_logger_target, validate_logging_config
+from simplexity.run_management.structured_configs import (
+    is_logger_config,
+    is_logger_target,
+    validate_logging_config,
+    validate_mlflow_config,
+)
+
+
+def test_validate_mlflow_config_valid():
+    """Test validate_mlflow_config with valid configs."""
+    cfg = DictConfig(
+        {
+            "experiment_name": "my_experiment",
+            "run_name": "my_run",
+        }
+    )
+    validate_mlflow_config(cfg)
+
+    cfg = DictConfig(
+        {
+            "experiment_name": "my_experiment",
+            "run_name": "my_run",
+            "tracking_uri": "databricks",
+            "registry_uri": "databricks",
+            "downgrade_unity_catalog": True,
+        }
+    )
+    validate_mlflow_config(cfg)
+
+
+def test_validate_mlflow_config_invalid():
+    """Test validate_mlflow_config with invalid configs."""
+    cfg = DictConfig(
+        {
+            "run_name": "my_run",
+            "tracking_uri": "databricks",
+            "registry_uri": "databricks",
+            "downgrade_unity_catalog": True,
+        }
+    )
+    with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
+        validate_mlflow_config(cfg)
+
+    cfg = DictConfig(
+        {
+            "experiment_name": "my_experiment",
+            "tracking_uri": "databricks",
+            "registry_uri": "databricks",
+            "downgrade_unity_catalog": True,
+        }
+    )
+    with pytest.raises(ConfigValidationError, match="MLFlowConfig.run_name must be a non-empty string"):
+        validate_mlflow_config(cfg)
 
 
 def test_is_logger_target_valid():
