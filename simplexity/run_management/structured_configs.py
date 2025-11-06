@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 from omegaconf import MISSING, DictConfig, OmegaConf
 
+from simplexity.exceptions import ConfigValidationError
+
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 # ============================================================================
@@ -27,7 +29,7 @@ def validate_optional_name(name: str | None, config_name: str, field_name: str =
         field_name: The name of the field (defaults to "name")
     """
     if name is not None and (not isinstance(name, str) or not name.strip()):
-        raise ValueError(f"{config_name}.{field_name} must be None or a non-empty string")
+        raise ConfigValidationError(f"{config_name}.{field_name} must be None or a non-empty string")
 
 
 # ============================================================================
@@ -55,9 +57,9 @@ def validate_instance_config(cfg: DictConfig) -> None:
     """
     target = cfg.get("_target_", None)
     if not isinstance(target, str):
-        raise ValueError(f"InstanceConfig._target_ must be a string, got {type(target)}")
+        raise ConfigValidationError(f"InstanceConfig._target_ must be a string, got {type(target)}")
     if not target.strip():
-        raise ValueError("InstanceConfig._target_ cannot be empty or whitespace")
+        raise ConfigValidationError("InstanceConfig._target_ cannot be empty or whitespace")
 
 
 # ============================================================================
@@ -79,16 +81,16 @@ class MLFlowConfig:
 def _validate_uri(uri: str, field_name: str) -> None:
     """Validate that a string is a valid URI."""
     if not uri.strip():
-        raise ValueError(f"{field_name} cannot be empty")
+        raise ConfigValidationError(f"{field_name} cannot be empty")
     if uri.startswith("databricks"):
         return
     try:
         parsed = urlparse(uri)
         # Allow file://, http://, https://, databricks://, etc.
         if not parsed.scheme:
-            raise ValueError(f"{field_name} must have a valid URI scheme (e.g., file://, http://, https://)")
+            raise ConfigValidationError(f"{field_name} must have a valid URI scheme (e.g., file://, http://, https://)")
     except Exception as e:
-        raise ValueError(f"{field_name} is not a valid URI: {e}") from e
+        raise ConfigValidationError(f"{field_name} is not a valid URI: {e}") from e
 
 
 def validate_mlflow_config(cfg: DictConfig) -> None:
@@ -104,11 +106,13 @@ def validate_mlflow_config(cfg: DictConfig) -> None:
     downgrade_unity_catalog = cfg.get("downgrade_unity_catalog")
 
     if not isinstance(experiment_name, str) or not experiment_name.strip():
-        raise ValueError("MLFlowConfig.experiment_name must be a non-empty string")
+        raise ConfigValidationError("MLFlowConfig.experiment_name must be a non-empty string")
     if not isinstance(run_name, str) or not run_name.strip():
-        raise ValueError("MLFlowConfig.run_name must be a non-empty string")
+        raise ConfigValidationError("MLFlowConfig.run_name must be a non-empty string")
     if not isinstance(downgrade_unity_catalog, bool):
-        raise ValueError(f"MLFlowConfig.downgrade_unity_catalog must be a bool, got {type(downgrade_unity_catalog)}")
+        raise ConfigValidationError(
+            f"MLFlowConfig.downgrade_unity_catalog must be a bool, got {type(downgrade_unity_catalog)}"
+        )
     if tracking_uri is not None:
         _validate_uri(tracking_uri, "MLFlowConfig.tracking_uri")
     if registry_uri is not None:
@@ -149,11 +153,11 @@ def validate_logging_config(cfg: DictConfig) -> None:
     """
     instance = cfg.get("instance")
     if instance is None:
-        raise ValueError("LoggingConfig.instance is required")
+        raise ConfigValidationError("LoggingConfig.instance is required")
     validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_logger_target(target):
-        raise ValueError(f"LoggingConfig.instance._target_ must be a logger target, got {target}")
+        raise ConfigValidationError(f"LoggingConfig.instance._target_ must be a logger target, got {target}")
     validate_optional_name(cfg.get("name"), "LoggingConfig")
 
 
@@ -196,11 +200,13 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     """
     instance = cfg.get("instance")
     if instance is None:
-        raise ValueError("GenerativeProcessConfig.instance is required")
+        raise ConfigValidationError("GenerativeProcessConfig.instance is required")
     validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_generative_process_target(target):
-        raise ValueError(f"GenerativeProcessConfig.instance._target_ must be a generative process target, got {target}")
+        raise ConfigValidationError(
+            f"GenerativeProcessConfig.instance._target_ must be a generative process target, got {target}"
+        )
     validate_optional_name(cfg.get("name"), "GenerativeProcessConfig")
 
     base_vocab_size = cfg.get("base_vocab_size")
@@ -208,9 +214,13 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         SIMPLEXITY_LOGGER.debug("[generative process] base vocab size is missing, will be resolved dynamically")
     else:
         if not isinstance(base_vocab_size, int):
-            raise ValueError(f"GenerativeProcessConfig.base_vocab_size must be an int, got {type(base_vocab_size)}")
+            raise ConfigValidationError(
+                f"GenerativeProcessConfig.base_vocab_size must be an int, got {type(base_vocab_size)}"
+            )
         if base_vocab_size <= 0:
-            raise ValueError(f"GenerativeProcessConfig.base_vocab_size must be positive, got {base_vocab_size}")
+            raise ConfigValidationError(
+                f"GenerativeProcessConfig.base_vocab_size must be positive, got {base_vocab_size}"
+            )
 
     # Validate token values
     bos_token = cfg.get("bos_token")
@@ -221,21 +231,29 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         SIMPLEXITY_LOGGER.debug("[generative process] bos token is missing, will be resolved dynamically")
     elif bos_token is not None:
         if not isinstance(bos_token, int):
-            raise ValueError(f"GenerativeProcessConfig.bos_token must be an int or None, got {type(bos_token)}")
+            raise ConfigValidationError(
+                f"GenerativeProcessConfig.bos_token must be an int or None, got {type(bos_token)}"
+            )
         if bos_token < 0:
-            raise ValueError(f"GenerativeProcessConfig.bos_token must be non-negative, got {bos_token}")
+            raise ConfigValidationError(f"GenerativeProcessConfig.bos_token must be non-negative, got {bos_token}")
         if not OmegaConf.is_missing(cfg, "vocab_size") and vocab_size is not None and bos_token >= vocab_size:
-            raise ValueError(f"GenerativeProcessConfig.bos_token ({bos_token}) must be < vocab_size ({vocab_size})")
+            raise ConfigValidationError(
+                f"GenerativeProcessConfig.bos_token ({bos_token}) must be < vocab_size ({vocab_size})"
+            )
 
     if OmegaConf.is_missing(cfg, "eos_token"):
         SIMPLEXITY_LOGGER.debug("[generative process] eos token is missing, will be resolved dynamically")
     elif eos_token is not None:
         if not isinstance(eos_token, int):
-            raise ValueError(f"GenerativeProcessConfig.eos_token must be an int or None, got {type(eos_token)}")
+            raise ConfigValidationError(
+                f"GenerativeProcessConfig.eos_token must be an int or None, got {type(eos_token)}"
+            )
         if eos_token < 0:
-            raise ValueError(f"GenerativeProcessConfig.eos_token must be non-negative, got {eos_token}")
+            raise ConfigValidationError(f"GenerativeProcessConfig.eos_token must be non-negative, got {eos_token}")
         if not OmegaConf.is_missing(cfg, "vocab_size") and vocab_size is not None and eos_token >= vocab_size:
-            raise ValueError(f"GenerativeProcessConfig.eos_token ({eos_token}) must be < vocab_size ({vocab_size})")
+            raise ConfigValidationError(
+                f"GenerativeProcessConfig.eos_token ({eos_token}) must be < vocab_size ({vocab_size})"
+            )
 
     # Ensure tokens are distinct if both are set (skip if either is MISSING)
     if (
@@ -245,18 +263,18 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         and eos_token is not None
         and bos_token == eos_token
     ):
-        raise ValueError(f"GenerativeProcessConfig.bos_token and eos_token cannot be the same ({bos_token})")
+        raise ConfigValidationError(f"GenerativeProcessConfig.bos_token and eos_token cannot be the same ({bos_token})")
 
     if OmegaConf.is_missing(cfg, "vocab_size"):
         SIMPLEXITY_LOGGER.debug("[generative process] vocab size is missing, will be resolved dynamically")
     else:
         if not isinstance(vocab_size, int):
-            raise ValueError(f"GenerativeProcessConfig.vocab_size must be an int, got {type(vocab_size)}")
+            raise ConfigValidationError(f"GenerativeProcessConfig.vocab_size must be an int, got {type(vocab_size)}")
         # Only validate consistency if base_vocab_size is also resolved
         if not OmegaConf.is_missing(cfg, "base_vocab_size") and isinstance(base_vocab_size, int):
             expected_vocab_size = base_vocab_size + (bos_token is not None) + (eos_token is not None)
             if vocab_size != expected_vocab_size:
-                raise ValueError(
+                raise ConfigValidationError(
                     f"GenerativeProcessConfig.vocab_size ({vocab_size}) must be equal to "
                     f"base_vocab_size ({base_vocab_size}) "
                     f"+ (bos_token is not None) ({bos_token is not None}) "
@@ -299,11 +317,11 @@ def validate_persistence_config(cfg: DictConfig) -> None:
     """
     instance = cfg.get("instance")
     if instance is None:
-        raise ValueError("PersistenceConfig.instance is required")
+        raise ConfigValidationError("PersistenceConfig.instance is required")
     validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_model_persister_target(target):
-        raise ValueError(f"PersistenceConfig.instance._target_ must be a persister target, got {target}")
+        raise ConfigValidationError(f"PersistenceConfig.instance._target_ must be a persister target, got {target}")
     validate_optional_name(cfg.get("name"), "PersistenceConfig")
 
 
@@ -345,28 +363,30 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
     d_vocab = cfg.get("d_vocab")
 
     if not isinstance(d_model, int) or d_model <= 0:
-        raise ValueError(f"HookedTransformerConfigConfig.d_model must be positive, got {d_model}")
+        raise ConfigValidationError(f"HookedTransformerConfigConfig.d_model must be positive, got {d_model}")
     if not isinstance(d_head, int) or d_head <= 0:
-        raise ValueError(f"HookedTransformerConfigConfig.d_head must be positive, got {d_head}")
+        raise ConfigValidationError(f"HookedTransformerConfigConfig.d_head must be positive, got {d_head}")
     if not isinstance(n_heads, int) or n_heads <= 0:
-        raise ValueError(f"HookedTransformerConfigConfig.n_heads must be positive, got {n_heads}")
+        raise ConfigValidationError(f"HookedTransformerConfigConfig.n_heads must be positive, got {n_heads}")
     if not isinstance(n_layers, int) or n_layers <= 0:
-        raise ValueError(f"HookedTransformerConfigConfig.n_layers must be positive, got {n_layers}")
+        raise ConfigValidationError(f"HookedTransformerConfigConfig.n_layers must be positive, got {n_layers}")
     if not isinstance(n_ctx, int) or n_ctx <= 0:
-        raise ValueError(f"HookedTransformerConfigConfig.n_ctx must be positive, got {n_ctx}")
+        raise ConfigValidationError(f"HookedTransformerConfigConfig.n_ctx must be positive, got {n_ctx}")
     if not isinstance(d_mlp, int) or d_mlp <= 0:
-        raise ValueError(f"HookedTransformerConfigConfig.d_mlp must be positive, got {d_mlp}")
+        raise ConfigValidationError(f"HookedTransformerConfigConfig.d_mlp must be positive, got {d_mlp}")
     if OmegaConf.is_missing(cfg, "d_vocab"):
         SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab is missing, will be resolved dynamically")
     else:
         if not isinstance(d_vocab, int) or d_vocab <= 0:
-            raise ValueError(f"HookedTransformerConfigConfig.d_vocab must be positive, got {d_vocab}")
+            raise ConfigValidationError(f"HookedTransformerConfigConfig.d_vocab must be positive, got {d_vocab}")
     # Validate d_model is divisible by n_heads
     if d_model % n_heads != 0:
-        raise ValueError(f"HookedTransformerConfigConfig.d_model ({d_model}) must be divisible by n_heads ({n_heads})")
+        raise ConfigValidationError(
+            f"HookedTransformerConfigConfig.d_model ({d_model}) must be divisible by n_heads ({n_heads})"
+        )
     # Validate d_head * n_heads == d_model
     if d_head * n_heads != d_model:
-        raise ValueError(
+        raise ConfigValidationError(
             f"HookedTransformerConfigConfig.d_head ({d_head}) * n_heads ({n_heads}) must equal d_model ({d_model})"
         )
 
@@ -387,7 +407,7 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
     validate_instance_config(cfg)
     nested_cfg = cfg.get("cfg")
     if nested_cfg is None:
-        raise ValueError("HookedTransformerConfig.cfg is required")
+        raise ConfigValidationError("HookedTransformerConfig.cfg is required")
     validate_hooked_transformer_config_config(nested_cfg)
 
 
@@ -432,11 +452,11 @@ def validate_model_config(cfg: DictConfig) -> None:
     """
     instance = cfg.get("instance")
     if instance is None:
-        raise ValueError("ModelConfig.instance is required")
+        raise ConfigValidationError("ModelConfig.instance is required")
     validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_predictive_model_target(target):
-        raise ValueError(f"ModelConfig.instance._target_ must be a predictive model target, got {target}")
+        raise ConfigValidationError(f"ModelConfig.instance._target_ must be a predictive model target, got {target}")
     # If this is a HookedTransformerConfig, validate it fully if we have access to the nested cfg
     if target == "transformer_lens.HookedTransformer" and instance.get("cfg") is not None:
         validate_hooked_transformer_config(instance)
@@ -444,11 +464,13 @@ def validate_model_config(cfg: DictConfig) -> None:
     load_checkpoint_step = cfg.get("load_checkpoint_step")
     if load_checkpoint_step is not None:
         if not isinstance(load_checkpoint_step, int):
-            raise ValueError(
+            raise ConfigValidationError(
                 f"ModelConfig.load_checkpoint_step must be an int or None, got {type(load_checkpoint_step)}"
             )
         if load_checkpoint_step < 0:
-            raise ValueError(f"ModelConfig.load_checkpoint_step must be non-negative, got {load_checkpoint_step}")
+            raise ConfigValidationError(
+                f"ModelConfig.load_checkpoint_step must be non-negative, got {load_checkpoint_step}"
+            )
 
 
 # ============================================================================
@@ -493,11 +515,11 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
     """
     instance = cfg.get("instance")
     if instance is None:
-        raise ValueError("OptimizerConfig.instance is required")
+        raise ConfigValidationError("OptimizerConfig.instance is required")
     validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_optimizer_target(target):
-        raise ValueError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
+        raise ConfigValidationError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
     validate_optional_name(cfg.get("name"), "OptimizerConfig")
 
 
@@ -538,45 +560,53 @@ def validate_training_config(cfg: DictConfig) -> None:
         SIMPLEXITY_LOGGER.debug("[training] sequence len is missing, will be resolved dynamically")
     else:
         if not isinstance(sequence_len, int):
-            raise ValueError(f"TrainingConfig.sequence_len must be an int, got {type(sequence_len)}")
+            raise ConfigValidationError(f"TrainingConfig.sequence_len must be an int, got {type(sequence_len)}")
         if sequence_len <= 0:
-            raise ValueError(f"TrainingConfig.sequence_len must be positive, got {sequence_len}")
+            raise ConfigValidationError(f"TrainingConfig.sequence_len must be positive, got {sequence_len}")
 
     if not isinstance(batch_size, int):
-        raise ValueError(f"TrainingConfig.batch_size must be an int, got {type(batch_size)}")
+        raise ConfigValidationError(f"TrainingConfig.batch_size must be an int, got {type(batch_size)}")
     if batch_size <= 0:
-        raise ValueError(f"TrainingConfig.batch_size must be positive, got {batch_size}")
+        raise ConfigValidationError(f"TrainingConfig.batch_size must be positive, got {batch_size}")
 
     if not isinstance(num_steps, int):
-        raise ValueError(f"TrainingConfig.num_steps must be an int, got {type(num_steps)}")
+        raise ConfigValidationError(f"TrainingConfig.num_steps must be an int, got {type(num_steps)}")
     if num_steps <= 0:
-        raise ValueError(f"TrainingConfig.num_steps must be positive, got {num_steps}")
+        raise ConfigValidationError(f"TrainingConfig.num_steps must be positive, got {num_steps}")
 
     if log_every is not None:
         if not isinstance(log_every, int):
-            raise ValueError(f"TrainingConfig.log_every must be an int or None, got {type(log_every)}")
+            raise ConfigValidationError(f"TrainingConfig.log_every must be an int or None, got {type(log_every)}")
         if log_every <= 0:
-            raise ValueError(f"TrainingConfig.log_every must be positive, got {log_every}")
+            raise ConfigValidationError(f"TrainingConfig.log_every must be positive, got {log_every}")
         if log_every > num_steps:
-            raise ValueError(f"TrainingConfig.log_every ({log_every}) must be <= num_steps ({num_steps})")
+            raise ConfigValidationError(f"TrainingConfig.log_every ({log_every}) must be <= num_steps ({num_steps})")
 
     if validate_every is not None:
         if not isinstance(validate_every, int):
-            raise ValueError(f"TrainingConfig.validate_every must be an int or None, got {type(validate_every)}")
+            raise ConfigValidationError(
+                f"TrainingConfig.validate_every must be an int or None, got {type(validate_every)}"
+            )
         if validate_every <= 0:
-            raise ValueError(f"TrainingConfig.validate_every must be positive, got {validate_every}")
+            raise ConfigValidationError(f"TrainingConfig.validate_every must be positive, got {validate_every}")
         if validate_every > num_steps:
-            raise ValueError(f"TrainingConfig.validate_every ({validate_every}) must be <= num_steps ({num_steps})")
+            raise ConfigValidationError(
+                f"TrainingConfig.validate_every ({validate_every}) must be <= num_steps ({num_steps})"
+            )
 
     if checkpoint_every is not None:
         if not isinstance(checkpoint_every, int):
-            raise ValueError(f"TrainingConfig.checkpoint_every must be an int or None, got {type(checkpoint_every)}")
+            raise ConfigValidationError(
+                f"TrainingConfig.checkpoint_every must be an int or None, got {type(checkpoint_every)}"
+            )
         if checkpoint_every <= 0:
-            raise ValueError(f"TrainingConfig.checkpoint_every must be positive, got {checkpoint_every}")
+            raise ConfigValidationError(f"TrainingConfig.checkpoint_every must be positive, got {checkpoint_every}")
         if checkpoint_every > num_steps:
-            raise ValueError(f"TrainingConfig.checkpoint_every ({checkpoint_every}) must be <= num_steps ({num_steps})")
+            raise ConfigValidationError(
+                f"TrainingConfig.checkpoint_every ({checkpoint_every}) must be <= num_steps ({num_steps})"
+            )
 
     # Validate optimizer config
     if optimizer is None:
-        raise ValueError("TrainingConfig.optimizer is required")
+        raise ConfigValidationError("TrainingConfig.optimizer is required")
     validate_optimizer_config(optimizer)
