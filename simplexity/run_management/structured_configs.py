@@ -20,7 +20,7 @@ SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 # ============================================================================
 
 
-def validate_optional_name(name: str | None, config_name: str, field_name: str = "name") -> None:
+def _validate_optional_name(name: str | None, config_name: str, field_name: str = "name") -> None:
     """Validate that a name field is either None or a non-empty string.
 
     Args:
@@ -49,7 +49,7 @@ class InstanceConfig:
             setattr(self, key, value)
 
 
-def validate_instance_config(cfg: DictConfig) -> None:
+def _validate_instance_config(cfg: DictConfig) -> None:
     """Validate an InstanceConfig.
 
     Args:
@@ -154,11 +154,11 @@ def validate_logging_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("LoggingConfig.instance is required")
-    validate_instance_config(instance)
+    _validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_logger_target(target):
         raise ConfigValidationError(f"LoggingConfig.instance._target_ must be a logger target, got {target}")
-    validate_optional_name(cfg.get("name"), "LoggingConfig")
+    _validate_optional_name(cfg.get("name"), "LoggingConfig")
 
 
 # ============================================================================
@@ -201,13 +201,13 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("GenerativeProcessConfig.instance is required")
-    validate_instance_config(instance)
+    _validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_generative_process_target(target):
         raise ConfigValidationError(
             f"GenerativeProcessConfig.instance._target_ must be a generative process target, got {target}"
         )
-    validate_optional_name(cfg.get("name"), "GenerativeProcessConfig")
+    _validate_optional_name(cfg.get("name"), "GenerativeProcessConfig")
 
     base_vocab_size = cfg.get("base_vocab_size")
     if OmegaConf.is_missing(cfg, "base_vocab_size"):
@@ -318,11 +318,11 @@ def validate_persistence_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("PersistenceConfig.instance is required")
-    validate_instance_config(instance)
+    _validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_model_persister_target(target):
         raise ConfigValidationError(f"PersistenceConfig.instance._target_ must be a persister target, got {target}")
-    validate_optional_name(cfg.get("name"), "PersistenceConfig")
+    _validate_optional_name(cfg.get("name"), "PersistenceConfig")
 
 
 # ============================================================================
@@ -404,7 +404,7 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
     Args:
         cfg: A DictConfig with _target_ and cfg fields (from Hydra).
     """
-    validate_instance_config(cfg)
+    _validate_instance_config(cfg)
     nested_cfg = cfg.get("cfg")
     if nested_cfg is None:
         raise ConfigValidationError("HookedTransformerConfig.cfg is required")
@@ -453,14 +453,14 @@ def validate_model_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("ModelConfig.instance is required")
-    validate_instance_config(instance)
+    _validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_predictive_model_target(target):
         raise ConfigValidationError(f"ModelConfig.instance._target_ must be a predictive model target, got {target}")
     # If this is a HookedTransformerConfig, validate it fully if we have access to the nested cfg
     if target == "transformer_lens.HookedTransformer" and instance.get("cfg") is not None:
         validate_hooked_transformer_config(instance)
-    validate_optional_name(cfg.get("name"), "ModelConfig")
+    _validate_optional_name(cfg.get("name"), "ModelConfig")
     load_checkpoint_step = cfg.get("load_checkpoint_step")
     if load_checkpoint_step is not None:
         if not isinstance(load_checkpoint_step, int):
@@ -516,11 +516,11 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("OptimizerConfig.instance is required")
-    validate_instance_config(instance)
+    _validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_optimizer_target(target):
         raise ConfigValidationError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
-    validate_optional_name(cfg.get("name"), "OptimizerConfig")
+    _validate_optional_name(cfg.get("name"), "OptimizerConfig")
 
 
 # ============================================================================
