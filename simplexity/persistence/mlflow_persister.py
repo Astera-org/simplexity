@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import omegaconf
 import shutil
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import mlflow
+import omegaconf
 
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.model_persister import ModelPersister
