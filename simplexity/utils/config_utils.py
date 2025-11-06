@@ -1,3 +1,4 @@
+import importlib
 from collections.abc import Callable
 from typing import Any
 
@@ -59,8 +60,16 @@ def dynamic_resolve(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-def typed_instantiate[T](config: Any, expected_type: type[T], **kwargs) -> T:
+def _resolve_target(target_str: str) -> type:
+    module_path, _, cls_name = target_str.rpartition(".")
+    module = importlib.import_module(module_path)
+    return getattr(module, cls_name)
+
+
+def typed_instantiate[T](config: Any, expected_type: type[T] | str, **kwargs) -> T:
     """Instantiate an object from config with proper typing."""
+    if isinstance(expected_type, str):
+        expected_type = _resolve_target(expected_type)
     obj = hydra.utils.instantiate(config, **kwargs)
     assert isinstance(obj, expected_type)
     return obj

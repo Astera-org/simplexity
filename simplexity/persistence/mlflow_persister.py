@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import mlflow
+from omegaconf import OmegaConf
 
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
+from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
 if TYPE_CHECKING:
@@ -52,6 +54,7 @@ class MLFlowPersister(ModelPersister):
     _artifact_path: str
     _temp_dir: tempfile.TemporaryDirectory
     _artifact_dir: Path
+    _config_path: str
     _local_persisters: dict[ModelFramework, LocalPersister]
 
     def __init__(
@@ -62,6 +65,7 @@ class MLFlowPersister(ModelPersister):
         registry_uri: str | None = None,
         downgrade_unity_catalog: bool = True,
         artifact_path: str = "models",
+        config_path: str = "config.yaml",
     ):
         """Create a persister from an MLflow experiment."""
         resolved_registry_uri = resolve_registry_uri(
@@ -78,6 +82,7 @@ class MLFlowPersister(ModelPersister):
             Path(self._temp_dir.name) / self._artifact_path if self._artifact_path else Path(self._temp_dir.name)
         )
         self._artifact_dir.mkdir(parents=True, exist_ok=True)
+        self._config_path = config_path
         self._local_persisters = {}
 
     @property
@@ -128,6 +133,22 @@ class MLFlowPersister(ModelPersister):
         if not Path(downloaded_path).exists():
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
         return local_persister.load_weights(model, step)
+
+    def load_model(self, step: int = 0) -> PredictiveModel:
+        """Load a model from a specified MLflow run and step."""
+        config_path = self._config_path
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloaded_config_path = self.client.download_artifacts(
+                self.run_id,
+                config_path,
+                dst_path=str(temp_dir),
+            )
+            run_config = OmegaConf.load(downloaded_config_path)
+
+        model = typed_instantiate(run_config.predictive_model.instance, run_config.predictive_model.instance._target_)
+
+        return self.load_weights(model, step)
 
     def cleanup(self) -> None:
         """Remove temporary resources and optionally end the MLflow run."""
