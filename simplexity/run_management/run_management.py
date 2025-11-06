@@ -45,6 +45,10 @@ from simplexity.run_management.structured_configs import (
     is_optimizer_target,
     is_predictive_model_target,
     is_pytorch_optimizer_config,
+    validate_generative_process_config,
+    validate_logging_config,
+    validate_optimizer_config,
+    validate_persistence_config,
 )
 from simplexity.utils.config_utils import (
     dynamic_resolve,
@@ -214,7 +218,13 @@ def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
 
 
 def _setup_logging(cfg: DictConfig, instance_keys: list[str], *, strict: bool) -> dict[str, Logger] | None:
-    instance_keys = filter_instance_keys(cfg, instance_keys, is_logger_target)
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_logger_target,
+        validate_fn=validate_logging_config,
+        component_name="logging",
+    )
     if instance_keys:
         loggers = {instance_key: _instantiate_logger(cfg, instance_key) for instance_key in instance_keys}
         if strict:
@@ -275,7 +285,13 @@ def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_
 def _setup_generative_processes(
     cfg: DictConfig, instance_keys: list[str]
 ) -> tuple[dict[str, GenerativeProcess] | None, dict[str, jax.Array] | None]:
-    instance_keys = filter_instance_keys(cfg, instance_keys, is_generative_process_target)
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_generative_process_target,
+        validate_fn=validate_generative_process_config,
+        component_name="generative process",
+    )
     if instance_keys:
         generative_processes = {}
         for instance_key in instance_keys:
@@ -306,7 +322,13 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
 
 
 def _setup_persisters(cfg: DictConfig, instance_keys: list[str]) -> dict[str, ModelPersister] | None:
-    instance_keys = filter_instance_keys(cfg, instance_keys, is_model_persister_target)
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_model_persister_target,
+        validate_fn=validate_persistence_config,
+        component_name="persistence",
+    )
     if instance_keys:
         return {instance_key: _instantiate_persister(cfg, instance_key) for instance_key in instance_keys}
     SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
@@ -325,7 +347,13 @@ def _get_persister(persisters: dict[str, ModelPersister] | None) -> ModelPersist
 
 def _get_vocab_size(cfg: DictConfig, instance_keys: list[str]) -> int | None:
     """Get the vocab size."""
-    instance_keys = filter_instance_keys(cfg, instance_keys, is_generative_process_target)
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_generative_process_target,
+        validate_fn=validate_generative_process_config,
+        component_name="generative process",
+    )
     vocab_size: int | None = None
     for instance_key in instance_keys:
         config_key = instance_key.rsplit(".", 1)[0]
@@ -431,7 +459,13 @@ def _setup_optimizers(
     cfg: DictConfig, instance_keys: list[str], predictive_models: dict[str, Any] | None
 ) -> dict[str, Any] | None:
     """Setup the optimizer."""
-    instance_keys = filter_instance_keys(cfg, instance_keys, is_optimizer_target)
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_optimizer_target,
+        validate_fn=validate_optimizer_config,
+        component_name="optimizer",
+    )
     if instance_keys:
         model = _get_predictive_model(predictive_models)
         return {instance_key: _instantiate_optimizer(cfg, instance_key, model) for instance_key in instance_keys}
@@ -440,7 +474,13 @@ def _setup_optimizers(
 
 
 def _get_special_token(cfg: DictConfig, instance_keys: list[str], token: str) -> int | None:
-    instance_keys = filter_instance_keys(cfg, instance_keys, is_generative_process_target)
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_generative_process_target,
+        validate_fn=validate_generative_process_config,
+        component_name="generative process",
+    )
     token_value: int | None = None
     for instance_key in instance_keys:
         config_key = instance_key.rsplit(".", 1)[0]
