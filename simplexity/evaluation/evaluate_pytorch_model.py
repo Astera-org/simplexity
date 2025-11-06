@@ -3,11 +3,12 @@ from collections.abc import Iterable
 
 import jax
 import jax.numpy as jnp
+from omegaconf import DictConfig
 
+from simplexity.exceptions import ConfigValidationError
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
-from simplexity.run_management.structured_configs import ValidationConfig as Config
 from simplexity.utils.pytorch_utils import torch_to_jax
 
 try:
@@ -49,26 +50,38 @@ def evaluation_step(
 
 def evaluate(
     model: torch.nn.Module,
-    cfg: Config,
+    cfg: DictConfig,
     data_generator: GenerativeProcess,
     logger: Logger | None = None,
     bos_token: int | None = None,
     eos_token: int | None = None,
 ) -> dict[str, jax.Array]:
     """Evaluate a PyTorch model on a generative process."""
-    key = jax.random.PRNGKey(cfg.seed)
+    seed: int = cfg.get("seed", 0)
+    batch_size: int | None = cfg.get("batch_size", None)
+    if batch_size is None:
+        raise ConfigValidationError("batch_size is required")
+    sequence_len: int | None = cfg.get("sequence_len", None)
+    if sequence_len is None:
+        raise ConfigValidationError("sequence_len is required")
+    num_steps: int | None = cfg.get("num_steps", None)
+    if num_steps is None:
+        raise ConfigValidationError("num_steps is required")
+    log_every: int | None = cfg.get("log_every", None)
+
+    key = jax.random.PRNGKey(seed)
 
     gen_state = data_generator.initial_state
-    gen_states = jnp.repeat(gen_state[None, :], cfg.batch_size, axis=0)
+    gen_states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     metrics = defaultdict(lambda: jnp.array(0.0))
 
-    for step in range(1, cfg.num_steps + 1):
+    for step in range(1, num_steps + 1):
         key, gen_key = jax.random.split(key)
         gen_states, inputs, labels = generate_data_batch(
             gen_states,
             data_generator,
-            cfg.batch_size,
-            cfg.sequence_len,
+            batch_size,
+            sequence_len,
             gen_key,
             bos_token=bos_token,
             eos_token=eos_token,
@@ -76,7 +89,7 @@ def evaluate(
         step_metrics = evaluation_step(model, inputs, labels)
         for metric_name, metric_value in step_metrics.items():
             metrics[metric_name] += metric_value
-        if logger and cfg.log_every and step % cfg.log_every == 0:
+        if logger and log_every and step % log_every == 0:
             logger.log_metrics(step, metrics)
 
-    return {k: v / cfg.num_steps for k, v in metrics.items()}
+    return {k: v / num_steps for k, v in metrics.items()}

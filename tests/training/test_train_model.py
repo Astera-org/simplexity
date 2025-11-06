@@ -5,6 +5,7 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import pytest
+from omegaconf import DictConfig
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 from penzai.nn.layer import Layer as PenzaiModel
 
@@ -18,7 +19,6 @@ from simplexity.run_management.structured_configs import (
     InstanceConfig,
     OptimizerConfig,
     TrainingConfig,
-    ValidationConfig,
 )
 from simplexity.training.train_model import train
 from simplexity.utils.equinox import vmap_model
@@ -108,13 +108,7 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
             ),
         ),
     )
-    validation_cfg = ValidationConfig(
-        seed=0,
-        sequence_len=32,
-        batch_size=64,
-        num_steps=10,
-        log_every=-1,
-    )
+    validation_cfg = DictConfig({"seed": 0, "sequence_len": 32, "batch_size": 64, "num_steps": 10, "log_every": -1})
     persister = LocalPenzaiPersister(directory=str(tmp_path))
 
     original_metrics = evaluate_model(model=model, cfg=validation_cfg, data_generator=data_generator)

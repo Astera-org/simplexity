@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import pytest
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig
 
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
@@ -15,7 +16,6 @@ from simplexity.run_management.structured_configs import (
     InstanceConfig,
     OptimizerConfig,
     TrainingConfig,
-    ValidationConfig,
 )
 from simplexity.training.train_pytorch_model import train
 
@@ -112,13 +112,7 @@ def test_train(model: torch.nn.Module, tmp_path: Path):
             ),
         ),
     )
-    validation_cfg = ValidationConfig(
-        seed=0,
-        sequence_len=32,
-        batch_size=64,
-        num_steps=10,
-        log_every=-1,
-    )
+    validation_cfg = DictConfig({"seed": 0, "sequence_len": 32, "batch_size": 64, "num_steps": 10, "log_every": -1})
     persister = LocalPytorchPersister(directory=str(tmp_path))
 
     original_metrics = evaluate(model=model, cfg=validation_cfg, data_generator=data_generator)

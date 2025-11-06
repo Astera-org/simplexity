@@ -7,7 +7,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from simplexity.run_management.structured_configs import ValidationConfig as Config
+from omegaconf import DictConfig
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 
@@ -52,7 +52,7 @@ def extract_losses(log_file_path: Path) -> jax.Array:
 
 @pytest.mark.slow
 def test_evaluate_pytorch_model(model: SimpleLM, tmp_path: Path):
-    cfg = Config(seed=0, sequence_len=4, batch_size=2, num_steps=3, log_every=5)
+    cfg = DictConfig({"seed": 0, "sequence_len": 4, "batch_size": 2, "num_steps": 3, "log_every": 5})
     data_generator = build_hidden_markov_model("even_ones", p=0.5)
     metrics = evaluate(model=model, cfg=cfg, data_generator=data_generator)
     assert metrics["loss"] > 0.0

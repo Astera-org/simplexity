@@ -1,12 +1,13 @@
 import jax
 import jax.numpy as jnp
+from omegaconf import DictConfig
 
-from simplexity.run_management.structured_configs import TrainingConfig as TrainConfig, ValidationConfig as ValidateConfig
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
+from simplexity.run_management.structured_configs import TrainingConfig as TrainConfig
 from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.pytorch_utils import torch_to_jax
 
@@ -22,7 +23,7 @@ def train(
     training_cfg: TrainConfig,
     training_data_generator: GenerativeProcess,
     logger: Logger | None = None,
-    validation_cfg: ValidateConfig | None = None,
+    validation_cfg: DictConfig | None = None,
     validation_data_generator: GenerativeProcess | None = None,
     persister: ModelPersister | None = None,
     training_bos_token: int | None = None,

@@ -3,11 +3,11 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optax
+from omegaconf import DictConfig
 from penzai.nn.layer import Layer as PenzaiModel
 from penzai.toolshed.basic_training import InternalTrainerState
 from penzai.toolshed.basic_training import StatefulTrainer as PenzaiTrainer
 
-from simplexity.run_management.structured_configs import TrainingConfig as TrainConfig, ValidationConfig as ValidateConfig
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.evaluation.metric_functions import cross_entropy_fn
 from simplexity.generative_processes.generative_process import GenerativeProcess
@@ -15,6 +15,7 @@ from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
+from simplexity.run_management.structured_configs import TrainingConfig as TrainConfig
 from simplexity.training.equinox_trainer import EquinoxTrainer
 from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.equinox import vmap_model
@@ -41,7 +42,7 @@ def train(
     training_cfg: TrainConfig,
     training_data_generator: GenerativeProcess,
     logger: Logger | None = None,
-    validation_cfg: ValidateConfig | None = None,
+    validation_cfg: DictConfig | None = None,
     validation_data_generator: GenerativeProcess | None = None,
     persister: ModelPersister | None = None,
     training_bos_token: int | None = None,
