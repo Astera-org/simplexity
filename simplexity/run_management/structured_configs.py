@@ -61,53 +61,58 @@ def validate_instance_config(cfg: DictConfig) -> None:
 
 
 # ============================================================================
-# Optimizer Config
+# MLflow Config
 # ============================================================================
 
 
 @dataclass
-class OptimizerConfig:
-    """Base configuration for optimizers."""
+class MLFlowConfig:
+    """Configuration for MLflow."""
 
-    instance: InstanceConfig
-    name: str | None = None
-
-
-def is_optimizer_target(target: str) -> bool:
-    """Check if the target is an optimizer target."""
-    return target.startswith("torch.optim.") or target.startswith("optax.")
+    experiment_name: str
+    run_name: str
+    tracking_uri: str | None = None
+    registry_uri: str | None = None
+    downgrade_unity_catalog: bool = True
 
 
-def is_optimizer_config(cfg: DictConfig) -> bool:
-    """Check if the configuration is a optimizer config."""
-    target = cfg.get("_target_", None)
-    if isinstance(target, str):
-        return is_optimizer_target(target)
-    return False
+def _validate_uri(uri: str, field_name: str) -> None:
+    """Validate that a string is a valid URI."""
+    if not uri.strip():
+        raise ValueError(f"{field_name} cannot be empty")
+    if uri.startswith("databricks"):
+        return
+    try:
+        parsed = urlparse(uri)
+        # Allow file://, http://, https://, databricks://, etc.
+        if not parsed.scheme:
+            raise ValueError(f"{field_name} must have a valid URI scheme (e.g., file://, http://, https://)")
+    except Exception as e:
+        raise ValueError(f"{field_name} is not a valid URI: {e}") from e
 
 
-def is_pytorch_optimizer_config(cfg: DictConfig) -> bool:
-    """Check if the configuration is a PyTorch optimizer configuration."""
-    target = cfg.get("_target_", None)
-    if isinstance(target, str):
-        return target.startswith("torch.optim.")
-    return False
-
-
-def validate_optimizer_config(cfg: DictConfig) -> None:
-    """Validate an OptimizerConfig.
+def validate_mlflow_config(cfg: DictConfig) -> None:
+    """Validate an MLFlowConfig.
 
     Args:
-        cfg: A DictConfig with instance and optional name fields (from Hydra).
+        cfg: A DictConfig with MLFlowConfig fields (from Hydra).
     """
-    instance = cfg.get("instance")
-    if instance is None:
-        raise ValueError("OptimizerConfig.instance is required")
-    validate_instance_config(instance)
-    target = instance.get("_target_", None)
-    if not is_optimizer_target(target):
-        raise ValueError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
-    validate_optional_name(cfg.get("name"), "OptimizerConfig")
+    experiment_name = cfg.get("experiment_name")
+    run_name = cfg.get("run_name")
+    tracking_uri = cfg.get("tracking_uri")
+    registry_uri = cfg.get("registry_uri")
+    downgrade_unity_catalog = cfg.get("downgrade_unity_catalog")
+
+    if not isinstance(experiment_name, str) or not experiment_name.strip():
+        raise ValueError("MLFlowConfig.experiment_name must be a non-empty string")
+    if not isinstance(run_name, str) or not run_name.strip():
+        raise ValueError("MLFlowConfig.run_name must be a non-empty string")
+    if not isinstance(downgrade_unity_catalog, bool):
+        raise ValueError(f"MLFlowConfig.downgrade_unity_catalog must be a bool, got {type(downgrade_unity_catalog)}")
+    if tracking_uri is not None:
+        _validate_uri(tracking_uri, "MLFlowConfig.tracking_uri")
+    if registry_uri is not None:
+        _validate_uri(registry_uri, "MLFlowConfig.registry_uri")
 
 
 # ============================================================================
@@ -150,48 +155,6 @@ def validate_logging_config(cfg: DictConfig) -> None:
     if not is_logger_target(target):
         raise ValueError(f"LoggingConfig.instance._target_ must be a logger target, got {target}")
     validate_optional_name(cfg.get("name"), "LoggingConfig")
-
-
-# ============================================================================
-# Persistence Config
-# ============================================================================
-
-
-@dataclass
-class PersistenceConfig:
-    """Base configuration for persistence."""
-
-    instance: InstanceConfig
-    name: str | None = None
-
-
-def is_model_persister_target(target: str) -> bool:
-    """Check if the target is a model persister target."""
-    return target.startswith("simplexity.persistence.")
-
-
-def is_persister_config(cfg: DictConfig) -> bool:
-    """Check if the configuration is a PersistenceInstanceConfig."""
-    target = cfg.get("_target_", None)
-    if isinstance(target, str):
-        return is_model_persister_target(target)
-    return False
-
-
-def validate_persistence_config(cfg: DictConfig) -> None:
-    """Validate a PersistenceConfig.
-
-    Args:
-        cfg: A DictConfig with instance and optional name fields (from Hydra).
-    """
-    instance = cfg.get("instance")
-    if instance is None:
-        raise ValueError("PersistenceConfig.instance is required")
-    validate_instance_config(instance)
-    target = instance.get("_target_", None)
-    if not is_model_persister_target(target):
-        raise ValueError(f"PersistenceConfig.instance._target_ must be a persister target, got {target}")
-    validate_optional_name(cfg.get("name"), "PersistenceConfig")
 
 
 # ============================================================================
@@ -300,6 +263,48 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
                     f"+ (eos_token is not None) ({eos_token is not None}) "
                     f"= {expected_vocab_size}"
                 )
+
+
+# ============================================================================
+# Persistence Config
+# ============================================================================
+
+
+@dataclass
+class PersistenceConfig:
+    """Base configuration for persistence."""
+
+    instance: InstanceConfig
+    name: str | None = None
+
+
+def is_model_persister_target(target: str) -> bool:
+    """Check if the target is a model persister target."""
+    return target.startswith("simplexity.persistence.")
+
+
+def is_persister_config(cfg: DictConfig) -> bool:
+    """Check if the configuration is a PersistenceInstanceConfig."""
+    target = cfg.get("_target_", None)
+    if isinstance(target, str):
+        return is_model_persister_target(target)
+    return False
+
+
+def validate_persistence_config(cfg: DictConfig) -> None:
+    """Validate a PersistenceConfig.
+
+    Args:
+        cfg: A DictConfig with instance and optional name fields (from Hydra).
+    """
+    instance = cfg.get("instance")
+    if instance is None:
+        raise ValueError("PersistenceConfig.instance is required")
+    validate_instance_config(instance)
+    target = instance.get("_target_", None)
+    if not is_model_persister_target(target):
+        raise ValueError(f"PersistenceConfig.instance._target_ must be a persister target, got {target}")
+    validate_optional_name(cfg.get("name"), "PersistenceConfig")
 
 
 # ============================================================================
@@ -447,6 +452,56 @@ def validate_model_config(cfg: DictConfig) -> None:
 
 
 # ============================================================================
+# Optimizer Config
+# ============================================================================
+
+
+@dataclass
+class OptimizerConfig:
+    """Base configuration for optimizers."""
+
+    instance: InstanceConfig
+    name: str | None = None
+
+
+def is_optimizer_target(target: str) -> bool:
+    """Check if the target is an optimizer target."""
+    return target.startswith("torch.optim.") or target.startswith("optax.")
+
+
+def is_optimizer_config(cfg: DictConfig) -> bool:
+    """Check if the configuration is a optimizer config."""
+    target = cfg.get("_target_", None)
+    if isinstance(target, str):
+        return is_optimizer_target(target)
+    return False
+
+
+def is_pytorch_optimizer_config(cfg: DictConfig) -> bool:
+    """Check if the configuration is a PyTorch optimizer configuration."""
+    target = cfg.get("_target_", None)
+    if isinstance(target, str):
+        return target.startswith("torch.optim.")
+    return False
+
+
+def validate_optimizer_config(cfg: DictConfig) -> None:
+    """Validate an OptimizerConfig.
+
+    Args:
+        cfg: A DictConfig with instance and optional name fields (from Hydra).
+    """
+    instance = cfg.get("instance")
+    if instance is None:
+        raise ValueError("OptimizerConfig.instance is required")
+    validate_instance_config(instance)
+    target = instance.get("_target_", None)
+    if not is_optimizer_target(target):
+        raise ValueError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
+    validate_optional_name(cfg.get("name"), "OptimizerConfig")
+
+
+# ============================================================================
 # Training Config
 # ============================================================================
 
@@ -525,58 +580,3 @@ def validate_training_config(cfg: DictConfig) -> None:
     if optimizer is None:
         raise ValueError("TrainingConfig.optimizer is required")
     validate_optimizer_config(optimizer)
-
-
-# ============================================================================
-# MLflow Config
-# ============================================================================
-
-
-@dataclass
-class MLFlowConfig:
-    """Configuration for MLflow."""
-
-    experiment_name: str
-    run_name: str
-    tracking_uri: str | None = None
-    registry_uri: str | None = None
-    downgrade_unity_catalog: bool = True
-
-
-def _validate_uri(uri: str, field_name: str) -> None:
-    """Validate that a string is a valid URI."""
-    if not uri.strip():
-        raise ValueError(f"{field_name} cannot be empty")
-    if uri.startswith("databricks"):
-        return
-    try:
-        parsed = urlparse(uri)
-        # Allow file://, http://, https://, databricks://, etc.
-        if not parsed.scheme:
-            raise ValueError(f"{field_name} must have a valid URI scheme (e.g., file://, http://, https://)")
-    except Exception as e:
-        raise ValueError(f"{field_name} is not a valid URI: {e}") from e
-
-
-def validate_mlflow_config(cfg: DictConfig) -> None:
-    """Validate an MLFlowConfig.
-
-    Args:
-        cfg: A DictConfig with MLFlowConfig fields (from Hydra).
-    """
-    experiment_name = cfg.get("experiment_name")
-    run_name = cfg.get("run_name")
-    tracking_uri = cfg.get("tracking_uri")
-    registry_uri = cfg.get("registry_uri")
-    downgrade_unity_catalog = cfg.get("downgrade_unity_catalog")
-
-    if not isinstance(experiment_name, str) or not experiment_name.strip():
-        raise ValueError("MLFlowConfig.experiment_name must be a non-empty string")
-    if not isinstance(run_name, str) or not run_name.strip():
-        raise ValueError("MLFlowConfig.run_name must be a non-empty string")
-    if not isinstance(downgrade_unity_catalog, bool):
-        raise ValueError(f"MLFlowConfig.downgrade_unity_catalog must be a bool, got {type(downgrade_unity_catalog)}")
-    if tracking_uri is not None:
-        _validate_uri(tracking_uri, "MLFlowConfig.tracking_uri")
-    if registry_uri is not None:
-        _validate_uri(registry_uri, "MLFlowConfig.registry_uri")
