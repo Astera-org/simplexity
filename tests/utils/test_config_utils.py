@@ -249,3 +249,11 @@ def test_typed_instantiate_type_error() -> None:
     cfg = DictConfig({"_target_": "builtins.str", "object": 42})
     with pytest.raises(AssertionError):
         typed_instantiate(cfg, int)
+
+
+def test_typed_instantiate_with_string_expected_type() -> None:
+    """Test typed instantiate with expected type as string."""
+    cfg = DictConfig({"_target_": "builtins.str", "object": 42})
+    obj = typed_instantiate(cfg, "builtins.str")
+    assert obj == "42"
+    assert isinstance(obj, str)
