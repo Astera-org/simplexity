@@ -75,7 +75,7 @@ class MLFlowConfig:
     run_name: str
     tracking_uri: str | None = None
     registry_uri: str | None = None
-    downgrade_unity_catalog: bool = True
+    downgrade_unity_catalog: bool | None = None
 
 
 def _validate_uri(uri: str, field_name: str) -> None:
@@ -109,7 +109,7 @@ def validate_mlflow_config(cfg: DictConfig) -> None:
         raise ConfigValidationError("MLFlowConfig.experiment_name must be a non-empty string")
     if not isinstance(run_name, str) or not run_name.strip():
         raise ConfigValidationError("MLFlowConfig.run_name must be a non-empty string")
-    if not isinstance(downgrade_unity_catalog, bool):
+    if downgrade_unity_catalog is not None and not isinstance(downgrade_unity_catalog, bool):
         raise ConfigValidationError(
             f"MLFlowConfig.downgrade_unity_catalog must be a bool, got {type(downgrade_unity_catalog)}"
         )
