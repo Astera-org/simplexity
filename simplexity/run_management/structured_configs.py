@@ -4,11 +4,14 @@ This module centralizes all structured config definitions that were previously
 scattered across various config.py files in the configs directory.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import urlparse
 
 from omegaconf import MISSING, DictConfig, OmegaConf
+
+SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 # ============================================================================
 # Validation Helpers
@@ -237,50 +240,66 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         raise ValueError(f"GenerativeProcessConfig.instance._target_ must be a generative process target, got {target}")
     validate_optional_name(cfg.get("name"), "GenerativeProcessConfig")
 
-    # Validate base_vocab_size
     base_vocab_size = cfg.get("base_vocab_size")
-    if not isinstance(base_vocab_size, int):
-        raise ValueError(f"GenerativeProcessConfig.base_vocab_size must be an int, got {type(base_vocab_size)}")
-    if base_vocab_size <= 0:
-        raise ValueError(f"GenerativeProcessConfig.base_vocab_size must be positive, got {base_vocab_size}")
+    if OmegaConf.is_missing(cfg, "base_vocab_size"):
+        SIMPLEXITY_LOGGER.debug("[generative process] base vocab size is missing, will be resolved dynamically")
+    else:
+        if not isinstance(base_vocab_size, int):
+            raise ValueError(f"GenerativeProcessConfig.base_vocab_size must be an int, got {type(base_vocab_size)}")
+        if base_vocab_size <= 0:
+            raise ValueError(f"GenerativeProcessConfig.base_vocab_size must be positive, got {base_vocab_size}")
 
     # Validate token values
     bos_token = cfg.get("bos_token")
     eos_token = cfg.get("eos_token")
     vocab_size = cfg.get("vocab_size")
 
-    if bos_token is not None:
+    if OmegaConf.is_missing(cfg, "bos_token"):
+        SIMPLEXITY_LOGGER.debug("[generative process] bos token is missing, will be resolved dynamically")
+    elif bos_token is not None:
         if not isinstance(bos_token, int):
             raise ValueError(f"GenerativeProcessConfig.bos_token must be an int or None, got {type(bos_token)}")
         if bos_token < 0:
             raise ValueError(f"GenerativeProcessConfig.bos_token must be non-negative, got {bos_token}")
-        if vocab_size is not None and bos_token >= vocab_size:
+        if not OmegaConf.is_missing(cfg, "vocab_size") and vocab_size is not None and bos_token >= vocab_size:
             raise ValueError(f"GenerativeProcessConfig.bos_token ({bos_token}) must be < vocab_size ({vocab_size})")
 
-    if eos_token is not None:
+    if OmegaConf.is_missing(cfg, "eos_token"):
+        SIMPLEXITY_LOGGER.debug("[generative process] eos token is missing, will be resolved dynamically")
+    elif eos_token is not None:
         if not isinstance(eos_token, int):
             raise ValueError(f"GenerativeProcessConfig.eos_token must be an int or None, got {type(eos_token)}")
         if eos_token < 0:
             raise ValueError(f"GenerativeProcessConfig.eos_token must be non-negative, got {eos_token}")
-        if vocab_size is not None and eos_token >= vocab_size:
+        if not OmegaConf.is_missing(cfg, "vocab_size") and vocab_size is not None and eos_token >= vocab_size:
             raise ValueError(f"GenerativeProcessConfig.eos_token ({eos_token}) must be < vocab_size ({vocab_size})")
 
-    # Ensure tokens are distinct if both are set
-    if bos_token is not None and eos_token is not None and bos_token == eos_token:
+    # Ensure tokens are distinct if both are set (skip if either is MISSING)
+    if (
+        not OmegaConf.is_missing(cfg, "bos_token")
+        and not OmegaConf.is_missing(cfg, "eos_token")
+        and bos_token is not None
+        and eos_token is not None
+        and bos_token == eos_token
+    ):
         raise ValueError(f"GenerativeProcessConfig.bos_token and eos_token cannot be the same ({bos_token})")
 
-    # Validate vocab_size (should be set after resolution)
-    if not isinstance(vocab_size, int):
-        raise ValueError(f"GenerativeProcessConfig.vocab_size must be an int, got {type(vocab_size)}")
-    expected_vocab_size = base_vocab_size + (bos_token is not None) + (eos_token is not None)
-    if vocab_size != expected_vocab_size:
-        raise ValueError(
-            f"GenerativeProcessConfig.vocab_size ({vocab_size}) must be equal to "
-            f"base_vocab_size ({base_vocab_size}) "
-            f"+ (bos_token is not None) ({bos_token is not None}) "
-            f"+ (eos_token is not None) ({eos_token is not None}) "
-            f"= {expected_vocab_size}"
-        )
+    if OmegaConf.is_missing(cfg, "vocab_size"):
+        SIMPLEXITY_LOGGER.debug("[generative process] vocab size is missing, will be resolved dynamically")
+    else:
+        if not isinstance(vocab_size, int):
+            raise ValueError(f"GenerativeProcessConfig.vocab_size must be an int, got {type(vocab_size)}")
+        # Only validate consistency if base_vocab_size is also resolved
+        if not OmegaConf.is_missing(cfg, "base_vocab_size") and isinstance(base_vocab_size, int):
+            expected_vocab_size = base_vocab_size + (bos_token is not None) + (eos_token is not None)
+            if vocab_size != expected_vocab_size:
+                raise ValueError(
+                    f"GenerativeProcessConfig.vocab_size ({vocab_size}) must be equal to "
+                    f"base_vocab_size ({base_vocab_size}) "
+                    f"+ (bos_token is not None) ({bos_token is not None}) "
+                    f"+ (eos_token is not None) ({eos_token is not None}) "
+                    f"= {expected_vocab_size}"
+                )
 
 
 # ============================================================================
@@ -332,8 +351,11 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
         raise ValueError(f"HookedTransformerConfigConfig.n_ctx must be positive, got {n_ctx}")
     if not isinstance(d_mlp, int) or d_mlp <= 0:
         raise ValueError(f"HookedTransformerConfigConfig.d_mlp must be positive, got {d_mlp}")
-    if not isinstance(d_vocab, int) or d_vocab <= 0:
-        raise ValueError(f"HookedTransformerConfigConfig.d_vocab must be positive, got {d_vocab}")
+    if OmegaConf.is_missing(cfg, "d_vocab"):
+        SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab is missing, will be resolved dynamically")
+    else:
+        if not isinstance(d_vocab, int) or d_vocab <= 0:
+            raise ValueError(f"HookedTransformerConfigConfig.d_vocab must be positive, got {d_vocab}")
     # Validate d_model is divisible by n_heads
     if d_model % n_heads != 0:
         raise ValueError(f"HookedTransformerConfigConfig.d_model ({d_model}) must be divisible by n_heads ({n_heads})")
@@ -457,10 +479,13 @@ def validate_training_config(cfg: DictConfig) -> None:
     checkpoint_every = cfg.get("checkpoint_every")
     optimizer = cfg.get("optimizer")
 
-    if not isinstance(sequence_len, int):
-        raise ValueError(f"TrainingConfig.sequence_len must be an int, got {type(sequence_len)}")
-    if sequence_len <= 0:
-        raise ValueError(f"TrainingConfig.sequence_len must be positive, got {sequence_len}")
+    if OmegaConf.is_missing(cfg, "sequence_len"):
+        SIMPLEXITY_LOGGER.debug("[training] sequence len is missing, will be resolved dynamically")
+    else:
+        if not isinstance(sequence_len, int):
+            raise ValueError(f"TrainingConfig.sequence_len must be an int, got {type(sequence_len)}")
+        if sequence_len <= 0:
+            raise ValueError(f"TrainingConfig.sequence_len must be positive, got {sequence_len}")
 
     if not isinstance(batch_size, int):
         raise ValueError(f"TrainingConfig.batch_size must be an int, got {type(batch_size)}")
