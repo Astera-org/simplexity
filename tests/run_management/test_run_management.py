@@ -1,54 +1,58 @@
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
-from types import SimpleNamespace
 
-import pytest
+import mlflow
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.run_management import run_management
 
 
-def _stub_mlflow_client(monkeypatch: pytest.MonkeyPatch, artifact_source: Path) -> None:
-    class DummyClient:
-        def __init__(self, tracking_uri: str | None = None):
-            self.tracking_uri = tracking_uri
+def _create_run_with_config(
+    tmp_path: Path,
+    source_cfg: DictConfig,
+    *,
+    experiment_name: str,
+    run_name: str,
+) -> str:
+    tracking_dir = tmp_path / "mlruns"
+    tracking_uri = tracking_dir.as_posix()
+    previous_tracking_uri = mlflow.get_tracking_uri()
+    try:
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(experiment_name)
+        artifact_file = tmp_path / "config.yaml"
+        OmegaConf.save(source_cfg, artifact_file)
+        with mlflow.start_run(run_name=run_name):
+            mlflow.log_artifact(str(artifact_file))
+    finally:
+        if previous_tracking_uri is not None:
+            mlflow.set_tracking_uri(previous_tracking_uri)
+    return tracking_uri
 
-        def get_experiment_by_name(self, name: str):
-            return SimpleNamespace(experiment_id="exp-123", name=name)
 
-        def search_runs(self, experiment_ids, filter_string, max_results):
-            run_info = SimpleNamespace(run_id="run-123")
-            return [SimpleNamespace(info=run_info)]
-
-        def download_artifacts(self, run_id: str, artifact_path: str, dst_path: str) -> str:
-            destination = Path(dst_path) / artifact_path
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(artifact_source, destination)
-            return str(destination)
-
-    monkeypatch.setattr(run_management.mlflow, "MlflowClient", DummyClient)
-
-
-def test_load_config_adds_new_sections(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_load_config_adds_new_sections(tmp_path: Path) -> None:
     source_cfg = OmegaConf.create(
         {
             "predictive_model": {"instance": {"_target_": "transformer_lens.HookedTransformer", "cfg": {"d_model": 4}}},
             "nested": {"sub": {"value": 1}},
         }
     )
-    artifact_source = tmp_path / "config.yaml"
-    OmegaConf.save(source_cfg, artifact_source)
-
-    _stub_mlflow_client(monkeypatch, artifact_source)
+    experiment_name = "demo"
+    run_name = "reuse"
+    tracking_uri = _create_run_with_config(
+        tmp_path,
+        source_cfg,
+        experiment_name=experiment_name,
+        run_name=run_name,
+    )
 
     cfg = OmegaConf.create({"predictive_model": {"instance": {"_target_": "foo"}}})
     load_cfg = DictConfig(
         {
-            "tracking_uri": "databricks",
-            "experiment_name": "demo",
-            "run_name": "reuse",
+            "tracking_uri": tracking_uri,
+            "experiment_name": experiment_name,
+            "run_name": run_name,
             "configs": {
                 "predictive_model": "old_models.model_1",
                 "nested.sub": "copied.sub",
@@ -64,18 +68,23 @@ def test_load_config_adds_new_sections(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert OmegaConf.select(cfg, "predictive_model.instance._target_") == "foo"
 
 
-def test_load_config_merges_into_existing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_load_config_merges_into_existing(tmp_path: Path) -> None:
     source_cfg = OmegaConf.create({"predictive_model": {"foo": "old", "bar": 1}})
-    artifact_source = tmp_path / "config.yaml"
-    OmegaConf.save(source_cfg, artifact_source)
-
-    _stub_mlflow_client(monkeypatch, artifact_source)
+    experiment_name = "demo"
+    run_name = "reuse"
+    tracking_uri = _create_run_with_config(
+        tmp_path,
+        source_cfg,
+        experiment_name=experiment_name,
+        run_name=run_name,
+    )
 
     cfg = OmegaConf.create({"predictive_model": {"foo": "new"}})
     load_cfg = DictConfig(
         {
-            "experiment_name": "demo",
-            "run_name": "reuse",
+            "tracking_uri": tracking_uri,
+            "experiment_name": experiment_name,
+            "run_name": run_name,
             "configs": {
                 "predictive_model": "predictive_model",
             },
