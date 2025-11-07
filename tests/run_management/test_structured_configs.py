@@ -232,7 +232,7 @@ def test_validate_logging_config_invalid_name():
             "name": "",
         }
     )
-    with pytest.raises(ConfigValidationError, match="LoggingConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="LoggingConfig.name must be a non-empty string"):
         validate_logging_config(cfg)
 
     # Whitespace-only name
@@ -242,7 +242,7 @@ def test_validate_logging_config_invalid_name():
             "name": "   ",
         }
     )
-    with pytest.raises(ConfigValidationError, match="LoggingConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="LoggingConfig.name must be a non-empty string"):
         validate_logging_config(cfg)
 
     # Non-string name
@@ -252,7 +252,7 @@ def test_validate_logging_config_invalid_name():
             "name": 123,
         }
     )
-    with pytest.raises(ConfigValidationError, match="LoggingConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="LoggingConfig.name must be a string or None"):
         validate_logging_config(cfg)
 
 
@@ -412,7 +412,7 @@ def test_validate_generative_process_config_invalid_name():
             "vocab_size": MISSING,
         }
     )
-    with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be a non-empty string"):
         validate_generative_process_config(cfg)
 
     # Whitespace-only name
@@ -424,7 +424,7 @@ def test_validate_generative_process_config_invalid_name():
             "vocab_size": MISSING,
         }
     )
-    with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be a non-empty string"):
         validate_generative_process_config(cfg)
 
     # Non-string name
@@ -436,7 +436,7 @@ def test_validate_generative_process_config_invalid_name():
             "vocab_size": MISSING,
         }
     )
-    with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be a string or None"):
         validate_generative_process_config(cfg)
 
 
@@ -729,7 +729,7 @@ def test_validate_persistence_config_invalid_name():
             "name": "",
         }
     )
-    with pytest.raises(ConfigValidationError, match="PersistenceConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="PersistenceConfig.name must be a non-empty string"):
         validate_persistence_config(cfg)
 
     # Whitespace-only name
@@ -739,7 +739,7 @@ def test_validate_persistence_config_invalid_name():
             "name": "   ",
         }
     )
-    with pytest.raises(ConfigValidationError, match="PersistenceConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="PersistenceConfig.name must be a non-empty string"):
         validate_persistence_config(cfg)
 
     # Non-string name
@@ -749,7 +749,7 @@ def test_validate_persistence_config_invalid_name():
             "name": 123,
         }
     )
-    with pytest.raises(ConfigValidationError, match="PersistenceConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="PersistenceConfig.name must be a string or None"):
         validate_persistence_config(cfg)
 
 
@@ -1112,7 +1112,7 @@ def test_validate_model_config_invalid_name():
             "name": "",
         }
     )
-    with pytest.raises(ConfigValidationError, match="ModelConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="ModelConfig.name must be a non-empty string"):
         validate_model_config(cfg)
 
     # Whitespace-only name
@@ -1122,7 +1122,7 @@ def test_validate_model_config_invalid_name():
             "name": "   ",
         }
     )
-    with pytest.raises(ConfigValidationError, match="ModelConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="ModelConfig.name must be a non-empty string"):
         validate_model_config(cfg)
 
     # Non-string name
@@ -1132,7 +1132,7 @@ def test_validate_model_config_invalid_name():
             "name": 123,
         }
     )
-    with pytest.raises(ConfigValidationError, match="ModelConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="ModelConfig.name must be a string or None"):
         validate_model_config(cfg)
 
 
@@ -1332,7 +1332,7 @@ def test_validate_optimizer_config_invalid_name():
             "name": "",
         }
     )
-    with pytest.raises(ConfigValidationError, match="OptimizerConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="OptimizerConfig.name must be a non-empty string"):
         validate_optimizer_config(cfg)
 
     # Whitespace-only name
@@ -1342,7 +1342,7 @@ def test_validate_optimizer_config_invalid_name():
             "name": "   ",
         }
     )
-    with pytest.raises(ConfigValidationError, match="OptimizerConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="OptimizerConfig.name must be a non-empty string"):
         validate_optimizer_config(cfg)
 
     # Non-string name
@@ -1352,7 +1352,7 @@ def test_validate_optimizer_config_invalid_name():
             "name": 123,
         }
     )
-    with pytest.raises(ConfigValidationError, match="OptimizerConfig.name must be None or a non-empty string"):
+    with pytest.raises(ConfigValidationError, match="OptimizerConfig.name must be a string or None"):
         validate_optimizer_config(cfg)
 
 

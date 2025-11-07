@@ -20,16 +20,15 @@ SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 # ============================================================================
 
 
-def _validate_optional_name(name: str | None, config_name: str, field_name: str = "name") -> None:
-    """Validate that a name field is either None or a non-empty string.
-
-    Args:
-        name: The name value to validate
-        config_name: The name of the config class (for error messages)
-        field_name: The name of the field (defaults to "name")
-    """
-    if name is not None and (not isinstance(name, str) or not name.strip()):
-        raise ConfigValidationError(f"{config_name}.{field_name} must be None or a non-empty string")
+def _validate_nonempty_str(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
+    """Validate that a value is a non-empty string."""
+    if is_none_allowed and value is None:
+        return
+    if not isinstance(value, str):
+        allowed_types = "a string or None" if is_none_allowed else "a string"
+        raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
+    if not value.strip():
+        raise ConfigValidationError(f"{field_name} must be a non-empty string")
 
 
 def _validate_positive_int(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
@@ -180,7 +179,7 @@ def validate_logging_config(cfg: DictConfig) -> None:
     target = instance.get("_target_", None)
     if not is_logger_target(target):
         raise ConfigValidationError(f"LoggingConfig.instance._target_ must be a logger target, got {target}")
-    _validate_optional_name(cfg.get("name"), "LoggingConfig")
+    _validate_nonempty_str(cfg.get("name"), "LoggingConfig.name", is_none_allowed=True)
 
 
 # ============================================================================
@@ -229,7 +228,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         raise ConfigValidationError(
             f"GenerativeProcessConfig.instance._target_ must be a generative process target, got {target}"
         )
-    _validate_optional_name(cfg.get("name"), "GenerativeProcessConfig")
+    _validate_nonempty_str(cfg.get("name"), "GenerativeProcessConfig.name", is_none_allowed=True)
 
     base_vocab_size = cfg.get("base_vocab_size")
     if OmegaConf.is_missing(cfg, "base_vocab_size"):
@@ -329,7 +328,7 @@ def validate_persistence_config(cfg: DictConfig) -> None:
     target = instance.get("_target_", None)
     if not is_model_persister_target(target):
         raise ConfigValidationError(f"PersistenceConfig.instance._target_ must be a persister target, got {target}")
-    _validate_optional_name(cfg.get("name"), "PersistenceConfig")
+    _validate_nonempty_str(cfg.get("name"), "PersistenceConfig.name", is_none_allowed=True)
 
 
 # ============================================================================
@@ -460,7 +459,7 @@ def validate_model_config(cfg: DictConfig) -> None:
     # If this is a HookedTransformerConfig, validate it fully if we have access to the nested cfg
     if target == "transformer_lens.HookedTransformer" and instance.get("cfg") is not None:
         validate_hooked_transformer_config(instance)
-    _validate_optional_name(cfg.get("name"), "ModelConfig")
+    _validate_nonempty_str(cfg.get("name"), "ModelConfig.name", is_none_allowed=True)
     load_checkpoint_step = cfg.get("load_checkpoint_step")
     if load_checkpoint_step is not None:
         _validate_non_negative_int(load_checkpoint_step, "ModelConfig.load_checkpoint_step", is_none_allowed=True)
@@ -513,7 +512,7 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
     target = instance.get("_target_", None)
     if not is_optimizer_target(target):
         raise ConfigValidationError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
-    _validate_optional_name(cfg.get("name"), "OptimizerConfig")
+    _validate_nonempty_str(cfg.get("name"), "OptimizerConfig.name", is_none_allowed=True)
 
 
 # ============================================================================
