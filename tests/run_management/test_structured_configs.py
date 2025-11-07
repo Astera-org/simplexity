@@ -863,79 +863,100 @@ class TestPersistenceConfig:
 class TestPredictiveModelConfig:
     def test_validate_hooked_transformer_config_config_valid(self):
         """Test validate_hooked_transformer_config_config with valid configs."""
+        # Test with minimal config (n_heads defaults to -1)
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_heads": 4,
-                "n_layers": 2,
-                "d_mlp": 512,
-                "act_fn": "relu",
-                "normalization_type": "LN",
-                "device": "cpu",
-                "seed": 42,
-                "d_vocab": MISSING,
                 "n_ctx": MISSING,
+                "n_heads": -1,
+                "d_vocab": MISSING,
             }
         )
         validate_hooked_transformer_config_config(cfg)
 
+        # Test with full config including n_heads
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_heads": 4,
-                "n_layers": 2,
+                "n_ctx": 256,
+                "n_heads": -1,
                 "d_mlp": 512,
                 "act_fn": None,
+                "d_vocab": 1000,
                 "normalization_type": None,
                 "device": None,
                 "seed": 42,
-                "d_vocab": 1000,
-                "n_ctx": 256,
             }
         )
         validate_hooked_transformer_config_config(cfg)
 
+    def test_validate_hooked_transformer_config_config_incompatible_dimensions(self):
+        """Test validate_hooked_transformer_config_config raises when n_heads=-1.
+
+        Specifically tests that d_model must be divisible by d_head when n_heads=-1.
+        """
+        cfg = DictConfig(
+            {
+                "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
+                "d_model": 130,  # Not divisible by d_head (130 % 32 == 2)
+                "d_head": 32,
+                "n_ctx": MISSING,
+                "n_heads": -1,
+                "d_mlp": 512,
+                "act_fn": None,
+                "d_vocab": MISSING,
+                "normalization_type": "LN",
+                "device": None,
+                "seed": None,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="d_model.*must be divisible by d_head"):
+            validate_hooked_transformer_config_config(cfg)
+
     @pytest.mark.parametrize(
-        "field",
+        ("field", "value"),
         [
-            "d_model",
-            "d_head",
-            "n_heads",
-            "n_layers",
-            "d_mlp",
-            "d_vocab",
-            "n_ctx",
+            ("d_model", 130),
+            ("d_head", 32),
+            ("n_heads", -1),
+            ("n_layers", 2),
+            ("d_mlp", 512),
+            ("d_vocab", 1000),
+            ("n_ctx", 256),
         ],
     )
-    def test_validate_hooked_transformer_config_config_invalid_fields(self, field):
+    def test_validate_hooked_transformer_config_config_invalid_fields(self, field, value):
         """Test validate_hooked_transformer_config_config raises for invalid field values."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
+                "n_ctx": MISSING,
                 "n_heads": 4,
-                "n_layers": 2,
                 "d_mlp": 512,
                 "act_fn": "relu",
+                "d_vocab": MISSING,
                 "normalization_type": "LN",
                 "device": "cpu",
                 "seed": 42,
-                "d_vocab": MISSING,
-                "n_ctx": MISSING,
             }
         )
 
         # Non-integer value
-        cfg[field] = "128"
+        cfg[field] = str(value)
         with pytest.raises(ConfigValidationError, match=f"HookedTransformerConfigConfig.{field} must be an int"):
             validate_hooked_transformer_config_config(cfg)
 
-        # Non-positive value
+        # Non-positive value (0 should fail for all fields, including n_heads)
         cfg[field] = 0
         with pytest.raises(ConfigValidationError, match=f"HookedTransformerConfigConfig.{field} must be positive"):
             validate_hooked_transformer_config_config(cfg)
@@ -945,17 +966,17 @@ class TestPredictiveModelConfig:
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
                 "d_model": 130,
                 "d_head": 32,
+                "n_ctx": MISSING,
                 "n_heads": 4,
-                "n_layers": 2,
                 "d_mlp": 512,
                 "act_fn": "relu",
+                "d_vocab": MISSING,
                 "normalization_type": "LN",
                 "device": "cpu",
                 "seed": 42,
-                "d_vocab": MISSING,
-                "n_ctx": MISSING,
             }
         )
         with pytest.raises(ConfigValidationError, match="d_model.*must be divisible by n_heads"):
@@ -966,17 +987,17 @@ class TestPredictiveModelConfig:
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
                 "d_model": 128,
                 "d_head": 30,
+                "n_ctx": MISSING,
                 "n_heads": 4,
-                "n_layers": 2,
                 "d_mlp": 512,
                 "act_fn": "relu",
+                "d_vocab": MISSING,
                 "normalization_type": "LN",
                 "device": "cpu",
                 "seed": 42,
-                "d_vocab": MISSING,
-                "n_ctx": MISSING,
             }
         )
         with pytest.raises(ConfigValidationError, match="d_head.*n_heads.*must equal d_model"):
@@ -990,17 +1011,17 @@ class TestPredictiveModelConfig:
                 "cfg": DictConfig(
                     {
                         "_target_": "transformer_lens.HookedTransformerConfig",
+                        "n_layers": 2,
                         "d_model": 128,
                         "d_head": 32,
+                        "n_ctx": MISSING,
                         "n_heads": 4,
-                        "n_layers": 2,
                         "d_mlp": 512,
                         "act_fn": "relu",
+                        "d_vocab": MISSING,
                         "normalization_type": "LN",
                         "device": "cpu",
                         "seed": 42,
-                        "d_vocab": MISSING,
-                        "n_ctx": MISSING,
                     }
                 ),
             }
@@ -1014,17 +1035,17 @@ class TestPredictiveModelConfig:
                 "cfg": DictConfig(
                     {
                         "_target_": "transformer_lens.HookedTransformerConfig",
+                        "n_layers": 2,
                         "d_model": 128,
                         "d_head": 32,
+                        "n_ctx": MISSING,
                         "n_heads": 4,
-                        "n_layers": 2,
                         "d_mlp": 512,
                         "act_fn": "relu",
+                        "d_vocab": MISSING,
                         "normalization_type": "LN",
                         "device": "cpu",
                         "seed": 42,
-                        "d_vocab": MISSING,
-                        "n_ctx": MISSING,
                     }
                 ),
             }
@@ -1113,17 +1134,17 @@ class TestPredictiveModelConfig:
                         "cfg": DictConfig(
                             {
                                 "_target_": "transformer_lens.HookedTransformerConfig",
+                                "n_layers": 2,
                                 "d_model": 128,
                                 "d_head": 32,
-                                "n_heads": 4,
-                                "n_layers": 2,
                                 "n_ctx": 256,
+                                "n_heads": 4,
                                 "d_mlp": 512,
                                 "act_fn": "relu",
+                                "d_vocab": MISSING,
                                 "normalization_type": "LN",
                                 "device": "cpu",
                                 "seed": 42,
-                                "d_vocab": MISSING,
                             }
                         ),
                     }
