@@ -5,8 +5,8 @@ from simplexity.run_management.structured_configs import (
     LoggingConfig,
     MLFlowConfig,
     ModelConfig,
+    OptimizerConfig,
     PersistenceConfig,
-    TrainingConfig,
 )
 
 
@@ -19,7 +19,7 @@ class Config:
     generative_process: GenerativeProcessConfig
     persistence: PersistenceConfig
     predictive_model: ModelConfig
-    training: TrainingConfig
+    optimizer: OptimizerConfig
     experiment_name: str
     run_name: str
     seed: int

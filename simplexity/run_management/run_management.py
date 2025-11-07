@@ -468,8 +468,7 @@ def _instantiate_optimizer(cfg: DictConfig, instance_key: str, predictive_model:
     """Setup the optimizer."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
-        optimizer_instance_config: DictConfig = OmegaConf.select(cfg, "training.optimizer.instance")
-        if is_pytorch_optimizer_config(optimizer_instance_config):
+        if is_pytorch_optimizer_config(instance_config):
             if predictive_model and isinstance(predictive_model, PytorchModel):
                 optimizer = hydra.utils.instantiate(instance_config, params=predictive_model.parameters())
                 SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
