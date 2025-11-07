@@ -255,10 +255,12 @@ def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> Gener
     raise KeyError
 
 
-def _create_initial_state(cfg: DictConfig, generative_process: GenerativeProcess) -> jax.Array:
+def _create_initial_state(generative_process: GenerativeProcess, batch_size: int | None) -> jax.Array:
     """Setup the initial state."""
-    batch_size = OmegaConf.select(cfg, "training.batch_size", default=1)
-    initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
+    if batch_size is None:
+        initial_state = generative_process.initial_state
+    else:
+        initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
     SIMPLEXITY_LOGGER.info(f"[generative process] instantiated initial state with shape: {initial_state.shape}")
     return initial_state
 
@@ -297,6 +299,7 @@ def _setup_generative_processes(
     )
     if instance_keys:
         generative_processes = {}
+        initial_states = {}
         for instance_key in instance_keys:
             generative_process = _instantiate_generative_process(cfg, instance_key)
             config_key = instance_key.rsplit(".", 1)[0]
@@ -306,9 +309,9 @@ def _setup_generative_processes(
             base_vocab_size = generative_process.vocab_size
             _resolve_generative_process_config(generative_process_config, base_vocab_size)
             generative_processes[instance_key] = generative_process
-        initial_states = {
-            instance_key: _create_initial_state(cfg, process) for instance_key, process in generative_processes.items()
-        }
+            initial_states[instance_key] = _create_initial_state(
+                generative_process, generative_process_config.batch_size
+            )
         return generative_processes, initial_states
     SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
     return None, None
