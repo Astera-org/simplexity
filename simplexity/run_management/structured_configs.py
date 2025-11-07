@@ -54,7 +54,7 @@ def _validate_non_negative_int(value: Any, field_name: str, is_none_allowed: boo
 
 
 # ============================================================================
-# Base Config
+# Instance Config
 # ============================================================================
 
 
@@ -528,3 +528,39 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
     if not is_optimizer_target(target):
         raise ConfigValidationError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
     _validate_nonempty_str(cfg.get("name"), "OptimizerConfig.name", is_none_allowed=True)
+
+
+# ============================================================================
+# Base Config
+# ============================================================================
+
+
+@dataclass
+class BaseConfig:
+    """Base configuration for all components."""
+
+    seed: int | None = None
+    tags: dict[str, str] | None = None
+    mlflow: MLFlowConfig | None = None
+
+
+def validate_base_config(cfg: DictConfig) -> None:
+    """Validate a BaseConfig.
+
+    Args:
+        cfg: A DictConfig with seed, tags, and mlflow fields (from Hydra).
+    """
+    seed = cfg.get("seed")
+    _validate_non_negative_int(seed, "BaseConfig.seed", is_none_allowed=True)
+    tags = cfg.get("tags")
+    if tags is not None:
+        if not isinstance(tags, dict):
+            raise ConfigValidationError("BaseConfig.tags must be a dictionary")
+        for key, value in tags.items():
+            if not isinstance(key, str):
+                raise ConfigValidationError(f"BaseConfig.tags keys must be strings, got {type(key)}")
+            if not isinstance(value, str):
+                raise ConfigValidationError(f"BaseConfig.tags values must be strings, got {type(value)}")
+    mlflow = cfg.get("mlflow")
+    if mlflow is not None:
+        validate_mlflow_config(mlflow)

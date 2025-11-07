@@ -44,6 +44,7 @@ from simplexity.run_management.structured_configs import (
     is_optimizer_target,
     is_predictive_model_target,
     is_pytorch_optimizer_config,
+    validate_base_config,
     validate_generative_process_config,
     validate_logging_config,
     validate_optimizer_config,
@@ -554,7 +555,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 cfg = get_config(args, kwargs)
-                # TODO: validate the config
+                validate_base_config(cfg)
                 with _setup_mlflow(cfg):
                     components = _setup(cfg, strict=strict, verbose=verbose)
                     output = fn(*args, **kwargs, components=components)
