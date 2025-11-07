@@ -1475,7 +1475,7 @@ class TestBaseConfig:
         cfg = DictConfig(
             {
                 "seed": 42,
-                "tags": {"key": "value"},
+                "tags": DictConfig({"key": "value"}),
                 "mlflow": DictConfig({"experiment_name": "test", "run_name": "test"}),
             }
         )
@@ -1514,10 +1514,10 @@ class TestBaseConfig:
         """Test validate_base_config with invalid mlflow."""
         # Non-MLFlowConfig mlflow
         cfg = DictConfig({"mlflow": "not an MLFlowConfig"})
-        with pytest.raises(ConfigValidationError, match="BaseConfig.mlflow must be an MLFlowConfig"):
+        with pytest.raises(ConfigValidationError, match="BaseConfig.mlflow must be a MLFlowConfig"):
             validate_base_config(cfg)
 
         # MLFlowConfig with missing experiment_name
         cfg = DictConfig({"mlflow": DictConfig({"run_name": "test"})})
-        with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name is required"):
+        with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
             validate_base_config(cfg)

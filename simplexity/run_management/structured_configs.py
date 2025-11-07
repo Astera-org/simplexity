@@ -559,7 +559,7 @@ def validate_base_config(cfg: DictConfig) -> None:
     _validate_non_negative_int(seed, "BaseConfig.seed", is_none_allowed=True)
     tags = cfg.get("tags")
     if tags is not None:
-        if not isinstance(tags, dict):
+        if not isinstance(tags, DictConfig):
             raise ConfigValidationError("BaseConfig.tags must be a dictionary")
         for key, value in tags.items():
             if not isinstance(key, str):
@@ -568,4 +568,6 @@ def validate_base_config(cfg: DictConfig) -> None:
                 raise ConfigValidationError(f"BaseConfig.tags values must be strings, got {type(value)}")
     mlflow = cfg.get("mlflow")
     if mlflow is not None:
+        if not isinstance(mlflow, DictConfig):
+            raise ConfigValidationError("BaseConfig.mlflow must be a MLFlowConfig")
         validate_mlflow_config(mlflow)
