@@ -54,7 +54,7 @@ def _validate_non_negative_int(value: Any, field_name: str, is_none_allowed: boo
 
 
 # ============================================================================
-# Base Config
+# Instance Config
 # ============================================================================
 
 
@@ -197,6 +197,8 @@ class GenerativeProcessConfig:
     bos_token: int | None = MISSING
     eos_token: int | None = MISSING
     vocab_size: int = MISSING
+    sequence_len: int | None = MISSING
+    batch_size: int | None = None
 
 
 def is_generative_process_target(target: str) -> bool:
@@ -288,6 +290,15 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
                     f"= {expected_vocab_size}"
                 )
 
+    sequence_len = cfg.get("sequence_len")
+    if OmegaConf.is_missing(cfg, "sequence_len"):
+        SIMPLEXITY_LOGGER.debug("[generative process] sequence len is missing, will be resolved dynamically")
+    else:
+        _validate_positive_int(sequence_len, "GenerativeProcessConfig.sequence_len", is_none_allowed=True)
+
+    batch_size = cfg.get("batch_size")
+    _validate_positive_int(batch_size, "GenerativeProcessConfig.batch_size", is_none_allowed=True)
+
 
 # ============================================================================
 # Persistence Config
@@ -341,17 +352,17 @@ class HookedTransformerConfigConfig:
     """Configuration for HookedTransformerConfig."""
 
     _target_: Literal["transformer_lens.HookedTransformerConfig"]
+    n_layers: int
     d_model: int
     d_head: int
-    n_heads: int
-    n_layers: int
-    n_ctx: int
-    d_mlp: int
-    act_fn: str | None
-    normalization_type: str | None
-    device: str | None
-    seed: int
+    n_ctx: int = MISSING
+    n_heads: int = -1
+    d_mlp: int | None = None
+    act_fn: str | None = None
     d_vocab: int = MISSING
+    normalization_type: str | None = "LN"
+    device: str | None = None
+    seed: int | None = None
 
 
 def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
@@ -360,34 +371,43 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
     Args:
         cfg: A DictConfig with HookedTransformerConfigConfig fields (from Hydra).
     """
+    n_layers = cfg.get("n_layers")
     d_model = cfg.get("d_model")
     d_head = cfg.get("d_head")
-    n_heads = cfg.get("n_heads")
-    n_layers = cfg.get("n_layers")
     n_ctx = cfg.get("n_ctx")
+    n_heads = cfg.get("n_heads")
     d_mlp = cfg.get("d_mlp")
     d_vocab = cfg.get("d_vocab")
+    seed = cfg.get("seed")
 
+    _validate_positive_int(n_layers, "HookedTransformerConfigConfig.n_layers")
     _validate_positive_int(d_model, "HookedTransformerConfigConfig.d_model")
     _validate_positive_int(d_head, "HookedTransformerConfigConfig.d_head")
-    _validate_positive_int(n_heads, "HookedTransformerConfigConfig.n_heads")
-    _validate_positive_int(n_layers, "HookedTransformerConfigConfig.n_layers")
-    _validate_positive_int(n_ctx, "HookedTransformerConfigConfig.n_ctx")
-    _validate_positive_int(d_mlp, "HookedTransformerConfigConfig.d_mlp")
+    if OmegaConf.is_missing(cfg, "n_ctx"):
+        SIMPLEXITY_LOGGER.debug("[predictive model] n_ctx is missing, will be resolved dynamically")
+    else:
+        _validate_positive_int(n_ctx, "HookedTransformerConfigConfig.n_ctx")
+    if n_heads != -1:
+        _validate_positive_int(n_heads, "HookedTransformerConfigConfig.n_heads")
+        if d_model % n_heads != 0:
+            raise ConfigValidationError(
+                f"HookedTransformerConfigConfig.d_model ({d_model}) must be divisible by n_heads ({n_heads})"
+            )
+        if d_head * n_heads != d_model:
+            raise ConfigValidationError(
+                f"HookedTransformerConfigConfig.d_head ({d_head}) * n_heads ({n_heads}) must equal d_model ({d_model})"
+            )
+    elif d_model % d_head != 0:
+        raise ConfigValidationError(
+            f"HookedTransformerConfigConfig.d_model ({d_model}) must be divisible by d_head ({d_head})"
+        )
+
+    _validate_positive_int(d_mlp, "HookedTransformerConfigConfig.d_mlp", is_none_allowed=True)
     if OmegaConf.is_missing(cfg, "d_vocab"):
         SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab is missing, will be resolved dynamically")
     else:
         _validate_positive_int(d_vocab, "HookedTransformerConfigConfig.d_vocab")
-    # Validate d_model is divisible by n_heads
-    if d_model % n_heads != 0:
-        raise ConfigValidationError(
-            f"HookedTransformerConfigConfig.d_model ({d_model}) must be divisible by n_heads ({n_heads})"
-        )
-    # Validate d_head * n_heads == d_model
-    if d_head * n_heads != d_model:
-        raise ConfigValidationError(
-            f"HookedTransformerConfigConfig.d_head ({d_head}) * n_heads ({n_heads}) must equal d_model ({d_model})"
-        )
+    _validate_non_negative_int(seed, "HookedTransformerConfigConfig.seed", is_none_allowed=True)
 
 
 @dataclass
@@ -516,64 +536,38 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
 
 
 # ============================================================================
-# Training Config
+# Base Config
 # ============================================================================
 
 
 @dataclass
-class TrainingConfig:
-    """Configuration for the training process."""
+class BaseConfig:
+    """Base configuration for all components."""
 
-    seed: int
-    batch_size: int
-    num_steps: int
-    optimizer: OptimizerConfig
-    sequence_len: int = MISSING
-    log_every: int | None = None
-    validate_every: int | None = None
-    checkpoint_every: int | None = None
+    seed: int | None = None
+    tags: dict[str, str] | None = None
+    mlflow: MLFlowConfig | None = None
 
 
-def validate_training_config(cfg: DictConfig) -> None:
-    """Validate the configuration.
+def validate_base_config(cfg: DictConfig) -> None:
+    """Validate a BaseConfig.
 
     Args:
-        cfg: A DictConfig with TrainingConfig fields (from Hydra).
+        cfg: A DictConfig with seed, tags, and mlflow fields (from Hydra).
     """
-    sequence_len = cfg.get("sequence_len")
-    batch_size = cfg.get("batch_size")
-    num_steps = cfg.get("num_steps")
-    log_every = cfg.get("log_every")
-    validate_every = cfg.get("validate_every")
-    checkpoint_every = cfg.get("checkpoint_every")
-    optimizer = cfg.get("optimizer")
-
-    if OmegaConf.is_missing(cfg, "sequence_len"):
-        SIMPLEXITY_LOGGER.debug("[training] sequence len is missing, will be resolved dynamically")
-    else:
-        _validate_positive_int(sequence_len, "TrainingConfig.sequence_len")
-
-    _validate_positive_int(batch_size, "TrainingConfig.batch_size")
-
-    _validate_positive_int(num_steps, "TrainingConfig.num_steps")
-
-    _validate_positive_int(log_every, "TrainingConfig.log_every", is_none_allowed=True)
-    if log_every is not None and log_every > num_steps:
-        raise ConfigValidationError(f"TrainingConfig.log_every ({log_every}) must be <= num_steps ({num_steps})")
-
-    _validate_positive_int(validate_every, "TrainingConfig.validate_every", is_none_allowed=True)
-    if validate_every is not None and validate_every > num_steps:
-        raise ConfigValidationError(
-            f"TrainingConfig.validate_every ({validate_every}) must be <= num_steps ({num_steps})"
-        )
-
-    _validate_positive_int(checkpoint_every, "TrainingConfig.checkpoint_every", is_none_allowed=True)
-    if checkpoint_every is not None and checkpoint_every > num_steps:
-        raise ConfigValidationError(
-            f"TrainingConfig.checkpoint_every ({checkpoint_every}) must be <= num_steps ({num_steps})"
-        )
-
-    # Validate optimizer config
-    if optimizer is None:
-        raise ConfigValidationError("TrainingConfig.optimizer is required")
-    validate_optimizer_config(optimizer)
+    seed = cfg.get("seed")
+    _validate_non_negative_int(seed, "BaseConfig.seed", is_none_allowed=True)
+    tags = cfg.get("tags")
+    if tags is not None:
+        if not isinstance(tags, DictConfig):
+            raise ConfigValidationError("BaseConfig.tags must be a dictionary")
+        for key, value in tags.items():
+            if not isinstance(key, str):
+                raise ConfigValidationError(f"BaseConfig.tags keys must be strings, got {type(key)}")
+            if not isinstance(value, str):
+                raise ConfigValidationError(f"BaseConfig.tags values must be strings, got {type(value)}")
+    mlflow = cfg.get("mlflow")
+    if mlflow is not None:
+        if not isinstance(mlflow, DictConfig):
+            raise ConfigValidationError("BaseConfig.mlflow must be a MLFlowConfig")
+        validate_mlflow_config(mlflow)

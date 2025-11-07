@@ -7,7 +7,7 @@ instance:
     d_head: 1
     n_heads: 1
     n_layers: 1
-    n_ctx: 1
+    n_ctx: ???
     d_mlp: 1
     d_vocab: ???
     act_fn: "relu"

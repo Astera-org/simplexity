@@ -12,11 +12,6 @@ from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
-from simplexity.run_management.structured_configs import (
-    InstanceConfig,
-    OptimizerConfig,
-    TrainingConfig,
-)
 from simplexity.training.train_pytorch_model import train
 
 
@@ -92,25 +87,31 @@ def test_train(model: torch.nn.Module, tmp_path: Path):
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    training_cfg = TrainingConfig(
-        seed=0,
-        sequence_len=32,
-        batch_size=64,
-        num_steps=100,
-        log_every=50,
-        validate_every=75,
-        checkpoint_every=100,
-        optimizer=OptimizerConfig(
-            name="pytorch_adam",
-            instance=InstanceConfig(
-                _target_="torch.optim.AdamW",
-                lr=0.001,
-                betas=(0.9, 0.999),
-                eps=1e-8,
-                weight_decay=0.01,
-                amsgrad=False,
+    training_cfg = DictConfig(
+        {
+            "seed": 0,
+            "sequence_len": 32,
+            "batch_size": 64,
+            "num_steps": 100,
+            "log_every": 50,
+            "validate_every": 75,
+            "checkpoint_every": 100,
+            "optimizer": DictConfig(
+                {
+                    "name": "pytorch_adam",
+                    "instance": DictConfig(
+                        {
+                            "_target_": "torch.optim.AdamW",
+                            "lr": 0.001,
+                            "betas": (0.9, 0.999),
+                            "eps": 1e-8,
+                            "weight_decay": 0.01,
+                            "amsgrad": False,
+                        }
+                    ),
+                }
             ),
-        ),
+        }
     )
     validation_cfg = DictConfig({"seed": 0, "sequence_len": 32, "batch_size": 64, "num_steps": 10, "log_every": -1})
     persister = LocalPytorchPersister(directory=str(tmp_path))

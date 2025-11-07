@@ -15,11 +15,7 @@ from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
 from simplexity.predictive_models.predictive_model import PredictiveModel
-from simplexity.run_management.structured_configs import (
-    InstanceConfig,
-    OptimizerConfig,
-    TrainingConfig,
-)
+from simplexity.run_management.structured_configs import InstanceConfig
 from simplexity.training.train_model import train
 from simplexity.utils.equinox import vmap_model
 from simplexity.utils.penzai import use_penzai_model
@@ -87,26 +83,27 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    training_cfg = TrainingConfig(
-        seed=0,
-        sequence_len=32,
-        batch_size=64,
-        num_steps=100,
-        log_every=50,
-        validate_every=75,
-        checkpoint_every=100,
-        optimizer=OptimizerConfig(
-            name="optax_adam",
-            instance=AdamConfig(
-                _target_="optax.adam",
-                learning_rate=0.001,
-                b1=0.9,
-                b2=0.999,
-                eps=1e-8,
-                eps_root=0.0,
-                nesterov=True,
+    training_cfg = DictConfig(
+        {
+            "seed": 0,
+            "sequence_len": 32,
+            "batch_size": 64,
+            "num_steps": 100,
+            "log_every": 50,
+            "validate_every": 75,
+            "checkpoint_every": 100,
+            "optimizer": DictConfig(
+                {
+                    "name": "optax_adam",
+                    "instance": DictConfig(
+                        {
+                            "_target_": "optax.adam",
+                            "learning_rate": 0.001,
+                        }
+                    ),
+                }
             ),
-        ),
+        }
     )
     validation_cfg = DictConfig({"seed": 0, "sequence_len": 32, "batch_size": 64, "num_steps": 10, "log_every": -1})
     persister = LocalPenzaiPersister(directory=str(tmp_path))

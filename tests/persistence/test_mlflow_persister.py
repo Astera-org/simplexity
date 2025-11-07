@@ -7,6 +7,7 @@ from pathlib import Path
 import chex
 import jax
 import pytest
+import yaml
 
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.predictive_models.gru_rnn import GRURNN
@@ -26,6 +27,18 @@ else:
         torch.manual_seed(seed)
         return nn.Linear(in_features=4, out_features=2)
 
+    def get_hydra_config_for_pytorch_model() -> dict:
+        """Get a Hydra config dict for the given PyTorch model."""
+        return {
+            "predictive_model": {
+                "instance": {
+                    "_target_": "torch.nn.Linear",
+                    "in_features": 4,
+                    "out_features": 2,
+                }
+            }
+        }
+
     def pytorch_models_equal(model1: nn.Module, model2: nn.Module) -> bool:
         """Check if two PyTorch models have identical parameters."""
         params1 = dict(model1.named_parameters())
@@ -40,6 +53,21 @@ else:
 def get_model(seed: int) -> GRURNN:
     """Build a small deterministic model for serialization tests."""
     return GRURNN(vocab_size=2, embedding_size=4, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
+
+
+def get_hydra_config_for_model(seed: int) -> dict:
+    """Get a Hydra config dict for the given model."""
+    return {
+        "predictive_model": {
+            "instance": {
+                "_target_": "simplexity.predictive_models.gru_rnn.GRURNN",
+                "vocab_size": 2,
+                "embedding_size": 4,
+                "hidden_sizes": [3, 3],
+                "key": {"_target_": "jax.random.PRNGKey", "seed": seed},
+            }
+        }
+    }
 
 
 def test_mlflow_persister_round_trip(tmp_path: Path) -> None:
@@ -66,6 +94,36 @@ def test_mlflow_persister_round_trip(tmp_path: Path) -> None:
     updated = get_model(1)
     loaded = persister.load_weights(updated, step=0)
 
+    chex.assert_trees_all_equal(loaded, original)
+
+
+def test_mlflow_persister_round_trip_from_config(tmp_path: Path) -> None:
+    """Model weights saved via MLflow can be restored back into a new instance via the config."""
+    artifact_dir = tmp_path / "mlruns"
+    artifact_dir.mkdir()
+
+    persister = MLFlowPersister(
+        experiment_name="round-trip",
+        run_name="round-trip-run",
+        tracking_uri=artifact_dir.as_uri(),
+        artifact_path="models",
+    )
+
+    original = get_model(0)
+    persister.save_weights(original, step=0)
+
+    # MLflow stores artifacts in experiment_id/run_id/artifacts/artifact_path/step/
+    experiment_id = persister.experiment_id
+    run_id = persister.run_id
+    remote_model_path = artifact_dir / experiment_id / run_id / "artifacts" / "models" / "0" / "model.eqx"
+    assert remote_model_path.exists()
+
+    # New function expects a config to live at experiment_id/run_id/artifacts/config_path
+    config_path = artifact_dir / experiment_id / run_id / "artifacts" / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(get_hydra_config_for_model(0), f)
+
+    loaded = persister.load_model(step=0)
     chex.assert_trees_all_equal(loaded, original)
 
 
@@ -124,6 +182,36 @@ def test_mlflow_persister_pytorch_round_trip(tmp_path: Path) -> None:
     loaded = persister.load_weights(updated, step=0)
 
     # Type assertion since we know loaded is a PyTorch model
+    assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
+
+
+def test_mlflow_persister_pytorch_round_trip_from_config(tmp_path: Path) -> None:
+    """PyTorch model weights saved via MLflow can be restored back into a new instance via the config."""
+    artifact_dir = tmp_path / "mlruns"
+    artifact_dir.mkdir()
+
+    persister = MLFlowPersister(
+        experiment_name="pytorch-round-trip",
+        run_name="pytorch-round-trip-run",
+        tracking_uri=artifact_dir.as_uri(),
+        artifact_path="models",
+    )
+
+    original = get_pytorch_model(0)
+    persister.save_weights(original, step=0)
+
+    # MLflow stores artifacts in experiment_id/run_id/artifacts/artifact_path/step/
+    experiment_id = persister.experiment_id
+    run_id = persister.run_id
+    remote_model_path = artifact_dir / experiment_id / run_id / "artifacts" / "models" / "0" / "model.pt"
+    assert remote_model_path.exists()
+
+    # New function expects a config to live at experiment_id/run_id/artifacts/config_path
+    config_path = artifact_dir / experiment_id / run_id / "artifacts" / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(get_hydra_config_for_pytorch_model(), f)
+
+    loaded = persister.load_model(step=0)
     assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
 
 
