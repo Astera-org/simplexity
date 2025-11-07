@@ -32,6 +32,22 @@ def _validate_optional_name(name: str | None, config_name: str, field_name: str 
         raise ConfigValidationError(f"{config_name}.{field_name} must be None or a non-empty string")
 
 
+def _validate_positive_int(value: Any, field_name: str) -> None:
+    """Validate that a value is a positive integer."""
+    if not isinstance(value, int):
+        raise ConfigValidationError(f"{field_name} must be an int, got {type(value)}")
+    if value <= 0:
+        raise ConfigValidationError(f"{field_name} must be positive, got {value}")
+
+
+def _validate_non_negative_int(value: Any, field_name: str) -> None:
+    """Validate that a value is a non-negative integer."""
+    if not isinstance(value, int):
+        raise ConfigValidationError(f"{field_name} must be an int, got {type(value)}")
+    if value < 0:
+        raise ConfigValidationError(f"{field_name} must be non-negative, got {value}")
+
+
 # ============================================================================
 # Base Config
 # ============================================================================
@@ -213,14 +229,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     if OmegaConf.is_missing(cfg, "base_vocab_size"):
         SIMPLEXITY_LOGGER.debug("[generative process] base vocab size is missing, will be resolved dynamically")
     else:
-        if not isinstance(base_vocab_size, int):
-            raise ConfigValidationError(
-                f"GenerativeProcessConfig.base_vocab_size must be an int, got {type(base_vocab_size)}"
-            )
-        if base_vocab_size <= 0:
-            raise ConfigValidationError(
-                f"GenerativeProcessConfig.base_vocab_size must be positive, got {base_vocab_size}"
-            )
+        _validate_positive_int(base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
 
     # Validate token values
     bos_token = cfg.get("bos_token")
@@ -230,12 +239,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     if OmegaConf.is_missing(cfg, "bos_token"):
         SIMPLEXITY_LOGGER.debug("[generative process] bos token is missing, will be resolved dynamically")
     elif bos_token is not None:
-        if not isinstance(bos_token, int):
-            raise ConfigValidationError(
-                f"GenerativeProcessConfig.bos_token must be an int or None, got {type(bos_token)}"
-            )
-        if bos_token < 0:
-            raise ConfigValidationError(f"GenerativeProcessConfig.bos_token must be non-negative, got {bos_token}")
+        _validate_non_negative_int(bos_token, "GenerativeProcessConfig.bos_token")
         if not OmegaConf.is_missing(cfg, "vocab_size") and bos_token >= vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.bos_token ({bos_token}) must be < vocab_size ({vocab_size})"
@@ -244,12 +248,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     if OmegaConf.is_missing(cfg, "eos_token"):
         SIMPLEXITY_LOGGER.debug("[generative process] eos token is missing, will be resolved dynamically")
     elif eos_token is not None:
-        if not isinstance(eos_token, int):
-            raise ConfigValidationError(
-                f"GenerativeProcessConfig.eos_token must be an int or None, got {type(eos_token)}"
-            )
-        if eos_token < 0:
-            raise ConfigValidationError(f"GenerativeProcessConfig.eos_token must be non-negative, got {eos_token}")
+        _validate_non_negative_int(eos_token, "GenerativeProcessConfig.eos_token")
         if not OmegaConf.is_missing(cfg, "vocab_size") and eos_token >= vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.eos_token ({eos_token}) must be < vocab_size ({vocab_size})"
@@ -268,12 +267,10 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     if OmegaConf.is_missing(cfg, "vocab_size"):
         SIMPLEXITY_LOGGER.debug("[generative process] vocab size is missing, will be resolved dynamically")
     else:
-        if not isinstance(vocab_size, int):
-            raise ConfigValidationError(f"GenerativeProcessConfig.vocab_size must be an int, got {type(vocab_size)}")
-        if vocab_size <= 0:
-            raise ConfigValidationError(f"GenerativeProcessConfig.vocab_size must be positive, got {vocab_size}")
+        _validate_positive_int(vocab_size, "GenerativeProcessConfig.vocab_size")
         # Only validate consistency if base_vocab_size is also resolved
-        if not OmegaConf.is_missing(cfg, "base_vocab_size") and isinstance(base_vocab_size, int):
+        if not OmegaConf.is_missing(cfg, "base_vocab_size"):
+            _validate_positive_int(base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
             expected_vocab_size = base_vocab_size + (bos_token is not None) + (eos_token is not None)
             if vocab_size != expected_vocab_size:
                 raise ConfigValidationError(
@@ -364,23 +361,16 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
     d_mlp = cfg.get("d_mlp")
     d_vocab = cfg.get("d_vocab")
 
-    if not isinstance(d_model, int) or d_model <= 0:
-        raise ConfigValidationError(f"HookedTransformerConfigConfig.d_model must be positive, got {d_model}")
-    if not isinstance(d_head, int) or d_head <= 0:
-        raise ConfigValidationError(f"HookedTransformerConfigConfig.d_head must be positive, got {d_head}")
-    if not isinstance(n_heads, int) or n_heads <= 0:
-        raise ConfigValidationError(f"HookedTransformerConfigConfig.n_heads must be positive, got {n_heads}")
-    if not isinstance(n_layers, int) or n_layers <= 0:
-        raise ConfigValidationError(f"HookedTransformerConfigConfig.n_layers must be positive, got {n_layers}")
-    if not isinstance(n_ctx, int) or n_ctx <= 0:
-        raise ConfigValidationError(f"HookedTransformerConfigConfig.n_ctx must be positive, got {n_ctx}")
-    if not isinstance(d_mlp, int) or d_mlp <= 0:
-        raise ConfigValidationError(f"HookedTransformerConfigConfig.d_mlp must be positive, got {d_mlp}")
+    _validate_positive_int(d_model, "HookedTransformerConfigConfig.d_model")
+    _validate_positive_int(d_head, "HookedTransformerConfigConfig.d_head")
+    _validate_positive_int(n_heads, "HookedTransformerConfigConfig.n_heads")
+    _validate_positive_int(n_layers, "HookedTransformerConfigConfig.n_layers")
+    _validate_positive_int(n_ctx, "HookedTransformerConfigConfig.n_ctx")
+    _validate_positive_int(d_mlp, "HookedTransformerConfigConfig.d_mlp")
     if OmegaConf.is_missing(cfg, "d_vocab"):
         SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab is missing, will be resolved dynamically")
     else:
-        if not isinstance(d_vocab, int) or d_vocab <= 0:
-            raise ConfigValidationError(f"HookedTransformerConfigConfig.d_vocab must be positive, got {d_vocab}")
+        _validate_positive_int(d_vocab, "HookedTransformerConfigConfig.d_vocab")
     # Validate d_model is divisible by n_heads
     if d_model % n_heads != 0:
         raise ConfigValidationError(
@@ -465,14 +455,7 @@ def validate_model_config(cfg: DictConfig) -> None:
     _validate_optional_name(cfg.get("name"), "ModelConfig")
     load_checkpoint_step = cfg.get("load_checkpoint_step")
     if load_checkpoint_step is not None:
-        if not isinstance(load_checkpoint_step, int):
-            raise ConfigValidationError(
-                f"ModelConfig.load_checkpoint_step must be an int or None, got {type(load_checkpoint_step)}"
-            )
-        if load_checkpoint_step < 0:
-            raise ConfigValidationError(
-                f"ModelConfig.load_checkpoint_step must be non-negative, got {load_checkpoint_step}"
-            )
+        _validate_non_negative_int(load_checkpoint_step, "ModelConfig.load_checkpoint_step")
 
 
 # ============================================================================
@@ -561,48 +544,26 @@ def validate_training_config(cfg: DictConfig) -> None:
     if OmegaConf.is_missing(cfg, "sequence_len"):
         SIMPLEXITY_LOGGER.debug("[training] sequence len is missing, will be resolved dynamically")
     else:
-        if not isinstance(sequence_len, int):
-            raise ConfigValidationError(f"TrainingConfig.sequence_len must be an int, got {type(sequence_len)}")
-        if sequence_len <= 0:
-            raise ConfigValidationError(f"TrainingConfig.sequence_len must be positive, got {sequence_len}")
+        _validate_positive_int(sequence_len, "TrainingConfig.sequence_len")
 
-    if not isinstance(batch_size, int):
-        raise ConfigValidationError(f"TrainingConfig.batch_size must be an int, got {type(batch_size)}")
-    if batch_size <= 0:
-        raise ConfigValidationError(f"TrainingConfig.batch_size must be positive, got {batch_size}")
+    _validate_positive_int(batch_size, "TrainingConfig.batch_size")
 
-    if not isinstance(num_steps, int):
-        raise ConfigValidationError(f"TrainingConfig.num_steps must be an int, got {type(num_steps)}")
-    if num_steps <= 0:
-        raise ConfigValidationError(f"TrainingConfig.num_steps must be positive, got {num_steps}")
+    _validate_positive_int(num_steps, "TrainingConfig.num_steps")
 
     if log_every is not None:
-        if not isinstance(log_every, int):
-            raise ConfigValidationError(f"TrainingConfig.log_every must be an int or None, got {type(log_every)}")
-        if log_every <= 0:
-            raise ConfigValidationError(f"TrainingConfig.log_every must be positive, got {log_every}")
+        _validate_non_negative_int(log_every, "TrainingConfig.log_every")
         if log_every > num_steps:
             raise ConfigValidationError(f"TrainingConfig.log_every ({log_every}) must be <= num_steps ({num_steps})")
 
     if validate_every is not None:
-        if not isinstance(validate_every, int):
-            raise ConfigValidationError(
-                f"TrainingConfig.validate_every must be an int or None, got {type(validate_every)}"
-            )
-        if validate_every <= 0:
-            raise ConfigValidationError(f"TrainingConfig.validate_every must be positive, got {validate_every}")
+        _validate_non_negative_int(validate_every, "TrainingConfig.validate_every")
         if validate_every > num_steps:
             raise ConfigValidationError(
                 f"TrainingConfig.validate_every ({validate_every}) must be <= num_steps ({num_steps})"
             )
 
     if checkpoint_every is not None:
-        if not isinstance(checkpoint_every, int):
-            raise ConfigValidationError(
-                f"TrainingConfig.checkpoint_every must be an int or None, got {type(checkpoint_every)}"
-            )
-        if checkpoint_every <= 0:
-            raise ConfigValidationError(f"TrainingConfig.checkpoint_every must be positive, got {checkpoint_every}")
+        _validate_non_negative_int(checkpoint_every, "TrainingConfig.checkpoint_every")
         if checkpoint_every > num_steps:
             raise ConfigValidationError(
                 f"TrainingConfig.checkpoint_every ({checkpoint_every}) must be <= num_steps ({num_steps})"
