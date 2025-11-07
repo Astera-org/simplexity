@@ -9,5 +9,5 @@ base_vocab_size: ???
 bos_token: ???
 eos_token: null
 vocab_size: ???
-sequence_len: ???
+sequence_len: 4
 batch_size: 2

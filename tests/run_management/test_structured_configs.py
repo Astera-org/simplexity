@@ -870,13 +870,13 @@ class TestPredictiveModelConfig:
                 "d_head": 32,
                 "n_heads": 4,
                 "n_layers": 2,
-                "n_ctx": 256,
                 "d_mlp": 512,
                 "act_fn": "relu",
                 "normalization_type": "LN",
                 "device": "cpu",
                 "seed": 42,
                 "d_vocab": MISSING,
+                "n_ctx": MISSING,
             }
         )
         validate_hooked_transformer_config_config(cfg)
@@ -888,13 +888,13 @@ class TestPredictiveModelConfig:
                 "d_head": 32,
                 "n_heads": 4,
                 "n_layers": 2,
-                "n_ctx": 256,
                 "d_mlp": 512,
                 "act_fn": None,
                 "normalization_type": None,
                 "device": None,
                 "seed": 42,
                 "d_vocab": 1000,
+                "n_ctx": 256,
             }
         )
         validate_hooked_transformer_config_config(cfg)
@@ -906,9 +906,9 @@ class TestPredictiveModelConfig:
             "d_head",
             "n_heads",
             "n_layers",
-            "n_ctx",
             "d_mlp",
             "d_vocab",
+            "n_ctx",
         ],
     )
     def test_validate_hooked_transformer_config_config_invalid_fields(self, field):
@@ -920,13 +920,13 @@ class TestPredictiveModelConfig:
                 "d_head": 32,
                 "n_heads": 4,
                 "n_layers": 2,
-                "n_ctx": 256,
                 "d_mlp": 512,
                 "act_fn": "relu",
                 "normalization_type": "LN",
                 "device": "cpu",
                 "seed": 42,
                 "d_vocab": MISSING,
+                "n_ctx": MISSING,
             }
         )
 
@@ -949,13 +949,13 @@ class TestPredictiveModelConfig:
                 "d_head": 32,
                 "n_heads": 4,
                 "n_layers": 2,
-                "n_ctx": 256,
                 "d_mlp": 512,
                 "act_fn": "relu",
                 "normalization_type": "LN",
                 "device": "cpu",
                 "seed": 42,
                 "d_vocab": MISSING,
+                "n_ctx": MISSING,
             }
         )
         with pytest.raises(ConfigValidationError, match="d_model.*must be divisible by n_heads"):
@@ -970,13 +970,13 @@ class TestPredictiveModelConfig:
                 "d_head": 30,
                 "n_heads": 4,
                 "n_layers": 2,
-                "n_ctx": 256,
                 "d_mlp": 512,
                 "act_fn": "relu",
                 "normalization_type": "LN",
                 "device": "cpu",
                 "seed": 42,
                 "d_vocab": MISSING,
+                "n_ctx": MISSING,
             }
         )
         with pytest.raises(ConfigValidationError, match="d_head.*n_heads.*must equal d_model"):
@@ -994,13 +994,13 @@ class TestPredictiveModelConfig:
                         "d_head": 32,
                         "n_heads": 4,
                         "n_layers": 2,
-                        "n_ctx": 256,
                         "d_mlp": 512,
                         "act_fn": "relu",
                         "normalization_type": "LN",
                         "device": "cpu",
                         "seed": 42,
                         "d_vocab": MISSING,
+                        "n_ctx": MISSING,
                     }
                 ),
             }
@@ -1018,13 +1018,13 @@ class TestPredictiveModelConfig:
                         "d_head": 32,
                         "n_heads": 4,
                         "n_layers": 2,
-                        "n_ctx": 256,
                         "d_mlp": 512,
                         "act_fn": "relu",
                         "normalization_type": "LN",
                         "device": "cpu",
                         "seed": 42,
                         "d_vocab": MISSING,
+                        "n_ctx": MISSING,
                     }
                 ),
             }

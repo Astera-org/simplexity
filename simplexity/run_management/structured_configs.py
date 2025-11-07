@@ -356,13 +356,13 @@ class HookedTransformerConfigConfig:
     d_head: int
     n_heads: int
     n_layers: int
-    n_ctx: int
     d_mlp: int
     act_fn: str | None
     normalization_type: str | None
     device: str | None
     seed: int
     d_vocab: int = MISSING
+    n_ctx: int = MISSING
 
 
 def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
@@ -375,20 +375,24 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
     d_head = cfg.get("d_head")
     n_heads = cfg.get("n_heads")
     n_layers = cfg.get("n_layers")
-    n_ctx = cfg.get("n_ctx")
     d_mlp = cfg.get("d_mlp")
     d_vocab = cfg.get("d_vocab")
+    n_ctx = cfg.get("n_ctx")
 
     _validate_positive_int(d_model, "HookedTransformerConfigConfig.d_model")
     _validate_positive_int(d_head, "HookedTransformerConfigConfig.d_head")
     _validate_positive_int(n_heads, "HookedTransformerConfigConfig.n_heads")
     _validate_positive_int(n_layers, "HookedTransformerConfigConfig.n_layers")
-    _validate_positive_int(n_ctx, "HookedTransformerConfigConfig.n_ctx")
     _validate_positive_int(d_mlp, "HookedTransformerConfigConfig.d_mlp")
     if OmegaConf.is_missing(cfg, "d_vocab"):
         SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab is missing, will be resolved dynamically")
     else:
         _validate_positive_int(d_vocab, "HookedTransformerConfigConfig.d_vocab")
+    if OmegaConf.is_missing(cfg, "n_ctx"):
+        SIMPLEXITY_LOGGER.debug("[predictive model] n_ctx is missing, will be resolved dynamically")
+    else:
+        _validate_positive_int(n_ctx, "HookedTransformerConfigConfig.n_ctx")
+
     # Validate d_model is divisible by n_heads
     if d_model % n_heads != 0:
         raise ConfigValidationError(

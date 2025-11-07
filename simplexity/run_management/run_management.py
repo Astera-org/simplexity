@@ -37,7 +37,6 @@ from simplexity.run_management.structured_configs import (
     GenerativeProcessConfig,
     HookedTransformerConfig,
     MLFlowConfig,
-    TrainingConfig,
     is_generative_process_target,
     is_hooked_transformer_config,
     is_logger_target,
@@ -351,7 +350,7 @@ def _get_persister(persisters: dict[str, ModelPersister] | None) -> ModelPersist
     return None
 
 
-def _get_vocab_size(cfg: DictConfig, instance_keys: list[str]) -> int | None:
+def _get_attribute_value(cfg: DictConfig, instance_keys: list[str], attribute_name: str) -> int | None:
     """Get the vocab size."""
     instance_keys = filter_instance_keys(
         cfg,
@@ -360,28 +359,42 @@ def _get_vocab_size(cfg: DictConfig, instance_keys: list[str]) -> int | None:
         validate_fn=validate_generative_process_config,
         component_name="generative process",
     )
-    vocab_size: int | None = None
+    attribute_value: int | None = None
     for instance_key in instance_keys:
         config_key = instance_key.rsplit(".", 1)[0]
         generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key, throw_on_missing=True)
         if generative_process_config is None:
             raise RuntimeError("Error selecting generative process config")
-        new_vocab_size: int = generative_process_config.get("vocab_size")
-        if vocab_size is None:
-            vocab_size = new_vocab_size
-        elif new_vocab_size != vocab_size:
+        new_attribute_value: int = generative_process_config.get(attribute_name)
+        if attribute_value is None:
+            attribute_value = new_attribute_value
+        elif new_attribute_value != attribute_value:
             SIMPLEXITY_LOGGER.warning(
-                "[generative process] Multiple generative processes with conflicting base vocab sizes"
+                f"[generative process] Multiple generative processes with conflicting {attribute_name} values"
             )
             return None
-    return vocab_size
+    return attribute_value
 
 
 @dynamic_resolve
-def _resolve_hooked_transformer_config(cfg: HookedTransformerConfig, *, vocab_size: int) -> None:
+def _resolve_hooked_transformer_config(
+    cfg: HookedTransformerConfig,
+    *,
+    vocab_size: int | None,
+    bos_token: int | None,
+    eos_token: int | None,
+    sequence_len: int | None,
+) -> None:
     """Resolve the HookedTransformerConfig."""
-    cfg.cfg.d_vocab = vocab_size
-    SIMPLEXITY_LOGGER.info(f"[predictive model] d_vocab resolved to: {vocab_size}")
+    if OmegaConf.is_missing(cfg.cfg, "d_vocab") and vocab_size is not None:
+        cfg.cfg.d_vocab = vocab_size
+        SIMPLEXITY_LOGGER.info(f"[predictive model] d_vocab resolved to: {vocab_size}")
+    if OmegaConf.is_missing(cfg.cfg, "n_ctx") and sequence_len is not None:
+        use_bos = bos_token is not None
+        use_eos = eos_token is not None
+        n_ctx = sequence_len + int(use_bos) + int(use_eos) - 1
+        cfg.cfg.n_ctx = n_ctx
+        SIMPLEXITY_LOGGER.info(f"[predictive model] n_ctx resolved to: {n_ctx}")
     cfg.cfg.device = resolve_device(cfg.cfg.device)
     SIMPLEXITY_LOGGER.info(f"[predictive model] device resolved to: {cfg.cfg.device}")
 
@@ -418,9 +431,17 @@ def _setup_predictive_models(
     for instance_key in model_instance_keys:
         instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
         if instance_config and is_hooked_transformer_config(instance_config):
-            vocab_size = _get_vocab_size(cfg, instance_keys)
-            if vocab_size:
-                _resolve_hooked_transformer_config(instance_config, vocab_size=vocab_size)
+            vocab_size = _get_attribute_value(cfg, instance_keys, "vocab_size")
+            bos_token = _get_attribute_value(cfg, instance_keys, "bos_token")
+            eos_token = _get_attribute_value(cfg, instance_keys, "eos_token")
+            sequence_len = _get_attribute_value(cfg, instance_keys, "sequence_len")
+            _resolve_hooked_transformer_config(
+                instance_config,
+                vocab_size=vocab_size,
+                bos_token=bos_token,
+                eos_token=eos_token,
+                sequence_len=sequence_len,
+            )
         model = _instantiate_predictive_model(cfg, instance_key)
         step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
         load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
@@ -479,54 +500,6 @@ def _setup_optimizers(
     return None
 
 
-def _get_special_token(cfg: DictConfig, instance_keys: list[str], token: str) -> int | None:
-    instance_keys = filter_instance_keys(
-        cfg,
-        instance_keys,
-        is_generative_process_target,
-        validate_fn=validate_generative_process_config,
-        component_name="generative process",
-    )
-    token_value: int | None = None
-    for instance_key in instance_keys:
-        config_key = instance_key.rsplit(".", 1)[0]
-        generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key, throw_on_missing=True)
-        if generative_process_config is None:
-            raise RuntimeError("Error selecting generative process config")
-        new_token_value: int = generative_process_config.get(f"{token}_token")
-        if token_value is None:
-            token_value = new_token_value
-        elif new_token_value != token_value:
-            SIMPLEXITY_LOGGER.warning(
-                f"[generative process] Multiple generative processes with conflicting {token} token values"
-            )
-            return None
-    return token_value
-
-
-@dynamic_resolve
-def _resolve_training_config(cfg: TrainingConfig, *, n_ctx: int, use_bos: bool, use_eos: bool) -> None:
-    """Resolve the TrainingConfig."""
-    if OmegaConf.is_missing(cfg, "sequence_len"):
-        sequence_len = n_ctx + 1 - int(use_bos) - int(use_eos)
-        cfg.sequence_len = sequence_len
-        SIMPLEXITY_LOGGER.info(f"[training] sequence len resolved to: {sequence_len}")
-    else:
-        SIMPLEXITY_LOGGER.info(f"[training] sequence len defined as: {cfg.sequence_len}")
-
-
-def _setup_training(cfg: DictConfig, instance_keys: list[str]) -> None:
-    training_config: TrainingConfig | None = cfg.get("training", None)
-    if training_config:
-        n_ctx: int = OmegaConf.select(
-            cfg,
-            "predictive_model.instance.cfg.n_ctx",  # TODO: make more flexible
-        )
-        use_bos = _get_special_token(cfg, instance_keys, "bos") is not None
-        use_eos = _get_special_token(cfg, instance_keys, "eos") is not None
-        _resolve_training_config(training_config, n_ctx=n_ctx, use_bos=use_bos, use_eos=use_eos)
-
-
 def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, verbose: bool) -> None:
     if loggers is None:
         return
@@ -561,7 +534,6 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.persisters = _setup_persisters(cfg, instance_keys)
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
-    _setup_training(cfg, instance_keys)
     _do_logging(cfg, components.loggers, verbose)
     return components
 
