@@ -15,3 +15,19 @@ tags:
   retention: temp
   example_tag_1: value1
   example_tag_2: value2
+
+load_configs:
+  - tracking_uri: databricks
+    experiment_name: /Shared/managed_run_demo_20251106_045326
+    run_name: managed_run_demo_20251106_045326
+    artifact_path: config.yaml
+    configs:
+      predictive_model: old_model_1
+      generative_process: old_generative_process_1
+  - tracking_uri: databricks
+    experiment_name: /Shared/managed_run_demo_20251105_003639
+    run_name: managed_run_demo_20251105_003639
+    artifact_path: config.yaml
+    configs:
+      predictive_model: old_model_2
+      generative_process: old_generative_process_2
