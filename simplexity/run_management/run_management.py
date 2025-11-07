@@ -34,9 +34,6 @@ from simplexity.run_management.run_logging import (
     log_system_info,
 )
 from simplexity.run_management.structured_configs import (
-    GenerativeProcessConfig,
-    HookedTransformerConfig,
-    MLFlowConfig,
     is_generative_process_target,
     is_hooked_transformer_config,
     is_logger_target,
@@ -165,46 +162,47 @@ def _assert_tagged(cfg: DictConfig) -> None:
 
 
 def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
-    mlflow_config: MLFlowConfig | None = cfg.get("mlflow", None)
+    mlflow_config: DictConfig | None = cfg.get("mlflow", None)
     if mlflow_config:
-        if mlflow_config.tracking_uri:
-            mlflow.set_tracking_uri(mlflow_config.tracking_uri)
+        experiment_name: str | None = mlflow_config.get("experiment_name", None)
+        assert experiment_name is not None, "Experiment name must be set"
+        run_name: str | None = mlflow_config.get("run_name", None)
+        assert run_name is not None, "Run name must be set"
+        tracking_uri: str | None = mlflow_config.get("tracking_uri", None)
+        registry_uri: str | None = mlflow_config.get("registry_uri", None)
+        downgrade_unity_catalog: bool = mlflow_config.get("downgrade_unity_catalog", True)
+        if tracking_uri:
+            mlflow.set_tracking_uri(tracking_uri)
             SIMPLEXITY_LOGGER.info(f"[mlflow] tracking uri: {mlflow.get_tracking_uri()}")
-        downgrade_unity_catalog = (
-            mlflow_config.downgrade_unity_catalog if mlflow_config.downgrade_unity_catalog is not None else True
-        )
         resolved_registry_uri = resolve_registry_uri(
-            registry_uri=mlflow_config.registry_uri,
-            tracking_uri=mlflow_config.tracking_uri,
+            registry_uri=registry_uri,
+            tracking_uri=tracking_uri,
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         if resolved_registry_uri:
             mlflow.set_registry_uri(resolved_registry_uri)
             SIMPLEXITY_LOGGER.info(f"[mlflow] registry uri: {mlflow.get_registry_uri()}")
-        experiment_id = get_experiment_id(mlflow_config.experiment_name)
+        experiment_id = get_experiment_id(experiment_name)
         runs = mlflow.search_runs(
             experiment_ids=[experiment_id],
-            filter_string=f"attributes.run_name = '{mlflow_config.run_name}'",
+            filter_string=f"attributes.run_name = '{run_name}'",
             max_results=1,
             output_format="list",
         )
         assert isinstance(runs, list)
         if runs:
             run_id = runs[0].info.run_id
-            SIMPLEXITY_LOGGER.info(
-                f"[mlflow] run with name '{mlflow_config.run_name}' already exists with id: {run_id}"
-            )
+            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' already exists with id: {run_id}")
         else:
             run_id = None
-            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{mlflow_config.run_name}' does not yet exist")
+            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' does not yet exist")
         SIMPLEXITY_LOGGER.info(
-            f"[mlflow] starting run with: "
-            f"{{id: {run_id}, experiment id: {experiment_id}, run name: {mlflow_config.run_name}}}"
+            f"[mlflow] starting run with: {{id: {run_id}, experiment id: {experiment_id}, run name: {run_name}}}"
         )
         return mlflow.start_run(
             run_id=run_id,
             experiment_id=experiment_id,
-            run_name=mlflow_config.run_name,
+            run_name=run_name,
             log_system_metrics=True,
         )
     return nullcontext()
@@ -266,7 +264,7 @@ def _create_initial_state(generative_process: GenerativeProcess, batch_size: int
 
 
 @dynamic_resolve
-def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_size: int) -> None:
+def _resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) -> None:
     """Resolve the GenerativeProcessConfig."""
     cfg.base_vocab_size = base_vocab_size
     SIMPLEXITY_LOGGER.info(f"[generative process] Base vocab size: {base_vocab_size}")
@@ -275,14 +273,16 @@ def _resolve_generative_process_config(cfg: GenerativeProcessConfig, base_vocab_
         cfg.bos_token = vocab_size
         SIMPLEXITY_LOGGER.info(f"[generative process] BOS token resolved to: {cfg.bos_token}")
         vocab_size += 1
-    elif cfg.bos_token is not None:
-        SIMPLEXITY_LOGGER.info(f"[generative process] BOS token defined as: {cfg.bos_token}")
+    elif cfg.get("bos_token", None) is not None:
+        bos_token = cfg.get("bos_token")
+        SIMPLEXITY_LOGGER.info(f"[generative process] BOS token defined as: {bos_token}")
     if OmegaConf.is_missing(cfg, "eos_token"):
         cfg.eos_token = vocab_size
         SIMPLEXITY_LOGGER.info(f"[generative process] EOS token resolved to: {cfg.eos_token}")
         vocab_size += 1
-    elif cfg.eos_token is not None:
-        SIMPLEXITY_LOGGER.info(f"[generative process] EOS token defined as: {cfg.eos_token}")
+    elif cfg.get("eos_token", None) is not None:
+        eos_token = cfg.get("eos_token")
+        SIMPLEXITY_LOGGER.info(f"[generative process] EOS token defined as: {eos_token}")
     cfg.vocab_size = vocab_size
     SIMPLEXITY_LOGGER.info(f"[generative process] Total vocab size: {vocab_size}")
 
@@ -303,15 +303,14 @@ def _setup_generative_processes(
         for instance_key in instance_keys:
             generative_process = _instantiate_generative_process(cfg, instance_key)
             config_key = instance_key.rsplit(".", 1)[0]
-            generative_process_config: GenerativeProcessConfig | None = OmegaConf.select(cfg, config_key)
+            generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key)
             if generative_process_config is None:
                 raise RuntimeError("Error selecting generative process config")
             base_vocab_size = generative_process.vocab_size
             _resolve_generative_process_config(generative_process_config, base_vocab_size)
             generative_processes[instance_key] = generative_process
-            initial_states[instance_key] = _create_initial_state(
-                generative_process, generative_process_config.batch_size
-            )
+            batch_size = generative_process_config.get("batch_size", None)
+            initial_states[instance_key] = _create_initial_state(generative_process, batch_size)
         return generative_processes, initial_states
     SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
     return None, None
@@ -379,7 +378,7 @@ def _get_attribute_value(cfg: DictConfig, instance_keys: list[str], attribute_na
 
 @dynamic_resolve
 def _resolve_hooked_transformer_config(
-    cfg: HookedTransformerConfig,
+    cfg: DictConfig,
     *,
     vocab_size: int | None,
     bos_token: int | None,
@@ -387,17 +386,18 @@ def _resolve_hooked_transformer_config(
     sequence_len: int | None,
 ) -> None:
     """Resolve the HookedTransformerConfig."""
-    if OmegaConf.is_missing(cfg.cfg, "d_vocab") and vocab_size is not None:
-        cfg.cfg.d_vocab = vocab_size
+    if OmegaConf.is_missing(cfg, "d_vocab") and vocab_size is not None:
+        cfg.d_vocab = vocab_size
         SIMPLEXITY_LOGGER.info(f"[predictive model] d_vocab resolved to: {vocab_size}")
-    if OmegaConf.is_missing(cfg.cfg, "n_ctx") and sequence_len is not None:
+    if OmegaConf.is_missing(cfg, "n_ctx") and sequence_len is not None:
         use_bos = bos_token is not None
         use_eos = eos_token is not None
         n_ctx = sequence_len + int(use_bos) + int(use_eos) - 1
-        cfg.cfg.n_ctx = n_ctx
+        cfg.n_ctx = n_ctx
         SIMPLEXITY_LOGGER.info(f"[predictive model] n_ctx resolved to: {n_ctx}")
-    cfg.cfg.device = resolve_device(cfg.cfg.device)
-    SIMPLEXITY_LOGGER.info(f"[predictive model] device resolved to: {cfg.cfg.device}")
+    device: str | None = cfg.get("device", None)
+    cfg.device = resolve_device(device)
+    SIMPLEXITY_LOGGER.info(f"[predictive model] device resolved to: {cfg.device}")
 
 
 def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
@@ -430,14 +430,17 @@ def _setup_predictive_models(
     models = {}
     model_instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
     for instance_key in model_instance_keys:
-        instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+        instance_config: DictConfig | None = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
         if instance_config and is_hooked_transformer_config(instance_config):
+            instance_config_config: DictConfig | None = instance_config.get("cfg", None)
+            if instance_config_config is None:
+                raise RuntimeError("Error selecting predictive model config")
             vocab_size = _get_attribute_value(cfg, instance_keys, "vocab_size")
             bos_token = _get_attribute_value(cfg, instance_keys, "bos_token")
             eos_token = _get_attribute_value(cfg, instance_keys, "eos_token")
             sequence_len = _get_attribute_value(cfg, instance_keys, "sequence_len")
             _resolve_hooked_transformer_config(
-                instance_config,
+                instance_config_config,
                 vocab_size=vocab_size,
                 bos_token=bos_token,
                 eos_token=eos_token,
