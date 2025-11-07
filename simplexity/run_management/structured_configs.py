@@ -32,18 +32,24 @@ def _validate_optional_name(name: str | None, config_name: str, field_name: str 
         raise ConfigValidationError(f"{config_name}.{field_name} must be None or a non-empty string")
 
 
-def _validate_positive_int(value: Any, field_name: str) -> None:
+def _validate_positive_int(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a value is a positive integer."""
+    if is_none_allowed and value is None:
+        return
     if not isinstance(value, int):
-        raise ConfigValidationError(f"{field_name} must be an int, got {type(value)}")
+        allowed_types = "an int or None" if is_none_allowed else "an int"
+        raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
     if value <= 0:
         raise ConfigValidationError(f"{field_name} must be positive, got {value}")
 
 
-def _validate_non_negative_int(value: Any, field_name: str) -> None:
+def _validate_non_negative_int(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a value is a non-negative integer."""
+    if is_none_allowed and value is None:
+        return
     if not isinstance(value, int):
-        raise ConfigValidationError(f"{field_name} must be an int, got {type(value)}")
+        allowed_types = "an int or None" if is_none_allowed else "an int"
+        raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
     if value < 0:
         raise ConfigValidationError(f"{field_name} must be non-negative, got {value}")
 
@@ -236,10 +242,13 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     eos_token = cfg.get("eos_token")
     vocab_size = cfg.get("vocab_size")
 
+    if not OmegaConf.is_missing(cfg, "vocab_size"):
+        _validate_positive_int(vocab_size, "GenerativeProcessConfig.vocab_size")
+
     if OmegaConf.is_missing(cfg, "bos_token"):
         SIMPLEXITY_LOGGER.debug("[generative process] bos token is missing, will be resolved dynamically")
     elif bos_token is not None:
-        _validate_non_negative_int(bos_token, "GenerativeProcessConfig.bos_token")
+        _validate_non_negative_int(bos_token, "GenerativeProcessConfig.bos_token", is_none_allowed=True)
         if not OmegaConf.is_missing(cfg, "vocab_size") and bos_token >= vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.bos_token ({bos_token}) must be < vocab_size ({vocab_size})"
@@ -248,7 +257,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     if OmegaConf.is_missing(cfg, "eos_token"):
         SIMPLEXITY_LOGGER.debug("[generative process] eos token is missing, will be resolved dynamically")
     elif eos_token is not None:
-        _validate_non_negative_int(eos_token, "GenerativeProcessConfig.eos_token")
+        _validate_non_negative_int(eos_token, "GenerativeProcessConfig.eos_token", is_none_allowed=True)
         if not OmegaConf.is_missing(cfg, "vocab_size") and eos_token >= vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.eos_token ({eos_token}) must be < vocab_size ({vocab_size})"
@@ -267,7 +276,6 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     if OmegaConf.is_missing(cfg, "vocab_size"):
         SIMPLEXITY_LOGGER.debug("[generative process] vocab size is missing, will be resolved dynamically")
     else:
-        _validate_positive_int(vocab_size, "GenerativeProcessConfig.vocab_size")
         # Only validate consistency if base_vocab_size is also resolved
         if not OmegaConf.is_missing(cfg, "base_vocab_size"):
             _validate_positive_int(base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
@@ -455,7 +463,7 @@ def validate_model_config(cfg: DictConfig) -> None:
     _validate_optional_name(cfg.get("name"), "ModelConfig")
     load_checkpoint_step = cfg.get("load_checkpoint_step")
     if load_checkpoint_step is not None:
-        _validate_non_negative_int(load_checkpoint_step, "ModelConfig.load_checkpoint_step")
+        _validate_non_negative_int(load_checkpoint_step, "ModelConfig.load_checkpoint_step", is_none_allowed=True)
 
 
 # ============================================================================
@@ -550,24 +558,21 @@ def validate_training_config(cfg: DictConfig) -> None:
 
     _validate_positive_int(num_steps, "TrainingConfig.num_steps")
 
-    if log_every is not None:
-        _validate_non_negative_int(log_every, "TrainingConfig.log_every")
-        if log_every > num_steps:
-            raise ConfigValidationError(f"TrainingConfig.log_every ({log_every}) must be <= num_steps ({num_steps})")
+    _validate_positive_int(log_every, "TrainingConfig.log_every", is_none_allowed=True)
+    if log_every is not None and log_every > num_steps:
+        raise ConfigValidationError(f"TrainingConfig.log_every ({log_every}) must be <= num_steps ({num_steps})")
 
-    if validate_every is not None:
-        _validate_non_negative_int(validate_every, "TrainingConfig.validate_every")
-        if validate_every > num_steps:
-            raise ConfigValidationError(
-                f"TrainingConfig.validate_every ({validate_every}) must be <= num_steps ({num_steps})"
-            )
+    _validate_positive_int(validate_every, "TrainingConfig.validate_every", is_none_allowed=True)
+    if validate_every is not None and validate_every > num_steps:
+        raise ConfigValidationError(
+            f"TrainingConfig.validate_every ({validate_every}) must be <= num_steps ({num_steps})"
+        )
 
-    if checkpoint_every is not None:
-        _validate_non_negative_int(checkpoint_every, "TrainingConfig.checkpoint_every")
-        if checkpoint_every > num_steps:
-            raise ConfigValidationError(
-                f"TrainingConfig.checkpoint_every ({checkpoint_every}) must be <= num_steps ({num_steps})"
-            )
+    _validate_positive_int(checkpoint_every, "TrainingConfig.checkpoint_every", is_none_allowed=True)
+    if checkpoint_every is not None and checkpoint_every > num_steps:
+        raise ConfigValidationError(
+            f"TrainingConfig.checkpoint_every ({checkpoint_every}) must be <= num_steps ({num_steps})"
+        )
 
     # Validate optimizer config
     if optimizer is None:
