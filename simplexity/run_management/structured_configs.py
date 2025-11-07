@@ -64,11 +64,6 @@ class InstanceConfig:
 
     _target_: str
 
-    def __init__(self, _target_: str, **kwargs: Any):
-        self._target_ = _target_
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
 
 def _validate_instance_config(cfg: DictConfig) -> None:
     """Validate an InstanceConfig.

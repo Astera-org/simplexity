@@ -1,10 +1,12 @@
 import re
+from dataclasses import dataclass
 
 import pytest
-from omegaconf import MISSING, DictConfig
+from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.run_management.structured_configs import (
+    InstanceConfig,
     is_generative_process_config,
     is_generative_process_target,
     is_hooked_transformer_config,
@@ -27,6 +29,34 @@ from simplexity.run_management.structured_configs import (
     validate_optimizer_config,
     validate_persistence_config,
 )
+
+
+class TestInstanceConfig:
+    def test_instance_config(self):
+        """Test instance config."""
+        cfg: DictConfig = OmegaConf.structured(InstanceConfig(_target_="some_target"))
+        assert cfg.get("_target_") == "some_target"
+
+    def test_instance_derived_config(self):
+        """Test instance config."""
+
+        @dataclass
+        class SomeInstance(InstanceConfig):
+            """Some instance config."""
+
+            other_key: str
+            default_attribute: int = 42
+
+        cfg: DictConfig = OmegaConf.structured(
+            SomeInstance(
+                _target_="some_target",
+                other_key="other_value",
+            )
+        )
+        assert cfg.get("_target_") == "some_target"
+        assert cfg.get("other_key") == "other_value"
+        assert cfg.get("default_attribute") == 42
+
 
 # ============================================================================
 # MLFlow Config Tests
