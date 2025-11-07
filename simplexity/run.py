@@ -7,17 +7,14 @@ from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.predictive_models.predictive_model import PredictiveModel
-from simplexity.run_management.structured_configs import MainConfig as Config
-from simplexity.run_management.structured_configs import validate_config
 from simplexity.training.train_model import train
 from simplexity.utils.config_utils import typed_instantiate
 
 
 @hydra.main(config_path="configs", config_name="train_model.yaml", version_base="1.2")
-def train_model(cfg: Config) -> float:
+def train_model(cfg: DictConfig) -> float:
     """Train a model."""
     assert isinstance(cfg, DictConfig)
-    validate_config(cfg)
 
     if cfg.logging:
         logger = typed_instantiate(cfg.logging.instance, Logger)
