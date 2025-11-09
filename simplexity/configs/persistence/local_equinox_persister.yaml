@@ -1,6 +1,0 @@
-name: local_equinox_persister
-
-instance:
-  _target_: simplexity.persistence.local_equinox_persister.LocalEquinoxPersister
-  directory: ./data/models
-  filename: model.eqx
