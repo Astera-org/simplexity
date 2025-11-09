@@ -262,7 +262,7 @@ class TestLoggerConfig:
 
         # Instance with empty _target_
         cfg = DictConfig({"instance": DictConfig({"_target_": ""})})
-        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty"):
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty or whitespace"):
             validate_logging_config(cfg)
 
         # Instance with non-string _target_
@@ -885,7 +885,7 @@ class TestPersistenceConfig:
 
         # Instance with empty _target_
         cfg = DictConfig({"instance": DictConfig({"_target_": ""})})
-        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty"):
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty or whitespace"):
             validate_persistence_config(cfg)
 
         # Instance with non-string _target_
@@ -1310,7 +1310,7 @@ class TestHookedTransformerConfig:
 
         # Instance with empty _target_
         cfg = DictConfig({"instance": DictConfig({"_target_": ""})})
-        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty"):
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty or whitespace"):
             validate_model_config(cfg)
 
         # Instance with non-string _target_
@@ -1530,7 +1530,7 @@ class TestOptimizerConfig:
 
         # Instance with empty _target_
         cfg = DictConfig({"instance": DictConfig({"_target_": ""})})
-        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty"):
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty or whitespace"):
             validate_optimizer_config(cfg)
 
         # Instance with non-string _target_
