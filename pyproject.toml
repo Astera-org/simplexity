@@ -19,7 +19,6 @@ dependencies = [
     "hydra-core",
     "hydra-optuna-sweeper",
     "jax>=0.8.0",
-    "jupyter",
     "matplotlib",
     "mlflow>=3.0.0",
     "optax",
