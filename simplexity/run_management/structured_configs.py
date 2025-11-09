@@ -6,7 +6,7 @@ scattered across various config.py files in the configs directory.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 from urllib.parse import urlparse
 
 from omegaconf import MISSING, DictConfig, OmegaConf
@@ -346,7 +346,6 @@ def validate_persistence_config(cfg: DictConfig) -> None:
 class HookedTransformerConfigConfig:
     """Configuration for HookedTransformerConfig."""
 
-    _target_: Literal["transformer_lens.HookedTransformerConfig"]
     n_layers: int
     d_model: int
     d_head: int
@@ -358,6 +357,7 @@ class HookedTransformerConfigConfig:
     normalization_type: str | None = "LN"
     device: str | None = None
     seed: int | None = None
+    _target_: str = "transformer_lens.HookedTransformerConfig"
 
 
 def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
@@ -410,6 +410,10 @@ class HookedTransformerConfig(InstanceConfig):
     """Configuration for Transformer model."""
 
     cfg: HookedTransformerConfigConfig
+
+    def __init__(self, cfg: HookedTransformerConfigConfig, _target_: str = "transformer_lens.HookedTransformer"):
+        super().__init__(_target_=_target_)
+        self.cfg = cfg
 
 
 def validate_hooked_transformer_config(cfg: DictConfig) -> None:

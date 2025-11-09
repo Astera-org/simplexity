@@ -6,7 +6,15 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.run_management.structured_configs import (
+    GenerativeProcessConfig,
+    HookedTransformerConfig,
+    HookedTransformerConfigConfig,
     InstanceConfig,
+    LoggingConfig,
+    MLFlowConfig,
+    ModelConfig,
+    OptimizerConfig,
+    PersistenceConfig,
     is_generative_process_config,
     is_generative_process_target,
     is_hooked_transformer_config,
@@ -32,13 +40,15 @@ from simplexity.run_management.structured_configs import (
 
 
 class TestInstanceConfig:
+    """Test InstanceConfig."""
+
     def test_instance_config(self):
-        """Test instance config."""
+        """Test creating instance config from dataclass."""
         cfg: DictConfig = OmegaConf.structured(InstanceConfig(_target_="some_target"))
         assert cfg.get("_target_") == "some_target"
 
     def test_instance_derived_config(self):
-        """Test instance config."""
+        """Test creating a child instance config from dataclass."""
 
         @dataclass
         class SomeInstance(InstanceConfig):
@@ -64,6 +74,15 @@ class TestInstanceConfig:
 
 
 class TestMLFlowConfig:
+    def test_mlflow_config(self):
+        """Test creating mlflow config from dataclass."""
+        cfg: DictConfig = OmegaConf.structured(MLFlowConfig(experiment_name="some_experiment", run_name="some_run"))
+        assert cfg.get("experiment_name") == "some_experiment"
+        assert cfg.get("run_name") == "some_run"
+        assert cfg.get("tracking_uri") is None
+        assert cfg.get("registry_uri") is None
+        assert cfg.get("downgrade_unity_catalog") is None
+
     def test_validate_mlflow_config_valid(self):
         """Test validate_mlflow_config with valid configs."""
         cfg = DictConfig(
@@ -116,6 +135,12 @@ class TestMLFlowConfig:
 
 
 class TestLoggerConfig:
+    def test_logging_config(self):
+        """Test creating logger config from dataclass."""
+        cfg: DictConfig = OmegaConf.structured(LoggingConfig(instance=InstanceConfig(_target_="some_target")))
+        assert OmegaConf.select(cfg, "instance._target_") == "some_target"
+        assert cfg.get("name") is None
+
     def test_is_logger_target_valid(self):
         """Test is_logger_target with valid logger targets."""
         assert is_logger_target("simplexity.logging.file_logger.FileLogger")
@@ -296,6 +321,28 @@ class TestLoggerConfig:
 
 
 class TestGenerativeProcessConfig:
+    """Test GenerativeProcessConfig."""
+
+    def test_generative_process_config(self):
+        """Test creating generative process config from dataclass."""
+        cfg: DictConfig = OmegaConf.structured(
+            GenerativeProcessConfig(
+                instance=InstanceConfig(_target_="some_target"),
+                base_vocab_size=3,
+                bos_token=None,
+                eos_token=None,
+                vocab_size=3,
+            )
+        )
+        assert OmegaConf.select(cfg, "instance._target_") == "some_target"
+        assert cfg.get("name") is None
+        assert cfg.get("base_vocab_size") == 3
+        assert cfg.get("bos_token") is None
+        assert cfg.get("eos_token") is None
+        assert cfg.get("vocab_size") == 3
+        assert cfg.get("sequence_len") is None
+        assert cfg.get("batch_size") is None
+
     def test_is_generative_process_target_valid(self):
         """Test is_generative_process_target with valid generative process targets."""
         assert is_generative_process_target("simplexity.generative_processes.hidden_markov_model.HiddenMarkovModel")
@@ -719,6 +766,14 @@ class TestGenerativeProcessConfig:
 
 
 class TestPersistenceConfig:
+    """Test PersistenceConfig."""
+
+    def test_persistence_config(self):
+        """Test creating persistence config from dataclass."""
+        cfg: DictConfig = OmegaConf.structured(PersistenceConfig(instance=InstanceConfig(_target_="some_target")))
+        assert OmegaConf.select(cfg, "instance._target_") == "some_target"
+        assert cfg.get("name") is None
+
     def test_is_model_persister_target_valid(self):
         """Test is_model_persister_target with valid persister targets."""
         assert is_model_persister_target("simplexity.persistence.mlflow_persister.MLFlowPersister")
@@ -890,7 +945,40 @@ class TestPersistenceConfig:
 # ============================================================================
 
 
-class TestPredictiveModelConfig:
+class TestHookedTransformerConfig:
+    """Test PredictiveModelConfig."""
+
+    def test_hooked_transformer_config(self):
+        """Test creating hooked transformer config from dataclass."""
+        cfg: DictConfig = OmegaConf.structured(
+            ModelConfig(
+                instance=HookedTransformerConfig(
+                    cfg=HookedTransformerConfigConfig(
+                        n_layers=2,
+                        d_model=128,
+                        d_head=32,
+                        n_ctx=16,
+                        d_vocab=3,
+                    ),
+                )
+            )
+        )
+        assert OmegaConf.select(cfg, "instance._target_") == "transformer_lens.HookedTransformer"
+        assert OmegaConf.select(cfg, "instance.cfg._target_") == "transformer_lens.HookedTransformerConfig"
+        assert OmegaConf.select(cfg, "instance.cfg.n_layers") == 2
+        assert OmegaConf.select(cfg, "instance.cfg.d_model") == 128
+        assert OmegaConf.select(cfg, "instance.cfg.d_head") == 32
+        assert OmegaConf.select(cfg, "instance.cfg.n_ctx") == 16
+        assert OmegaConf.select(cfg, "instance.cfg.n_heads") == -1
+        assert OmegaConf.select(cfg, "instance.cfg.d_mlp") is None
+        assert OmegaConf.select(cfg, "instance.cfg.d_vocab") == 3
+        assert OmegaConf.select(cfg, "instance.cfg.act_fn") is None
+        assert OmegaConf.select(cfg, "instance.cfg.normalization_type") == "LN"
+        assert OmegaConf.select(cfg, "instance.cfg.device") is None
+        assert OmegaConf.select(cfg, "instance.cfg.seed") is None
+        assert cfg.get("name") is None
+        assert cfg.get("load_checkpoint_step") is None
+
     def test_validate_hooked_transformer_config_config_valid(self):
         """Test validate_hooked_transformer_config_config with valid configs."""
         # Test with minimal config (n_heads defaults to -1)
@@ -1305,6 +1393,12 @@ class TestPredictiveModelConfig:
 
 
 class TestOptimizerConfig:
+    def test_optimizer_config(self):
+        """Test creating optimizer config from dataclass."""
+        cfg: DictConfig = OmegaConf.structured(OptimizerConfig(instance=InstanceConfig(_target_="some_target")))
+        assert OmegaConf.select(cfg, "instance._target_") == "some_target"
+        assert cfg.get("name") is None
+
     def test_is_optimizer_target_valid(self):
         """Test is_optimizer_target with valid optimizer targets."""
         assert is_optimizer_target("torch.optim.Adam")
