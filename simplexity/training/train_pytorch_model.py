@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import jax
 import jax.numpy as jnp
 
@@ -7,6 +9,7 @@ from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
+from simplexity.metrics.metric_tracker import TrainingMetricTracker
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.pytorch_utils import torch_to_jax
@@ -30,6 +33,11 @@ def train(
     training_eos_token: int | None = None,
     validation_bos_token: int | None = None,
     validation_eos_token: int | None = None,
+    *,
+    initial_loss: float | None = None,
+    optimal_loss: float | None = None,
+    metric_tracker: TrainingMetricTracker | None = None,
+    lr_schedule_fn: Callable[[int], float] | None = None,
 ) -> tuple[torch.nn.Module, float]:
     """Train a PyTorch model on a generative process."""
     key = jax.random.PRNGKey(training_cfg.seed)
@@ -38,6 +46,13 @@ def train(
 
     gen_state = training_data_generator.initial_state
     gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
+    tracker = metric_tracker or TrainingMetricTracker(
+        model=model,
+        optimizer=optimizer,
+        initial_loss=initial_loss,
+        optimal_loss=optimal_loss,
+        lr_schedule_fn=lr_schedule_fn,
+    )
     loss_value = 0.0
 
     for step in range(1, training_cfg.num_steps + 1):
@@ -60,15 +75,18 @@ def train(
         vocab_size = logits.shape[2]
         logits_reshaped = logits.view(-1, vocab_size)
         labels_reshaped = labels.view(-1).long()  # Ensure labels are long type for cross entropy
+        tokens_in_batch = int(labels_reshaped.shape[0])
 
         loss_tensor = F.cross_entropy(logits_reshaped, labels_reshaped)
         loss = torch_to_jax(loss_tensor).item()
-        loss_value = loss
 
         loss_tensor.backward()
         optimizer.step()
 
-        metrics = {"loss": loss}
+        if tracker.initial_loss is None:
+            tracker.record_initial_loss(loss)
+        metrics = tracker.update(step=step, loss=loss_tensor, tokens_in_batch=tokens_in_batch)
+        loss_value = metrics["loss"]
 
         if logger:
             if training_cfg.log_every and step % training_cfg.log_every == 0:
