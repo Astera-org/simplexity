@@ -1,0 +1,487 @@
+"""Tests for GenerativeProcessConfig validation.
+
+This module contains tests for generative process configuration validation, including
+validation of generative process targets, vocab sizes, special tokens (BOS/EOS),
+sequence length, batch size, and generative process configuration instances.
+"""
+
+import re
+from unittest.mock import patch
+
+import pytest
+from omegaconf import MISSING, DictConfig, OmegaConf
+
+from simplexity.exceptions import ConfigValidationError
+from simplexity.run_management.structured_configs import (
+    GenerativeProcessConfig,
+    InstanceConfig,
+    is_generative_process_config,
+    is_generative_process_target,
+    validate_generative_process_config,
+)
+
+
+class TestGenerativeProcessConfig:
+    """Test GenerativeProcessConfig."""
+
+    def test_generative_process_config(self):
+        """Test creating generative process config from dataclass."""
+        cfg: DictConfig = OmegaConf.structured(
+            GenerativeProcessConfig(
+                instance=InstanceConfig(_target_="some_target"),
+                base_vocab_size=3,
+                bos_token=None,
+                eos_token=None,
+                vocab_size=3,
+            )
+        )
+        assert OmegaConf.select(cfg, "instance._target_") == "some_target"
+        assert cfg.get("name") is None
+        assert cfg.get("base_vocab_size") == 3
+        assert cfg.get("bos_token") is None
+        assert cfg.get("eos_token") is None
+        assert cfg.get("vocab_size") == 3
+        assert cfg.get("sequence_len") is None
+        assert cfg.get("batch_size") is None
+
+    def test_is_generative_process_target_valid(self):
+        """Test is_generative_process_target with valid generative process targets."""
+        assert is_generative_process_target("simplexity.generative_processes.hidden_markov_model.HiddenMarkovModel")
+        assert is_generative_process_target("simplexity.generative_processes.builder.build_hidden_markov_model")
+
+    def test_is_generative_process_target_invalid(self):
+        """Test is_generative_process_target with invalid targets."""
+        assert not is_generative_process_target("simplexity.persistence.mlflow_persister.MLFlowPersister")
+        assert not is_generative_process_target("torch.optim.Adam")
+        assert not is_generative_process_target("")
+
+    def test_is_generative_process_config_valid(self):
+        """Test is_generative_process_config with valid generative process configs."""
+        cfg = DictConfig({"_target_": "simplexity.generative_processes.hidden_markov_model.HiddenMarkovModel"})
+        assert is_generative_process_config(cfg)
+
+        cfg = DictConfig(
+            {
+                "_target_": "simplexity.generative_processes.builder.build_hidden_markov_model",
+                "process_name": "mess3",
+                "x": 0.15,
+                "a": 0.6,
+            }
+        )
+        assert is_generative_process_config(cfg)
+
+    def test_is_generative_process_config_invalid(self):
+        """Test is_generative_process_config with invalid configs."""
+        # Non-generative process target
+        cfg = DictConfig({"_target_": "simplexity.persistence.mlflow_persister.MLFlowPersister"})
+        assert not is_generative_process_config(cfg)
+
+        # Missing _target_
+        cfg = DictConfig({"process_name": "mess3", "x": 0.15, "a": 0.6})
+        assert not is_generative_process_config(cfg)
+
+        # _target_ is not a omegaconf target
+        cfg = DictConfig({"target": "simplexity.generative_processes.builder.build_hidden_markov_model"})
+        assert not is_generative_process_config(cfg)
+
+        # _target_ is None
+        cfg = DictConfig({"_target_": None})
+        assert not is_generative_process_config(cfg)
+
+        # _target_ is not a string
+        cfg = DictConfig({"_target_": 123})
+        assert not is_generative_process_config(cfg)
+
+        # Empty config
+        cfg = DictConfig({})
+        assert not is_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_valid(self):
+        """Test validate_generative_process_config with valid configs."""
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "simplexity.generative_processes.builder.build_hidden_markov_model",
+                        "process_name": "mess3",
+                        "x": 0.15,
+                        "a": 0.6,
+                    }
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        validate_generative_process_config(cfg)
+
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "simplexity.generative_processes.builder.build_hidden_markov_model",
+                        "process_name": "mess3",
+                        "x": 0.15,
+                        "a": 0.6,
+                    }
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                "bos_token": 3,
+                "eos_token": None,
+                "vocab_size": 4,
+                "sequence_len": 256,
+                "batch_size": 64,
+            }
+        )
+        validate_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_missing_instance(self):
+        """Test validate_generative_process_config raises when instance is missing."""
+        cfg = DictConfig({})
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.instance is required"):
+            validate_generative_process_config(cfg)
+
+        cfg = DictConfig(
+            {
+                "_target_": "simplexity.generative_processes.builder.build_hidden_markov_model",
+                "process_name": "mess3",
+                "x": 0.15,
+                "a": 0.6,
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.instance is required"):
+            validate_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_invalid_instance(self):
+        """Test validate_generative_process_config raises when instance is invalid."""
+        # Instance without _target_
+        cfg = DictConfig(
+            {
+                "instance": DictConfig({"process_name": "mess3", "x": 0.15, "a": 0.6}),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a string"):
+            validate_generative_process_config(cfg)
+
+        # Instance with empty _target_
+        cfg = DictConfig({"instance": DictConfig({"_target_": ""}), "base_vocab_size": MISSING, "vocab_size": MISSING})
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty or whitespace"):
+            validate_generative_process_config(cfg)
+
+        # Instance with non-string _target_
+        cfg = DictConfig({"instance": DictConfig({"_target_": 123}), "base_vocab_size": MISSING, "vocab_size": MISSING})
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a string"):
+            validate_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_non_generative_process_target(self):
+        """Test validate_generative_process_config raises when instance target is not a generative process target."""
+        cfg = DictConfig(
+            {
+                "instance": DictConfig({"_target_": "simplexity.persistence.mlflow_persister.MLFlowPersister"}),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError, match="GenerativeProcessConfig.instance._target_ must be a generative process target"
+        ):
+            validate_generative_process_config(cfg)
+
+        cfg = DictConfig(
+            {
+                "instance": DictConfig({"_target_": "torch.optim.Adam"}),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError,
+            match="GenerativeProcessConfig.instance._target_ must be a generative process target",
+        ):
+            validate_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_invalid_name(self):
+        """Test validate_generative_process_config raises when name is invalid."""
+        # Empty string name
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "",
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be a non-empty string"):
+            validate_generative_process_config(cfg)
+
+        # Whitespace-only name
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "   ",
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be a non-empty string"):
+            validate_generative_process_config(cfg)
+
+        # Non-string name
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": 123,
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.name must be a string or None"):
+            validate_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_invalid_base_vocab_size(self):
+        """Test validate_generative_process_config raises when base_vocab_size is invalid."""
+        # Non-integer base_vocab_size
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": "3",
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.base_vocab_size must be an int"):
+            validate_generative_process_config(cfg)
+
+        # Negative base_vocab_size
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": -1,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.base_vocab_size must be positive"):
+            validate_generative_process_config(cfg)
+
+    @pytest.mark.parametrize("token_type", ["bos_token", "eos_token"])
+    def test_validate_generative_process_config_invalid_special_tokens(self, token_type: str):
+        """Test validate_generative_process_config raises when special tokens are invalid."""
+        # Non-integer token value
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                token_type: "3",
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError,
+            match=re.escape(f"GenerativeProcessConfig.{token_type} must be an int or None, got <class 'str'>"),
+        ):
+            validate_generative_process_config(cfg)
+
+        # Negative token value
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                token_type: -1,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match=f"GenerativeProcessConfig.{token_type} must be non-negative"):
+            validate_generative_process_config(cfg)
+
+        # Token value greater than vocab size
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                token_type: 4,
+                "vocab_size": 4,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError, match=re.escape(f"GenerativeProcessConfig.{token_type} (4) must be < vocab_size (4)")
+        ):
+            validate_generative_process_config(cfg)
+
+    @pytest.mark.parametrize("attribute", ["base_vocab_size", "bos_token", "eos_token", "vocab_size"])
+    def test_validate_generative_process_config_missing_special_tokens(self, attribute: str):
+        """Test validate_generative_process_config raises when special tokens are missing."""
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": 3,
+                "vocab_size": 4,
+            }
+        )
+        cfg[attribute] = MISSING
+        # assert that there is a SIMPLEXITY_LOGGER debug log
+        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+            validate_generative_process_config(cfg)
+            mock_debug.assert_called_once_with(
+                f"[generative process] {attribute} is missing, will be resolved dynamically"
+            )
+
+    def test_validate_generative_process_config_invalid_bos_eos_token_same_value(self):
+        """Test validate_generative_process_config raises when bos_token and eos_token are the same."""
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                "bos_token": 3,
+                "eos_token": 3,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError, match="GenerativeProcessConfig.bos_token and eos_token cannot be the same"
+        ):
+            validate_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_invalid_vocab_size(self):
+        """Test validate_generative_process_config raises when vocab_size is invalid."""
+        # Non-integer vocab size
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                "bos_token": 3,
+                "eos_token": None,
+                "vocab_size": "4",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.vocab_size must be an int"):
+            validate_generative_process_config(cfg)
+
+        # Negative vocab size
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                "bos_token": 3,
+                "eos_token": None,
+                "vocab_size": -1,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.vocab_size must be positive"):
+            validate_generative_process_config(cfg)
+
+        # Incorrect vocab size
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                "bos_token": 3,
+                "eos_token": None,
+                "vocab_size": 5,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError,
+            match=re.escape(
+                "GenerativeProcessConfig.vocab_size (5) must be equal to "
+                "base_vocab_size (3) + use_bos_token (True) + use_eos_token (False) = 4"
+            ),
+        ):
+            validate_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_invalid_sequence_len(self):
+        """Test validate_generative_process_config raises when sequence_len is invalid."""
+        # Non-integer sequence_len
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+                "sequence_len": "16",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.sequence_len must be an int"):
+            validate_generative_process_config(cfg)
+
+        # Negative sequence_len
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+                "sequence_len": -1,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.sequence_len must be positive"):
+            validate_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_invalid_batch_size(self):
+        """Test validate_generative_process_config raises when batch_size is invalid."""
+        # Non-integer batch_size
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+                "batch_size": "64",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.batch_size must be an int"):
+            validate_generative_process_config(cfg)
+
+        # Negative batch_size
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+                "batch_size": -1,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.batch_size must be positive"):
+            validate_generative_process_config(cfg)
