@@ -305,27 +305,44 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
 @dynamic_resolve
 def resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) -> None:
     """Resolve the GenerativeProcessConfig."""
-    cfg.base_vocab_size = base_vocab_size
-    SIMPLEXITY_LOGGER.info("[generative process] Base vocab size: %s", base_vocab_size)
+    # Resolve base_vocab_size
+    if OmegaConf.is_missing(cfg, "base_vocab_size"):
+        cfg.base_vocab_size = base_vocab_size
+        SIMPLEXITY_LOGGER.info("[generative process] base_vocab_size resolved to: %s", base_vocab_size)
+    elif cfg.get("base_vocab_size") != base_vocab_size:
+        raise ConfigValidationError(
+            f"GenerativeProcessConfig.base_vocab_size ({cfg.get('base_vocab_size')}) must be equal to {base_vocab_size}"
+        )
+    else:
+        SIMPLEXITY_LOGGER.info("[generative process] base_vocab_size defined as: %s", cfg.get("base_vocab_size"))
     vocab_size = base_vocab_size
+    # Resolve bos_token
     if OmegaConf.is_missing(cfg, "bos_token"):
         cfg.bos_token = vocab_size
-        SIMPLEXITY_LOGGER.info("[generative process] BOS token resolved to: %s", cfg.bos_token)
+        SIMPLEXITY_LOGGER.info("[generative process] bos_token resolved to: %s", cfg.bos_token)
         vocab_size += 1
     elif cfg.get("bos_token", None) is not None:
         bos_token = cfg.get("bos_token")
-        SIMPLEXITY_LOGGER.info("[generative process] BOS token defined as: %s", bos_token)
+        SIMPLEXITY_LOGGER.info("[generative process] bos_token defined as: %s", bos_token)
         vocab_size = max(vocab_size, bos_token + 1)
+    # Resolve eos_token
     if OmegaConf.is_missing(cfg, "eos_token"):
         cfg.eos_token = vocab_size
-        SIMPLEXITY_LOGGER.info("[generative process] EOS token resolved to: %s", cfg.eos_token)
+        SIMPLEXITY_LOGGER.info("[generative process] eos_token resolved to: %s", cfg.eos_token)
         vocab_size += 1
     elif cfg.get("eos_token", None) is not None:
         eos_token = cfg.get("eos_token")
-        SIMPLEXITY_LOGGER.info("[generative process] EOS token defined as: %s", eos_token)
+        SIMPLEXITY_LOGGER.info("[generative process] eos_token defined as: %s", eos_token)
         vocab_size = max(vocab_size, eos_token + 1)
-    cfg.vocab_size = vocab_size
-    SIMPLEXITY_LOGGER.info("[generative process] Total vocab size: %s", vocab_size)
+    # Resolve vocab_size
+    if OmegaConf.is_missing(cfg, "vocab_size"):
+        cfg.vocab_size = vocab_size
+    elif cfg.get("vocab_size") < vocab_size:
+        raise ConfigValidationError(
+            f"GenerativeProcessConfig.vocab_size ({cfg.get('vocab_size')}) must be at least {vocab_size}"
+        )
+    else:
+        SIMPLEXITY_LOGGER.info("[generative process] vocab_size defined as: %s", cfg.get("vocab_size"))
 
 
 # ============================================================================
