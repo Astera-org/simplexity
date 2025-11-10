@@ -331,9 +331,19 @@ class TestGenerativeProcessConfig:
         ):
             validate_generative_process_config(cfg)
 
-    @pytest.mark.parametrize("attribute", ["base_vocab_size", "bos_token", "eos_token", "vocab_size"])
-    def test_validate_generative_process_config_missing_special_tokens(self, attribute: str):
-        """Test validate_generative_process_config raises when special tokens are missing."""
+    @pytest.mark.parametrize(
+        "attribute",
+        [
+            "base_vocab_size",
+            "bos_token",
+            "eos_token",
+            "vocab_size",
+            "sequence_len",
+            "batch_size",
+        ],
+    )
+    def test_validate_generative_process_config_missing_attribute(self, attribute: str):
+        """Test validate_generative_process_config raises when an attribute is missing."""
         cfg = DictConfig(
             {
                 "instance": DictConfig(
