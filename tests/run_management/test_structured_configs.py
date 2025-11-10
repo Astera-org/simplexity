@@ -104,8 +104,9 @@ class TestMLFlowConfig:
         )
         validate_mlflow_config(cfg)
 
-    def test_validate_mlflow_config_invalid(self):
-        """Test validate_mlflow_config with invalid configs."""
+    def test_validate_mlflow_config_missing_required_fields(self):
+        """Test validate_mlflow_config with missing required fields."""
+        # Missing experiment_name
         cfg = DictConfig(
             {
                 "run_name": "my_run",
@@ -117,6 +118,7 @@ class TestMLFlowConfig:
         with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
             validate_mlflow_config(cfg)
 
+        # Missing run_name
         cfg = DictConfig(
             {
                 "experiment_name": "my_experiment",
@@ -126,6 +128,54 @@ class TestMLFlowConfig:
             }
         )
         with pytest.raises(ConfigValidationError, match="MLFlowConfig.run_name must be a non-empty string"):
+            validate_mlflow_config(cfg)
+
+    def test_validate_mlflow_config_invalid_downgrade_unity_catalog(self):
+        """Test validate_mlflow_config with invalid downgrade_unity_catalog."""
+        cfg = DictConfig(
+            {
+                "experiment_name": "my_experiment",
+                "run_name": "my_run",
+                "downgrade_unity_catalog": "not_a_bool",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="MLFlowConfig.downgrade_unity_catalog must be a bool"):
+            validate_mlflow_config(cfg)
+
+    @pytest.mark.parametrize("uri_type", ["tracking_uri", "registry_uri"])
+    def test_validate_mlflow_config_invalid_uri(self, uri_type: str):
+        """Test validate_mlflow_config with invalid tracking_uri and registry_uri."""
+        # Empty URI
+        cfg = DictConfig(
+            {
+                "experiment_name": "my_experiment",
+                "run_name": "my_run",
+                uri_type: "  ",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match=f"MLFlowConfig.{uri_type} cannot be empty"):
+            validate_mlflow_config(cfg)
+
+        # parse error (urlparse raises an exception)
+        cfg = DictConfig(
+            {
+                "experiment_name": "my_experiment",
+                "run_name": "my_run",
+                uri_type: "%parse_error%",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match=f"MLFlowConfig.{uri_type} is not a valid URI"):
+            validate_mlflow_config(cfg)
+
+        # missing scheme
+        cfg = DictConfig(
+            {
+                "experiment_name": "my_experiment",
+                "run_name": "my_run",
+                uri_type: "no_scheme",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match=f"MLFlowConfig.{uri_type} must have a valid URI scheme"):
             validate_mlflow_config(cfg)
 
 
