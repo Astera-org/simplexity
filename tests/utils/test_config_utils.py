@@ -2,6 +2,7 @@ import pytest
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf.errors import ReadonlyConfigError
 
+from simplexity.exceptions import ConfigValidationError
 from simplexity.utils.config_utils import (
     TARGET,
     dynamic_resolve,
@@ -183,13 +184,98 @@ def test_filter_instance_keys() -> None:
                     TARGET: "some_other_callable",
                 }
             ),
+            "sub_config": DictConfig(
+                {
+                    "instance3": DictConfig(
+                        {
+                            TARGET: "some_callable",
+                        }
+                    ),
+                    "instance4": DictConfig(
+                        {
+                            TARGET: "some_other_callable",
+                        }
+                    ),
+                }
+            ),
         }
     )
 
     def is_some_callable(target: str) -> bool:
         return target == "some_callable"
 
-    assert filter_instance_keys(cfg, ["instance1", "instance2"], is_some_callable) == ["instance1"]
+    all_instance_keys = ["instance1", "instance2", "sub_config.instance3", "sub_config.instance4"]
+    assert filter_instance_keys(cfg, all_instance_keys, is_some_callable) == ["instance1", "sub_config.instance3"]
+
+
+def test_filter_instance_keys_with_validation() -> None:
+    """Test filtering instance keys with validation."""
+    cfg = DictConfig(
+        {
+            "component1": DictConfig(
+                {
+                    "instance": DictConfig(
+                        {
+                            TARGET: "some_callable",
+                        }
+                    ),
+                    "is_valid": False,
+                }
+            ),
+            "component2": DictConfig(
+                {
+                    "instance": DictConfig(
+                        {
+                            TARGET: "some_callable",
+                        }
+                    ),
+                    "is_valid": True,
+                }
+            ),
+            "sub_config": DictConfig(
+                {
+                    "component3": DictConfig(
+                        {
+                            "instance": DictConfig(
+                                {
+                                    TARGET: "some_callable",
+                                }
+                            ),
+                            "is_valid": False,
+                        }
+                    ),
+                    "component4": DictConfig(
+                        {
+                            "instance": DictConfig(
+                                {
+                                    TARGET: "some_callable",
+                                }
+                            ),
+                            "is_valid": True,
+                        }
+                    ),
+                }
+            ),
+        }
+    )
+
+    def is_anything(target: str) -> bool:
+        return len(target.strip()) > 0
+
+    def is_valid(cfg: DictConfig) -> None:
+        if not cfg.get("is_valid", False):
+            raise ConfigValidationError("is_valid must be True")
+
+    all_instance_keys = [
+        "component1.instance",
+        "component2.instance",
+        "sub_config.component3.instance",
+        "sub_config.component4.instance",
+    ]
+    assert filter_instance_keys(cfg, all_instance_keys, is_anything, is_valid) == [
+        "component2.instance",
+        "sub_config.component4.instance",
+    ]
 
 
 def test_get_config_from_kwargs() -> None:

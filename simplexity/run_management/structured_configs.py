@@ -6,7 +6,7 @@ scattered across various config.py files in the configs directory.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 from urllib.parse import urlparse
 
 from omegaconf import MISSING, DictConfig, OmegaConf
@@ -63,11 +63,6 @@ class InstanceConfig:
     """Config for an object that can be instantiated by hydra."""
 
     _target_: str
-
-    def __init__(self, _target_: str, **kwargs: Any):
-        self._target_ = _target_
-        for key, value in kwargs.items():
-            setattr(self, key, value)
 
 
 def _validate_instance_config(cfg: DictConfig) -> None:
@@ -234,7 +229,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
 
     base_vocab_size = cfg.get("base_vocab_size")
     if OmegaConf.is_missing(cfg, "base_vocab_size"):
-        SIMPLEXITY_LOGGER.debug("[generative process] base vocab size is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] base_vocab_size is missing, will be resolved dynamically")
     else:
         _validate_positive_int(base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
 
@@ -247,7 +242,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         _validate_positive_int(vocab_size, "GenerativeProcessConfig.vocab_size")
 
     if OmegaConf.is_missing(cfg, "bos_token"):
-        SIMPLEXITY_LOGGER.debug("[generative process] bos token is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] bos_token is missing, will be resolved dynamically")
     elif bos_token is not None:
         _validate_non_negative_int(bos_token, "GenerativeProcessConfig.bos_token", is_none_allowed=True)
         if not OmegaConf.is_missing(cfg, "vocab_size") and bos_token >= vocab_size:
@@ -256,7 +251,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
             )
 
     if OmegaConf.is_missing(cfg, "eos_token"):
-        SIMPLEXITY_LOGGER.debug("[generative process] eos token is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] eos_token is missing, will be resolved dynamically")
     elif eos_token is not None:
         _validate_non_negative_int(eos_token, "GenerativeProcessConfig.eos_token", is_none_allowed=True)
         if not OmegaConf.is_missing(cfg, "vocab_size") and eos_token >= vocab_size:
@@ -275,29 +270,34 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         raise ConfigValidationError(f"GenerativeProcessConfig.bos_token and eos_token cannot be the same ({bos_token})")
 
     if OmegaConf.is_missing(cfg, "vocab_size"):
-        SIMPLEXITY_LOGGER.debug("[generative process] vocab size is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] vocab_size is missing, will be resolved dynamically")
     else:
         # Only validate consistency if base_vocab_size is also resolved
         if not OmegaConf.is_missing(cfg, "base_vocab_size"):
             _validate_positive_int(base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
-            expected_vocab_size = base_vocab_size + (bos_token is not None) + (eos_token is not None)
+            use_bos_token = bos_token is not None or OmegaConf.is_missing(cfg, "bos_token")
+            use_eos_token = eos_token is not None or OmegaConf.is_missing(cfg, "eos_token")
+            expected_vocab_size = base_vocab_size + use_bos_token + use_eos_token
             if vocab_size != expected_vocab_size:
                 raise ConfigValidationError(
                     f"GenerativeProcessConfig.vocab_size ({vocab_size}) must be equal to "
                     f"base_vocab_size ({base_vocab_size}) "
-                    f"+ (bos_token is not None) ({bos_token is not None}) "
-                    f"+ (eos_token is not None) ({eos_token is not None}) "
+                    f"+ use_bos_token ({use_bos_token}) "
+                    f"+ use_eos_token ({use_eos_token}) "
                     f"= {expected_vocab_size}"
                 )
 
     sequence_len = cfg.get("sequence_len")
     if OmegaConf.is_missing(cfg, "sequence_len"):
-        SIMPLEXITY_LOGGER.debug("[generative process] sequence len is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] sequence_len is missing, will be resolved dynamically")
     else:
         _validate_positive_int(sequence_len, "GenerativeProcessConfig.sequence_len", is_none_allowed=True)
 
     batch_size = cfg.get("batch_size")
-    _validate_positive_int(batch_size, "GenerativeProcessConfig.batch_size", is_none_allowed=True)
+    if OmegaConf.is_missing(cfg, "batch_size"):
+        SIMPLEXITY_LOGGER.debug("[generative process] batch_size is missing, will be resolved dynamically")
+    else:
+        _validate_positive_int(batch_size, "GenerativeProcessConfig.batch_size", is_none_allowed=True)
 
 
 # ============================================================================
@@ -351,7 +351,6 @@ def validate_persistence_config(cfg: DictConfig) -> None:
 class HookedTransformerConfigConfig:
     """Configuration for HookedTransformerConfig."""
 
-    _target_: Literal["transformer_lens.HookedTransformerConfig"]
     n_layers: int
     d_model: int
     d_head: int
@@ -363,6 +362,7 @@ class HookedTransformerConfigConfig:
     normalization_type: str | None = "LN"
     device: str | None = None
     seed: int | None = None
+    _target_: str = "transformer_lens.HookedTransformerConfig"
 
 
 def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
@@ -416,6 +416,10 @@ class HookedTransformerConfig(InstanceConfig):
 
     cfg: HookedTransformerConfigConfig
 
+    def __init__(self, cfg: HookedTransformerConfigConfig, _target_: str = "transformer_lens.HookedTransformer"):
+        super().__init__(_target_=_target_)
+        self.cfg = cfg
+
 
 def validate_hooked_transformer_config(cfg: DictConfig) -> None:
     """Validate a HookedTransformerConfig.
@@ -431,7 +435,7 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
 
 
 @dataclass
-class ModelConfig:
+class PredictiveModelConfig:
     """Base configuration for predictive models."""
 
     instance: InstanceConfig
@@ -450,7 +454,7 @@ def is_predictive_model_target(target: str) -> bool:
     return parts[0] == "transformer_lens"
 
 
-def is_model_config(cfg: DictConfig) -> bool:
+def is_predictive_model_config(cfg: DictConfig) -> bool:
     """Check if the configuration is a model config."""
     target = cfg.get("_target_", None)
     if isinstance(target, str):
@@ -463,7 +467,7 @@ def is_hooked_transformer_config(cfg: DictConfig) -> bool:
     return OmegaConf.select(cfg, "_target_") == "transformer_lens.HookedTransformer"
 
 
-def validate_model_config(cfg: DictConfig) -> None:
+def validate_predictive_model_config(cfg: DictConfig) -> None:
     """Validate the configuration.
 
     Args:
@@ -471,18 +475,22 @@ def validate_model_config(cfg: DictConfig) -> None:
     """
     instance = cfg.get("instance")
     if instance is None:
-        raise ConfigValidationError("ModelConfig.instance is required")
+        raise ConfigValidationError("PredictiveModelConfig.instance is required")
     _validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_predictive_model_target(target):
-        raise ConfigValidationError(f"ModelConfig.instance._target_ must be a predictive model target, got {target}")
+        raise ConfigValidationError(
+            f"PredictiveModelConfig.instance._target_ must be a predictive model target, got {target}"
+        )
     # If this is a HookedTransformerConfig, validate it fully if we have access to the nested cfg
     if target == "transformer_lens.HookedTransformer" and instance.get("cfg") is not None:
         validate_hooked_transformer_config(instance)
-    _validate_nonempty_str(cfg.get("name"), "ModelConfig.name", is_none_allowed=True)
+    _validate_nonempty_str(cfg.get("name"), "PredictiveModelConfig.name", is_none_allowed=True)
     load_checkpoint_step = cfg.get("load_checkpoint_step")
     if load_checkpoint_step is not None:
-        _validate_non_negative_int(load_checkpoint_step, "ModelConfig.load_checkpoint_step", is_none_allowed=True)
+        _validate_non_negative_int(
+            load_checkpoint_step, "PredictiveModelConfig.load_checkpoint_step", is_none_allowed=True
+        )
 
 
 # ============================================================================
