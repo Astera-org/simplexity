@@ -13,19 +13,19 @@ from simplexity.run_management.structured_configs import (
     InstanceConfig,
     LoggingConfig,
     MLFlowConfig,
-    ModelConfig,
     OptimizerConfig,
     PersistenceConfig,
+    PredictiveModelConfig,
     is_generative_process_config,
     is_generative_process_target,
     is_hooked_transformer_config,
     is_logger_config,
     is_logger_target,
-    is_model_config,
     is_model_persister_target,
     is_optimizer_config,
     is_optimizer_target,
     is_persister_config,
+    is_predictive_model_config,
     is_predictive_model_target,
     is_pytorch_optimizer_config,
     validate_base_config,
@@ -34,9 +34,9 @@ from simplexity.run_management.structured_configs import (
     validate_hooked_transformer_config_config,
     validate_logging_config,
     validate_mlflow_config,
-    validate_model_config,
     validate_optimizer_config,
     validate_persistence_config,
+    validate_predictive_model_config,
 )
 
 
@@ -1028,7 +1028,7 @@ class TestHookedTransformerConfig:
     def test_hooked_transformer_config(self):
         """Test creating hooked transformer config from dataclass."""
         cfg: DictConfig = OmegaConf.structured(
-            ModelConfig(
+            PredictiveModelConfig(
                 instance=HookedTransformerConfig(
                     cfg=HookedTransformerConfigConfig(
                         n_layers=2,
@@ -1269,38 +1269,38 @@ class TestHookedTransformerConfig:
         assert not is_predictive_model_target("torch.optim.Adam")
         assert not is_predictive_model_target("")
 
-    def test_is_model_config_valid(self):
-        """Test is_model_config with valid model configs."""
+    def test_is_predictive_model_config_valid(self):
+        """Test is_predictive_model_config with valid predictive model configs."""
         cfg = DictConfig({"_target_": "transformer_lens.HookedTransformer"})
-        assert is_model_config(cfg)
+        assert is_predictive_model_config(cfg)
 
         cfg = DictConfig({"_target_": "torch.nn.Linear"})
-        assert is_model_config(cfg)
+        assert is_predictive_model_config(cfg)
 
         cfg = DictConfig({"_target_": "simplexity.predictive_models.MyModel"})
-        assert is_model_config(cfg)
+        assert is_predictive_model_config(cfg)
 
-    def test_is_model_config_invalid(self):
-        """Test is_model_config with invalid configs."""
+    def test_is_predictive_model_config_invalid(self):
+        """Test is_predictive_model_config with invalid configs."""
         # Non-model target
         cfg = DictConfig({"_target_": "simplexity.logging.mlflow_logger.MLFlowLogger"})
-        assert not is_model_config(cfg)
+        assert not is_predictive_model_config(cfg)
 
         # Missing _target_
         cfg = DictConfig({"other_field": "value"})
-        assert not is_model_config(cfg)
+        assert not is_predictive_model_config(cfg)
 
         # _target_ is None
         cfg = DictConfig({"_target_": None})
-        assert not is_model_config(cfg)
+        assert not is_predictive_model_config(cfg)
 
         # _target_ is not a string
         cfg = DictConfig({"_target_": 123})
-        assert not is_model_config(cfg)
+        assert not is_predictive_model_config(cfg)
 
         # Empty config
         cfg = DictConfig({})
-        assert not is_model_config(cfg)
+        assert not is_predictive_model_config(cfg)
 
     def test_is_hooked_transformer_config_valid(self):
         """Test is_hooked_transformer_config with valid HookedTransformer configs."""
@@ -1318,8 +1318,8 @@ class TestHookedTransformerConfig:
         cfg = DictConfig({})
         assert not is_hooked_transformer_config(cfg)
 
-    def test_validate_model_config_valid(self):
-        """Test validate_model_config with valid configs."""
+    def test_validate_predictive_model_config_valid(self):
+        """Test validate_predictive_model_config with valid configs."""
         # Valid config without name or load_checkpoint_step
         cfg = DictConfig(
             {
@@ -1346,7 +1346,7 @@ class TestHookedTransformerConfig:
                 ),
             }
         )
-        validate_model_config(cfg)
+        validate_predictive_model_config(cfg)
 
         # Valid config with name and load_checkpoint_step
         cfg = DictConfig(
@@ -1356,7 +1356,7 @@ class TestHookedTransformerConfig:
                 "load_checkpoint_step": 100,
             }
         )
-        validate_model_config(cfg)
+        validate_predictive_model_config(cfg)
 
         # Valid config with None name and load_checkpoint_step
         cfg = DictConfig(
@@ -1366,51 +1366,51 @@ class TestHookedTransformerConfig:
                 "load_checkpoint_step": None,
             }
         )
-        validate_model_config(cfg)
+        validate_predictive_model_config(cfg)
 
-    def test_validate_model_config_missing_instance(self):
-        """Test validate_model_config raises when instance is missing."""
+    def test_validate_predictive_model_config_missing_instance(self):
+        """Test validate_predictive_model_config raises when instance is missing."""
         cfg = DictConfig({})
-        with pytest.raises(ConfigValidationError, match="ModelConfig.instance is required"):
-            validate_model_config(cfg)
+        with pytest.raises(ConfigValidationError, match="PredictiveModelConfig.instance is required"):
+            validate_predictive_model_config(cfg)
 
         cfg = DictConfig({"name": "my_model"})
-        with pytest.raises(ConfigValidationError, match="ModelConfig.instance is required"):
-            validate_model_config(cfg)
+        with pytest.raises(ConfigValidationError, match="PredictiveModelConfig.instance is required"):
+            validate_predictive_model_config(cfg)
 
-    def test_validate_model_config_invalid_instance(self):
-        """Test validate_model_config raises when instance is invalid."""
+    def test_validate_predictive_model_config_invalid_instance(self):
+        """Test validate_predictive_model_config raises when instance is invalid."""
         # Instance without _target_
         cfg = DictConfig({"instance": DictConfig({"other_field": "value"})})
         with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a string"):
-            validate_model_config(cfg)
+            validate_predictive_model_config(cfg)
 
         # Instance with empty _target_
         cfg = DictConfig({"instance": DictConfig({"_target_": ""})})
         with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty or whitespace"):
-            validate_model_config(cfg)
+            validate_predictive_model_config(cfg)
 
         # Instance with non-string _target_
         cfg = DictConfig({"instance": DictConfig({"_target_": 123})})
         with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a string"):
-            validate_model_config(cfg)
+            validate_predictive_model_config(cfg)
 
-    def test_validate_model_config_non_model_target(self):
-        """Test validate_model_config raises when instance target is not a model target."""
+    def test_validate_predictive_model_config_non_model_target(self):
+        """Test validate_predictive_model_config raises when instance target is not a model target."""
         cfg = DictConfig({"instance": DictConfig({"_target_": "simplexity.logging.mlflow_logger.MLFlowLogger"})})
         with pytest.raises(
-            ConfigValidationError, match="ModelConfig.instance._target_ must be a predictive model target"
+            ConfigValidationError, match="PredictiveModelConfig.instance._target_ must be a predictive model target"
         ):
-            validate_model_config(cfg)
+            validate_predictive_model_config(cfg)
 
         cfg = DictConfig({"instance": DictConfig({"_target_": "torch.optim.Adam"})})
         with pytest.raises(
-            ConfigValidationError, match="ModelConfig.instance._target_ must be a predictive model target"
+            ConfigValidationError, match="PredictiveModelConfig.instance._target_ must be a predictive model target"
         ):
-            validate_model_config(cfg)
+            validate_predictive_model_config(cfg)
 
-    def test_validate_model_config_invalid_name(self):
-        """Test validate_model_config raises when name is invalid."""
+    def test_validate_predictive_model_config_invalid_name(self):
+        """Test validate_predictive_model_config raises when name is invalid."""
         # Empty string name
         cfg = DictConfig(
             {
@@ -1418,8 +1418,8 @@ class TestHookedTransformerConfig:
                 "name": "",
             }
         )
-        with pytest.raises(ConfigValidationError, match="ModelConfig.name must be a non-empty string"):
-            validate_model_config(cfg)
+        with pytest.raises(ConfigValidationError, match="PredictiveModelConfig.name must be a non-empty string"):
+            validate_predictive_model_config(cfg)
 
         # Whitespace-only name
         cfg = DictConfig(
@@ -1428,8 +1428,8 @@ class TestHookedTransformerConfig:
                 "name": "   ",
             }
         )
-        with pytest.raises(ConfigValidationError, match="ModelConfig.name must be a non-empty string"):
-            validate_model_config(cfg)
+        with pytest.raises(ConfigValidationError, match="PredictiveModelConfig.name must be a non-empty string"):
+            validate_predictive_model_config(cfg)
 
         # Non-string name
         cfg = DictConfig(
@@ -1438,11 +1438,11 @@ class TestHookedTransformerConfig:
                 "name": 123,
             }
         )
-        with pytest.raises(ConfigValidationError, match="ModelConfig.name must be a string or None"):
-            validate_model_config(cfg)
+        with pytest.raises(ConfigValidationError, match="PredictiveModelConfig.name must be a string or None"):
+            validate_predictive_model_config(cfg)
 
-    def test_validate_model_config_invalid_load_checkpoint_step(self):
-        """Test validate_model_config raises when load_checkpoint_step is invalid."""
+    def test_validate_predictive_model_config_invalid_load_checkpoint_step(self):
+        """Test validate_predictive_model_config raises when load_checkpoint_step is invalid."""
         # Non-integer load_checkpoint_step
         cfg = DictConfig(
             {
@@ -1450,8 +1450,10 @@ class TestHookedTransformerConfig:
                 "load_checkpoint_step": "100",
             }
         )
-        with pytest.raises(ConfigValidationError, match="ModelConfig.load_checkpoint_step must be an int or None"):
-            validate_model_config(cfg)
+        with pytest.raises(
+            ConfigValidationError, match="PredictiveModelConfig.load_checkpoint_step must be an int or None"
+        ):
+            validate_predictive_model_config(cfg)
 
         # Negative load_checkpoint_step
         cfg = DictConfig(
@@ -1460,8 +1462,10 @@ class TestHookedTransformerConfig:
                 "load_checkpoint_step": -1,
             }
         )
-        with pytest.raises(ConfigValidationError, match="ModelConfig.load_checkpoint_step must be non-negative"):
-            validate_model_config(cfg)
+        with pytest.raises(
+            ConfigValidationError, match="PredictiveModelConfig.load_checkpoint_step must be non-negative"
+        ):
+            validate_predictive_model_config(cfg)
 
 
 # ============================================================================

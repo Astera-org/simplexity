@@ -432,7 +432,7 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
 
 
 @dataclass
-class ModelConfig:
+class PredictiveModelConfig:
     """Base configuration for predictive models."""
 
     instance: InstanceConfig
@@ -451,7 +451,7 @@ def is_predictive_model_target(target: str) -> bool:
     return parts[0] == "transformer_lens"
 
 
-def is_model_config(cfg: DictConfig) -> bool:
+def is_predictive_model_config(cfg: DictConfig) -> bool:
     """Check if the configuration is a model config."""
     target = cfg.get("_target_", None)
     if isinstance(target, str):
@@ -464,7 +464,7 @@ def is_hooked_transformer_config(cfg: DictConfig) -> bool:
     return OmegaConf.select(cfg, "_target_") == "transformer_lens.HookedTransformer"
 
 
-def validate_model_config(cfg: DictConfig) -> None:
+def validate_predictive_model_config(cfg: DictConfig) -> None:
     """Validate the configuration.
 
     Args:
@@ -472,18 +472,22 @@ def validate_model_config(cfg: DictConfig) -> None:
     """
     instance = cfg.get("instance")
     if instance is None:
-        raise ConfigValidationError("ModelConfig.instance is required")
+        raise ConfigValidationError("PredictiveModelConfig.instance is required")
     _validate_instance_config(instance)
     target = instance.get("_target_", None)
     if not is_predictive_model_target(target):
-        raise ConfigValidationError(f"ModelConfig.instance._target_ must be a predictive model target, got {target}")
+        raise ConfigValidationError(
+            f"PredictiveModelConfig.instance._target_ must be a predictive model target, got {target}"
+        )
     # If this is a HookedTransformerConfig, validate it fully if we have access to the nested cfg
     if target == "transformer_lens.HookedTransformer" and instance.get("cfg") is not None:
         validate_hooked_transformer_config(instance)
-    _validate_nonempty_str(cfg.get("name"), "ModelConfig.name", is_none_allowed=True)
+    _validate_nonempty_str(cfg.get("name"), "PredictiveModelConfig.name", is_none_allowed=True)
     load_checkpoint_step = cfg.get("load_checkpoint_step")
     if load_checkpoint_step is not None:
-        _validate_non_negative_int(load_checkpoint_step, "ModelConfig.load_checkpoint_step", is_none_allowed=True)
+        _validate_non_negative_int(
+            load_checkpoint_step, "PredictiveModelConfig.load_checkpoint_step", is_none_allowed=True
+        )
 
 
 # ============================================================================
