@@ -276,6 +276,7 @@ def _resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) ->
     elif cfg.get("bos_token", None) is not None:
         bos_token = cfg.get("bos_token")
         SIMPLEXITY_LOGGER.info(f"[generative process] BOS token defined as: {bos_token}")
+        vocab_size = max(vocab_size, bos_token + 1)
     if OmegaConf.is_missing(cfg, "eos_token"):
         cfg.eos_token = vocab_size
         SIMPLEXITY_LOGGER.info(f"[generative process] EOS token resolved to: {cfg.eos_token}")
@@ -283,6 +284,7 @@ def _resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) ->
     elif cfg.get("eos_token", None) is not None:
         eos_token = cfg.get("eos_token")
         SIMPLEXITY_LOGGER.info(f"[generative process] EOS token defined as: {eos_token}")
+        vocab_size = max(vocab_size, eos_token + 1)
     cfg.vocab_size = vocab_size
     SIMPLEXITY_LOGGER.info(f"[generative process] Total vocab size: {vocab_size}")
 
