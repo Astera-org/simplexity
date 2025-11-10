@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
+from simplexity.utils.config_utils import dynamic_resolve
+from simplexity.utils.pytorch_utils import resolve_device
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
@@ -300,6 +302,32 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         _validate_positive_int(batch_size, "GenerativeProcessConfig.batch_size", is_none_allowed=True)
 
 
+@dynamic_resolve
+def resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) -> None:
+    """Resolve the GenerativeProcessConfig."""
+    cfg.base_vocab_size = base_vocab_size
+    SIMPLEXITY_LOGGER.info(f"[generative process] Base vocab size: {base_vocab_size}")
+    vocab_size = base_vocab_size
+    if OmegaConf.is_missing(cfg, "bos_token"):
+        cfg.bos_token = vocab_size
+        SIMPLEXITY_LOGGER.info(f"[generative process] BOS token resolved to: {cfg.bos_token}")
+        vocab_size += 1
+    elif cfg.get("bos_token", None) is not None:
+        bos_token = cfg.get("bos_token")
+        SIMPLEXITY_LOGGER.info(f"[generative process] BOS token defined as: {bos_token}")
+        vocab_size = max(vocab_size, bos_token + 1)
+    if OmegaConf.is_missing(cfg, "eos_token"):
+        cfg.eos_token = vocab_size
+        SIMPLEXITY_LOGGER.info(f"[generative process] EOS token resolved to: {cfg.eos_token}")
+        vocab_size += 1
+    elif cfg.get("eos_token", None) is not None:
+        eos_token = cfg.get("eos_token")
+        SIMPLEXITY_LOGGER.info(f"[generative process] EOS token defined as: {eos_token}")
+        vocab_size = max(vocab_size, eos_token + 1)
+    cfg.vocab_size = vocab_size
+    SIMPLEXITY_LOGGER.info(f"[generative process] Total vocab size: {vocab_size}")
+
+
 # ============================================================================
 # Persistence Config
 # ============================================================================
@@ -432,6 +460,30 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
     if nested_cfg is None:
         raise ConfigValidationError("HookedTransformerConfig.cfg is required")
     validate_hooked_transformer_config_config(nested_cfg)
+
+
+@dynamic_resolve
+def resolve_hooked_transformer_config(
+    cfg: DictConfig,
+    *,
+    vocab_size: int | None,
+    bos_token: int | None,
+    eos_token: int | None,
+    sequence_len: int | None,
+) -> None:
+    """Resolve the HookedTransformerConfig."""
+    if OmegaConf.is_missing(cfg, "d_vocab") and vocab_size is not None:
+        cfg.d_vocab = vocab_size
+        SIMPLEXITY_LOGGER.info(f"[predictive model] d_vocab resolved to: {vocab_size}")
+    if OmegaConf.is_missing(cfg, "n_ctx") and sequence_len is not None:
+        use_bos = bos_token is not None
+        use_eos = eos_token is not None
+        n_ctx = sequence_len + int(use_bos) + int(use_eos) - 1
+        cfg.n_ctx = n_ctx
+        SIMPLEXITY_LOGGER.info(f"[predictive model] n_ctx resolved to: {n_ctx}")
+    device: str | None = cfg.get("device", None)
+    cfg.device = resolve_device(device)
+    SIMPLEXITY_LOGGER.info(f"[predictive model] device resolved to: {cfg.device}")
 
 
 @dataclass
