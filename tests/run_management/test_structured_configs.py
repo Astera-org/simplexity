@@ -681,8 +681,8 @@ class TestGenerativeProcessConfig:
         ):
             validate_generative_process_config(cfg)
 
-    @pytest.mark.parametrize("token_type", ["bos_token", "eos_token"])
-    def test_validate_generative_process_config_missing_special_tokens(self, token_type: str):
+    @pytest.mark.parametrize("attribute", ["base_vocab_size", "bos_token", "eos_token", "vocab_size"])
+    def test_validate_generative_process_config_missing_special_tokens(self, attribute: str):
         """Test validate_generative_process_config raises when special tokens are missing."""
         cfg = DictConfig(
             {
@@ -690,15 +690,15 @@ class TestGenerativeProcessConfig:
                     {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
                 ),
                 "base_vocab_size": 3,
-                token_type: MISSING,
                 "vocab_size": 4,
             }
         )
+        cfg[attribute] = MISSING
         # assert that there is a SIMPLEXITY_LOGGER debug log
         with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
             validate_generative_process_config(cfg)
             mock_debug.assert_called_once_with(
-                f"[generative process] {token_type} is missing, will be resolved dynamically"
+                f"[generative process] {attribute} is missing, will be resolved dynamically"
             )
 
     def test_validate_generative_process_config_invalid_bos_eos_token_same_value(self):
@@ -764,10 +764,16 @@ class TestGenerativeProcessConfig:
                 "base_vocab_size": 3,
                 "bos_token": 3,
                 "eos_token": None,
-                "vocab_size": 3,
+                "vocab_size": 5,
             }
         )
-        with pytest.raises(ConfigValidationError):
+        with pytest.raises(
+            ConfigValidationError,
+            match=re.escape(
+                "GenerativeProcessConfig.vocab_size (5) must be equal to "
+                "base_vocab_size (3) + use_bos_token (True) + use_eos_token (False) = 4"
+            ),
+        ):
             validate_generative_process_config(cfg)
 
     def test_validate_generative_process_config_invalid_sequence_len(self):
