@@ -242,7 +242,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         _validate_positive_int(vocab_size, "GenerativeProcessConfig.vocab_size")
 
     if OmegaConf.is_missing(cfg, "bos_token"):
-        SIMPLEXITY_LOGGER.debug("[generative process] bos token is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] bos_token is missing, will be resolved dynamically")
     elif bos_token is not None:
         _validate_non_negative_int(bos_token, "GenerativeProcessConfig.bos_token", is_none_allowed=True)
         if not OmegaConf.is_missing(cfg, "vocab_size") and bos_token >= vocab_size:
@@ -251,7 +251,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
             )
 
     if OmegaConf.is_missing(cfg, "eos_token"):
-        SIMPLEXITY_LOGGER.debug("[generative process] eos token is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] eos_token is missing, will be resolved dynamically")
     elif eos_token is not None:
         _validate_non_negative_int(eos_token, "GenerativeProcessConfig.eos_token", is_none_allowed=True)
         if not OmegaConf.is_missing(cfg, "vocab_size") and eos_token >= vocab_size:
@@ -275,13 +275,15 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         # Only validate consistency if base_vocab_size is also resolved
         if not OmegaConf.is_missing(cfg, "base_vocab_size"):
             _validate_positive_int(base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
-            expected_vocab_size = base_vocab_size + (bos_token is not None) + (eos_token is not None)
+            use_bos_token = bos_token is not None or OmegaConf.is_missing(cfg, "bos_token")
+            use_eos_token = eos_token is not None or OmegaConf.is_missing(cfg, "eos_token")
+            expected_vocab_size = base_vocab_size + use_bos_token + use_eos_token
             if vocab_size != expected_vocab_size:
                 raise ConfigValidationError(
                     f"GenerativeProcessConfig.vocab_size ({vocab_size}) must be equal to "
                     f"base_vocab_size ({base_vocab_size}) "
-                    f"+ (bos_token is not None) ({bos_token is not None}) "
-                    f"+ (eos_token is not None) ({eos_token is not None}) "
+                    f"+ use_bos_token ({use_bos_token}) "
+                    f"+ use_eos_token ({use_eos_token}) "
                     f"= {expected_vocab_size}"
                 )
 

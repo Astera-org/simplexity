@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from unittest.mock import patch
 
 import pytest
 from omegaconf import MISSING, DictConfig, OmegaConf
@@ -679,6 +680,26 @@ class TestGenerativeProcessConfig:
             ConfigValidationError, match=re.escape(f"GenerativeProcessConfig.{token_type} (4) must be < vocab_size (4)")
         ):
             validate_generative_process_config(cfg)
+
+    @pytest.mark.parametrize("token_type", ["bos_token", "eos_token"])
+    def test_validate_generative_process_config_missing_special_tokens(self, token_type: str):
+        """Test validate_generative_process_config raises when special tokens are missing."""
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": 3,
+                token_type: MISSING,
+                "vocab_size": 4,
+            }
+        )
+        # assert that there is a SIMPLEXITY_LOGGER debug log
+        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+            validate_generative_process_config(cfg)
+            mock_debug.assert_called_once_with(
+                f"[generative process] {token_type} is missing, will be resolved dynamically"
+            )
 
     def test_validate_generative_process_config_invalid_bos_eos_token_same_value(self):
         """Test validate_generative_process_config raises when bos_token and eos_token are the same."""
