@@ -6,7 +6,7 @@ sequence length, batch size, and generative process configuration instances.
 """
 
 import re
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 from omegaconf import MISSING, DictConfig, OmegaConf
@@ -509,10 +509,14 @@ class TestGenerativeProcessConfig:
         )
         with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
             resolve_generative_process_config(cfg, base_vocab_size=3)
-            mock_debug.assert_called_once_with("[generative process] base_vocab_size defined as: 3")
-            mock_debug.assert_called_once_with("[generative process] bos_token defined as: 3")
-            mock_debug.assert_called_once_with("[generative process] eos_token defined as: 4")
-            mock_debug.assert_called_once_with("[generative process] vocab_size defined as: 5")
+            mock_debug.assert_has_calls(
+                [
+                    call("[generative process] base_vocab_size defined as: %s", 3),
+                    call("[generative process] bos_token defined as: %s", 3),
+                    call("[generative process] eos_token defined as: %s", 4),
+                    call("[generative process] vocab_size defined as: %s", 5),
+                ]
+            )
         assert cfg.get("base_vocab_size") == 3
         assert cfg.get("bos_token") == 3
         assert cfg.get("eos_token") == 4
@@ -529,10 +533,15 @@ class TestGenerativeProcessConfig:
         )
         with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
             resolve_generative_process_config(cfg, base_vocab_size=3)
-            mock_debug.assert_called_once_with("[generative process] base_vocab_size defined as: %s", 3)
-            mock_debug.assert_called_once_with("[generative process] no bos_token set")
-            mock_debug.assert_called_once_with("[generative process] no eos_token set")
-            mock_debug.assert_called_once_with("[generative process] vocab_size defined as: %s", 3)
+            mock_debug.assert_has_calls(
+                [
+                    call("[generative process] base_vocab_size defined as: %s", 3),
+                    call("[generative process] no bos_token set"),
+                    call("[generative process] no eos_token set"),
+                    call("[generative process] vocab_size defined as: %s", 3),
+                ]
+            )
+            assert mock_debug.call_count == 4
         assert cfg.get("base_vocab_size") == 3
         assert cfg.get("bos_token") is None
         assert cfg.get("eos_token") is None
@@ -550,10 +559,15 @@ class TestGenerativeProcessConfig:
         )
         with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.info") as mock_info:
             resolve_generative_process_config(cfg, base_vocab_size=3)
-            mock_info.assert_called_once_with("[generative process] base_vocab_size resolved to: %s", 3)
-            mock_info.assert_called_once_with("[generative process] bos_token resolved to: %s", 3)
-            mock_info.assert_called_once_with("[generative process] eos_token resolved to: %s", 4)
-            mock_info.assert_called_once_with("[generative process] vocab_size resolved to: %s", 5)
+            mock_info.assert_has_calls(
+                [
+                    call("[generative process] base_vocab_size resolved to: %s", 3),
+                    call("[generative process] bos_token resolved to: %s", 3),
+                    call("[generative process] eos_token resolved to: %s", 4),
+                    call("[generative process] vocab_size resolved to: %s", 5),
+                ]
+            )
+            assert mock_info.call_count == 4
         assert cfg.get("base_vocab_size") == 3
         assert cfg.get("bos_token") == 3
         assert cfg.get("eos_token") == 4

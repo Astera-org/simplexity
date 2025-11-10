@@ -342,7 +342,7 @@ def resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) -> 
     if OmegaConf.is_missing(cfg, "vocab_size"):
         cfg.vocab_size = vocab_size
         SIMPLEXITY_LOGGER.info("[generative process] vocab_size resolved to: %s", vocab_size)
-    elif cfg.get("vocab_size") == vocab_size:
+    elif cfg.get("vocab_size") != vocab_size:
         raise ConfigValidationError(
             f"GenerativeProcessConfig.vocab_size ({cfg.get('vocab_size')}) must be equal to {vocab_size}"
         )
