@@ -229,7 +229,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
 
     base_vocab_size = cfg.get("base_vocab_size")
     if OmegaConf.is_missing(cfg, "base_vocab_size"):
-        SIMPLEXITY_LOGGER.debug("[generative process] base vocab size is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] base_vocab_size is missing, will be resolved dynamically")
     else:
         _validate_positive_int(base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
 
@@ -270,7 +270,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         raise ConfigValidationError(f"GenerativeProcessConfig.bos_token and eos_token cannot be the same ({bos_token})")
 
     if OmegaConf.is_missing(cfg, "vocab_size"):
-        SIMPLEXITY_LOGGER.debug("[generative process] vocab size is missing, will be resolved dynamically")
+        SIMPLEXITY_LOGGER.debug("[generative process] vocab_size is missing, will be resolved dynamically")
     else:
         # Only validate consistency if base_vocab_size is also resolved
         if not OmegaConf.is_missing(cfg, "base_vocab_size"):
