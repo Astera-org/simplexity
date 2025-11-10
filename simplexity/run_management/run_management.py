@@ -101,9 +101,9 @@ def _setup_environment() -> None:
     for key, value in DEFAULT_ENVIRONMENT_VARIABLES.items():
         if not os.environ.get(key):
             os.environ[key] = value
-            SIMPLEXITY_LOGGER.info(f"[environment] {key} set to: {os.environ[key]}")
+            SIMPLEXITY_LOGGER.info("[environment] %s set to: %s", key, os.environ[key])
         else:
-            SIMPLEXITY_LOGGER.info(f"[environment] {key} already set to: {os.environ[key]}")
+            SIMPLEXITY_LOGGER.info("[environment] %s already set to: %s", key, os.environ[key])
 
 
 def _uv_sync() -> None:
@@ -127,25 +127,25 @@ def _set_random_seeds(seed: int | None) -> None:
     if seed is None:
         return
     random.seed(seed)
-    SIMPLEXITY_LOGGER.info(f"[random] seed set to: {seed}")
+    SIMPLEXITY_LOGGER.info("[random] seed set to: %s", seed)
     try:
         import numpy as np
     except ModuleNotFoundError:
         pass
     else:
         np.random.seed(seed)
-        SIMPLEXITY_LOGGER.info(f"[numpy] seed set to: {seed}")
+        SIMPLEXITY_LOGGER.info("[numpy] seed set to: %s", seed)
     try:
         import torch
     except ModuleNotFoundError:
         pass
     else:
         torch.manual_seed(seed)
-        SIMPLEXITY_LOGGER.info(f"[torch] seed set to: {seed}")
+        SIMPLEXITY_LOGGER.info("[torch] seed set to: %s", seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
-            SIMPLEXITY_LOGGER.info(f"[torch] CUDA seed set to: {seed}")
+            SIMPLEXITY_LOGGER.info("[torch] CUDA seed set to: %s", seed)
 
 
 def _assert_reproducibile(cfg: DictConfig) -> None:
@@ -174,7 +174,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
         downgrade_unity_catalog: bool = mlflow_config.get("downgrade_unity_catalog", True)
         if tracking_uri:
             mlflow.set_tracking_uri(tracking_uri)
-            SIMPLEXITY_LOGGER.info(f"[mlflow] tracking uri: {mlflow.get_tracking_uri()}")
+            SIMPLEXITY_LOGGER.info("[mlflow] tracking uri: %s", mlflow.get_tracking_uri())
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
@@ -182,7 +182,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
         )
         if resolved_registry_uri:
             mlflow.set_registry_uri(resolved_registry_uri)
-            SIMPLEXITY_LOGGER.info(f"[mlflow] registry uri: {mlflow.get_registry_uri()}")
+            SIMPLEXITY_LOGGER.info("[mlflow] registry uri: %s", mlflow.get_registry_uri())
         experiment_id = get_experiment_id(experiment_name)
         runs = mlflow.search_runs(
             experiment_ids=[experiment_id],
@@ -193,12 +193,12 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
         assert isinstance(runs, list)
         if runs:
             run_id = runs[0].info.run_id
-            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' already exists with id: {run_id}")
+            SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' already exists with id: %s", run_name, run_id)
         else:
             run_id = None
-            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' does not yet exist")
+            SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' does not yet exist", run_name)
         SIMPLEXITY_LOGGER.info(
-            f"[mlflow] starting run with: {{id: {run_id}, experiment id: {experiment_id}, run name: {run_name}}}"
+            "[mlflow] starting run with: {id: %s, experiment id: %s, run name: %s}", run_id, experiment_id, run_name
         )
         return mlflow.start_run(
             run_id=run_id,
@@ -214,7 +214,7 @@ def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     logging_instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if logging_instance_config:
         logger = typed_instantiate(logging_instance_config, Logger)
-        SIMPLEXITY_LOGGER.info(f"[logging] instantiated logger: {logger.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info("[logging] instantiated logger: %s", logger.__class__.__name__)
         return logger
     raise KeyError
 
@@ -248,7 +248,7 @@ def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> Gener
     if instance_config:
         generative_process = typed_instantiate(instance_config, GenerativeProcess)
         SIMPLEXITY_LOGGER.info(
-            f"[generative process] instantiated generative process: {generative_process.__class__.__name__}"
+            "[generative process] instantiated generative process: %s", generative_process.__class__.__name__
         )
         return generative_process
     raise KeyError
@@ -260,7 +260,7 @@ def _create_initial_state(generative_process: GenerativeProcess, batch_size: int
         initial_state = generative_process.initial_state
     else:
         initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
-    SIMPLEXITY_LOGGER.info(f"[generative process] instantiated initial state with shape: {initial_state.shape}")
+    SIMPLEXITY_LOGGER.info("[generative process] instantiated initial state with shape: %s", initial_state.shape)
     return initial_state
 
 
@@ -298,7 +298,7 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
         persister = typed_instantiate(instance_config, ModelPersister)
-        SIMPLEXITY_LOGGER.info(f"[persister] instantiated persister: {persister.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info("[persister] instantiated persister: %s", persister.__class__.__name__)
         return persister
     raise KeyError
 
@@ -363,7 +363,7 @@ def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
         with _suppress_pydantic_field_attribute_warning():
             predictive_model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
         SIMPLEXITY_LOGGER.info(
-            f"[predictive model] instantiated predictive model: {predictive_model.__class__.__name__}"
+            "[predictive model] instantiated predictive model: %s", predictive_model.__class__.__name__
         )
         return predictive_model
     raise KeyError
@@ -374,7 +374,7 @@ def _load_checkpoint(model: Any, persisters: dict[str, ModelPersister] | None, l
     persister = _get_persister(persisters)
     if persister:
         persister.load_weights(model, load_checkpoint_step)
-        SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
+        SIMPLEXITY_LOGGER.info("[predictive model] loaded checkpoint step: %s", load_checkpoint_step)
     else:
         raise RuntimeError("Unable to load model checkpoint")
 
@@ -431,12 +431,12 @@ def _instantiate_optimizer(cfg: DictConfig, instance_key: str, predictive_model:
         if is_pytorch_optimizer_config(instance_config):
             if predictive_model and isinstance(predictive_model, PytorchModel):
                 optimizer = hydra.utils.instantiate(instance_config, params=predictive_model.parameters())
-                SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
+                SIMPLEXITY_LOGGER.info("[optimizer] instantiated optimizer: %s", optimizer.__class__.__name__)
                 return optimizer
             SIMPLEXITY_LOGGER.warning("Predictive model has no parameters, optimizer will be skipped")
             return None
         optimizer = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
-        SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info("[optimizer] instantiated optimizer: %s", optimizer.__class__.__name__)
         return optimizer
     raise KeyError
 
@@ -521,7 +521,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 _cleanup(components)
                 return output
             except Exception as e:
-                SIMPLEXITY_LOGGER.error(f"[run] error: {e}")
+                SIMPLEXITY_LOGGER.error("[run] error: %s", e)
                 # TODO: cleanup
                 raise e
 
