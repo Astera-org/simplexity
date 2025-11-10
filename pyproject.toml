@@ -20,8 +20,6 @@ dependencies = [
     "jax>=0.8.0",
     "matplotlib",
     "mlflow>=3.0.0",
-    "orbax-checkpoint",
-    "penzai",
     "plotly",
     "torch>=2.9.0",
     "transformer-lens>=2.15.4",
@@ -53,8 +51,8 @@ dev = [
     "pytest-mock",
     "ruff",
 ]
+jax = ["orbax-checkpoint", "penzai"]
 mac = ["jax-metal"]
-pytorch = ["torch", "transformer-lens"]
 
 [tool.ruff]
 line-length = 120

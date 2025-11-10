@@ -11,8 +11,6 @@ from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
-from simplexity.persistence.model_persister import ModelPersister
-from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
 
 
@@ -48,7 +46,7 @@ class S3Client(Protocol):
         ...
 
 
-class S3Persister(ModelPersister):
+class S3Persister:
     """Persists a model to an S3 bucket."""
 
     bucket: str
@@ -106,7 +104,7 @@ class S3Persister(ModelPersister):
         directory = self.local_persister.directory / str(step)
         self._upload_local_directory(directory)
 
-    def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
+    def load_weights(self, model: Any, step: int = 0) -> Any:
         """Loads a model from S3."""
         self._download_s3_objects(step)
         return self.local_persister.load_weights(model, step)

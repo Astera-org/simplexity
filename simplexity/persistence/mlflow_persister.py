@@ -5,14 +5,12 @@ from __future__ import annotations
 import shutil
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import mlflow
 from omegaconf import OmegaConf
 
 from simplexity.persistence.local_persister import LocalPersister
-from simplexity.persistence.model_persister import ModelPersister
-from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
 from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
@@ -45,7 +43,7 @@ def _clear_subdirectory(subdirectory: Path) -> None:
     subdirectory.parent.mkdir(parents=True, exist_ok=True)
 
 
-class MLFlowPersister(ModelPersister):
+class MLFlowPersister:
     """Persist model checkpoints as MLflow artifacts, optionally reusing an existing run."""
 
     _client: MlflowClient
@@ -110,7 +108,7 @@ class MLFlowPersister(ModelPersister):
         """Return the model registry URI associated with this persister."""
         return self.client._registry_uri
 
-    def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
+    def save_weights(self, model: Any, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
         local_persister = self._get_local_persister(model)
         step_dir = local_persister.directory / str(step)
@@ -119,7 +117,7 @@ class MLFlowPersister(ModelPersister):
         framework_dir = step_dir.parent
         self.client.log_artifacts(self.run_id, str(framework_dir), artifact_path=self._artifact_path)
 
-    def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
+    def load_weights(self, model: Any, step: int = 0) -> Any:
         """Download MLflow artifacts and restore them into the provided model."""
         local_persister = self._get_local_persister(model)
         step_dir = local_persister.directory / str(step)
@@ -134,7 +132,7 @@ class MLFlowPersister(ModelPersister):
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
         return local_persister.load_weights(model, step)
 
-    def load_model(self, step: int = 0) -> PredictiveModel:
+    def load_model(self, step: int = 0) -> Any:
         """Load a model from a specified MLflow run and step."""
         config_path = self._config_path
 
@@ -157,7 +155,7 @@ class MLFlowPersister(ModelPersister):
         self._temp_dir.cleanup()
         maybe_terminate_run(run_id=self.run_id, client=self.client)
 
-    def _get_local_persister(self, model: PredictiveModel) -> LocalPersister:
+    def _get_local_persister(self, model: Any) -> LocalPersister:
         model_framework = get_model_framework(model)
         if model_framework not in self._local_persisters:
             self._local_persisters[model_framework] = _build_local_persister(model_framework, self._artifact_dir)

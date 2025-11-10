@@ -1,11 +1,11 @@
 from pathlib import Path
 
 import orbax.checkpoint as ocp
+import penzai.nn.layer.Layer as PenzaiModel
 from orbax.checkpoint.handlers import DefaultCheckpointHandlerRegistry
 from penzai import pz
 
 from simplexity.persistence.local_persister import LocalPersister
-from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.utils.penzai import deconstruct_variables, reconstruct_variables
 
 
@@ -20,7 +20,7 @@ class LocalPenzaiPersister(LocalPersister):
         self.registry.add("default", ocp.args.PyTreeSave, ocp.PyTreeCheckpointHandler)
         self.registry.add("default", ocp.args.PyTreeRestore, ocp.PyTreeCheckpointHandler)
 
-    def save_weights(self, model: PredictiveModel, step: int = 0, overwrite_existing: bool = False) -> None:
+    def save_weights(self, model: PenzaiModel, step: int = 0, overwrite_existing: bool = False) -> None:
         """Saves a model to the local filesystem."""
         _, variable_values = pz.unbind_variables(model, freeze=True)
         items = deconstruct_variables(variable_values)
@@ -30,7 +30,7 @@ class LocalPenzaiPersister(LocalPersister):
         mngr.save(step=step, args=ocp.args.PyTreeSave(item=items))  # pyright: ignore
         mngr.wait_until_finished()
 
-    def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
+    def load_weights(self, model: PenzaiModel, step: int = 0) -> PenzaiModel:
         """Loads a model from the local filesystem."""
         mngr = ocp.CheckpointManager(self.directory, handler_registry=self.registry)
         items = mngr.restore(step=step)
