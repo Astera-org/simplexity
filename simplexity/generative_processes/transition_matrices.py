@@ -375,6 +375,7 @@ HMM_MATRIX_FUNCTIONS = {
     "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,
     "rrxor": rrxor,
+    "leaky_rrxor": leaky_rrxor,
     "sns": sns,
     "zero_one_random": zero_one_random,
 }
