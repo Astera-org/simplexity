@@ -12,20 +12,14 @@ description = "Computational Mechanics of sequence prediction models."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "boto3>=1.37.24",
     "chex",
     "dotenv",
     "equinox>=0.13.0",
     "hydra-core",
     "hydra-optuna-sweeper",
     "jax>=0.8.0",
-    "jupyter",
     "matplotlib",
     "mlflow>=3.0.0",
-    "optax",
-    "orbax-checkpoint",
-    "pandas",
-    "penzai",
     "plotly",
     "torch>=2.9.0",
     "transformer-lens>=2.15.4",
@@ -33,7 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-aws = ["boto3"]
+aws = ["boto3>=1.37.24"] # Deprecated S3 Persister.
 cuda = [
     "jax[cuda12_pip]",
     "jax-cuda12-plugin>=0.8.0",
@@ -51,15 +45,17 @@ cuda = [
 dev = [
     "diff-cover",
     "jaxtyping",
-    "nbqa",
     "pyright",
     "pytest",
     "pytest-cov",
     "pytest-mock",
     "ruff",
 ]
+penzai = [
+    "orbax-checkpoint",
+    "penzai",
+] # Deprecated: penzai is no longer maintained.
 mac = ["jax-metal"]
-pytorch = ["torch", "transformer-lens"]
 
 [tool.ruff]
 line-length = 120

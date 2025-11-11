@@ -11,7 +11,9 @@ from urllib.parse import urlparse
 
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from simplexity.exceptions import ConfigValidationError
+from simplexity.exceptions import ConfigValidationError, DeviceResolutionError
+from simplexity.utils.config_utils import dynamic_resolve
+from simplexity.utils.pytorch_utils import resolve_device
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
@@ -35,6 +37,9 @@ def _validate_positive_int(value: Any, field_name: str, is_none_allowed: bool = 
     """Validate that a value is a positive integer."""
     if is_none_allowed and value is None:
         return
+    if isinstance(value, bool):
+        allowed_types = "an int or None" if is_none_allowed else "an int"
+        raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
     if not isinstance(value, int):
         allowed_types = "an int or None" if is_none_allowed else "an int"
         raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
@@ -46,6 +51,9 @@ def _validate_non_negative_int(value: Any, field_name: str, is_none_allowed: boo
     """Validate that a value is a non-negative integer."""
     if is_none_allowed and value is None:
         return
+    if isinstance(value, bool):
+        allowed_types = "an int or None" if is_none_allowed else "an int"
+        raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
     if not isinstance(value, int):
         allowed_types = "an int or None" if is_none_allowed else "an int"
         raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
@@ -300,6 +308,54 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         _validate_positive_int(batch_size, "GenerativeProcessConfig.batch_size", is_none_allowed=True)
 
 
+@dynamic_resolve
+def resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) -> None:
+    """Resolve the GenerativeProcessConfig."""
+    # Resolve base_vocab_size
+    if OmegaConf.is_missing(cfg, "base_vocab_size"):
+        cfg.base_vocab_size = base_vocab_size
+        SIMPLEXITY_LOGGER.info("[generative process] base_vocab_size resolved to: %s", base_vocab_size)
+    elif cfg.get("base_vocab_size") != base_vocab_size:
+        raise ConfigValidationError(
+            f"GenerativeProcessConfig.base_vocab_size ({cfg.get('base_vocab_size')}) must be equal to {base_vocab_size}"
+        )
+    else:
+        SIMPLEXITY_LOGGER.debug("[generative process] base_vocab_size defined as: %s", cfg.get("base_vocab_size"))
+    vocab_size = base_vocab_size
+    # Resolve bos_token
+    if OmegaConf.is_missing(cfg, "bos_token"):
+        cfg.bos_token = vocab_size
+        SIMPLEXITY_LOGGER.info("[generative process] bos_token resolved to: %s", cfg.bos_token)
+        vocab_size += 1
+    elif cfg.get("bos_token", None) is not None:
+        bos_token = cfg.get("bos_token")
+        SIMPLEXITY_LOGGER.debug("[generative process] bos_token defined as: %s", bos_token)
+        vocab_size = max(vocab_size, bos_token + 1)
+    else:
+        SIMPLEXITY_LOGGER.debug("[generative process] no bos_token set")
+    # Resolve eos_token
+    if OmegaConf.is_missing(cfg, "eos_token"):
+        cfg.eos_token = vocab_size
+        SIMPLEXITY_LOGGER.info("[generative process] eos_token resolved to: %s", cfg.eos_token)
+        vocab_size += 1
+    elif cfg.get("eos_token", None) is not None:
+        eos_token = cfg.get("eos_token")
+        SIMPLEXITY_LOGGER.debug("[generative process] eos_token defined as: %s", eos_token)
+        vocab_size = max(vocab_size, eos_token + 1)
+    else:
+        SIMPLEXITY_LOGGER.debug("[generative process] no eos_token set")
+    # Resolve vocab_size
+    if OmegaConf.is_missing(cfg, "vocab_size"):
+        cfg.vocab_size = vocab_size
+        SIMPLEXITY_LOGGER.info("[generative process] vocab_size resolved to: %s", vocab_size)
+    elif cfg.get("vocab_size") != vocab_size:
+        raise ConfigValidationError(
+            f"GenerativeProcessConfig.vocab_size ({cfg.get('vocab_size')}) must be equal to {vocab_size}"
+        )
+    else:
+        SIMPLEXITY_LOGGER.debug("[generative process] vocab_size defined as: %s", cfg.get("vocab_size"))
+
+
 # ============================================================================
 # Persistence Config
 # ============================================================================
@@ -434,6 +490,60 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
     validate_hooked_transformer_config_config(nested_cfg)
 
 
+@dynamic_resolve
+def resolve_hooked_transformer_config(
+    cfg: DictConfig,
+    *,
+    vocab_size: int | None = None,
+    bos_token: int | None = None,
+    eos_token: int | None = None,
+    sequence_len: int | None = None,
+) -> None:
+    """Resolve the HookedTransformerConfig."""
+    # Resolve d_vocab
+    if vocab_size is None:
+        SIMPLEXITY_LOGGER.debug("[predictive model] no vocab_size set")
+    else:
+        if OmegaConf.is_missing(cfg, "d_vocab"):
+            cfg.d_vocab = vocab_size
+            SIMPLEXITY_LOGGER.info("[predictive model] d_vocab resolved to: %s", vocab_size)
+        elif cfg.get("d_vocab") != vocab_size:
+            raise ConfigValidationError(
+                f"HookedTransformerConfig.d_vocab ({cfg.get('d_vocab')}) must be equal to {vocab_size}"
+            )
+        else:
+            SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab defined as: %s", cfg.get("d_vocab"))
+    # Resolve n_ctx
+    if sequence_len is None:
+        SIMPLEXITY_LOGGER.debug("[predictive model] no sequence_len set")
+    else:
+        use_bos = bos_token is not None
+        use_eos = eos_token is not None
+        n_ctx = sequence_len + int(use_bos) + int(use_eos) - 1
+        if OmegaConf.is_missing(cfg, "n_ctx"):
+            cfg.n_ctx = n_ctx
+            SIMPLEXITY_LOGGER.info("[predictive model] n_ctx resolved to: %s", n_ctx)
+        elif cfg.get("n_ctx") != n_ctx:
+            raise ConfigValidationError(f"HookedTransformerConfig.n_ctx ({cfg.get('n_ctx')}) must be equal to {n_ctx}")
+        else:
+            SIMPLEXITY_LOGGER.debug("[predictive model] n_ctx defined as: %s", cfg.get("n_ctx"))
+    # Resolve device
+    device: str | None = cfg.get("device", None)
+    try:
+        resolved_device = resolve_device(device)
+    except DeviceResolutionError as e:
+        SIMPLEXITY_LOGGER.warning("[predictive model] specified device %s could not be resolved: %s", device, e)
+        resolved_device = "cpu"
+    if device is None or device == "auto":
+        cfg.device = resolved_device
+        SIMPLEXITY_LOGGER.info("[predictive model] device resolved to: %s", resolved_device)
+    elif device != resolved_device:
+        cfg.device = resolved_device
+        SIMPLEXITY_LOGGER.warning("[predictive model] specified device %s resolved to %s", device, resolved_device)
+    else:
+        SIMPLEXITY_LOGGER.debug("[predictive model] device defined as: %s", device)
+
+
 @dataclass
 class PredictiveModelConfig:
     """Base configuration for predictive models."""
@@ -449,7 +559,7 @@ def is_predictive_model_target(target: str) -> bool:
     if len(parts) > 2:
         if parts[1] == "nn":  # torch.nn, equinox.nn, penzai.nn
             return True
-        if "models" in parts[1]:  # penzai.models, simplexity.predictive_models
+        if "models" in parts[1]:  # penzai.models
             return True
     return parts[0] == "transformer_lens"
 

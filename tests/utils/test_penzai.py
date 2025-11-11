@@ -5,8 +5,8 @@ import pytest
 from penzai import pz
 from penzai.core.variables import UnboundVariableError
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
+from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.utils.penzai import (
     ParamCountNode,
     PenzaiWrapper,
@@ -69,7 +69,7 @@ def test_use_penzai_model():
     assert isinstance(inputs, jax.Array)
 
     @use_penzai_model
-    def f(model: PredictiveModel, inputs: jax.Array) -> jax.Array:
+    def f(model: PenzaiModel, inputs: jax.Array) -> jax.Array:
         return model(inputs)
 
     outputs = f(model=transformer, inputs=inputs)

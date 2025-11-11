@@ -11,8 +11,6 @@ from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
-from simplexity.persistence.model_persister import ModelPersister
-from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
 
 
@@ -48,14 +46,22 @@ class S3Client(Protocol):
         ...
 
 
-class S3Persister(ModelPersister):
+class S3Persister:
     """Persists a model to an S3 bucket."""
 
-    bucket: str
-    prefix: str
-    s3_client: S3Client
-    temp_dir: tempfile.TemporaryDirectory
-    local_persister: LocalPersister
+    def __init__(
+        self,
+        bucket: str,
+        prefix: str,
+        s3_client: S3Client,
+        temp_dir: tempfile.TemporaryDirectory,
+        local_persister: LocalPersister,
+    ):
+        self.bucket = bucket
+        self.prefix = prefix
+        self.s3_client = s3_client
+        self.temp_dir = temp_dir
+        self.local_persister = local_persister
 
     @classmethod
     def from_config(
@@ -100,13 +106,13 @@ class S3Persister(ModelPersister):
         """Cleans up the temporary directory."""
         self.temp_dir.cleanup()
 
-    def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
+    def save_weights(self, model: Any, step: int = 0) -> None:
         """Saves a model to S3."""
         self.local_persister.save_weights(model, step)
         directory = self.local_persister.directory / str(step)
         self._upload_local_directory(directory)
 
-    def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
+    def load_weights(self, model: Any, step: int = 0) -> Any:
         """Loads a model from S3."""
         self._download_s3_objects(step)
         return self.local_persister.load_weights(model, step)

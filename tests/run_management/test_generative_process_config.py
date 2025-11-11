@@ -6,7 +6,7 @@ sequence length, batch size, and generative process configuration instances.
 """
 
 import re
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 from omegaconf import MISSING, DictConfig, OmegaConf
@@ -17,6 +17,7 @@ from simplexity.run_management.structured_configs import (
     InstanceConfig,
     is_generative_process_config,
     is_generative_process_target,
+    resolve_generative_process_config,
     validate_generative_process_config,
 )
 
@@ -264,6 +265,19 @@ class TestGenerativeProcessConfig:
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.base_vocab_size must be an int"):
             validate_generative_process_config(cfg)
 
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": False,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.base_vocab_size must be an int"):
+            validate_generative_process_config(cfg)
+
         # Negative base_vocab_size
         cfg = DictConfig(
             {
@@ -299,6 +313,20 @@ class TestGenerativeProcessConfig:
         ):
             validate_generative_process_config(cfg)
 
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                token_type: False,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match=f"GenerativeProcessConfig.{token_type} must be an int or None"):
+            validate_generative_process_config(cfg)
+
         # Negative token value
         cfg = DictConfig(
             {
@@ -332,17 +360,17 @@ class TestGenerativeProcessConfig:
             validate_generative_process_config(cfg)
 
     @pytest.mark.parametrize(
-        "attribute",
+        ("attribute", "is_vocab_token"),
         [
-            "base_vocab_size",
-            "bos_token",
-            "eos_token",
-            "vocab_size",
-            "sequence_len",
-            "batch_size",
+            ("base_vocab_size", False),
+            ("bos_token", True),
+            ("eos_token", True),
+            ("vocab_size", False),
+            ("sequence_len", False),
+            ("batch_size", False),
         ],
     )
-    def test_validate_generative_process_config_missing_attribute(self, attribute: str):
+    def test_validate_generative_process_config_missing_attribute(self, attribute: str, is_vocab_token: bool):
         """Test validate_generative_process_config raises when an attribute is missing."""
         cfg = DictConfig(
             {
@@ -350,7 +378,7 @@ class TestGenerativeProcessConfig:
                     {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
                 ),
                 "base_vocab_size": 3,
-                "vocab_size": 4,
+                "vocab_size": 4 if is_vocab_token else 3,
             }
         )
         cfg[attribute] = MISSING
@@ -393,6 +421,21 @@ class TestGenerativeProcessConfig:
                 "bos_token": 3,
                 "eos_token": None,
                 "vocab_size": "4",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.vocab_size must be an int"):
+            validate_generative_process_config(cfg)
+
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                "bos_token": 3,
+                "eos_token": None,
+                "vocab_size": False,
             }
         )
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.vocab_size must be an int"):
@@ -452,6 +495,19 @@ class TestGenerativeProcessConfig:
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.sequence_len must be an int"):
             validate_generative_process_config(cfg)
 
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+                "sequence_len": False,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.sequence_len must be an int"):
+            validate_generative_process_config(cfg)
+
         # Negative sequence_len
         cfg = DictConfig(
             {
@@ -482,6 +538,19 @@ class TestGenerativeProcessConfig:
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.batch_size must be an int"):
             validate_generative_process_config(cfg)
 
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+                "batch_size": False,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.batch_size must be an int"):
+            validate_generative_process_config(cfg)
+
         # Negative batch_size
         cfg = DictConfig(
             {
@@ -495,3 +564,109 @@ class TestGenerativeProcessConfig:
         )
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.batch_size must be positive"):
             validate_generative_process_config(cfg)
+
+    def test_resolve_generative_process_config_with_complete_values(self):
+        """Test _resolve_generative_process_config correctly calculates vocab_size when tokens are explicitly set."""
+        cfg = DictConfig(
+            {
+                "base_vocab_size": 3,
+                "bos_token": 3,
+                "eos_token": 4,
+                "vocab_size": 5,
+            }
+        )
+        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+            resolve_generative_process_config(cfg, base_vocab_size=3)
+            mock_debug.assert_has_calls(
+                [
+                    call("[generative process] base_vocab_size defined as: %s", 3),
+                    call("[generative process] bos_token defined as: %s", 3),
+                    call("[generative process] eos_token defined as: %s", 4),
+                    call("[generative process] vocab_size defined as: %s", 5),
+                ]
+            )
+        assert cfg.get("base_vocab_size") == 3
+        assert cfg.get("bos_token") == 3
+        assert cfg.get("eos_token") == 4
+        assert cfg.get("vocab_size") == 5
+
+    def test_resolve_generative_process_config_with_none_values(self):
+        cfg = DictConfig(
+            {
+                "base_vocab_size": 3,
+                "bos_token": None,
+                "eos_token": None,
+                "vocab_size": 3,
+            }
+        )
+        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+            resolve_generative_process_config(cfg, base_vocab_size=3)
+            mock_debug.assert_has_calls(
+                [
+                    call("[generative process] base_vocab_size defined as: %s", 3),
+                    call("[generative process] no bos_token set"),
+                    call("[generative process] no eos_token set"),
+                    call("[generative process] vocab_size defined as: %s", 3),
+                ]
+            )
+            assert mock_debug.call_count == 4
+        assert cfg.get("base_vocab_size") == 3
+        assert cfg.get("bos_token") is None
+        assert cfg.get("eos_token") is None
+        assert cfg.get("vocab_size") == 3
+
+    def test_resolve_generative_process_config_with_missing_values(self):
+        """Test _resolve_generative_process_config correctly calculates vocab_size when tokens are explicitly set."""
+        cfg = DictConfig(
+            {
+                "base_vocab_size": MISSING,
+                "bos_token": MISSING,
+                "eos_token": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.info") as mock_info:
+            resolve_generative_process_config(cfg, base_vocab_size=3)
+            mock_info.assert_has_calls(
+                [
+                    call("[generative process] base_vocab_size resolved to: %s", 3),
+                    call("[generative process] bos_token resolved to: %s", 3),
+                    call("[generative process] eos_token resolved to: %s", 4),
+                    call("[generative process] vocab_size resolved to: %s", 5),
+                ]
+            )
+            assert mock_info.call_count == 4
+        assert cfg.get("base_vocab_size") == 3
+        assert cfg.get("bos_token") == 3
+        assert cfg.get("eos_token") == 4
+        assert cfg.get("vocab_size") == 5
+
+    def test_resolve_generative_process_config_with_invalid_values(self):
+        """Test _resolve_generative_process_config raises when values are invalid."""
+        cfg = DictConfig(
+            {
+                "base_vocab_size": 4,
+                "bos_token": None,
+                "eos_token": None,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError,
+            match=re.escape("GenerativeProcessConfig.base_vocab_size (4) must be equal to 3"),
+        ):
+            resolve_generative_process_config(cfg, base_vocab_size=3)
+
+        cfg = DictConfig(
+            {
+                "base_vocab_size": 3,
+                "bos_token": None,
+                "eos_token": None,
+                "vocab_size": 4,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError,
+            match=re.escape("GenerativeProcessConfig.vocab_size (4) must be equal to 3"),
+        ):
+            resolve_generative_process_config(cfg, base_vocab_size=3)

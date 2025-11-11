@@ -2,17 +2,17 @@ import tempfile
 from pathlib import Path
 
 import chex
+import equinox as eqx
 import jax
 import pytest
 
 from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.persistence.s3_persister import S3Persister
-from simplexity.predictive_models.gru_rnn import GRURNN
 from tests.persistence.s3_mocks import MockBoto3Session, MockS3Client
 
 
-def get_model(seed: int = 0) -> GRURNN:
-    return GRURNN(vocab_size=2, embedding_size=4, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
+def get_model(seed: int = 0) -> eqx.Module:
+    return eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(seed))
 
 
 def test_s3_persister(tmp_path: Path):

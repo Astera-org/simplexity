@@ -1,15 +1,19 @@
 from pathlib import Path
 
 import chex
+import equinox as eqx
 import jax
 import pytest
 
 from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
-from simplexity.predictive_models.gru_rnn import GRURNN
 
 
-def get_model(seed: int) -> GRURNN:
-    return GRURNN(vocab_size=2, embedding_size=4, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
+def get_model(seed: int) -> eqx.Module:
+    return eqx.nn.Linear(
+        in_features=4,
+        out_features=3,
+        key=jax.random.key(seed),
+    )
 
 
 def test_local_persister(tmp_path: Path):

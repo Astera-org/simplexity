@@ -57,8 +57,12 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                 if components.generative_processes and components.initial_states is not None:
                     # Get the first generative process and corresponding initial state (keys match)
                     first_key = next(iter(components.generative_processes.keys()))
-                    batch_size = cfg.generative_process.batch_size or 1
-                    sequence_len = cfg.generative_process.sequence_len or 1
+                    batch_size = (
+                        cfg.generative_process.batch_size if cfg.generative_process.batch_size is not None else 1
+                    )
+                    sequence_len = (
+                        cfg.generative_process.sequence_len if cfg.generative_process.sequence_len is not None else 1
+                    )
                     _, inputs, _ = generate_data_batch(
                         components.initial_states[first_key],
                         components.generative_processes[first_key],

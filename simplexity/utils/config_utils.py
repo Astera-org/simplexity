@@ -46,7 +46,7 @@ def _validate(
         validate_fn(config)
     except ConfigValidationError as e:
         component_prefix = f"[{component_name}] " if component_name else ""
-        SIMPLEXITY_LOGGER.warning(f"{component_prefix}error validating config: {e}")
+        SIMPLEXITY_LOGGER.warning("%serror validating config: %s", component_prefix, e)
         return False
     return True
 

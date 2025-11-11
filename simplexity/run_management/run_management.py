@@ -42,6 +42,8 @@ from simplexity.run_management.structured_configs import (
     is_optimizer_target,
     is_predictive_model_target,
     is_pytorch_optimizer_config,
+    resolve_generative_process_config,
+    resolve_hooked_transformer_config,
     validate_base_config,
     validate_generative_process_config,
     validate_logging_config,
@@ -49,7 +51,6 @@ from simplexity.run_management.structured_configs import (
     validate_persistence_config,
 )
 from simplexity.utils.config_utils import (
-    dynamic_resolve,
     filter_instance_keys,
     get_config,
     get_instance_keys,
@@ -184,9 +185,9 @@ def _setup_environment() -> None:
     for key, value in DEFAULT_ENVIRONMENT_VARIABLES.items():
         if not os.environ.get(key):
             os.environ[key] = value
-            SIMPLEXITY_LOGGER.info(f"[environment] {key} set to: {os.environ[key]}")
+            SIMPLEXITY_LOGGER.info("[environment] %s set to: %s", key, os.environ[key])
         else:
-            SIMPLEXITY_LOGGER.info(f"[environment] {key} already set to: {os.environ[key]}")
+            SIMPLEXITY_LOGGER.info("[environment] %s already set to: %s", key, os.environ[key])
 
 
 def _uv_sync() -> None:
@@ -210,25 +211,25 @@ def _set_random_seeds(seed: int | None) -> None:
     if seed is None:
         return
     random.seed(seed)
-    SIMPLEXITY_LOGGER.info(f"[random] seed set to: {seed}")
+    SIMPLEXITY_LOGGER.info("[random] seed set to: %s", seed)
     try:
         import numpy as np
     except ModuleNotFoundError:
         pass
     else:
         np.random.seed(seed)
-        SIMPLEXITY_LOGGER.info(f"[numpy] seed set to: {seed}")
+        SIMPLEXITY_LOGGER.info("[numpy] seed set to: %s", seed)
     try:
         import torch
     except ModuleNotFoundError:
         pass
     else:
         torch.manual_seed(seed)
-        SIMPLEXITY_LOGGER.info(f"[torch] seed set to: {seed}")
+        SIMPLEXITY_LOGGER.info("[torch] seed set to: %s", seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
-            SIMPLEXITY_LOGGER.info(f"[torch] CUDA seed set to: {seed}")
+            SIMPLEXITY_LOGGER.info("[torch] CUDA seed set to: %s", seed)
 
 
 def _assert_reproducibile(cfg: DictConfig) -> None:
@@ -257,7 +258,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
         downgrade_unity_catalog: bool = mlflow_config.get("downgrade_unity_catalog", True)
         if tracking_uri:
             mlflow.set_tracking_uri(tracking_uri)
-            SIMPLEXITY_LOGGER.info(f"[mlflow] tracking uri: {mlflow.get_tracking_uri()}")
+            SIMPLEXITY_LOGGER.info("[mlflow] tracking uri: %s", mlflow.get_tracking_uri())
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
@@ -265,7 +266,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
         )
         if resolved_registry_uri:
             mlflow.set_registry_uri(resolved_registry_uri)
-            SIMPLEXITY_LOGGER.info(f"[mlflow] registry uri: {mlflow.get_registry_uri()}")
+            SIMPLEXITY_LOGGER.info("[mlflow] registry uri: %s", mlflow.get_registry_uri())
         experiment_id = get_experiment_id(experiment_name)
         runs = mlflow.search_runs(
             experiment_ids=[experiment_id],
@@ -276,12 +277,12 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
         assert isinstance(runs, list)
         if runs:
             run_id = runs[0].info.run_id
-            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' already exists with id: {run_id}")
+            SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' already exists with id: %s", run_name, run_id)
         else:
             run_id = None
-            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' does not yet exist")
+            SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' does not yet exist", run_name)
         SIMPLEXITY_LOGGER.info(
-            f"[mlflow] starting run with: {{id: {run_id}, experiment id: {experiment_id}, run name: {run_name}}}"
+            "[mlflow] starting run with: {id: %s, experiment id: %s, run name: %s}", run_id, experiment_id, run_name
         )
         return mlflow.start_run(
             run_id=run_id,
@@ -297,7 +298,7 @@ def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     logging_instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if logging_instance_config:
         logger = typed_instantiate(logging_instance_config, Logger)
-        SIMPLEXITY_LOGGER.info(f"[logging] instantiated logger: {logger.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info("[logging] instantiated logger: %s", logger.__class__.__name__)
         return logger
     raise KeyError
 
@@ -331,7 +332,7 @@ def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> Gener
     if instance_config:
         generative_process = typed_instantiate(instance_config, GenerativeProcess)
         SIMPLEXITY_LOGGER.info(
-            f"[generative process] instantiated generative process: {generative_process.__class__.__name__}"
+            "[generative process] instantiated generative process: %s", generative_process.__class__.__name__
         )
         return generative_process
     raise KeyError
@@ -343,32 +344,8 @@ def _create_initial_state(generative_process: GenerativeProcess, batch_size: int
         initial_state = generative_process.initial_state
     else:
         initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
-    SIMPLEXITY_LOGGER.info(f"[generative process] instantiated initial state with shape: {initial_state.shape}")
+    SIMPLEXITY_LOGGER.info("[generative process] instantiated initial state with shape: %s", initial_state.shape)
     return initial_state
-
-
-@dynamic_resolve
-def _resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) -> None:
-    """Resolve the GenerativeProcessConfig."""
-    cfg.base_vocab_size = base_vocab_size
-    SIMPLEXITY_LOGGER.info(f"[generative process] Base vocab size: {base_vocab_size}")
-    vocab_size = base_vocab_size
-    if OmegaConf.is_missing(cfg, "bos_token"):
-        cfg.bos_token = vocab_size
-        SIMPLEXITY_LOGGER.info(f"[generative process] BOS token resolved to: {cfg.bos_token}")
-        vocab_size += 1
-    elif cfg.get("bos_token", None) is not None:
-        bos_token = cfg.get("bos_token")
-        SIMPLEXITY_LOGGER.info(f"[generative process] BOS token defined as: {bos_token}")
-    if OmegaConf.is_missing(cfg, "eos_token"):
-        cfg.eos_token = vocab_size
-        SIMPLEXITY_LOGGER.info(f"[generative process] EOS token resolved to: {cfg.eos_token}")
-        vocab_size += 1
-    elif cfg.get("eos_token", None) is not None:
-        eos_token = cfg.get("eos_token")
-        SIMPLEXITY_LOGGER.info(f"[generative process] EOS token defined as: {eos_token}")
-    cfg.vocab_size = vocab_size
-    SIMPLEXITY_LOGGER.info(f"[generative process] Total vocab size: {vocab_size}")
 
 
 def _setup_generative_processes(
@@ -391,7 +368,7 @@ def _setup_generative_processes(
             if generative_process_config is None:
                 raise RuntimeError("Error selecting generative process config")
             base_vocab_size = generative_process.vocab_size
-            _resolve_generative_process_config(generative_process_config, base_vocab_size)
+            resolve_generative_process_config(generative_process_config, base_vocab_size)
             generative_processes[instance_key] = generative_process
             batch_size = generative_process_config.get("batch_size", None)
             initial_states[instance_key] = _create_initial_state(generative_process, batch_size)
@@ -404,8 +381,8 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
     """Setup the persister."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
-        persister = typed_instantiate(instance_config, ModelPersister)
-        SIMPLEXITY_LOGGER.info(f"[persister] instantiated persister: {persister.__class__.__name__}")
+        persister: ModelPersister = hydra.utils.instantiate(instance_config)
+        SIMPLEXITY_LOGGER.info("[persister] instantiated persister: %s", persister.__class__.__name__)
         return persister
     raise KeyError
 
@@ -449,10 +426,9 @@ def _get_attribute_value(cfg: DictConfig, instance_keys: list[str], attribute_na
         generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key, throw_on_missing=True)
         if generative_process_config is None:
             raise RuntimeError("Error selecting generative process config")
-        if OmegaConf.is_missing(generative_process_config, attribute_name):
-            new_attribute_value: int | None = None
-        else:
-            new_attribute_value = generative_process_config.get(attribute_name, None)
+        new_attribute_value: int | None = OmegaConf.select(
+            generative_process_config, attribute_name, throw_on_missing=False, default=None
+        )
         if attribute_value is None:
             attribute_value = new_attribute_value
         elif new_attribute_value != attribute_value:
@@ -463,30 +439,6 @@ def _get_attribute_value(cfg: DictConfig, instance_keys: list[str], attribute_na
     return attribute_value
 
 
-@dynamic_resolve
-def _resolve_hooked_transformer_config(
-    cfg: DictConfig,
-    *,
-    vocab_size: int | None,
-    bos_token: int | None,
-    eos_token: int | None,
-    sequence_len: int | None,
-) -> None:
-    """Resolve the HookedTransformerConfig."""
-    if OmegaConf.is_missing(cfg, "d_vocab") and vocab_size is not None:
-        cfg.d_vocab = vocab_size
-        SIMPLEXITY_LOGGER.info(f"[predictive model] d_vocab resolved to: {vocab_size}")
-    if OmegaConf.is_missing(cfg, "n_ctx") and sequence_len is not None:
-        use_bos = bos_token is not None
-        use_eos = eos_token is not None
-        n_ctx = sequence_len + int(use_bos) + int(use_eos) - 1
-        cfg.n_ctx = n_ctx
-        SIMPLEXITY_LOGGER.info(f"[predictive model] n_ctx resolved to: {n_ctx}")
-    device: str | None = cfg.get("device", None)
-    cfg.device = resolve_device(device)
-    SIMPLEXITY_LOGGER.info(f"[predictive model] device resolved to: {cfg.device}")
-
-
 def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
     """Setup the predictive model."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
@@ -494,7 +446,7 @@ def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
         with _suppress_pydantic_field_attribute_warning():
             predictive_model = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
         SIMPLEXITY_LOGGER.info(
-            f"[predictive model] instantiated predictive model: {predictive_model.__class__.__name__}"
+            "[predictive model] instantiated predictive model: %s", predictive_model.__class__.__name__
         )
         return predictive_model
     raise KeyError
@@ -505,7 +457,7 @@ def _load_checkpoint(model: Any, persisters: dict[str, ModelPersister] | None, l
     persister = _get_persister(persisters)
     if persister:
         persister.load_weights(model, load_checkpoint_step)
-        SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint step: {load_checkpoint_step}")
+        SIMPLEXITY_LOGGER.info("[predictive model] loaded checkpoint step: %s", load_checkpoint_step)
     else:
         raise RuntimeError("Unable to load model checkpoint")
 
@@ -526,7 +478,7 @@ def _setup_predictive_models(
             bos_token = _get_attribute_value(cfg, instance_keys, "bos_token")
             eos_token = _get_attribute_value(cfg, instance_keys, "eos_token")
             sequence_len = _get_attribute_value(cfg, instance_keys, "sequence_len")
-            _resolve_hooked_transformer_config(
+            resolve_hooked_transformer_config(
                 instance_config_config,
                 vocab_size=vocab_size,
                 bos_token=bos_token,
@@ -562,12 +514,12 @@ def _instantiate_optimizer(cfg: DictConfig, instance_key: str, predictive_model:
         if is_pytorch_optimizer_config(instance_config):
             if predictive_model and isinstance(predictive_model, PytorchModel):
                 optimizer = hydra.utils.instantiate(instance_config, params=predictive_model.parameters())
-                SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
+                SIMPLEXITY_LOGGER.info("[optimizer] instantiated optimizer: %s", optimizer.__class__.__name__)
                 return optimizer
             SIMPLEXITY_LOGGER.warning("Predictive model has no parameters, optimizer will be skipped")
             return None
         optimizer = hydra.utils.instantiate(instance_config)  # TODO: typed instantiate
-        SIMPLEXITY_LOGGER.info(f"[optimizer] instantiated optimizer: {optimizer.__class__.__name__}")
+        SIMPLEXITY_LOGGER.info("[optimizer] instantiated optimizer: %s", optimizer.__class__.__name__)
         return optimizer
     raise KeyError
 
@@ -652,7 +604,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 _cleanup(components)
                 return output
             except Exception as e:
-                SIMPLEXITY_LOGGER.error(f"[run] error: {e}")
+                SIMPLEXITY_LOGGER.error("[run] error: %s", e)
                 # TODO: cleanup
                 raise e
 
