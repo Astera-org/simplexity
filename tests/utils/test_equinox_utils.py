@@ -1,7 +1,7 @@
 import equinox as eqx
 import jax
 
-from simplexity.utils.equinox import vmap_model
+from simplexity.utils.equinox_utils import vmap_model
 
 
 def test_vmap_model():
