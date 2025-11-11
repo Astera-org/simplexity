@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
+from simplexity.exceptions import ConfigValidationError
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
@@ -34,13 +35,13 @@ def train(
     seed = training_cfg.get("seed", 0)
     batch_size: int | None = training_cfg.get("batch_size", None)
     if batch_size is None:
-        raise ValueError("batch_size is required")
+        raise ConfigValidationError("batch_size is required")
     sequence_len: int | None = training_cfg.get("sequence_len", None)
     if sequence_len is None:
-        raise ValueError("sequence_len is required")
+        raise ConfigValidationError("sequence_len is required")
     num_steps: int | None = training_cfg.get("num_steps", None)
     if num_steps is None:
-        raise ValueError("num_steps is required")
+        raise ConfigValidationError("num_steps is required")
     log_every: int | None = training_cfg.get("log_every", None)
     validate_every: int | None = training_cfg.get("validate_every", None)
     checkpoint_every: int | None = training_cfg.get("checkpoint_every", None)
