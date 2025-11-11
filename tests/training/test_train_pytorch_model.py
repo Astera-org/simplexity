@@ -6,11 +6,8 @@ import jax.numpy as jnp
 import pytest
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig
 
-from simplexity.configs.evaluation.config import Config as ValidateConfig
-from simplexity.configs.instance_config import InstanceConfig
-from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
@@ -90,33 +87,33 @@ def test_train(model: torch.nn.Module, tmp_path: Path):
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    training_cfg = TrainConfig(
-        seed=0,
-        sequence_len=32,
-        batch_size=64,
-        num_steps=100,
-        log_every=50,
-        validate_every=75,
-        checkpoint_every=100,
-        optimizer=OptimizerConfig(
-            name="pytorch_adam",
-            instance=InstanceConfig(
-                _target_="torch.optim.AdamW",
-                lr=0.001,
-                betas=(0.9, 0.999),
-                eps=1e-8,
-                weight_decay=0.01,
-                amsgrad=False,
+    training_cfg = DictConfig(
+        {
+            "seed": 0,
+            "sequence_len": 32,
+            "batch_size": 64,
+            "num_steps": 100,
+            "log_every": 50,
+            "validate_every": 75,
+            "checkpoint_every": 100,
+            "optimizer": DictConfig(
+                {
+                    "name": "pytorch_adam",
+                    "instance": DictConfig(
+                        {
+                            "_target_": "torch.optim.AdamW",
+                            "lr": 0.001,
+                            "betas": (0.9, 0.999),
+                            "eps": 1e-8,
+                            "weight_decay": 0.01,
+                            "amsgrad": False,
+                        }
+                    ),
+                }
             ),
-        ),
+        }
     )
-    validation_cfg = ValidateConfig(
-        seed=0,
-        sequence_len=32,
-        batch_size=64,
-        num_steps=10,
-        log_every=-1,
-    )
+    validation_cfg = DictConfig({"seed": 0, "sequence_len": 32, "batch_size": 64, "num_steps": 10, "log_every": -1})
     persister = LocalPytorchPersister(directory=str(tmp_path))
 
     original_metrics = evaluate(model=model, cfg=validation_cfg, data_generator=data_generator)

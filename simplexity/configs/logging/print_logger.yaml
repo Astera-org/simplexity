@@ -1,3 +1,0 @@
-name: print_logger
-instance:
-  _target_: simplexity.logging.print_logger.PrintLogger

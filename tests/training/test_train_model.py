@@ -5,19 +5,17 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import pytest
+from omegaconf import DictConfig
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.configs.evaluation.config import Config as ValidateConfig
-from simplexity.configs.instance_config import InstanceConfig
-from simplexity.configs.training.config import Config as TrainConfig
-from simplexity.configs.training.optimizer.config import Config as OptimizerConfig
 from simplexity.evaluation.evaluate_model import evaluate
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.logging.file_logger import FileLogger
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 from simplexity.predictive_models.gru_rnn import build_gru_rnn
 from simplexity.predictive_models.predictive_model import PredictiveModel
+from simplexity.run_management.structured_configs import InstanceConfig
 from simplexity.training.train_model import train
 from simplexity.utils.equinox import vmap_model
 from simplexity.utils.penzai import use_penzai_model
@@ -85,34 +83,29 @@ def test_train(model_type: str, tmp_path: Path, request: pytest.FixtureRequest):
     log_file_path = tmp_path / "test.log"
     logger = FileLogger(file_path=str(log_file_path))
 
-    training_cfg = TrainConfig(
-        seed=0,
-        sequence_len=32,
-        batch_size=64,
-        num_steps=100,
-        log_every=50,
-        validate_every=75,
-        checkpoint_every=100,
-        optimizer=OptimizerConfig(
-            name="optax_adam",
-            instance=AdamConfig(
-                _target_="optax.adam",
-                learning_rate=0.001,
-                b1=0.9,
-                b2=0.999,
-                eps=1e-8,
-                eps_root=0.0,
-                nesterov=True,
+    training_cfg = DictConfig(
+        {
+            "seed": 0,
+            "sequence_len": 32,
+            "batch_size": 64,
+            "num_steps": 100,
+            "log_every": 50,
+            "validate_every": 75,
+            "checkpoint_every": 100,
+            "optimizer": DictConfig(
+                {
+                    "name": "optax_adam",
+                    "instance": DictConfig(
+                        {
+                            "_target_": "optax.adam",
+                            "learning_rate": 0.001,
+                        }
+                    ),
+                }
             ),
-        ),
+        }
     )
-    validation_cfg = ValidateConfig(
-        seed=0,
-        sequence_len=32,
-        batch_size=64,
-        num_steps=10,
-        log_every=-1,
-    )
+    validation_cfg = DictConfig({"seed": 0, "sequence_len": 32, "batch_size": 64, "num_steps": 10, "log_every": -1})
     persister = LocalPenzaiPersister(directory=str(tmp_path))
 
     original_metrics = evaluate_model(model=model, cfg=validation_cfg, data_generator=data_generator)

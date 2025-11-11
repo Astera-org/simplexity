@@ -1,9 +1,9 @@
 import jax
 import jax.numpy as jnp
+from omegaconf import DictConfig, OmegaConf
 
-from simplexity.configs.evaluation.config import Config as ValidateConfig
-from simplexity.configs.training.config import Config as TrainConfig
 from simplexity.evaluation.evaluate_pytorch_model import evaluate
+from simplexity.exceptions import ConfigValidationError
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.logger import Logger
@@ -20,10 +20,10 @@ except ImportError as e:
 
 def train(
     model: torch.nn.Module,
-    training_cfg: TrainConfig,
+    training_cfg: DictConfig,
     training_data_generator: GenerativeProcess,
     logger: Logger | None = None,
-    validation_cfg: ValidateConfig | None = None,
+    validation_cfg: DictConfig | None = None,
     validation_data_generator: GenerativeProcess | None = None,
     persister: ModelPersister | None = None,
     training_bos_token: int | None = None,
@@ -32,21 +32,35 @@ def train(
     validation_eos_token: int | None = None,
 ) -> tuple[torch.nn.Module, float]:
     """Train a PyTorch model on a generative process."""
-    key = jax.random.PRNGKey(training_cfg.seed)
+    seed = training_cfg.get("seed", 0)
+    batch_size: int | None = training_cfg.get("batch_size", None)
+    if batch_size is None:
+        raise ConfigValidationError("batch_size is required")
+    sequence_len: int | None = training_cfg.get("sequence_len", None)
+    if sequence_len is None:
+        raise ConfigValidationError("sequence_len is required")
+    num_steps: int | None = training_cfg.get("num_steps", None)
+    if num_steps is None:
+        raise ConfigValidationError("num_steps is required")
+    log_every: int | None = training_cfg.get("log_every", None)
+    validate_every: int | None = training_cfg.get("validate_every", None)
+    checkpoint_every: int | None = training_cfg.get("checkpoint_every", None)
+    key = jax.random.PRNGKey(seed)
 
-    optimizer = typed_instantiate(training_cfg.optimizer.instance, torch.optim.Optimizer, params=model.parameters())
+    optimizer_instance_config = OmegaConf.select(training_cfg, "optimizer.instance")
+    optimizer = typed_instantiate(optimizer_instance_config, torch.optim.Optimizer, params=model.parameters())
 
     gen_state = training_data_generator.initial_state
-    gen_states = jnp.repeat(gen_state[None, :], training_cfg.batch_size, axis=0)
+    gen_states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     loss_value = 0.0
 
-    for step in range(1, training_cfg.num_steps + 1):
+    for step in range(1, num_steps + 1):
         key, gen_key = jax.random.split(key)
         gen_states, inputs, labels = generate_data_batch(
             gen_states,
             training_data_generator,
-            training_cfg.batch_size,
-            training_cfg.sequence_len,
+            batch_size,
+            sequence_len,
             gen_key,
             bos_token=training_bos_token,
             eos_token=training_eos_token,
@@ -71,14 +85,9 @@ def train(
         metrics = {"loss": loss}
 
         if logger:
-            if training_cfg.log_every and step % training_cfg.log_every == 0:
+            if log_every and step % log_every == 0:
                 logger.log_metrics(step, metrics)
-            if (
-                validation_cfg
-                and validation_data_generator
-                and training_cfg.validate_every
-                and step % training_cfg.validate_every == 0
-            ):
+            if validation_cfg and validation_data_generator and validate_every and step % validate_every == 0:
                 validation_metrics = evaluate(
                     model=model,
                     cfg=validation_cfg,
@@ -88,7 +97,7 @@ def train(
                 )
                 validation_metrics = {f"validation/{k}": v for k, v in validation_metrics.items()}
                 logger.log_metrics(step, validation_metrics)
-        if persister and training_cfg.checkpoint_every and step % training_cfg.checkpoint_every == 0:
+        if persister and checkpoint_every and step % checkpoint_every == 0:
             persister.save_weights(model, step)
 
     return model, loss_value
