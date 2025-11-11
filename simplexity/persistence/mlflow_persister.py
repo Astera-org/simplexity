@@ -144,8 +144,8 @@ class MLFlowPersister:
             )
             run_config = OmegaConf.load(downloaded_config_path)
 
-        instance: DictConfig = OmegaConf.select(run_config, "predictive_model.instance")
-        target: str = OmegaConf.select(run_config, "predictive_model.instance._target_")
+        instance: DictConfig = OmegaConf.select(run_config, "predictive_model.instance", throw_on_missing=True)
+        target: str = OmegaConf.select(run_config, "predictive_model.instance._target_", throw_on_missing=True)
         model = typed_instantiate(instance, target)
 
         return self.load_weights(model, step)
