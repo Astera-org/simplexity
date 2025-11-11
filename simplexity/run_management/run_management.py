@@ -19,6 +19,7 @@ import hydra
 import jax
 import jax.numpy as jnp
 import mlflow
+from mlflow.exceptions import MlflowException
 from omegaconf import DictConfig, OmegaConf, open_dict
 from torch.nn import Module as PytorchModel
 
@@ -105,40 +106,86 @@ def _load_config(cfg: DictConfig, load_config: DictConfig) -> None:
 
     tracking_uri: str | None = load_config.get("tracking_uri")
     experiment_name: str | None = load_config.get("experiment_name")
+    experiment_id: str | None = load_config.get("experiment_id")
     run_name: str | None = load_config.get("run_name")
+    run_id: str | None = load_config.get("run_id")
     configs_to_load: DictConfig | None = load_config.get("configs")
     artifact_path: str = load_config.get("artifact_path", "config.yaml")
 
-    if not experiment_name:
-        raise ValueError("load_config.experiment_name is required")
-    if not run_name:
-        raise ValueError("load_config.run_name is required")
     if not configs_to_load:
-        SIMPLEXITY_LOGGER.warning(f"[config] no configs specified for load_config run '{run_name}', nothing to merge")
+        run_identifier = run_name or run_id or "<unknown>"
+        SIMPLEXITY_LOGGER.warning(
+            f"[config] no configs specified for load_config run '{run_identifier}', nothing to merge"
+        )
         return
 
     client = mlflow.MlflowClient(tracking_uri=tracking_uri)
 
-    experiment = client.get_experiment_by_name(experiment_name)
-    if experiment is None:
-        raise ValueError(f"Experiment '{experiment_name}' not found for load_config run '{run_name}'")
-    experiment_id = experiment.experiment_id
+    if experiment_id:
+        experiment = client.get_experiment(experiment_id)
+        if experiment is None:
+            raise ValueError(
+                f"Experiment with id '{experiment_id}' not found for load_config "
+                f"run '{run_name or run_id or '<unknown>'}'"
+            )
+        if experiment_name:
+            if experiment.name != experiment_name:
+                raise ValueError(
+                    f"Experiment id '{experiment_id}' refers to '{experiment.name}', which does not match "
+                    f"provided experiment_name '{experiment_name}'"
+                )
+            else:
+                experiment_name = experiment.name
+    elif experiment_name:
+        experiment = client.get_experiment_by_name(experiment_name)
+        if experiment is None:
+            raise ValueError(
+                f"Experiment '{experiment_name}' not found for load_config run '{run_name or run_id or '<unknown>'}'"
+            )
+        experiment_id = experiment.experiment_id
+    else:
+        raise ValueError("load_config requires experiment_name or experiment_id")
+    assert experiment_id is not None
+    assert experiment_name is not None
 
-    runs = client.search_runs(
-        experiment_ids=[experiment_id],
-        filter_string=f"attributes.run_name = '{run_name}'",
-        max_results=1,
-    )
-    if not runs:
-        raise ValueError(
-            f"Run with name '{run_name}' not found in experiment '{experiment_name}' for load_config entry"
+    if run_id:
+        try:
+            run = client.get_run(run_id)
+        except MlflowException as e:  # pragma: no cover - mlflow always raises for missing runs
+            raise ValueError(
+                f"Run with id '{run_id}' not found in experiment '{experiment_name}' for load_config entry"
+            ) from e
+        if run.info.experiment_id != experiment_id:
+            raise ValueError(
+                f"Run id '{run_id}' belongs to experiment id '{run.info.experiment_id}', expected '{experiment_id}'"
+            )
+        if run_name and run.info.run_name != run_name:
+            raise ValueError(
+                f"Run id '{run_id}' refers to run '{run.info.run_name}', which does not match "
+                f"provided run_name '{run_name}'"
+            )
+    elif run_name:
+        runs = client.search_runs(
+            experiment_ids=[experiment_id],
+            filter_string=f"attributes.run_name = '{run_name}'",
+            max_results=1,
         )
-    run = runs[0]
+        if not runs:
+            raise ValueError(
+                f"Run with name '{run_name}' not found in experiment '{experiment_name}' for load_config entry"
+            )
+        run = runs[0]
+    else:
+        raise ValueError("load_config requires run_name or run_id")
+
     run_id = run.info.run_id
+    run_name = run.info.run_name
+    assert run_id is not None
+    assert run_name is not None
 
     SIMPLEXITY_LOGGER.info(
         f"[config] loading artifact '{artifact_path}' from run '{run_name}' ({run_id}) "
-        f"in experiment '{experiment_name}'"
+        f"in experiment '{experiment_name}' ({experiment_id})"
     )
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_local_path = client.download_artifacts(run_id, artifact_path, temp_dir)

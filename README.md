@@ -73,8 +73,10 @@ The `ModelPersister` class is responsible for saving and loading model checkpoin
 ```yaml
 load_configs:
   - tracking_uri: databricks              # optional; defaults to current URI
-    experiment_name: /Shared/previous_exp
-    run_name: best_model_run
+    experiment_name: /Shared/previous_exp # or provide experiment_id
+    experiment_id: "123456"               # optional safeguard when both are set
+    run_name: best_model_run              # or provide run_id
+    run_id: "0123456789abcdef"
     artifact_path: config.yaml            # optional; defaults to config.yaml
     configs:
       predictive_model: historical.predictive_model
@@ -86,6 +88,7 @@ For each entry we:
 - Create a dedicated `MlflowClient` using the supplied tracking URI.
 - Download the specified artifact (`config.yaml` by default) from the referenced run.
 - Copy the listed source keys into the current config using the provided destination paths, merging with any existing values so local overrides still apply.
+- Optionally accept `experiment_id`/`run_id` pairs instead of names. When both the name and id are supplied we verify they reference the same MLflow objects to avoid accidental mixups.
 
 This makes it easy to pin specific components (models, generative processes, etc.) from a prior run while still editing other sections locally.
 

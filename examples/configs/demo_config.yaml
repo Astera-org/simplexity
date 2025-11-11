@@ -19,7 +19,9 @@ tags:
 load_configs:
   - tracking_uri: databricks
     experiment_name: /Shared/managed_run_demo_20251106_045326
+    # experiment_id: 123456789012345678  # optional alternative to experiment_name
     run_name: managed_run_demo_20251106_045326
+    # run_id: 0123456789abcdef0123456789abcdef  # optional alternative to run_name
     artifact_path: config.yaml
     configs:
       predictive_model: old_model_1
