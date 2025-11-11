@@ -33,6 +33,10 @@ class TestBaseConfig:
         with pytest.raises(ConfigValidationError, match="BaseConfig.seed must be an int or None"):
             validate_base_config(cfg)
 
+        cfg = DictConfig({"seed": False})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.seed must be an int or None"):
+            validate_base_config(cfg)
+
         # Negative seed
         cfg = DictConfig({"seed": -1})
         with pytest.raises(ConfigValidationError, match="BaseConfig.seed must be non-negative"):

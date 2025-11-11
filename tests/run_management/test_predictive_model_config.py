@@ -155,6 +155,10 @@ class TestHookedTransformerConfig:
         with pytest.raises(ConfigValidationError, match=f"HookedTransformerConfigConfig.{field} must be an int"):
             validate_hooked_transformer_config_config(cfg)
 
+        cfg[field] = False
+        with pytest.raises(ConfigValidationError, match=f"HookedTransformerConfigConfig.{field} must be an int"):
+            validate_hooked_transformer_config_config(cfg)
+
         # Non-positive value (0 should fail for all fields, including n_heads)
         cfg[field] = 0
         with pytest.raises(ConfigValidationError, match=f"HookedTransformerConfigConfig.{field} must be positive"):
@@ -599,6 +603,17 @@ class TestHookedTransformerConfig:
             {
                 "instance": DictConfig({"_target_": "torch.nn.Linear", "in_features": 10, "out_features": 5}),
                 "load_checkpoint_step": "100",
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError, match="PredictiveModelConfig.load_checkpoint_step must be an int or None"
+        ):
+            validate_predictive_model_config(cfg)
+
+        cfg = DictConfig(
+            {
+                "instance": DictConfig({"_target_": "torch.nn.Linear", "in_features": 10, "out_features": 5}),
+                "load_checkpoint_step": False,
             }
         )
         with pytest.raises(

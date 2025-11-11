@@ -37,6 +37,9 @@ def _validate_positive_int(value: Any, field_name: str, is_none_allowed: bool = 
     """Validate that a value is a positive integer."""
     if is_none_allowed and value is None:
         return
+    if isinstance(value, bool):
+        allowed_types = "an int or None" if is_none_allowed else "an int"
+        raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
     if not isinstance(value, int):
         allowed_types = "an int or None" if is_none_allowed else "an int"
         raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
@@ -48,6 +51,9 @@ def _validate_non_negative_int(value: Any, field_name: str, is_none_allowed: boo
     """Validate that a value is a non-negative integer."""
     if is_none_allowed and value is None:
         return
+    if isinstance(value, bool):
+        allowed_types = "an int or None" if is_none_allowed else "an int"
+        raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
     if not isinstance(value, int):
         allowed_types = "an int or None" if is_none_allowed else "an int"
         raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")

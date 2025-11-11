@@ -265,6 +265,19 @@ class TestGenerativeProcessConfig:
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.base_vocab_size must be an int"):
             validate_generative_process_config(cfg)
 
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": False,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.base_vocab_size must be an int"):
+            validate_generative_process_config(cfg)
+
         # Negative base_vocab_size
         cfg = DictConfig(
             {
@@ -298,6 +311,20 @@ class TestGenerativeProcessConfig:
             ConfigValidationError,
             match=re.escape(f"GenerativeProcessConfig.{token_type} must be an int or None, got <class 'str'>"),
         ):
+            validate_generative_process_config(cfg)
+
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                token_type: False,
+                "vocab_size": MISSING,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match=f"GenerativeProcessConfig.{token_type} must be an int or None"):
             validate_generative_process_config(cfg)
 
         # Negative token value
@@ -399,6 +426,21 @@ class TestGenerativeProcessConfig:
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.vocab_size must be an int"):
             validate_generative_process_config(cfg)
 
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "name": "mess3",
+                "base_vocab_size": 3,
+                "bos_token": 3,
+                "eos_token": None,
+                "vocab_size": False,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.vocab_size must be an int"):
+            validate_generative_process_config(cfg)
+
         # Negative vocab size
         cfg = DictConfig(
             {
@@ -453,6 +495,19 @@ class TestGenerativeProcessConfig:
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.sequence_len must be an int"):
             validate_generative_process_config(cfg)
 
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+                "sequence_len": False,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.sequence_len must be an int"):
+            validate_generative_process_config(cfg)
+
         # Negative sequence_len
         cfg = DictConfig(
             {
@@ -478,6 +533,19 @@ class TestGenerativeProcessConfig:
                 "base_vocab_size": MISSING,
                 "vocab_size": MISSING,
                 "batch_size": "64",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.batch_size must be an int"):
+            validate_generative_process_config(cfg)
+
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {"_target_": "simplexity.generative_processes.builder.build_hidden_markov_model"}
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+                "batch_size": False,
             }
         )
         with pytest.raises(ConfigValidationError, match="GenerativeProcessConfig.batch_size must be an int"):
