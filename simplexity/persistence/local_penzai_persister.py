@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import orbax.checkpoint as ocp
-import penzai.nn.layer.Layer as PenzaiModel
+from penzai.nn.layer import Layer as PenzaiModel
 from orbax.checkpoint.handlers import DefaultCheckpointHandlerRegistry
 from penzai import pz
 
