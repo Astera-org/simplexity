@@ -6,9 +6,9 @@ import pytest
 from penzai import pz
 from penzai.core.variables import UnboundVariableError
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
+from penzai.nn.layer import Layer as PenzaiModel
 
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
-from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
 def test_local_penzai_persister(tmp_path: Path):
@@ -31,7 +31,7 @@ def test_local_penzai_persister(tmp_path: Path):
 
     key = jax.random.PRNGKey(0)
     model = build_llamalike_transformer(config, init_base_rng=key)
-    assert isinstance(model, PredictiveModel)
+    assert isinstance(model, PenzaiModel)
     outputs = model(inputs)
 
     assert not (tmp_path / "0" / "_CHECKPOINT_METADATA").exists()
@@ -39,7 +39,7 @@ def test_local_penzai_persister(tmp_path: Path):
     assert (tmp_path / "0" / "_CHECKPOINT_METADATA").exists()
 
     unbound_model = build_llamalike_transformer(config)
-    assert isinstance(unbound_model, PredictiveModel)
+    assert isinstance(unbound_model, PenzaiModel)
     with pytest.raises(UnboundVariableError):
         unbound_model(inputs)
 

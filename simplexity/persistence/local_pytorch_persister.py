@@ -1,11 +1,8 @@
 from pathlib import Path
 
-from simplexity.persistence.local_persister import LocalPersister
+import torch
 
-try:
-    import torch
-except ImportError as e:
-    raise ImportError("To use PyTorch support install the torch extra:\nuv sync --extra pytorch") from e
+from simplexity.persistence.local_persister import LocalPersister
 
 
 class LocalPytorchPersister(LocalPersister):

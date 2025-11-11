@@ -559,7 +559,7 @@ def is_predictive_model_target(target: str) -> bool:
     if len(parts) > 2:
         if parts[1] == "nn":  # torch.nn, equinox.nn, penzai.nn
             return True
-        if "models" in parts[1]:  # penzai.models, simplexity.predictive_models
+        if "models" in parts[1]:  # penzai.models
             return True
     return parts[0] == "transformer_lens"
 

@@ -10,15 +10,11 @@ import warnings
 import jax
 import jax.numpy as jnp
 import numpy as np
+import torch
 from jax import dlpack as jax_dlpack
 from torch.utils import dlpack as torch_dlpack
 
 from simplexity.exceptions import DeviceResolutionError
-
-try:
-    import torch
-except ImportError as e:
-    raise ImportError("To use PyTorch support install the torch extra:\nuv sync --extra pytorch") from e
 
 
 def jax_to_torch(jax_array: jax.Array) -> torch.Tensor:

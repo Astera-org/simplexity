@@ -4,9 +4,9 @@ from simplexity.run_management.structured_configs import (
     GenerativeProcessConfig,
     LoggingConfig,
     MLFlowConfig,
-    PredictiveModelConfig,
     OptimizerConfig,
     PersistenceConfig,
+    PredictiveModelConfig,
 )
 
 
