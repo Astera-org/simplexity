@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import mlflow
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
@@ -106,11 +106,11 @@ class MLFlowPersister:
     @property
     def registry_uri(self) -> str | None:
         """Return the model registry URI associated with this persister."""
-        return self.client._registry_uri
+        return self.client._registry_uri  # pylint: disable=protected-access
 
     def save_weights(self, model: Any, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
-        local_persister = self._get_local_persister(model)
+        local_persister = self.get_local_persister(model)
         step_dir = local_persister.directory / str(step)
         _clear_subdirectory(step_dir)
         local_persister.save_weights(model, step)
@@ -119,7 +119,7 @@ class MLFlowPersister:
 
     def load_weights(self, model: Any, step: int = 0) -> Any:
         """Download MLflow artifacts and restore them into the provided model."""
-        local_persister = self._get_local_persister(model)
+        local_persister = self.get_local_persister(model)
         step_dir = local_persister.directory / str(step)
         _clear_subdirectory(step_dir)
         artifact_path = f"{self._artifact_path}/{step}"
@@ -144,7 +144,9 @@ class MLFlowPersister:
             )
             run_config = OmegaConf.load(downloaded_config_path)
 
-        model = typed_instantiate(run_config.predictive_model.instance, run_config.predictive_model.instance._target_)
+        instance: DictConfig = OmegaConf.select(run_config, "predictive_model.instance")
+        target: str = OmegaConf.select(run_config, "predictive_model.instance._target_")
+        model = typed_instantiate(instance, target)
 
         return self.load_weights(model, step)
 
@@ -155,7 +157,8 @@ class MLFlowPersister:
         self._temp_dir.cleanup()
         maybe_terminate_run(run_id=self.run_id, client=self.client)
 
-    def _get_local_persister(self, model: Any) -> LocalPersister:
+    def get_local_persister(self, model: Any) -> LocalPersister:
+        """Get the local persister for the given model."""
         model_framework = get_model_framework(model)
         if model_framework not in self._local_persisters:
             self._local_persisters[model_framework] = _build_local_persister(model_framework, self._artifact_dir)

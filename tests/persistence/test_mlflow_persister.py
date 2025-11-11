@@ -7,7 +7,6 @@ from pathlib import Path
 import chex
 import equinox as eqx
 import jax
-import pytest
 import torch
 import torch.nn as nn
 import yaml
@@ -55,7 +54,7 @@ def get_hydra_config_for_model(seed: int) -> dict:
     return {
         "predictive_model": {
             "instance": {
-                "_target_": "eqx.nn.Linear",
+                "_target_": "equinox.nn.Linear",
                 "in_features": 4,
                 "out_features": 2,
                 "key": {"_target_": "jax.random.key", "seed": seed},
@@ -114,7 +113,7 @@ def test_mlflow_persister_round_trip_from_config(tmp_path: Path) -> None:
 
     # New function expects a config to live at experiment_id/run_id/artifacts/config_path
     config_path = artifact_dir / experiment_id / run_id / "artifacts" / "config.yaml"
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(get_hydra_config_for_model(0), f)
 
     loaded = persister.load_model(step=0)
@@ -142,7 +141,7 @@ def test_mlflow_persister_cleanup(tmp_path: Path):
 
     model = get_model(0)
     persister.save_weights(model, step=0)
-    local_persister = persister._get_local_persister(model)
+    local_persister = persister.get_local_persister(model)
     assert local_persister.directory.exists()
 
     persister.cleanup()
@@ -201,7 +200,7 @@ def test_mlflow_persister_pytorch_round_trip_from_config(tmp_path: Path) -> None
 
     # New function expects a config to live at experiment_id/run_id/artifacts/config_path
     config_path = artifact_dir / experiment_id / run_id / "artifacts" / "config.yaml"
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(get_hydra_config_for_pytorch_model(), f)
 
     loaded = persister.load_model(step=0)
@@ -230,7 +229,7 @@ def test_mlflow_persister_pytorch_cleanup(tmp_path: Path):
 
     model = get_pytorch_model(0)
     persister.save_weights(model, step=0)
-    local_persister = persister._get_local_persister(model)
+    local_persister = persister.get_local_persister(model)
     assert local_persister.directory.exists()
 
     persister.cleanup()
