@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from simplexity.exceptions import ConfigValidationError
+from simplexity.exceptions import ConfigValidationError, DeviceResolutionError
 from simplexity.utils.config_utils import dynamic_resolve
 from simplexity.utils.pytorch_utils import resolve_device
 
@@ -488,24 +488,54 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
 def resolve_hooked_transformer_config(
     cfg: DictConfig,
     *,
-    vocab_size: int | None,
-    bos_token: int | None,
-    eos_token: int | None,
-    sequence_len: int | None,
+    vocab_size: int | None = None,
+    bos_token: int | None = None,
+    eos_token: int | None = None,
+    sequence_len: int | None = None,
 ) -> None:
     """Resolve the HookedTransformerConfig."""
-    if OmegaConf.is_missing(cfg, "d_vocab") and vocab_size is not None:
-        cfg.d_vocab = vocab_size
-        SIMPLEXITY_LOGGER.info("[predictive model] d_vocab resolved to: %s", vocab_size)
-    if OmegaConf.is_missing(cfg, "n_ctx") and sequence_len is not None:
+    # Resolve d_vocab
+    if vocab_size is None:
+        SIMPLEXITY_LOGGER.debug("[predictive model] no vocab_size set")
+    else:
+        if OmegaConf.is_missing(cfg, "d_vocab"):
+            cfg.d_vocab = vocab_size
+            SIMPLEXITY_LOGGER.info("[predictive model] d_vocab resolved to: %s", vocab_size)
+        elif cfg.get("d_vocab") != vocab_size:
+            raise ConfigValidationError(
+                f"HookedTransformerConfig.d_vocab ({cfg.get('d_vocab')}) must be equal to {vocab_size}"
+            )
+        else:
+            SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab defined as: %s", cfg.get("d_vocab"))
+    # Resolve n_ctx
+    if sequence_len is None:
+        SIMPLEXITY_LOGGER.debug("[predictive model] no sequence_len set")
+    else:
         use_bos = bos_token is not None
         use_eos = eos_token is not None
         n_ctx = sequence_len + int(use_bos) + int(use_eos) - 1
-        cfg.n_ctx = n_ctx
-        SIMPLEXITY_LOGGER.info("[predictive model] n_ctx resolved to: %s", n_ctx)
+        if OmegaConf.is_missing(cfg, "n_ctx"):
+            cfg.n_ctx = n_ctx
+            SIMPLEXITY_LOGGER.info("[predictive model] n_ctx resolved to: %s", n_ctx)
+        elif cfg.get("n_ctx") != n_ctx:
+            raise ConfigValidationError(f"HookedTransformerConfig.n_ctx ({cfg.get('n_ctx')}) must be equal to {n_ctx}")
+        else:
+            SIMPLEXITY_LOGGER.debug("[predictive model] n_ctx defined as: %s", cfg.get("n_ctx"))
+    # Resolve device
     device: str | None = cfg.get("device", None)
-    cfg.device = resolve_device(device)
-    SIMPLEXITY_LOGGER.info("[predictive model] device resolved to: %s", cfg.device)
+    try:
+        resolved_device = resolve_device(device)
+    except DeviceResolutionError as e:
+        SIMPLEXITY_LOGGER.warning("[predictive model] specified device %s could not be resolved: %s", device, e)
+        resolved_device = "cpu"
+    if device is None or device == "auto":
+        cfg.device = resolved_device
+        SIMPLEXITY_LOGGER.info("[predictive model] device resolved to: %s", resolved_device)
+    elif device != resolved_device:
+        cfg.device = resolved_device
+        SIMPLEXITY_LOGGER.warning("[predictive model] specified device %s resolved to %s", device, resolved_device)
+    else:
+        SIMPLEXITY_LOGGER.debug("[predictive model] device defined as: %s", device)
 
 
 @dataclass

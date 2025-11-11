@@ -5,6 +5,9 @@ validation of model targets, HookedTransformer configs, and predictive model
 configuration instances.
 """
 
+import re
+from unittest.mock import ANY, call, patch
+
 import pytest
 from omegaconf import MISSING, DictConfig, OmegaConf
 
@@ -16,6 +19,7 @@ from simplexity.run_management.structured_configs import (
     is_hooked_transformer_config,
     is_predictive_model_config,
     is_predictive_model_target,
+    resolve_hooked_transformer_config,
     validate_hooked_transformer_config,
     validate_hooked_transformer_config_config,
     validate_predictive_model_config,
@@ -253,6 +257,153 @@ class TestHookedTransformerConfig:
         cfg = DictConfig({"_target_": "transformer_lens.HookedTransformer"})
         with pytest.raises(ConfigValidationError, match="HookedTransformerConfig.cfg is required"):
             validate_hooked_transformer_config(cfg)
+
+    def test_resolve_hooked_transformer_config_without_kwargs(self):
+        """Test resolve_hooked_transformer_config with valid configs."""
+        cfg = DictConfig(
+            {
+                "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
+                "d_model": 128,
+                "d_head": 32,
+                "n_ctx": MISSING,
+                "n_heads": -1,
+                "d_vocab": MISSING,
+            }
+        )
+        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+            resolve_hooked_transformer_config(cfg)
+            mock_debug.assert_has_calls(
+                [
+                    call("[predictive model] no vocab_size set"),
+                    call("[predictive model] no sequence_len set"),
+                ]
+            )
+        assert OmegaConf.is_missing(cfg, "n_ctx")
+        assert OmegaConf.is_missing(cfg, "d_vocab")
+
+    def test_resolve_hooked_transformer_config_with_complete_values(self):
+        cfg = DictConfig(
+            {
+                "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
+                "d_model": 128,
+                "d_head": 32,
+                "n_ctx": 16,
+                "n_heads": -1,
+                "d_vocab": 4,
+                "device": "cuda",
+            }
+        )
+        with (
+            patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug,
+            patch("torch.cuda.is_available") as mock_is_cuda_available,
+        ):
+            mock_is_cuda_available.return_value = True
+            resolve_hooked_transformer_config(cfg, vocab_size=4, bos_token=3, eos_token=None, sequence_len=16)
+            mock_debug.assert_has_calls(
+                [
+                    call("[predictive model] d_vocab defined as: %s", 4),
+                    call("[predictive model] n_ctx defined as: %s", 16),
+                    call("[predictive model] device defined as: %s", "cuda"),
+                ]
+            )
+        assert cfg.get("n_ctx") == 16
+        assert cfg.get("d_vocab") == 4
+        assert cfg.get("device") == "cuda"
+
+    def test_resolve_hooked_transformer_config_with_missing_values(self):
+        cfg = DictConfig(
+            {
+                "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
+                "d_model": 128,
+                "d_head": 32,
+                "n_ctx": MISSING,
+                "n_heads": -1,
+                "d_vocab": MISSING,
+                "device": None,
+            }
+        )
+        with (
+            patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.info") as mock_info,
+            patch("torch.cuda.is_available") as mock_is_cuda_available,
+        ):
+            mock_is_cuda_available.return_value = True
+            resolve_hooked_transformer_config(cfg, vocab_size=4, bos_token=3, eos_token=None, sequence_len=16)
+            mock_info.assert_has_calls(
+                [
+                    call("[predictive model] d_vocab resolved to: %s", 4),
+                    call("[predictive model] n_ctx resolved to: %s", 16),
+                    call("[predictive model] device resolved to: %s", "cuda"),
+                ]
+            )
+        assert cfg.get("n_ctx") == 16
+        assert cfg.get("d_vocab") == 4
+        assert cfg.get("device") == "cuda"
+
+    def test_resolve_hooked_transformer_config_with_invalid_values(self):
+        cfg = DictConfig(
+            {
+                "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
+                "d_model": 128,
+                "d_head": 32,
+                "n_ctx": MISSING,
+                "n_heads": -1,
+                "d_vocab": 3,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError, match=re.escape("HookedTransformerConfig.d_vocab (3) must be equal to 4")
+        ):
+            resolve_hooked_transformer_config(cfg, vocab_size=4)
+
+        cfg = DictConfig(
+            {
+                "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
+                "d_model": 128,
+                "d_head": 32,
+                "n_ctx": 8,
+                "n_heads": -1,
+                "d_vocab": MISSING,
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError, match=re.escape("HookedTransformerConfig.n_ctx (8) must be equal to 16")
+        ):
+            resolve_hooked_transformer_config(cfg, bos_token=3, sequence_len=16)
+
+    def test_resolve_hooked_transformer_config_with_conflicting_device(self):
+        cfg = DictConfig(
+            {
+                "_target_": "transformer_lens.HookedTransformerConfig",
+                "n_layers": 2,
+                "d_model": 128,
+                "d_head": 32,
+                "n_ctx": MISSING,
+                "n_heads": -1,
+                "d_vocab": MISSING,
+                "device": "cuda",
+            }
+        )
+        with (
+            patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.warning") as mock_warning,
+            patch("torch.cuda.is_available") as mock_is_cuda_available,
+        ):
+            mock_is_cuda_available.return_value = False
+            resolve_hooked_transformer_config(cfg)
+            mock_warning.assert_has_calls(
+                [
+                    call(
+                        "[predictive model] specified device %s could not be resolved: %s",
+                        "cuda",
+                        ANY,
+                    ),
+                    call("[predictive model] specified device %s resolved to %s", "cuda", "cpu"),
+                ]
+            )
 
     def test_is_predictive_model_target_valid(self):
         """Test is_predictive_model_target with valid model targets."""
