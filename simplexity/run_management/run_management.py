@@ -342,10 +342,9 @@ def _get_attribute_value(cfg: DictConfig, instance_keys: list[str], attribute_na
         generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key, throw_on_missing=True)
         if generative_process_config is None:
             raise RuntimeError("Error selecting generative process config")
-        if OmegaConf.is_missing(generative_process_config, attribute_name):
-            new_attribute_value: int | None = None
-        else:
-            new_attribute_value = generative_process_config.get(attribute_name, None)
+        new_attribute_value: int | None = OmegaConf.select(
+            generative_process_config, attribute_name, throw_on_missing=False, default=None
+        )
         if attribute_value is None:
             attribute_value = new_attribute_value
         elif new_attribute_value != attribute_value:
