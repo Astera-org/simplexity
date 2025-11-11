@@ -13,7 +13,7 @@ class _DummyEqxModule(eqx.Module):
 
 def test_get_model_framework_equinox_model():
     model = _DummyEqxModule()
-    assert get_model_framework(model) is ModelFramework.Equinox
+    assert get_model_framework(model) is ModelFramework.EQUINOX
 
 
 def test_get_model_framework_handles_equinox_and_pytorch_in_sequence():
@@ -26,10 +26,10 @@ def test_get_model_framework_handles_equinox_and_pytorch_in_sequence():
     eqx_model = _DummyEqxModule()
     torch_model = _DummyTorchModule()
 
-    assert get_model_framework(eqx_model) is ModelFramework.Equinox
-    assert get_model_framework(torch_model) is ModelFramework.Pytorch
+    assert get_model_framework(eqx_model) is ModelFramework.EQUINOX
+    assert get_model_framework(torch_model) is ModelFramework.PYTORCH
     # Repeat to confirm that dispatch stays consistent when frameworks alternate.
-    assert get_model_framework(eqx_model) is ModelFramework.Equinox
+    assert get_model_framework(eqx_model) is ModelFramework.EQUINOX
 
 
 def test_get_model_framework_unsupported_type():

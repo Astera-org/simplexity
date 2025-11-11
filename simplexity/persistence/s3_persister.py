@@ -1,3 +1,5 @@
+"""S3 persister for predictive models."""
+
 import configparser
 import tempfile
 from collections.abc import Iterable, Mapping
@@ -21,9 +23,9 @@ class S3Paginator(Protocol):
     Since boto3 does not currently support type checking: https://github.com/boto/boto3/issues/1055
     """
 
-    def paginate(self, Bucket: str, Prefix: str) -> Iterable[Mapping[str, Any]]:
+    def paginate(self, Bucket: str, Prefix: str) -> Iterable[Mapping[str, Any]]:  # pylint: disable=invalid-name
         """Paginate over the objects in an S3 bucket."""
-        ...
+        ...  # pylint: disable=unnecessary-ellipsis
 
 
 class S3Client(Protocol):
@@ -35,15 +37,13 @@ class S3Client(Protocol):
 
     def upload_file(self, file_name: str, bucket: str, object_name: str) -> None:
         """Upload a file to S3."""
-        ...
 
     def download_file(self, bucket: str, object_name: str, file_name: str) -> None:
         """Download a file from S3."""
-        ...
 
     def get_paginator(self, operation_name: str) -> S3Paginator:
         """Get a paginator for the given operation."""
-        ...
+        ...  # pylint: disable=unnecessary-ellipsis
 
 
 class S3Persister:
@@ -67,7 +67,7 @@ class S3Persister:
     def from_config(
         cls,
         prefix: str,
-        model_framework: ModelFramework = ModelFramework.Equinox,
+        model_framework: ModelFramework = ModelFramework.EQUINOX,
         config_filename: str = "config.ini",
     ) -> "S3Persister":
         """Creates a new S3Persister from configuration parameters.
@@ -85,11 +85,11 @@ class S3Persister:
         session = boto3.session.Session(profile_name=profile_name)
         s3_client = session.client("s3")
         temp_dir = tempfile.TemporaryDirectory()
-        if model_framework == ModelFramework.Equinox:
+        if model_framework == ModelFramework.EQUINOX:
             local_persister = LocalEquinoxPersister(directory=temp_dir.name)
-        elif model_framework == ModelFramework.Penzai:
+        elif model_framework == ModelFramework.PENZAI:
             local_persister = LocalPenzaiPersister(directory=temp_dir.name)
-        elif model_framework == ModelFramework.Pytorch:
+        elif model_framework == ModelFramework.PYTORCH:
             local_persister = LocalPytorchPersister(directory=temp_dir.name)
         else:
             raise ValueError(f"Unsupported model framework: {model_framework}")

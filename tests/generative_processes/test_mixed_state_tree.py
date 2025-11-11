@@ -28,8 +28,8 @@ PROCESS_PARAMS: dict[str, dict[str, float | int]] = {
         "beta": 0.5,
     },
     "rrxor": {
-        "pR1": 0.5,
-        "pR2": 0.5,
+        "p1": 0.5,
+        "p2": 0.5,
     },
     "tom_quantum": {
         "alpha": 1,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import mlflow
 from omegaconf import DictConfig, OmegaConf
@@ -15,26 +15,31 @@ from simplexity.predictive_models.types import ModelFramework, get_model_framewo
 from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
 
-if TYPE_CHECKING:
-    from mlflow import MlflowClient
-
 
 def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) -> LocalPersister:
-    if model_framework == ModelFramework.Equinox:
-        from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
+    if model_framework == ModelFramework.EQUINOX:
+        from simplexity.persistence.local_equinox_persister import (  # pylint: disable=import-outside-toplevel
+            LocalEquinoxPersister,
+        )
 
         directory = artifact_dir / "equinox"
         return LocalEquinoxPersister(directory=directory)
-    if model_framework == ModelFramework.Penzai:
-        from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
+    if model_framework == ModelFramework.PENZAI:
+        from simplexity.persistence.local_penzai_persister import (  # pylint: disable=import-outside-toplevel
+            LocalPenzaiPersister,
+        )
 
         directory = artifact_dir / "penzai"
         return LocalPenzaiPersister(directory=directory)
-    if model_framework == ModelFramework.Pytorch:
-        from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
+    if model_framework == ModelFramework.PYTORCH:
+        from simplexity.persistence.local_pytorch_persister import (  # pylint: disable=import-outside-toplevel
+            LocalPytorchPersister,
+        )
 
         directory = artifact_dir / "pytorch"
         return LocalPytorchPersister(directory=directory)
+
+    raise ValueError(f"Unsupported model framework: {model_framework}")
 
 
 def _clear_subdirectory(subdirectory: Path) -> None:
@@ -43,17 +48,8 @@ def _clear_subdirectory(subdirectory: Path) -> None:
     subdirectory.parent.mkdir(parents=True, exist_ok=True)
 
 
-class MLFlowPersister:
+class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
     """Persist model checkpoints as MLflow artifacts, optionally reusing an existing run."""
-
-    _client: MlflowClient
-    _experiment_id: str
-    _run_id: str
-    _artifact_path: str
-    _temp_dir: tempfile.TemporaryDirectory
-    _artifact_dir: Path
-    _config_path: str
-    _local_persisters: dict[ModelFramework, LocalPersister]
 
     def __init__(
         self,

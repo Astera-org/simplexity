@@ -45,6 +45,7 @@ cuda = [
 dev = [
     "diff-cover",
     "jaxtyping",
+    "pylint",
     "pyright",
     "pytest",
     "pytest-cov",

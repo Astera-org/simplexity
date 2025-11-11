@@ -7,7 +7,7 @@ from penzai.core.variables import UnboundVariableError
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
 from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.utils.penzai import (
+from simplexity.utils.penzai_utils import (
     ParamCountNode,
     PenzaiWrapper,
     VariableLabelClass,
