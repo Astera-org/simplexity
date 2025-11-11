@@ -5,7 +5,7 @@ defaults:
   - generative_process: mess3
   - persistence: mlflow_persister
   - predictive_model: transformer
-  - training: short
+  - optimizer: pytorch_adam
 
 experiment_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
 run_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
