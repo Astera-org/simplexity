@@ -278,6 +278,16 @@ def rrxor(pR1: float, pR2: float) -> jax.Array:
 
     return transition_matrices
 
+def leaky_rrxor(pR1: float, pR2: float, epsilon: float) -> jax.Array:
+    """Creates a transition matrix for the RRXOR Process."""
+    assert 0 <= epsilon <= 1
+
+    transition_matrices_base = rrxor(pR1, pR2)
+    leak = jnp.ones((2, 5, 5))
+
+    transition_matrices = (1 - epsilon) * transition_matrices_base + (epsilon / 10) * leak
+
+    return transition_matrices
 
 def sns(p: float, q: float):
     """Creates a transition matrix for the Simple Nonunifilar Source Process.
