@@ -297,7 +297,7 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
     """Setup the persister."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
-        persister = typed_instantiate(instance_config, ModelPersister)
+        persister: ModelPersister = hydra.utils.instantiate(instance_config)
         SIMPLEXITY_LOGGER.info("[persister] instantiated persister: %s", persister.__class__.__name__)
         return persister
     raise KeyError
