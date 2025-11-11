@@ -1,8 +1,10 @@
 import importlib
+import tempfile
 from collections.abc import Callable
 from typing import Any
 
 import hydra
+import mlflow
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.errors import MissingMandatoryValue
 
@@ -36,8 +38,31 @@ def filter_instance_keys(cfg: DictConfig, instance_keys: list[str], filter_fn: C
     return filtered_instance_keys
 
 
-def get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
-    """Get the config from the arguments."""
+def get_config(
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    *,
+    from_mlflow_run: str | None = None,
+    tracking_uri: str | None = None,
+) -> DictConfig:
+    """Get the config from the arguments or from mlflow."""
+    if from_mlflow_run is not None:
+        client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+        config_path = "config.yaml"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloaded_config_path = client.download_artifacts(
+                from_mlflow_run,
+                config_path,
+                dst_path=str(temp_dir),
+            )
+            cfg = OmegaConf.load(downloaded_config_path)
+
+        if not isinstance(cfg, DictConfig):
+            raise ValueError(f"Loaded config from run {from_mlflow_run} is not a DictConfig")
+
+        return cfg
+
     if kwargs and "cfg" in kwargs:
         return kwargs["cfg"]
     if args and isinstance(args[0], DictConfig):

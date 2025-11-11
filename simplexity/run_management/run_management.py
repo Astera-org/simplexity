@@ -9,9 +9,11 @@ import logging
 import os
 import random
 import subprocess
+import tempfile
 import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
+from pathlib import Path
 from typing import Any
 
 import hydra
@@ -19,6 +21,7 @@ import jax
 import jax.numpy as jnp
 import mlflow
 from omegaconf import DictConfig, OmegaConf
+from penzai.nn.layer import Layer as PenzaiModel
 from torch.nn import Module as PytorchModel
 
 from simplexity.configs.generative_process.config import Config as GenerativeProcessConfig
@@ -30,7 +33,8 @@ from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger, is_logger_target
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.model_persister import ModelPersister, is_model_persister_target
-from simplexity.predictive_models.predictive_model import is_predictive_model_target
+from simplexity.predictive_models.predictive_model import PredictiveModel, is_predictive_model_target
+from simplexity.predictive_models.types import get_model_framework
 from simplexity.run_management.components import Components
 from simplexity.run_management.run_logging import (
     log_environment_artifacts,
@@ -369,23 +373,155 @@ def _load_checkpoint(model: Any, persisters: dict[str, ModelPersister] | None, l
         raise RuntimeError("Unable to load model checkpoint")
 
 
+def _find_latest_checkpoint_step(
+    run_id: str, artifact_path: str = "models", tracking_uri: str | None = None,
+) -> int:
+    """Find the latest checkpoint step in an MLflow run.
+    If the run has a registered_model, prefer loading from there.
+    """
+    client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+    artifacts = client.list_artifacts(run_id, path=artifact_path)
+    steps = []
+
+    for artifact in artifacts:
+        if artifact.is_dir:
+            dir_name = artifact.path.split("/")[-1]
+            try:
+                step = int(dir_name)
+                steps.append(step)
+                continue
+            except ValueError:
+                pass
+
+            framework_artifacts = client.list_artifacts(run_id, path=artifact.path)
+            for framework_artifact in framework_artifacts:
+                if framework_artifact.is_dir:
+                    try:
+                        step = int(framework_artifact.path.split("/")[-1])
+                        steps.append(step)
+                    except ValueError:
+                        continue
+
+    if not steps:
+        raise RuntimeError(f"No checkpoints found in run {run_id} at path {artifact_path}")
+
+    return max(steps)
+
+
+def _load_checkpoint_from_mlflow_run(
+    model: PredictiveModel, run_id: str, step: int | None = None, tracking_uri: str | None = None
+) -> PredictiveModel:
+    """Load model checkpoint from an MLflow run."""
+
+    client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+
+    if step is None:
+        step = _find_latest_checkpoint_step(run_id, tracking_uri=tracking_uri)
+        SIMPLEXITY_LOGGER.info(f"[predictive model] loading latest checkpoint at step: {step}")
+
+    model_framework = get_model_framework(model)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        artifact_path = f"models/{step}"
+        try:
+            downloaded_path = client.download_artifacts(
+                run_id,
+                artifact_path,
+                dst_path=temp_dir,
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to download checkpoint at step {step} from run {run_id}: {e}") from e
+
+        downloaded_dir = Path(downloaded_path)
+        if not downloaded_dir.exists():
+            raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
+
+        if model_framework == "pytorch":
+            import torch
+
+            assert isinstance(model, PytorchModel)
+
+            model_file = downloaded_dir / "model.pt"
+            if not model_file.exists():
+                raise RuntimeError(f"PyTorch model file not found in {downloaded_dir}")
+            state_dict = torch.load(model_file, map_location="cpu")
+            model.load_state_dict(state_dict)
+        elif model_framework == "equinox":
+            import equinox as eqx
+
+            assert isinstance(model, eqx.Module)
+
+            model_file = downloaded_dir / "model.eqx"
+            if not model_file.exists():
+                raise RuntimeError(f"Equinox model file not found in {downloaded_dir}")
+            model = eqx.tree_deserialise_leaves(model_file, model)
+
+        elif model_framework == "penzai":
+            from penzai import pz
+            from simplexity.utils.penzai import reconstruct_variables
+            import orbax.checkpoint as ocp
+            from orbax.checkpoint.handlers import DefaultCheckpointHandlerRegistry
+            
+
+            assert isinstance(model, PenzaiModel)
+            model_file = downloaded_dir / "model.pz"
+            if not model_file.exists():
+                raise RuntimeError(f"Penzai model file not found in {downloaded_dir}")
+            
+            mngr = ocp.CheckpointManager(
+                directory=str(downloaded_dir),
+                handler_registry=DefaultCheckpointHandlerRegistry(),
+            )
+            items = mngr.restore(step=step)
+            unbound_model, _ = pz.unbind_variables(model)
+            variable_values = reconstruct_variables(items)
+            return pz.bind_variables(unbound_model, variable_values)
+        else:
+            raise RuntimeError(f"Unsupported model framework: {model_framework}")
+
+        SIMPLEXITY_LOGGER.info(f"[predictive model] loaded checkpoint from MLflow run {run_id} at step {step}")
+
+    return model
+
+
 def _setup_predictive_models(
-    cfg: DictConfig, instance_keys: list[str], persisters: dict[str, ModelPersister] | None
+    cfg: DictConfig,
+    instance_keys: list[str],
+    persisters: dict[str, ModelPersister] | None,
+    from_mlflow_run: str | None = None,
+    tracking_uri: str | None = None,
 ) -> dict[str, Any] | None:
     """Setup the predictive model."""
     models = {}
     model_instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
     for instance_key in model_instance_keys:
         instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
-        if instance_config and is_hooked_transformer_config(instance_config):
+        # When loading from MLflow, vocab_size is already set in the config
+        # Don't resolve from generative process as it may have changed (e.g., BOS token handling)
+        if instance_config and is_hooked_transformer_config(instance_config) and not from_mlflow_run:
             vocab_size = _get_vocab_size(cfg, instance_keys)
             if vocab_size:
                 _resolve_hooked_transformer_config(instance_config, vocab_size=vocab_size)
         model = _instantiate_predictive_model(cfg, instance_key)
-        step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
-        load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
-        if load_checkpoint_step is not None:
-            _load_checkpoint(model, persisters, load_checkpoint_step)
+
+        # Load checkpoint from MLflow run if specified
+        if from_mlflow_run:
+            try:
+                model = _load_checkpoint_from_mlflow_run(
+                    model, from_mlflow_run, tracking_uri=tracking_uri,
+                )
+            except RuntimeError as e:
+                if "No checkpoints found" in str(e):
+                    SIMPLEXITY_LOGGER.warning(f"[predictive model] {e}. Using freshly instantiated model.")
+                else:
+                    raise
+        else:
+            # Load checkpoint from local persister if configured
+            step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
+            load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
+            if load_checkpoint_step is not None:
+                _load_checkpoint(model, persisters, load_checkpoint_step)
+
         models[instance_key] = model
     if models:
         return models
@@ -492,7 +628,11 @@ def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, verbose: boo
             log_source_script(logger)
 
 
-def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
+def _setup(
+    cfg: DictConfig,
+    strict: bool,
+    verbose: bool,
+) -> Components:
     """Setup the run."""
     _setup_environment()
     if strict:
@@ -507,7 +647,11 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.generative_processes = generative_processes
     components.initial_states = initial_states
     components.persisters = _setup_persisters(cfg, instance_keys)
-    components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
+    components.predictive_models = _setup_predictive_models(
+        cfg,
+        instance_keys,
+        components.persisters,
+    )
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
     _setup_training(cfg, instance_keys)
     _do_logging(cfg, components.loggers, verbose)
@@ -524,7 +668,50 @@ def _cleanup(components: Components) -> None:
             persister.cleanup()
 
 
-def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def load_from_mlflow_run(
+    run_id: str,
+    tracking_uri: str | None = None,
+) -> tuple[DictConfig, Components]:
+    """Downloads the config from a specified MLflow run and instantiates
+    the generative process and predictive model. It provides a lightweight alternative
+    to managed_run for loading existing runs without the full training setup.
+    """
+    try:
+        cfg = get_config(
+            args=(),
+            kwargs={},
+            from_mlflow_run=run_id,
+            tracking_uri=tracking_uri,
+        )
+
+        _setup_environment()
+        _set_random_seeds(cfg.get("seed", None))
+
+        components = Components()
+        instance_keys = get_instance_keys(cfg)
+
+        generative_processes, initial_states = _setup_generative_processes(cfg, instance_keys)
+        components.generative_processes = generative_processes
+        components.initial_states = initial_states
+
+        components.predictive_models = _setup_predictive_models(
+            cfg,
+            instance_keys,
+            persisters=None,
+            from_mlflow_run=run_id,
+            tracking_uri=tracking_uri,
+        )
+
+        return cfg, components
+    except Exception as e:
+        SIMPLEXITY_LOGGER.error(f"[mlflow loader] error: {e}")
+        raise
+
+
+def managed_run(
+    strict: bool = True,
+    verbose: bool = False,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Manage a run."""
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -532,8 +719,13 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
             try:
                 cfg = get_config(args, kwargs)
                 # TODO: validate the config
-                with _setup_mlflow(cfg):
-                    components = _setup(cfg, strict=strict, verbose=verbose)
+                mlflow_context = _setup_mlflow(cfg)
+                with mlflow_context:
+                    components = _setup(
+                        cfg,
+                        strict=strict,
+                        verbose=verbose,
+                    )
                     output = fn(*args, **kwargs, components=components)
                 _cleanup(components)
                 return output
