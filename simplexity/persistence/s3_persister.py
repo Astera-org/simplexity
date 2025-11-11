@@ -49,11 +49,19 @@ class S3Client(Protocol):
 class S3Persister:
     """Persists a model to an S3 bucket."""
 
-    bucket: str
-    prefix: str
-    s3_client: S3Client
-    temp_dir: tempfile.TemporaryDirectory
-    local_persister: LocalPersister
+    def __init__(
+        self,
+        bucket: str,
+        prefix: str,
+        s3_client: S3Client,
+        temp_dir: tempfile.TemporaryDirectory,
+        local_persister: LocalPersister,
+    ):
+        self.bucket = bucket
+        self.prefix = prefix
+        self.s3_client = s3_client
+        self.temp_dir = temp_dir
+        self.local_persister = local_persister
 
     @classmethod
     def from_config(
@@ -98,7 +106,7 @@ class S3Persister:
         """Cleans up the temporary directory."""
         self.temp_dir.cleanup()
 
-    def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
+    def save_weights(self, model: Any, step: int = 0) -> None:
         """Saves a model to S3."""
         self.local_persister.save_weights(model, step)
         directory = self.local_persister.directory / str(step)
