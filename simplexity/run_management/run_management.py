@@ -134,8 +134,8 @@ def _load_config(cfg: DictConfig, load_config: DictConfig) -> None:
                     f"Experiment id '{experiment_id}' refers to '{experiment.name}', which does not match "
                     f"provided experiment_name '{experiment_name}'"
                 )
-            else:
-                experiment_name = experiment.name
+        else:
+            experiment_name = experiment.name
     elif experiment_name:
         experiment = client.get_experiment_by_name(experiment_name)
         if experiment is None:
@@ -643,7 +643,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
-                cfg = get_config(args, kwargs)
+                cfg = _get_config(args, kwargs)
                 validate_base_config(cfg)
                 with _setup_mlflow(cfg):
                     components = _setup(cfg, strict=strict, verbose=verbose)
