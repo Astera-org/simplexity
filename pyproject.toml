@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-aws = ["boto3>=1.37.24"] # Deprecated S3 Persister
+aws = ["boto3>=1.37.24"] # Deprecated S3 Persister.
 cuda = [
     "jax[cuda12_pip]",
     "jax-cuda12-plugin>=0.8.0",
@@ -51,7 +51,10 @@ dev = [
     "pytest-mock",
     "ruff",
 ]
-jax = ["orbax-checkpoint", "penzai"]
+penzai = [
+    "orbax-checkpoint",
+    "penzai",
+] # Deprecated: penzai is no longer maintained.
 mac = ["jax-metal"]
 
 [tool.ruff]

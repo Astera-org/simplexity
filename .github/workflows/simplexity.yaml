@@ -20,7 +20,7 @@ jobs:
         run: uv run --extra dev ruff format --check
 
       - name: pyright
-        run: uv run --extra aws --extra dev --extra pytorch pyright
+        run: uv run --extra aws --extra dev --extra penzai pyright
 
   unit-tests:
     runs-on: ubuntu-latest
