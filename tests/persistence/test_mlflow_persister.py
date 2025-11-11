@@ -5,54 +5,49 @@ from __future__ import annotations
 from pathlib import Path
 
 import chex
+import equinox as eqx
 import jax
 import pytest
+import torch
+import torch.nn as nn
 import yaml
 
 from simplexity.persistence.mlflow_persister import MLFlowPersister
-from simplexity.predictive_models.gru_rnn import GRURNN
 
-# PyTorch imports with conditional availability
-try:
-    import torch
-    import torch.nn as nn
 
-    PYTORCH_AVAILABLE = True
-except ImportError:
-    PYTORCH_AVAILABLE = False
-else:
+def get_pytorch_model(seed: int) -> nn.Linear:
+    """Build a small deterministic PyTorch model for serialization tests."""
+    torch.manual_seed(seed)
+    return nn.Linear(in_features=4, out_features=2)
 
-    def get_pytorch_model(seed: int) -> nn.Linear:
-        """Build a small deterministic PyTorch model for serialization tests."""
-        torch.manual_seed(seed)
-        return nn.Linear(in_features=4, out_features=2)
 
-    def get_hydra_config_for_pytorch_model() -> dict:
-        """Get a Hydra config dict for the given PyTorch model."""
-        return {
-            "predictive_model": {
-                "instance": {
-                    "_target_": "torch.nn.Linear",
-                    "in_features": 4,
-                    "out_features": 2,
-                }
+def get_hydra_config_for_pytorch_model() -> dict:
+    """Get a Hydra config dict for the given PyTorch model."""
+    return {
+        "predictive_model": {
+            "instance": {
+                "_target_": "torch.nn.Linear",
+                "in_features": 4,
+                "out_features": 2,
             }
         }
-
-    def pytorch_models_equal(model1: nn.Module, model2: nn.Module) -> bool:
-        """Check if two PyTorch models have identical parameters."""
-        params1 = dict(model1.named_parameters())
-        params2 = dict(model2.named_parameters())
-
-        if set(params1.keys()) != set(params2.keys()):
-            return False
-
-        return all(torch.allclose(params1[name], params2[name]) for name in params1)
+    }
 
 
-def get_model(seed: int) -> GRURNN:
+def pytorch_models_equal(model1: nn.Module, model2: nn.Module) -> bool:
+    """Check if two PyTorch models have identical parameters."""
+    params1 = dict(model1.named_parameters())
+    params2 = dict(model2.named_parameters())
+
+    if set(params1.keys()) != set(params2.keys()):
+        return False
+
+    return all(torch.allclose(params1[name], params2[name]) for name in params1)
+
+
+def get_model(seed: int) -> eqx.Module:
     """Build a small deterministic model for serialization tests."""
-    return GRURNN(vocab_size=2, embedding_size=4, hidden_sizes=[3, 3], key=jax.random.PRNGKey(seed))
+    return eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(seed))
 
 
 def get_hydra_config_for_model(seed: int) -> dict:
@@ -60,11 +55,10 @@ def get_hydra_config_for_model(seed: int) -> dict:
     return {
         "predictive_model": {
             "instance": {
-                "_target_": "simplexity.predictive_models.gru_rnn.GRURNN",
-                "vocab_size": 2,
-                "embedding_size": 4,
-                "hidden_sizes": [3, 3],
-                "key": {"_target_": "jax.random.PRNGKey", "seed": seed},
+                "_target_": "eqx.nn.Linear",
+                "in_features": 4,
+                "out_features": 2,
+                "key": {"_target_": "jax.random.key", "seed": seed},
             }
         }
     }
@@ -156,7 +150,6 @@ def test_mlflow_persister_cleanup(tmp_path: Path):
     assert not local_persister.directory.exists()
 
 
-@pytest.mark.skipif(not PYTORCH_AVAILABLE, reason="PyTorch is not available")
 def test_mlflow_persister_pytorch_round_trip(tmp_path: Path) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance."""
     artifact_dir = tmp_path / "mlruns"
@@ -215,7 +208,6 @@ def test_mlflow_persister_pytorch_round_trip_from_config(tmp_path: Path) -> None
     assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
 
 
-@pytest.mark.skipif(not PYTORCH_AVAILABLE, reason="PyTorch is not available")
 def test_mlflow_persister_pytorch_cleanup(tmp_path: Path):
     """Test PyTorch model cleanup with MLflow persister."""
     artifact_dir = tmp_path / "mlruns"

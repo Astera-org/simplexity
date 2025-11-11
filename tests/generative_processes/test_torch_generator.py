@@ -1,13 +1,9 @@
 import jax
 import jax.numpy as jnp
+import torch
 
 from simplexity.generative_processes.builder import build_hidden_markov_model
 from simplexity.generative_processes.torch_generator import generate_data_batch
-
-try:
-    import torch
-except ImportError as e:
-    raise ImportError("To use PyTorch support install the torch extra:\nuv sync --extra pytorch") from e
 
 
 def test_generate_data_batch():

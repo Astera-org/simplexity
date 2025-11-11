@@ -4,14 +4,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+import torch
 
 from simplexity.exceptions import DeviceResolutionError
 from simplexity.utils.pytorch_utils import jax_to_torch, resolve_device, torch_to_jax
-
-try:
-    import torch
-except ImportError as e:
-    raise ImportError("To use PyTorch support install the torch extra:\nuv sync --extra pytorch") from e
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
