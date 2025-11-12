@@ -9,7 +9,7 @@ import pytest
 from simplexity.data_structures.stack import Stack
 
 
-class Element(eqx.Module):
+class Element(eqx.Module):  # pylint: disable=too-few-public-methods
     """An element stored in the stack."""
 
     x: jax.Array

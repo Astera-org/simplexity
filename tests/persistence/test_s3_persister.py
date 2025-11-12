@@ -22,27 +22,28 @@ def test_s3_persister(tmp_path: Path):
     """Test S3Persister initialization."""
     s3_client_mock = MockS3Client(tmp_path)
     temp_dir = tempfile.TemporaryDirectory()
-    local_persister = LocalEquinoxPersister(temp_dir.name)
-    persister = S3Persister(
-        bucket="test_bucket",
-        prefix="test_prefix",
-        s3_client=s3_client_mock,
-        temp_dir=temp_dir,
-        local_persister=local_persister,
-    )
-    assert persister.bucket == "test_bucket"
-    assert persister.prefix == "test_prefix"
+    with temp_dir:
+        local_persister = LocalEquinoxPersister(temp_dir.name)
+        persister = S3Persister(
+            bucket="test_bucket",
+            prefix="test_prefix",
+            s3_client=s3_client_mock,
+            temp_dir=temp_dir,
+            local_persister=local_persister,
+        )
+        assert persister.bucket == "test_bucket"
+        assert persister.prefix == "test_prefix"
 
-    model = get_model(0)
-    assert not (tmp_path / "test_bucket" / "test_prefix" / "0" / "model.eqx").exists()
-    persister.save_weights(model, 0)
-    assert (tmp_path / "test_bucket" / "test_prefix" / "0" / "model.eqx").exists()
+        model = get_model(0)
+        assert not (tmp_path / "test_bucket" / "test_prefix" / "0" / "model.eqx").exists()
+        persister.save_weights(model, 0)
+        assert (tmp_path / "test_bucket" / "test_prefix" / "0" / "model.eqx").exists()
 
-    new_model = get_model(1)
-    with pytest.raises(AssertionError):
-        chex.assert_trees_all_close(new_model, model)
-    loaded_model = persister.load_weights(new_model, 0)
-    chex.assert_trees_all_equal(loaded_model, model)
+        new_model = get_model(1)
+        with pytest.raises(AssertionError):
+            chex.assert_trees_all_close(new_model, model)
+        loaded_model = persister.load_weights(new_model, 0)
+        chex.assert_trees_all_equal(loaded_model, model)
 
 
 def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
