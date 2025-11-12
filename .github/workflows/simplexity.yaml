@@ -20,7 +20,7 @@ jobs:
         run: uv run --extra dev ruff format --check
 
       - name: pylint
-        run: uv run --extra dev pylint simplexity tests
+        run: uv run --extra dev --extra penzai pylint simplexity tests
 
       - name: pyright
         run: uv run --extra aws --extra dev --extra penzai pyright
