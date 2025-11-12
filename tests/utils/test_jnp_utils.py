@@ -1,3 +1,5 @@
+"""Tests for JAX NumPy utilities."""
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -6,6 +8,7 @@ from simplexity.utils.jnp_utils import log_matmul, signed_logsumexp
 
 
 def test_log_matmul():
+    """Test log_matmul function."""
     key_a, key_b = jax.random.split(jax.random.PRNGKey(0))
     A = jax.random.uniform(key_a, (3, 4))
     B = jax.random.uniform(key_b, (4, 5))
@@ -15,6 +18,7 @@ def test_log_matmul():
 
 
 def test_signed_logsumexp():
+    """Test signed_logsumexp function."""
     # values:
     # [ 4,  1,  2] ->  7
     # [-1, -3, -2] -> -6

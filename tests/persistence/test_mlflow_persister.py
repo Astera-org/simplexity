@@ -120,7 +120,8 @@ def test_mlflow_persister_round_trip_from_config(tmp_path: Path) -> None:
     chex.assert_trees_all_equal(loaded, original)
 
 
-def test_mlflow_persister_cleanup(tmp_path: Path):
+def test_mlflow_persister_cleanup(tmp_path: Path) -> None:
+    """Test MLflow persister cleanup."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
 
@@ -131,7 +132,8 @@ def test_mlflow_persister_cleanup(tmp_path: Path):
         artifact_path="models",
     )
 
-    def run_status():
+    def run_status() -> str:
+        """Get the status of the run."""
         client = persister.client
         run_id = persister.run_id
         run = client.get_run(run_id)

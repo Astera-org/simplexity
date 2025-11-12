@@ -1,3 +1,5 @@
+"""Test the mixed-state tree module."""
+
 from pathlib import Path
 
 import chex
@@ -74,7 +76,8 @@ def load_golden(process_name: str) -> MixedStateTree[TreeData, NodeDictValue]:
 
 
 @pytest.mark.parametrize("process_name", ["mess3", "rrxor", "zero_one_random"])
-def test_hmm_mixed_state_tree(process_name):
+def test_hmm_mixed_state_tree(process_name: str):
+    """Test generating a mixed-state tree for a hidden Markov model."""
     params = PROCESS_PARAMS[process_name]
     model = build_hidden_markov_model(process_name, initial_state=None, **params)
     generator = MixedStateTreeGenerator(model, max_sequence_length=4)
@@ -98,7 +101,8 @@ def test_hmm_mixed_state_tree(process_name):
 @pytest.mark.parametrize(
     "process_name", ["fanizza", "mess3", "post_quantum", "rrxor", "tom_quantum", "zero_one_random"]
 )
-def test_ghmm_mixed_state_tree(process_name):
+def test_ghmm_mixed_state_tree(process_name: str):
+    """Test generating a mixed-state tree for a generalized hidden Markov model."""
     params = PROCESS_PARAMS[process_name]
     model = build_generalized_hidden_markov_model(process_name, **params)
     generator = MixedStateTreeGenerator(model, max_sequence_length=4)

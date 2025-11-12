@@ -1,3 +1,5 @@
+"""Tests for standard hidden Markov models."""
+
 import chex
 import equinox as eqx
 import jax
@@ -11,10 +13,12 @@ from tests.assertions import assert_proportional
 
 @pytest.fixture
 def z1r() -> HiddenMarkovModel:
+    """Return the zero-one random HMM."""
     return build_hidden_markov_model("zero_one_random", p=0.5)
 
 
 def test_properties(z1r: HiddenMarkovModel):
+    """Test key properties of the base HMM."""
     assert z1r.vocab_size == 2
     assert z1r.num_states == 3
     assert_proportional(z1r.normalizing_eigenvector, jnp.ones(3))
@@ -22,6 +26,7 @@ def test_properties(z1r: HiddenMarkovModel):
 
 
 def test_normalize_belief_state(z1r: HiddenMarkovModel):
+    """Test normalization in probability space."""
     state = jnp.array([2, 5, 1])
     belief_state = z1r.normalize_belief_state(state)
     chex.assert_trees_all_close(belief_state, jnp.array([0.25, 0.625, 0.125]))
@@ -32,6 +37,7 @@ def test_normalize_belief_state(z1r: HiddenMarkovModel):
 
 
 def test_normalize_log_belief_state(z1r: HiddenMarkovModel):
+    """Test normalization in log space."""
     state = jnp.log(jnp.array([2, 5, 1]))
     log_belief_state = z1r.normalize_log_belief_state(state)
     chex.assert_trees_all_close(log_belief_state, jnp.log(jnp.array([0.25, 0.625, 0.125])))
@@ -42,6 +48,7 @@ def test_normalize_log_belief_state(z1r: HiddenMarkovModel):
 
 
 def test_single_transition(z1r: HiddenMarkovModel):
+    """Test single transition outcomes and observations."""
     zero_state = jnp.array([[1.0, 0.0, 0.0]])
     one_state = jnp.array([[0.0, 1.0, 0.0]])
     random_state = jnp.array([[0.0, 0.0, 1.0]])
@@ -82,6 +89,7 @@ def test_single_transition(z1r: HiddenMarkovModel):
 
 
 def test_generate(z1r: HiddenMarkovModel):
+    """Test multi-step generation without intermediates."""
     batch_size = 4
     sequence_len = 10
 
@@ -98,6 +106,7 @@ def test_generate(z1r: HiddenMarkovModel):
 
 
 def test_observation_probability_distribution(z1r: HiddenMarkovModel):
+    """Test probability-space observation distribution."""
     state = jnp.array([0.3, 0.1, 0.6])
     obs_probs = z1r.observation_probability_distribution(state)
     chex.assert_trees_all_close(obs_probs, jnp.array([0.6, 0.4]))
@@ -108,6 +117,7 @@ def test_observation_probability_distribution(z1r: HiddenMarkovModel):
 
 
 def test_log_observation_probability_distribution(z1r: HiddenMarkovModel):
+    """Test log-space observation distribution."""
     log_belief_state = jnp.log(jnp.array([0.3, 0.1, 0.6]))
     log_obs_probs = z1r.log_observation_probability_distribution(log_belief_state)
     assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=1e-7)
@@ -120,6 +130,7 @@ def test_log_observation_probability_distribution(z1r: HiddenMarkovModel):
 
 
 def test_probability(z1r: HiddenMarkovModel):
+    """Test probability of a fixed observation sequence."""
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
 
@@ -128,6 +139,7 @@ def test_probability(z1r: HiddenMarkovModel):
 
 
 def test_log_probability(z1r: HiddenMarkovModel):
+    """Test log probability of a fixed observation sequence."""
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
 

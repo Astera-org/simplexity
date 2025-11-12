@@ -1,3 +1,5 @@
+"""Tests for generalized hidden Markov models."""
+
 import chex
 import equinox as eqx
 import jax
@@ -11,22 +13,26 @@ from tests.assertions import assert_proportional
 
 @pytest.fixture
 def z1r() -> GeneralizedHiddenMarkovModel:
+    """Return the zero-one random generalized HMM."""
     return build_generalized_hidden_markov_model("zero_one_random", p=0.5)
 
 
 @pytest.fixture
 def fanizza_model() -> GeneralizedHiddenMarkovModel:
+    """Return the fanizza generalized HMM."""
     return build_generalized_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
 
 
 @pytest.mark.parametrize(("model_name", "vocab_size", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])
 def test_properties(model_name: str, vocab_size: int, num_states: int, request: pytest.FixtureRequest):
+    """Test vocab size and state count for the available fixtures."""
     model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
     assert model.vocab_size == vocab_size
     assert model.num_states == num_states
 
 
 def test_normalize_belief_state(z1r: GeneralizedHiddenMarkovModel):
+    """Test belief-state normalization under linear probabilities."""
     state = jnp.array([2, 5, 1])
     belief_state = z1r.normalize_belief_state(state)
     chex.assert_trees_all_close(belief_state, jnp.array([0.25, 0.625, 0.125]))
@@ -37,6 +43,7 @@ def test_normalize_belief_state(z1r: GeneralizedHiddenMarkovModel):
 
 
 def test_normalize_log_belief_state(z1r: GeneralizedHiddenMarkovModel):
+    """Test log-space belief-state normalization."""
     state = jnp.log(jnp.array([2, 5, 1]))
     log_belief_state = z1r.normalize_log_belief_state(state)
     chex.assert_trees_all_close(log_belief_state, jnp.log(jnp.array([0.25, 0.625, 0.125])))
@@ -47,6 +54,7 @@ def test_normalize_log_belief_state(z1r: GeneralizedHiddenMarkovModel):
 
 
 def test_hmm_single_transition(z1r: GeneralizedHiddenMarkovModel):
+    """Test single-step transitions from each canonical state."""
     zero_state = jnp.array([[1.0, 0.0, 0.0]])
     one_state = jnp.array([[0.0, 1.0, 0.0]])
     random_state = jnp.array([[0.0, 0.0, 1.0]])
@@ -88,6 +96,7 @@ def test_hmm_single_transition(z1r: GeneralizedHiddenMarkovModel):
 
 @pytest.mark.parametrize("model_name", ["z1r", "fanizza_model"])
 def test_generate(model_name: str, request: pytest.FixtureRequest):
+    """Test sampling sequences without intermediate states."""
     model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
     batch_size = 4
     sequence_len = 10
@@ -106,6 +115,7 @@ def test_generate(model_name: str, request: pytest.FixtureRequest):
 
 @pytest.mark.parametrize("model_name", ["z1r", "fanizza_model"])
 def test_generate_with_intermediate_states(model_name: str, request: pytest.FixtureRequest):
+    """Test sampling sequences while also returning intermediates."""
     model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
     batch_size = 4
     sequence_len = 10
@@ -123,6 +133,7 @@ def test_generate_with_intermediate_states(model_name: str, request: pytest.Fixt
 
 
 def test_hmm_observation_probability_distribution(z1r: GeneralizedHiddenMarkovModel):
+    """Test observation probability distribution in probability space."""
     state = jnp.array([0.3, 0.1, 0.6])
     obs_probs = z1r.observation_probability_distribution(state)
     chex.assert_trees_all_close(obs_probs, jnp.array([0.6, 0.4]))
@@ -133,6 +144,7 @@ def test_hmm_observation_probability_distribution(z1r: GeneralizedHiddenMarkovMo
 
 
 def test_ghmm_observation_probability_distribution(fanizza_model: GeneralizedHiddenMarkovModel):
+    """Test observation probabilities for the fanizza GHMM."""
     valid_state = fanizza_model.initial_state
     obs_probs = fanizza_model.observation_probability_distribution(valid_state)
     assert jnp.isclose(jnp.sum(obs_probs), 1)
@@ -146,6 +158,7 @@ def test_ghmm_observation_probability_distribution(fanizza_model: GeneralizedHid
 
 
 def test_hmm_log_observation_probability_distribution(z1r: GeneralizedHiddenMarkovModel):
+    """Test observation probabilities in log space."""
     log_belief_state = jnp.log(jnp.array([0.3, 0.1, 0.6]))
     log_obs_probs = z1r.log_observation_probability_distribution(log_belief_state)
     assert jnp.isclose(jax.nn.logsumexp(log_obs_probs), 0, atol=2e-7)
@@ -158,6 +171,7 @@ def test_hmm_log_observation_probability_distribution(z1r: GeneralizedHiddenMark
 
 
 def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
+    """Test forward probability of a fixed observation sequence."""
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
 
@@ -166,6 +180,7 @@ def test_hmm_probability(z1r: GeneralizedHiddenMarkovModel):
 
 
 def test_ghmm_probability(fanizza_model: GeneralizedHiddenMarkovModel):
+    """Test probability bounds for random observations."""
     key = jax.random.PRNGKey(0)
     observations = jax.random.randint(key, (10,), 0, fanizza_model.vocab_size)
 
@@ -174,6 +189,7 @@ def test_ghmm_probability(fanizza_model: GeneralizedHiddenMarkovModel):
 
 
 def test_hmm_log_probability(z1r: GeneralizedHiddenMarkovModel):
+    """Test log-probability of a fixed observation sequence."""
     observations = jnp.array([1, 0, 0, 1, 1, 0])
     expected_probability = 1 / 12
 
@@ -182,6 +198,7 @@ def test_hmm_log_probability(z1r: GeneralizedHiddenMarkovModel):
 
 
 def test_ghmm_log_probability(fanizza_model: GeneralizedHiddenMarkovModel):
+    """Test that log probabilities remain non-positive."""
     key = jax.random.PRNGKey(0)
     observations = jax.random.randint(key, (10,), 0, fanizza_model.vocab_size)
 

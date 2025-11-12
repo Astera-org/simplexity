@@ -1,3 +1,5 @@
+"""Test the S3 persister."""
+
 import tempfile
 from pathlib import Path
 
@@ -12,6 +14,7 @@ from tests.persistence.s3_mocks import MockBoto3Session, MockS3Client
 
 
 def get_model(seed: int = 0) -> eqx.Module:
+    """Get a model for testing."""
     return eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(seed))
 
 
@@ -45,7 +48,8 @@ def test_s3_persister(tmp_path: Path):
 def test_s3_persister_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Test S3Persister.from_config with mocked Boto3 session."""
 
-    def mock_session_init(profile_name=None, **kwargs):
+    def mock_session_init(profile_name=None, **kwargs):  # pylint: disable=unused-argument
+        """Mock session initialization."""
         return MockBoto3Session.create(tmp_path)
 
     monkeypatch.setattr("simplexity.persistence.s3_persister.boto3.session.Session", mock_session_init)

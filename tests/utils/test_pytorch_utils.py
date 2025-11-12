@@ -1,3 +1,5 @@
+"""Tests for PyTorch utilities."""
+
 from unittest.mock import patch
 
 import jax

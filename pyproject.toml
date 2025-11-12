@@ -46,6 +46,7 @@ dev = [
     "diff-cover",
     "jaxtyping",
     "pylint",
+    "pylint-per-file-ignores",
     "pyright",
     "pytest",
     "pytest-cov",
@@ -88,13 +89,15 @@ convention = "google"
 "test_*.py" = ["D"]
 "*.ipynb" = ["D"]
 
-[tool.pylint.MASTER]
-# Add project root to Python path so pylint can resolve simplexity imports
-init-hook = 'import sys; import os; sys.path.insert(0, os.path.abspath("."))'
+ [tool.pylint.MASTER]
+ # Add project root to Python path so pylint can resolve simplexity imports
+ init-hook = 'import sys; import os; sys.path.insert(0, os.path.abspath("."))'
+ load-plugins = ["pylint_per_file_ignores"]
 
 [tool.pylint."MESSAGES CONTROL"]
 # Disable line-too-long check since ruff handles line length (120 chars)
 disable = ["line-too-long"]
+per-file-ignores = ["tests/**:redefined-outer-name"]
 
 [tool.pylint.IMPORTS]
 # Ignore simplexity module to prevent astroid crashes during import resolution

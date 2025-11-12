@@ -1,4 +1,7 @@
+"""Test the transition matrices module."""
+
 import chex
+import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.transition_matrices import (
@@ -6,6 +9,7 @@ from simplexity.generative_processes.transition_matrices import (
     days_of_week,
     even_ones,
     fanizza,
+    get_stationary_state,
     matching_parens,
     mess3,
     mr_name,
@@ -13,7 +17,6 @@ from simplexity.generative_processes.transition_matrices import (
     post_quantum,
     rrxor,
     sns,
-    get_stationary_state,
     tom_quantum,
     zero_one_random,
 )
@@ -21,15 +24,15 @@ from tests.assertions import assert_proportional
 
 
 def test_stationary_state():
+    """Test the get_stationary_state function."""
     transition_matrix = jnp.array([[0.5, 0.5], [0.5, 0.5]])
     actual = get_stationary_state(transition_matrix)
     expected = jnp.array([0.5, 0.5])
     assert jnp.allclose(actual, expected)
 
 
-def validate_ghmm_transition_matrices(
-    transition_matrices: jnp.ndarray, ergodic: bool = True, rtol: float = 1e-6, atol: float = 0
-):
+def validate_ghmm_transition_matrices(transition_matrices: jax.Array, ergodic: bool = True) -> None:
+    """Test the validate_ghmm_transition_matrices function."""
     transition_matrix = jnp.sum(transition_matrices, axis=0)
     num_states = transition_matrix.shape[0]
 
@@ -49,7 +52,8 @@ def validate_ghmm_transition_matrices(
 def validate_hmm_transition_matrices(
     transition_matrices: jnp.ndarray, ergodic: bool = True, rtol: float = 1e-6, atol: float = 0
 ):
-    validate_ghmm_transition_matrices(transition_matrices, ergodic, rtol, atol)
+    """Test the validate_hmm_transition_matrices function."""
+    validate_ghmm_transition_matrices(transition_matrices, ergodic)
     assert jnp.all(transition_matrices >= 0)
     assert jnp.all(transition_matrices <= 1)
 
@@ -74,6 +78,7 @@ def validate_hmm_transition_matrices(
 
 
 def test_coin():
+    """Test the coin transition matrices."""
     transition_matrices = coin(p=0.5)
     assert transition_matrices.shape == (2, 1, 1)
     validate_hmm_transition_matrices(transition_matrices)
@@ -83,12 +88,14 @@ def test_coin():
 
 
 def test_days_of_week():
+    """Test the days of week transition matrices."""
     transition_matrices = days_of_week()
     assert transition_matrices.shape == (11, 7, 7)
     validate_hmm_transition_matrices(transition_matrices, rtol=2e-6)
 
 
 def test_even_ones():
+    """Test the even ones transition matrices."""
     transition_matrices = even_ones(p=0.5)
     assert transition_matrices.shape == (2, 2, 2)
     validate_hmm_transition_matrices(transition_matrices)
@@ -98,6 +105,7 @@ def test_even_ones():
 
 
 def test_fanizza():
+    """Test the fanizza transition matrices."""
     transition_matrices = fanizza(alpha=2000, lamb=0.49)
     assert transition_matrices.shape == (2, 4, 4)
     validate_ghmm_transition_matrices(transition_matrices)
@@ -106,6 +114,7 @@ def test_fanizza():
 
 
 def test_matching_parens():
+    """Test the matching parens transition matrices."""
     transition_matrices = matching_parens(open_probs=[1.0, 0.5, 0.5])
     assert transition_matrices.shape == (2, 4, 4)
     validate_hmm_transition_matrices(transition_matrices, rtol=1e-5)
@@ -115,12 +124,14 @@ def test_matching_parens():
 
 
 def test_mess3():
+    """Test the mess3 transition matrices."""
     transition_matrices = mess3(x=0.15, a=0.6)
     assert transition_matrices.shape == (3, 3, 3)
     validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_mr_name():
+    """Test the mr name transition matrices."""
     transition_matrices = mr_name(p=0.4, q=0.25)
     assert transition_matrices.shape == (4, 4, 4)
     validate_hmm_transition_matrices(transition_matrices)
@@ -130,6 +141,7 @@ def test_mr_name():
 
 
 def test_no_consecutive_ones():
+    """Test the no consecutive ones transition matrices."""
     transition_matrices = no_consecutive_ones(p=0.5)
     assert transition_matrices.shape == (2, 2, 2)
     validate_hmm_transition_matrices(transition_matrices)
@@ -139,6 +151,7 @@ def test_no_consecutive_ones():
 
 
 def test_post_quantum():
+    """Test the post quantum transition matrices."""
     transition_matrices = post_quantum(log_alpha=1.0, beta=0.5)
     assert transition_matrices.shape == (3, 3, 3)
     validate_ghmm_transition_matrices(transition_matrices)
@@ -149,6 +162,7 @@ def test_post_quantum():
 
 
 def test_rrxor():
+    """Test the rrxor transition matrices."""
     transition_matrices = rrxor(p1=0.5, p2=0.5)
     assert transition_matrices.shape == (2, 5, 5)
     validate_hmm_transition_matrices(transition_matrices, rtol=1e-5)  # rtol=1e-6 barely fails
@@ -158,18 +172,21 @@ def test_rrxor():
 
 
 def test_sns():
+    """Test the sns transition matrices."""
     transition_matrices = sns(p=0.5, q=0.5)
     assert transition_matrices.shape == (2, 2, 2)
     validate_hmm_transition_matrices(transition_matrices)
 
 
 def test_tom_quantum():
+    """Test the tom quantum transition matrices."""
     transition_matrices = tom_quantum(alpha=1.0, beta=1.0)
     assert transition_matrices.shape == (4, 3, 3)
     validate_ghmm_transition_matrices(transition_matrices)
 
 
 def test_zero_one_random():
+    """Test the zero one random transition matrices."""
     transition_matrices = zero_one_random(p=0.5)
     assert transition_matrices.shape == (2, 3, 3)
     validate_hmm_transition_matrices(transition_matrices)

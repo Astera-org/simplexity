@@ -1,3 +1,5 @@
+"""Tests for equinox utilities."""
+
 import equinox as eqx
 import jax
 
