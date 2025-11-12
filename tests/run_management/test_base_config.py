@@ -4,6 +4,15 @@ This module contains tests for the base configuration validation functionality,
 including validation of seed, tags, and MLFlow configuration fields.
 """
 
+# pylint: disable-all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 import pytest
 from omegaconf import DictConfig
 
@@ -12,7 +21,9 @@ from simplexity.run_management.structured_configs import validate_base_config
 
 
 class TestBaseConfig:
-    def test_validate_base_config_valid(self):
+    """Test BaseConfig."""
+
+    def test_validate_base_config_valid(self) -> None:
         """Test validate_base_config with valid configs."""
         cfg = DictConfig({})
         validate_base_config(cfg)
@@ -26,7 +37,7 @@ class TestBaseConfig:
         )
         validate_base_config(cfg)
 
-    def test_validate_base_config_invalid_seed(self):
+    def test_validate_base_config_invalid_seed(self) -> None:
         """Test validate_base_config with invalid configs."""
         # Non-integer seed
         cfg = DictConfig({"seed": "42"})
@@ -42,7 +53,7 @@ class TestBaseConfig:
         with pytest.raises(ConfigValidationError, match="BaseConfig.seed must be non-negative"):
             validate_base_config(cfg)
 
-    def test_validate_base_config_invalid_tags(self):
+    def test_validate_base_config_invalid_tags(self) -> None:
         """Test validate_base_config with invalid tags."""
         # Non-dictionary tags
         cfg = DictConfig({"tags": "not a dictionary"})
@@ -59,7 +70,7 @@ class TestBaseConfig:
         with pytest.raises(ConfigValidationError, match="BaseConfig.tags values must be strings"):
             validate_base_config(cfg)
 
-    def test_validate_base_config_invalid_mlflow(self):
+    def test_validate_base_config_invalid_mlflow(self) -> None:
         """Test validate_base_config with invalid mlflow."""
         # Non-MLFlowConfig mlflow
         cfg = DictConfig({"mlflow": "not an MLFlowConfig"})

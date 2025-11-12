@@ -1,3 +1,5 @@
+"""Tests for config utilities."""
+
 import pytest
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf.errors import ReadonlyConfigError

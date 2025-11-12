@@ -76,7 +76,7 @@ def get_minimal_requirements(requirements_path: Path | str = "requirements.txt")
     # ==, !=, >=, <=, ~=, ===, >, <, =
     # This matches the operators in order (longest first) to avoid partial matches
     version_specifier_pattern = r"(===|~=|==|!=|>=|<=|>|<|=)"
-    with open(requirements_path) as f:
+    with open(requirements_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#"):
@@ -91,7 +91,7 @@ def create_minimal_requirements_file(requirements_path: Path | str = "requiremen
     minimal_requirements = get_minimal_requirements(requirements_path)
     requirements_path = Path(requirements_path)
     minimal_path = requirements_path.parent / "requirements_minimal.txt"
-    with minimal_path.open("w") as f:
+    with minimal_path.open("w", encoding="utf-8") as f:
         f.write(minimal_requirements)
     return str(minimal_path)
 
@@ -112,6 +112,6 @@ def create_conda_yaml_file(pyproject_path: str | Path = "pyproject.toml") -> str
         raise FileNotFoundError(f"pyproject.toml not found at {pyproject_path}")
     python_dependency = get_python_version(pyproject_path)
     conda_yaml_path = pyproject_path.parent / "conda.yaml"
-    with conda_yaml_path.open("w") as f:
+    with conda_yaml_path.open("w", encoding="utf-8") as f:
         f.write(CONDA_YAML_CONTENT.format(python_dependency=python_dependency))
     return str(conda_yaml_path)

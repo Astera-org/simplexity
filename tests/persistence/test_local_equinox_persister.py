@@ -1,3 +1,5 @@
+"""Test the local equinox persister."""
+
 from pathlib import Path
 
 import chex
@@ -9,6 +11,7 @@ from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 
 
 def get_model(seed: int) -> eqx.Module:
+    """Get a model for testing."""
     return eqx.nn.Linear(
         in_features=4,
         out_features=3,
@@ -17,6 +20,7 @@ def get_model(seed: int) -> eqx.Module:
 
 
 def test_local_persister(tmp_path: Path):
+    """Test the local equinox persister."""
     directory = tmp_path
     filename = "test_model.eqx"
     persister = LocalEquinoxPersister(directory, filename)

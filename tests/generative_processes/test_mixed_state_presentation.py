@@ -1,3 +1,5 @@
+"""Tests for mixed-state presentation utilities."""
+
 import math
 from typing import cast
 
@@ -152,17 +154,20 @@ LOG_NODES = {
 
 @pytest.fixture
 def generator() -> MixedStateTreeGenerator:
+    """Return the standard mixed-state tree generator."""
     ghmm = build_generalized_hidden_markov_model("no_consecutive_ones", p=0.5)
     return MixedStateTreeGenerator(ghmm, max_sequence_length=2)
 
 
 @pytest.fixture
 def log_generator() -> LogMixedStateTreeGenerator:
+    """Return the log-space mixed-state tree generator."""
     hmm = build_hidden_markov_model("no_consecutive_ones", p=0.5)
     return LogMixedStateTreeGenerator(hmm, max_sequence_length=2, prob_threshold=-jnp.inf)
 
 
 def get_sequences_in_collection(collection: Queue[MixedStateNode]) -> list[tuple[int, ...]]:
+    """Extract readable sequences from a collection of nodes."""
     nodes = cast(MixedStateNode, collection.data)
     sequences = []
     for i in range(collection.size):
@@ -173,6 +178,7 @@ def get_sequences_in_collection(collection: Queue[MixedStateNode]) -> list[tuple
 
 @pytest.mark.parametrize(("generator_name", "expected_nodes"), [("generator", NODES), ("log_generator", LOG_NODES)])
 def test_get_child(generator_name: str, expected_nodes: dict[str, MixedStateNode], request: pytest.FixtureRequest):
+    """Test retrieving child nodes for both generator types."""
     generator = cast(MixedStateTreeGenerator, request.getfixturevalue(generator_name))
     child = generator.get_child(generator.root, jnp.array(0))
     chex.assert_trees_all_close(child, expected_nodes["0"], atol=ABS_TOL)
@@ -183,6 +189,7 @@ def test_get_child(generator_name: str, expected_nodes: dict[str, MixedStateNode
 
 @pytest.mark.parametrize("generator_name", ["generator", "log_generator"])
 def test_get_all_children(generator_name: str, request: pytest.FixtureRequest):
+    """Test generating all children from the search queue."""
     generator = cast(MixedStateTreeGenerator, request.getfixturevalue(generator_name))
     search_nodes = Queue(max_size=7, default_element=generator.root)
     search_nodes = search_nodes.enqueue(generator.root)
@@ -210,12 +217,13 @@ def test_next_node(
     expected_sequences: list[str],
     request: pytest.FixtureRequest,
 ):
+    """Test finding the next node in a mixed-state tree."""
     generator = cast(MixedStateTreeGenerator, request.getfixturevalue(generator_name))
     search_nodes = data_structure(max_size=7, default_element=generator.root)
     search_nodes = search_nodes.add(generator.root)
 
     for expected_sequence in expected_sequences:
-        search_nodes, node = generator._next_node(search_nodes)
+        search_nodes, node = generator._next_node(search_nodes)  # pylint: disable=protected-access
         expected_node = expected_nodes[expected_sequence]
         chex.assert_trees_all_close(node, expected_node, atol=ABS_TOL)
 
@@ -224,6 +232,7 @@ def test_next_node(
 
 @pytest.mark.parametrize("search_algorithm", [SearchAlgorithm.BREADTH_FIRST, SearchAlgorithm.DEPTH_FIRST])
 def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAlgorithm):
+    """Test generating a mixed-state tree."""
     tree = generator.generate(search_algorithm)
     assert isinstance(tree, MixedStateTree)
     expected_nodes: dict[Sequence, NodeDictValue] = {
@@ -253,6 +262,7 @@ def test_generate(generator: MixedStateTreeGenerator, search_algorithm: SearchAl
 
 @pytest.mark.parametrize("search_algorithm", [SearchAlgorithm.BREADTH_FIRST, SearchAlgorithm.DEPTH_FIRST])
 def test_log_generate(log_generator: LogMixedStateTreeGenerator, search_algorithm: SearchAlgorithm):
+    """Test generating a log-space mixed-state tree."""
     tree = log_generator.generate(search_algorithm)
     assert isinstance(tree, LogMixedStateTree)
     log_1 = 0.0
@@ -288,6 +298,7 @@ def test_log_generate(log_generator: LogMixedStateTreeGenerator, search_algorith
 
 @pytest.mark.parametrize("generator_name", ["generator", "log_generator"])
 def test_myopic_entropy(generator_name: str, request: pytest.FixtureRequest):
+    """Test computing myopic entropy for a mixed-state tree."""
     generator = cast(MixedStateTreeGenerator, request.getfixturevalue(generator_name))
     myopic_entropies = generator.compute_myopic_entropy()
     assert myopic_entropies.sequence_lengths.shape == (generator.max_sequence_length + 1,)

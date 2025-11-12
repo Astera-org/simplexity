@@ -1,3 +1,5 @@
+"""Queue data structure."""
+
 import equinox as eqx
 import jax
 
