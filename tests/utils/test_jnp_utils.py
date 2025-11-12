@@ -1,20 +1,24 @@
+"""Tests for JAX NumPy utilities."""
+
 import chex
 import jax
 import jax.numpy as jnp
 
-from simplexity.utils.jnp import log_matmul, signed_logsumexp
+from simplexity.utils.jnp_utils import log_matmul, signed_logsumexp
 
 
 def test_log_matmul():
+    """Test log_matmul function."""
     key_a, key_b = jax.random.split(jax.random.PRNGKey(0))
-    A = jax.random.uniform(key_a, (3, 4))
-    B = jax.random.uniform(key_b, (4, 5))
-    actual = log_matmul(jnp.log(A), jnp.log(B))
-    expected = jnp.log(A @ B)
+    mat_a = jax.random.uniform(key_a, (3, 4))
+    mat_b = jax.random.uniform(key_b, (4, 5))
+    actual = log_matmul(jnp.log(mat_a), jnp.log(mat_b))
+    expected = jnp.log(mat_a @ mat_b)
     chex.assert_trees_all_close(actual, expected, atol=1e-7)
 
 
 def test_signed_logsumexp():
+    """Test signed_logsumexp function."""
     # values:
     # [ 4,  1,  2] ->  7
     # [-1, -3, -2] -> -6

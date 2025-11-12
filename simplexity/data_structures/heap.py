@@ -1,5 +1,7 @@
+"""Heap data structure."""
+
 from collections.abc import Callable
-from typing import cast
+from typing import Protocol, cast
 
 import equinox as eqx
 import jax
@@ -9,15 +11,26 @@ from simplexity.data_structures.collection import Element
 from simplexity.data_structures.stack import Stack
 
 
+class ArrayLike(Protocol):  # pylint: disable=too-few-public-methods
+    """A protocol for array-like objects."""
+
+    shape: tuple[int, ...]
+    dtype: jnp.dtype
+
+
 class Heap(Stack[Element]):
     """Generic heap for any PyTree structure."""
 
     compare: Callable[[Element, Element], jax.Array]
 
-    def __init__(self, max_size: int, default_element: Element, compare: Callable[[Element, Element], jax.Array]):
+    def __init__(self, max_size: int, default_element: Element, compare: Callable[[Element, Element], jax.Array]):  # pylint: disable=super-init-not-called
         """Initialize empty queue/stack."""
         self.default_element = default_element
-        self.data = jax.tree.map(lambda x: jnp.zeros((max_size,) + x.shape, dtype=x.dtype), default_element)
+
+        def init_data(element: ArrayLike) -> jax.Array:
+            return jnp.zeros((max_size,) + element.shape, dtype=element.dtype)
+
+        self.data = jax.tree.map(init_data, default_element)
         self._size = jnp.array(0, dtype=jnp.int32)
         self.max_size = jnp.array(max_size, dtype=jnp.int32)
         self.compare = compare
@@ -27,7 +40,7 @@ class Heap(Stack[Element]):
         """Push a new element onto the stack."""
         heap = super().push(element)
         heap = cast(Heap[Element], heap)
-        heap = heap._bubble_up(heap.size - 1)
+        heap = heap._bubble_up(heap.size - 1)  # pylint: disable=protected-access
         return heap
 
     @eqx.filter_jit
@@ -36,7 +49,7 @@ class Heap(Stack[Element]):
         heap = self._swap(jnp.array(0, dtype=jnp.int32), self.size - 1)
         heap, element = super(Heap, heap).pop()
         heap = cast(Heap[Element], heap)
-        heap = heap._bubble_down(jnp.array(0, dtype=jnp.int32))
+        heap = heap._bubble_down(jnp.array(0, dtype=jnp.int32))  # pylint: disable=protected-access
         return heap, element
 
     @eqx.filter_jit
@@ -92,7 +105,7 @@ class Heap(Stack[Element]):
 
         def do_bubble_up(heap: "Heap[Element]") -> "Heap[Element]":
             heap = self._swap(child_idx, parent_idx)
-            return heap._bubble_up(parent_idx)
+            return heap._bubble_up(parent_idx)  # pylint: disable=protected-access
 
         return jax.lax.cond(
             self.compare(child, parent) > 0,
@@ -114,11 +127,11 @@ class Heap(Stack[Element]):
 
         def do_left_bubble_down(heap: "Heap[Element]") -> "Heap[Element]":
             heap = self._swap(parent_idx, left_child_idx)
-            return heap._bubble_down(left_child_idx)
+            return heap._bubble_down(left_child_idx)  # pylint: disable=protected-access
 
         def do_right_bubble_down(heap: "Heap[Element]") -> "Heap[Element]":
             heap = self._swap(parent_idx, right_child_idx)
-            return heap._bubble_down(right_child_idx)
+            return heap._bubble_down(right_child_idx)  # pylint: disable=protected-access
 
         return jax.lax.cond(
             self.compare(parent, left_child) > 0,

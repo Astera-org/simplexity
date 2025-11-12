@@ -1,3 +1,5 @@
+"""Test the torch generator module."""
+
 import jax
 import jax.numpy as jnp
 import torch
@@ -7,6 +9,7 @@ from simplexity.generative_processes.torch_generator import generate_data_batch
 
 
 def test_generate_data_batch():
+    """Test generating a batch of data."""
     hmm = build_hidden_markov_model("zero_one_random", p=0.5)
     batch_size = 10
     sequence_len = 10
@@ -28,6 +31,7 @@ def test_generate_data_batch():
 
 
 def test_generate_data_batch_with_bos_token():
+    """Test generating a batch of data with a BOS token."""
     hmm = build_hidden_markov_model("zero_one_random", p=0.5)
     batch_size = 10
     sequence_len = 10
@@ -51,6 +55,7 @@ def test_generate_data_batch_with_bos_token():
 
 
 def test_generate_data_batch_with_eos_token():
+    """Test generating a batch of data with an EOS token."""
     hmm = build_hidden_markov_model("zero_one_random", p=0.5)
     batch_size = 10
     sequence_len = 10

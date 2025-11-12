@@ -1,9 +1,11 @@
+"""Assertions for testing."""
+
 import chex
 import jax
 import jax.numpy as jnp
 
 
-def assert_proportional(a: jax.Array, b: jax.Array, rtol: float = 1e-6, atol: float = 0):
+def assert_proportional(a: jax.Array, b: jax.Array, rtol: float = 1e-6, atol: float = 0) -> None:
     """Assert that two arrays are proportional."""
 
     def normalize(x: jax.Array) -> jax.Array:

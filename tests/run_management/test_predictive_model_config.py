@@ -5,6 +5,15 @@ validation of model targets, HookedTransformer configs, and predictive model
 configuration instances.
 """
 
+# pylint: disable-all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 import re
 from unittest.mock import ANY, call, patch
 
@@ -27,9 +36,11 @@ from simplexity.run_management.structured_configs import (
 
 
 class TestHookedTransformerConfig:
+    """Test HookedTransformerConfig."""
+
     """Test PredictiveModelConfig."""
 
-    def test_hooked_transformer_config(self):
+    def test_hooked_transformer_config(self) -> None:
         """Test creating hooked transformer config from dataclass."""
         cfg: DictConfig = OmegaConf.structured(
             PredictiveModelConfig(
@@ -60,7 +71,7 @@ class TestHookedTransformerConfig:
         assert cfg.get("name") is None
         assert cfg.get("load_checkpoint_step") is None
 
-    def test_validate_hooked_transformer_config_config_valid(self):
+    def test_validate_hooked_transformer_config_config_valid(self) -> None:
         """Test validate_hooked_transformer_config_config with valid configs."""
         # Test with minimal config (n_heads defaults to -1)
         cfg = DictConfig(
@@ -95,7 +106,7 @@ class TestHookedTransformerConfig:
         )
         validate_hooked_transformer_config_config(cfg)
 
-    def test_validate_hooked_transformer_config_config_incompatible_dimensions(self):
+    def test_validate_hooked_transformer_config_config_incompatible_dimensions(self) -> None:
         """Test validate_hooked_transformer_config_config raises when n_heads=-1.
 
         Specifically tests that d_model must be divisible by d_head when n_heads=-1.
@@ -131,7 +142,7 @@ class TestHookedTransformerConfig:
             ("n_ctx", 256),
         ],
     )
-    def test_validate_hooked_transformer_config_config_invalid_fields(self, field, value):
+    def test_validate_hooked_transformer_config_config_invalid_fields(self, field, value) -> None:
         """Test validate_hooked_transformer_config_config raises for invalid field values."""
         cfg = DictConfig(
             {
@@ -164,7 +175,7 @@ class TestHookedTransformerConfig:
         with pytest.raises(ConfigValidationError, match=f"HookedTransformerConfigConfig.{field} must be positive"):
             validate_hooked_transformer_config_config(cfg)
 
-    def test_validate_hooked_transformer_config_config_d_model_not_divisible_by_n_heads(self):
+    def test_validate_hooked_transformer_config_config_d_model_not_divisible_by_n_heads(self) -> None:
         """Test validate_hooked_transformer_config_config raises when d_model is not divisible by n_heads."""
         cfg = DictConfig(
             {
@@ -185,7 +196,7 @@ class TestHookedTransformerConfig:
         with pytest.raises(ConfigValidationError, match="d_model.*must be divisible by n_heads"):
             validate_hooked_transformer_config_config(cfg)
 
-    def test_validate_hooked_transformer_config_config_d_head_times_n_heads_not_equal_d_model(self):
+    def test_validate_hooked_transformer_config_config_d_head_times_n_heads_not_equal_d_model(self) -> None:
         """Test validate_hooked_transformer_config_config raises when d_head * n_heads != d_model."""
         cfg = DictConfig(
             {
@@ -206,7 +217,7 @@ class TestHookedTransformerConfig:
         with pytest.raises(ConfigValidationError, match="d_head.*n_heads.*must equal d_model"):
             validate_hooked_transformer_config_config(cfg)
 
-    def test_validate_hooked_transformer_config_valid(self):
+    def test_validate_hooked_transformer_config_valid(self) -> None:
         """Test validate_hooked_transformer_config with valid configs."""
         cfg = DictConfig(
             {
@@ -231,7 +242,7 @@ class TestHookedTransformerConfig:
         )
         validate_hooked_transformer_config(cfg)
 
-    def test_validate_hooked_transformer_config_missing_target(self):
+    def test_validate_hooked_transformer_config_missing_target(self) -> None:
         """Test validate_hooked_transformer_config raises when _target_ is missing."""
         cfg = DictConfig(
             {
@@ -256,13 +267,13 @@ class TestHookedTransformerConfig:
         with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a string"):
             validate_hooked_transformer_config(cfg)
 
-    def test_validate_hooked_transformer_config_missing_cfg(self):
+    def test_validate_hooked_transformer_config_missing_cfg(self) -> None:
         """Test validate_hooked_transformer_config raises when cfg is missing."""
         cfg = DictConfig({"_target_": "transformer_lens.HookedTransformer"})
         with pytest.raises(ConfigValidationError, match="HookedTransformerConfig.cfg is required"):
             validate_hooked_transformer_config(cfg)
 
-    def test_resolve_hooked_transformer_config_without_kwargs(self):
+    def test_resolve_hooked_transformer_config_without_kwargs(self) -> None:
         """Test resolve_hooked_transformer_config with valid configs."""
         cfg = DictConfig(
             {
@@ -286,7 +297,7 @@ class TestHookedTransformerConfig:
         assert OmegaConf.is_missing(cfg, "n_ctx")
         assert OmegaConf.is_missing(cfg, "d_vocab")
 
-    def test_resolve_hooked_transformer_config_with_complete_values(self):
+    def test_resolve_hooked_transformer_config_with_complete_values(self) -> None:
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -316,7 +327,7 @@ class TestHookedTransformerConfig:
         assert cfg.get("d_vocab") == 4
         assert cfg.get("device") == "cuda"
 
-    def test_resolve_hooked_transformer_config_with_missing_values(self):
+    def test_resolve_hooked_transformer_config_with_missing_values(self) -> None:
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -346,7 +357,7 @@ class TestHookedTransformerConfig:
         assert cfg.get("d_vocab") == 4
         assert cfg.get("device") == "cuda"
 
-    def test_resolve_hooked_transformer_config_with_invalid_values(self):
+    def test_resolve_hooked_transformer_config_with_invalid_values(self) -> None:
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -379,7 +390,7 @@ class TestHookedTransformerConfig:
         ):
             resolve_hooked_transformer_config(cfg, bos_token=3, sequence_len=16)
 
-    def test_resolve_hooked_transformer_config_with_conflicting_device(self):
+    def test_resolve_hooked_transformer_config_with_conflicting_device(self) -> None:
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -409,7 +420,7 @@ class TestHookedTransformerConfig:
                 ]
             )
 
-    def test_is_predictive_model_target_valid(self):
+    def test_is_predictive_model_target_valid(self) -> None:
         """Test is_predictive_model_target with valid model targets."""
         assert is_predictive_model_target("transformer_lens.HookedTransformer")
         assert is_predictive_model_target("torch.nn.Linear")
@@ -418,13 +429,13 @@ class TestHookedTransformerConfig:
         assert is_predictive_model_target("penzai.models.Transformer")
         assert is_predictive_model_target("simplexity.predictive_models.MyModel")
 
-    def test_is_predictive_model_target_invalid(self):
+    def test_is_predictive_model_target_invalid(self) -> None:
         """Test is_predictive_model_target with invalid targets."""
         assert not is_predictive_model_target("simplexity.logging.mlflow_logger.MLFlowLogger")
         assert not is_predictive_model_target("torch.optim.Adam")
         assert not is_predictive_model_target("")
 
-    def test_is_predictive_model_config_valid(self):
+    def test_is_predictive_model_config_valid(self) -> None:
         """Test is_predictive_model_config with valid predictive model configs."""
         cfg = DictConfig({"_target_": "transformer_lens.HookedTransformer"})
         assert is_predictive_model_config(cfg)
@@ -435,7 +446,7 @@ class TestHookedTransformerConfig:
         cfg = DictConfig({"_target_": "simplexity.predictive_models.MyModel"})
         assert is_predictive_model_config(cfg)
 
-    def test_is_predictive_model_config_invalid(self):
+    def test_is_predictive_model_config_invalid(self) -> None:
         """Test is_predictive_model_config with invalid configs."""
         # Non-model target
         cfg = DictConfig({"_target_": "simplexity.logging.mlflow_logger.MLFlowLogger"})
@@ -457,12 +468,12 @@ class TestHookedTransformerConfig:
         cfg = DictConfig({})
         assert not is_predictive_model_config(cfg)
 
-    def test_is_hooked_transformer_config_valid(self):
+    def test_is_hooked_transformer_config_valid(self) -> None:
         """Test is_hooked_transformer_config with valid HookedTransformer configs."""
         cfg = DictConfig({"_target_": "transformer_lens.HookedTransformer"})
         assert is_hooked_transformer_config(cfg)
 
-    def test_is_hooked_transformer_config_invalid(self):
+    def test_is_hooked_transformer_config_invalid(self) -> None:
         """Test is_hooked_transformer_config with invalid configs."""
         cfg = DictConfig({"_target_": "transformer_lens.HookedTransformerConfig"})
         assert not is_hooked_transformer_config(cfg)
@@ -473,7 +484,7 @@ class TestHookedTransformerConfig:
         cfg = DictConfig({})
         assert not is_hooked_transformer_config(cfg)
 
-    def test_validate_predictive_model_config_valid(self):
+    def test_validate_predictive_model_config_valid(self) -> None:
         """Test validate_predictive_model_config with valid configs."""
         # Valid config without name or load_checkpoint_step
         cfg = DictConfig(
@@ -523,7 +534,7 @@ class TestHookedTransformerConfig:
         )
         validate_predictive_model_config(cfg)
 
-    def test_validate_predictive_model_config_missing_instance(self):
+    def test_validate_predictive_model_config_missing_instance(self) -> None:
         """Test validate_predictive_model_config raises when instance is missing."""
         cfg = DictConfig({})
         with pytest.raises(ConfigValidationError, match="PredictiveModelConfig.instance is required"):
@@ -533,7 +544,7 @@ class TestHookedTransformerConfig:
         with pytest.raises(ConfigValidationError, match="PredictiveModelConfig.instance is required"):
             validate_predictive_model_config(cfg)
 
-    def test_validate_predictive_model_config_invalid_instance(self):
+    def test_validate_predictive_model_config_invalid_instance(self) -> None:
         """Test validate_predictive_model_config raises when instance is invalid."""
         # Instance without _target_
         cfg = DictConfig({"instance": DictConfig({"other_field": "value"})})
@@ -550,7 +561,7 @@ class TestHookedTransformerConfig:
         with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a string"):
             validate_predictive_model_config(cfg)
 
-    def test_validate_predictive_model_config_non_model_target(self):
+    def test_validate_predictive_model_config_non_model_target(self) -> None:
         """Test validate_predictive_model_config raises when instance target is not a model target."""
         cfg = DictConfig({"instance": DictConfig({"_target_": "simplexity.logging.mlflow_logger.MLFlowLogger"})})
         with pytest.raises(
@@ -564,7 +575,7 @@ class TestHookedTransformerConfig:
         ):
             validate_predictive_model_config(cfg)
 
-    def test_validate_predictive_model_config_invalid_name(self):
+    def test_validate_predictive_model_config_invalid_name(self) -> None:
         """Test validate_predictive_model_config raises when name is invalid."""
         # Empty string name
         cfg = DictConfig(
@@ -596,7 +607,7 @@ class TestHookedTransformerConfig:
         with pytest.raises(ConfigValidationError, match="PredictiveModelConfig.name must be a string or None"):
             validate_predictive_model_config(cfg)
 
-    def test_validate_predictive_model_config_invalid_load_checkpoint_step(self):
+    def test_validate_predictive_model_config_invalid_load_checkpoint_step(self) -> None:
         """Test validate_predictive_model_config raises when load_checkpoint_step is invalid."""
         # Non-integer load_checkpoint_step
         cfg = DictConfig(

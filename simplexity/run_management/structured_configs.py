@@ -592,7 +592,6 @@ def validate_predictive_model_config(cfg: DictConfig) -> None:
         raise ConfigValidationError(
             f"PredictiveModelConfig.instance._target_ must be a predictive model target, got {target}"
         )
-    # If this is a HookedTransformerConfig, validate it fully if we have access to the nested cfg
     if target == "transformer_lens.HookedTransformer" and instance.get("cfg") is not None:
         validate_hooked_transformer_config(instance)
     _validate_nonempty_str(cfg.get("name"), "PredictiveModelConfig.name", is_none_allowed=True)

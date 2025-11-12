@@ -1,3 +1,5 @@
+"""Types for predictive models."""
+
 from enum import StrEnum
 from functools import singledispatch
 from typing import Any
@@ -8,9 +10,9 @@ import equinox as eqx
 class ModelFramework(StrEnum):
     """The type of model."""
 
-    Equinox = "equinox"
-    Penzai = "penzai"
-    Pytorch = "pytorch"
+    EQUINOX = "equinox"
+    PENZAI = "penzai"
+    PYTORCH = "pytorch"
 
 
 @singledispatch
@@ -21,7 +23,7 @@ def get_model_framework(predictive_model: Any) -> ModelFramework:
 
 @get_model_framework.register(eqx.Module)
 def _(predictive_model: eqx.Module) -> ModelFramework:
-    return ModelFramework.Equinox
+    return ModelFramework.EQUINOX
 
 
 try:
@@ -32,7 +34,7 @@ else:
 
     @get_model_framework.register(TorchModule)
     def _(predictive_model: TorchModule) -> ModelFramework:
-        return ModelFramework.Pytorch
+        return ModelFramework.PYTORCH
 
 
 try:
@@ -43,4 +45,4 @@ else:
 
     @get_model_framework.register(PenzaiModel)
     def _(predictive_model: PenzaiModel) -> ModelFramework:
-        return ModelFramework.Penzai
+        return ModelFramework.PENZAI

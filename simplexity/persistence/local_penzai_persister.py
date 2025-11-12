@@ -1,12 +1,14 @@
+"""Local Penzai persister."""
+
 from pathlib import Path
 
 import orbax.checkpoint as ocp
-from penzai.nn.layer import Layer as PenzaiModel
 from orbax.checkpoint.handlers import DefaultCheckpointHandlerRegistry
 from penzai import pz
+from penzai.nn.layer import Layer as PenzaiModel
 
 from simplexity.persistence.local_persister import LocalPersister
-from simplexity.utils.penzai import deconstruct_variables, reconstruct_variables
+from simplexity.utils.penzai_utils import deconstruct_variables, reconstruct_variables
 
 
 class LocalPenzaiPersister(LocalPersister):

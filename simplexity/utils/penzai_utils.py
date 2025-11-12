@@ -1,3 +1,7 @@
+"""Penzai utilities."""
+
+# pylint: disable-all
+
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass

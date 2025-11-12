@@ -1,3 +1,5 @@
+"""Local Equinox persister."""
+
 from pathlib import Path
 
 import equinox as eqx
