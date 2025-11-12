@@ -96,7 +96,7 @@ load-plugins = ["pylint_per_file_ignores"]
 
 [tool.pylint."MESSAGES CONTROL"]
 # Disable line-too-long check since ruff handles line length (120 chars)
-disable = ["line-too-long"]
+disable = ["line-too-long", "duplicate-code"]
 per-file-ignores = ["tests/**:redefined-outer-name"]
 
 [tool.pylint.IMPORTS]
