@@ -1,8 +1,12 @@
+"""Git utilities."""
+
 import re
 import subprocess
 from functools import partial
 from pathlib import Path
 from urllib.parse import urlsplit
+
+from simplexity.utils.subprocess_utils import handle_subprocess_errors
 
 
 def _sanitize_remote(remote: str) -> str:
@@ -19,14 +23,15 @@ def _sanitize_remote(remote: str) -> str:
     # Try URL-like first: http(s)://..., ssh://..., git+https://...
     try:
         parts = urlsplit(remote)
+    except (TypeError, ValueError):
+        pass
+    else:
         if parts.scheme:
             # rebuild without username/password, query, fragment
             host = parts.hostname or ""
             port = f":{parts.port}" if parts.port else ""
             path = parts.path or ""
             return f"{parts.scheme}://{host}{port}{path}"
-    except Exception:
-        pass
 
     # SCP-like: user@host:path
     m = re.match(r"^[^@]+@([^:]+):(.*)$", remote)
@@ -52,10 +57,11 @@ def _find_git_root(start: Path) -> Path | None:
             capture_output=True,
             text=True,
             timeout=1,
+            check=False,
         )
         if r.returncode == 0:
             return Path(r.stdout.strip())
-    except Exception:
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
         pass
     for parent in [start.resolve(), *start.resolve().parents]:
         if (parent / ".git").exists():
@@ -63,6 +69,7 @@ def _find_git_root(start: Path) -> Path | None:
     return None
 
 
+@handle_subprocess_errors(default_return={})
 def get_git_info(repo_path: Path | None = None) -> dict[str, str]:
     """Get git repository information.
 
@@ -75,35 +82,31 @@ def get_git_info(repo_path: Path | None = None) -> dict[str, str]:
         repo_path = _find_git_root(Path.cwd())
     if repo_path is None:
         return {}
-    try:
-        # Create a partial function with common arguments
-        run = partial(subprocess.run, capture_output=True, text=True, timeout=2.0)
+    # Create a partial function with common arguments
+    run = partial(subprocess.run, capture_output=True, text=True, timeout=2.0)
 
-        # Get commit hash
-        result = run(["git", "-C", str(repo_path), "rev-parse", "HEAD"])
-        commit_full = result.stdout.strip() if result.returncode == 0 else "unknown"
-        commit_short = commit_full[:8] if commit_full != "unknown" else "unknown"
+    # Get commit hash
+    result = run(["git", "-C", str(repo_path), "rev-parse", "HEAD"])
+    commit_full = result.stdout.strip() if result.returncode == 0 else "unknown"
+    commit_short = commit_full[:8] if commit_full != "unknown" else "unknown"
 
-        # Check if working directory is dirty (has uncommitted changes)
-        result = run(["git", "-C", str(repo_path), "diff-index", "--quiet", "HEAD", "--"])
-        is_dirty = result.returncode != 0
+    # Check if working directory is dirty (has uncommitted changes)
+    result = run(["git", "-C", str(repo_path), "diff-index", "--quiet", "HEAD", "--"])
+    is_dirty = result.returncode != 0
 
-        # Get current branch name
-        result = run(["git", "-C", str(repo_path), "branch", "--show-current"])
-        branch = result.stdout.strip() if result.returncode == 0 else "unknown"
+    # Get current branch name
+    result = run(["git", "-C", str(repo_path), "branch", "--show-current"])
+    branch = result.stdout.strip() if result.returncode == 0 else "unknown"
 
-        # Get remote URL and sanitize it
-        result = run(["git", "-C", str(repo_path), "remote", "get-url", "origin"])
-        remote_url = result.stdout.strip() if result.returncode == 0 else "unknown"
-        remote_url = _sanitize_remote(remote_url)
+    # Get remote URL and sanitize it
+    result = run(["git", "-C", str(repo_path), "remote", "get-url", "origin"])
+    remote_url = result.stdout.strip() if result.returncode == 0 else "unknown"
+    remote_url = _sanitize_remote(remote_url)
 
-        return {
-            "commit": commit_short,
-            "commit_full": commit_full,
-            "dirty": str(is_dirty),
-            "branch": branch,
-            "remote": remote_url,
-        }
-    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-        # Return empty dict if git is not available or repo is not a git repo
-        return {}
+    return {
+        "commit": commit_short,
+        "commit_full": commit_full,
+        "dirty": str(is_dirty),
+        "branch": branch,
+        "remote": remote_url,
+    }

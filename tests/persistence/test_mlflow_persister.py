@@ -8,16 +8,16 @@ import chex
 import equinox as eqx
 import jax
 import torch
-import torch.nn as nn
 import yaml
+from torch.nn import Linear, Module
 
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 
 
-def get_pytorch_model(seed: int) -> nn.Linear:
+def get_pytorch_model(seed: int) -> Linear:
     """Build a small deterministic PyTorch model for serialization tests."""
     torch.manual_seed(seed)
-    return nn.Linear(in_features=4, out_features=2)
+    return Linear(in_features=4, out_features=2)
 
 
 def get_hydra_config_for_pytorch_model() -> dict:
@@ -33,7 +33,7 @@ def get_hydra_config_for_pytorch_model() -> dict:
     }
 
 
-def pytorch_models_equal(model1: nn.Module, model2: nn.Module) -> bool:
+def pytorch_models_equal(model1: Module, model2: Module) -> bool:
     """Check if two PyTorch models have identical parameters."""
     params1 = dict(model1.named_parameters())
     params2 = dict(model2.named_parameters())
@@ -120,7 +120,8 @@ def test_mlflow_persister_round_trip_from_config(tmp_path: Path) -> None:
     chex.assert_trees_all_equal(loaded, original)
 
 
-def test_mlflow_persister_cleanup(tmp_path: Path):
+def test_mlflow_persister_cleanup(tmp_path: Path) -> None:
+    """Test MLflow persister cleanup."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
 
@@ -131,7 +132,8 @@ def test_mlflow_persister_cleanup(tmp_path: Path):
         artifact_path="models",
     )
 
-    def run_status():
+    def run_status() -> str:
+        """Get the status of the run."""
         client = persister.client
         run_id = persister.run_id
         run = client.get_run(run_id)
@@ -207,7 +209,7 @@ def test_mlflow_persister_pytorch_round_trip_from_config(tmp_path: Path) -> None
     assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
 
 
-def test_mlflow_persister_pytorch_cleanup(tmp_path: Path):
+def test_mlflow_persister_pytorch_cleanup(tmp_path: Path) -> None:
     """Test PyTorch model cleanup with MLflow persister."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -219,7 +221,8 @@ def test_mlflow_persister_pytorch_cleanup(tmp_path: Path):
         artifact_path="models",
     )
 
-    def run_status():
+    def run_status() -> str:
+        """Get the status of the run."""
         client = persister.client
         run_id = persister.run_id
         run = client.get_run(run_id)

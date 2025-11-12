@@ -1,3 +1,5 @@
+"""Test the local penzai persister."""
+
 from pathlib import Path
 
 import chex
@@ -12,6 +14,7 @@ from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 
 
 def test_local_penzai_persister(tmp_path: Path):
+    """Test the local penzai persister."""
     config = LlamalikeTransformerConfig(
         num_kv_heads=1,
         query_head_multiplier=1,

@@ -89,6 +89,7 @@ class TestResolveRegistryUri:
         assert "Unity Catalog URI" in str(warning.message)
 
     def test_non_databricks_tracking_uri_ignored(self, recwarn: pytest.WarningsRecorder) -> None:
+        """Non-Databricks tracking URIs are ignored."""
         assert resolve_registry_uri(tracking_uri=FILE_URI) is None
         assert not recwarn.list
 
