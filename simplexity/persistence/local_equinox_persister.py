@@ -1,10 +1,18 @@
 """Local Equinox persister."""
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import equinox as eqx
 
-from simplexity.persistence.local_persister import LocalPersister
+from simplexity.persistence.local_persister import LocalPersister, LocalPersisterInstanceConfig
+
+
+@dataclass
+class LocalEquinoxPersisterInstanceConfig(LocalPersisterInstanceConfig):
+    """Configuration for the local equinox persister."""
+
+    filename: str = "model.eqx"
 
 
 class LocalEquinoxPersister(LocalPersister):

@@ -11,6 +11,7 @@
 
 import inspect
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import jax
@@ -23,6 +24,7 @@ from simplexity.generative_processes.transition_matrices import (
     HMM_MATRIX_FUNCTIONS,
     get_stationary_state,
 )
+from simplexity.run_management.structured_configs import InstanceConfig
 
 
 def build_transition_matrices(matrix_functions: dict[str, Callable], process_name: str, **kwargs) -> jax.Array:
@@ -53,6 +55,14 @@ def add_begin_of_sequence_token(transition_matrix: jax.Array, initial_state: jax
     return augmented_matrix.at[base_vocab_size, num_states, :num_states].set(initial_state)
 
 
+@dataclass
+class HMMBuilderInstanceConfig(InstanceConfig):
+    """Configuration for the hidden markov model builder."""
+
+    process_name: str
+    initial_state: jax.Array | Sequence[float] | None = None
+
+
 def build_hidden_markov_model(
     process_name: str, initial_state: jax.Array | Sequence[float] | None = None, **kwargs
 ) -> HiddenMarkovModel:
@@ -62,10 +72,21 @@ def build_hidden_markov_model(
     return HiddenMarkovModel(transition_matrices, initial_state)
 
 
-def build_generalized_hidden_markov_model(process_name: str, **kwargs) -> GeneralizedHiddenMarkovModel:
+@dataclass
+class GHMMBuilderInstanceConfig(InstanceConfig):
+    """Configuration for the generalized hidden markov model builder."""
+
+    process_name: str
+    initial_state: jax.Array | Sequence[float] | None = None
+
+
+def build_generalized_hidden_markov_model(
+    process_name: str, initial_state: jax.Array | Sequence[float] | None = None, **kwargs
+) -> GeneralizedHiddenMarkovModel:
     """Build a generalized hidden Markov model."""
+    initial_state = jnp.array(initial_state) if initial_state is not None else None
     transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, **kwargs)
-    return GeneralizedHiddenMarkovModel(transition_matrices)
+    return GeneralizedHiddenMarkovModel(transition_matrices, initial_state)
 
 
 def build_nonergodic_transition_matrices(
@@ -99,6 +120,17 @@ def build_nonergodic_initial_state(
     return jnp.concatenate(
         [p * state for p, state in zip(process_probabilities, component_initial_states, strict=True)], axis=0
     )
+
+
+@dataclass
+class NonergodicHMMBuilderInstanceConfig(InstanceConfig):
+    """Configuration for the nonergodic hidden markov model builder."""
+
+    process_names: list[str]
+    process_kwargs: Sequence[Mapping[str, Any]]
+    process_weights: Sequence[float]
+    vocab_maps: Sequence[Sequence[int]] | None = None
+    add_bos_token: bool = False
 
 
 def build_nonergodic_hidden_markov_model(

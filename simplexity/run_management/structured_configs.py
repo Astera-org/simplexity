@@ -608,6 +608,17 @@ def validate_predictive_model_config(cfg: DictConfig) -> None:
 
 
 @dataclass
+class AdamInstanceConfig(InstanceConfig):
+    """Configuration for the Adam optimizer."""
+
+    lr: float = 0.001
+    betas: tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-8
+    weight_decay: float = 0.01
+    amsgrad: bool = False
+
+
+@dataclass
 class OptimizerConfig:
     """Base configuration for optimizers."""
 

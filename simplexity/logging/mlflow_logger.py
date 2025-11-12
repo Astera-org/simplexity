@@ -14,6 +14,7 @@ import os
 import tempfile
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import dotenv
@@ -26,6 +27,7 @@ from mlflow.entities import Metric, Param, RunTag
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
+from simplexity.run_management.structured_configs import InstanceConfig
 from simplexity.utils.mlflow_utils import (
     get_experiment_id,
     get_run_id,
@@ -35,6 +37,17 @@ from simplexity.utils.mlflow_utils import (
 
 dotenv.load_dotenv()
 _DATABRICKS_HOST = os.getenv("DATABRICKS_HOST")
+
+
+@dataclass
+class MLFlowLoggerInstanceConfig(InstanceConfig):
+    """Configuration for MLFlowLogger."""
+
+    experiment_name: str
+    run_name: str
+    tracking_uri: str | None = None
+    registry_uri: str | None = None
+    downgrade_unity_catalog: bool = True
 
 
 class MLFlowLogger(Logger):

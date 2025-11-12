@@ -12,6 +12,7 @@
 import json
 import shutil
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,14 @@ import plotly.graph_objects
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
+from simplexity.run_management.structured_configs import InstanceConfig
+
+
+@dataclass
+class FileLoggerInstanceConfig(InstanceConfig):
+    """Configuration for FileLogger."""
+
+    file_path: str
 
 
 class FileLogger(Logger):
