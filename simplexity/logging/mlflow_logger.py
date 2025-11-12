@@ -29,8 +29,8 @@ from omegaconf import DictConfig, OmegaConf
 from simplexity.logging.logger import Logger
 from simplexity.run_management.structured_configs import InstanceConfig
 from simplexity.utils.mlflow_utils import (
-    get_experiment_id,
-    get_run_id,
+    get_experiment,
+    get_run,
     maybe_terminate_run,
     resolve_registry_uri,
 )
@@ -43,8 +43,10 @@ _DATABRICKS_HOST = os.getenv("DATABRICKS_HOST")
 class MLFlowLoggerInstanceConfig(InstanceConfig):
     """Configuration for MLFlowLogger."""
 
-    experiment_name: str
-    run_name: str
+    experiment_id: str | None = None
+    experiment_name: str | None = None
+    run_id: str | None = None
+    run_name: str | None = None
     tracking_uri: str | None = None
     registry_uri: str | None = None
     downgrade_unity_catalog: bool = True
@@ -55,21 +57,30 @@ class MLFlowLogger(Logger):
 
     def __init__(
         self,
+        experiment_id: str | None = None,
         experiment_name: str | None = None,
+        run_id: str | None = None,
         run_name: str | None = None,
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
         downgrade_unity_catalog: bool = True,
     ):
         """Initialize MLflow logger."""
+        self._downgrade_unity_catalog = downgrade_unity_catalog
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
             downgrade_unity_catalog=downgrade_unity_catalog,
         )
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
-        self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self.client)
-        self._run_id = get_run_id(experiment_id=self.experiment_id, run_name=run_name, client=self.client)
+        experiment = get_experiment(experiment_id=experiment_id, experiment_name=experiment_name, client=self.client)
+        assert experiment is not None
+        self._experiment_id = experiment.experiment_id
+        self._experiment_name = experiment.name
+        run = get_run(run_id=run_id, run_name=run_name, experiment_id=self.experiment_id, client=self.client)
+        assert run is not None
+        self._run_id = run.info.run_id
+        self._run_name = run.info.run_name
 
     @property
     def client(self) -> mlflow.MlflowClient:
@@ -77,9 +88,19 @@ class MLFlowLogger(Logger):
         return self._client
 
     @property
+    def experiment_name(self) -> str:
+        """Expose active MLflow experiment name."""
+        return self._experiment_name
+
+    @property
     def experiment_id(self) -> str:
         """Expose active MLflow experiment identifier."""
         return self._experiment_id
+
+    @property
+    def run_name(self) -> str | None:
+        """Expose active MLflow run name."""
+        return self._run_name
 
     @property
     def run_id(self) -> str:
@@ -95,6 +116,20 @@ class MLFlowLogger(Logger):
     def registry_uri(self) -> str | None:
         """Return the model registry URI associated with this logger."""
         return self.client._registry_uri  # pylint: disable=protected-access
+
+    @property
+    def cfg(self) -> MLFlowLoggerInstanceConfig:
+        """Return the configuration of this logger."""
+        return MLFlowLoggerInstanceConfig(
+            _target_=self.__class__.__qualname__,
+            experiment_id=self.experiment_id,
+            experiment_name=self.experiment_name,
+            run_id=self.run_id,
+            run_name=self.run_name,
+            tracking_uri=self.tracking_uri,
+            registry_uri=self.registry_uri,
+            downgrade_unity_catalog=self._downgrade_unity_catalog,
+        )
 
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to MLflow."""

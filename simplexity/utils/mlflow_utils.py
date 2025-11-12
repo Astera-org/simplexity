@@ -12,7 +12,7 @@ import mlflow
 
 if TYPE_CHECKING:
     from mlflow import MlflowClient
-    from mlflow.entities import Run
+    from mlflow.entities import Experiment, Run
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
@@ -92,61 +92,145 @@ def resolve_registry_uri(
     return None
 
 
-def get_experiment_id(
-    experiment_name: str | None = None,
-    client: MlflowClient | None = None,
-) -> str:
-    """Get the experiment id of an MLflow experiment."""
-    if experiment_name:
-        client = mlflow.MlflowClient() if client is None else client
-        experiment = client.get_experiment_by_name(experiment_name)
-        if experiment:
-            SIMPLEXITY_LOGGER.info(
-                "[mlflow] experiment with name '%s' already exists with id: %s",
-                experiment_name,
-                experiment.experiment_id,
-            )
-            return experiment.experiment_id
+def _get_client(client: MlflowClient | None = None) -> MlflowClient:
+    """Get an MLflow client."""
+    return mlflow.MlflowClient() if client is None else client
+
+
+def get_experiment_by_id(experiment_id: str, client: MlflowClient | None = None) -> Experiment:
+    """Get an experiment by id."""
+    client = _get_client(client)
+    experiment = client.get_experiment(experiment_id)
+    if not experiment:
+        raise RuntimeError(f"Experiment with id '{experiment_id}' does not exist")
+    SIMPLEXITY_LOGGER.info("[mlflow] experiment with id '%s' exists with name: '%s'", experiment_id, experiment.name)
+    return experiment
+
+
+def get_experiment_by_name(
+    experiment_name: str, client: MlflowClient | None = None, *, create_if_missing: bool = True
+) -> Experiment | None:
+    """Get an experiment by name."""
+    client = _get_client(client)
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment:
+        SIMPLEXITY_LOGGER.info(
+            "[mlflow] experiment with name '%s' already exists with id: %s",
+            experiment_name,
+            experiment.experiment_id,
+        )
+        return experiment
+    SIMPLEXITY_LOGGER.info("[mlflow] experiment with name '%s' does not exist", experiment_name)
+    if create_if_missing:
         experiment_id = client.create_experiment(experiment_name)
         SIMPLEXITY_LOGGER.info("[mlflow] experiment with name '%s' created with id: %s", experiment_name, experiment_id)
-        return experiment_id
+        return client.get_experiment(experiment_id)
+    return None
+
+
+def get_active_experiment(client: MlflowClient | None = None) -> Experiment | None:
+    """Get the active experiment."""
     active_run = mlflow.active_run()
     if active_run:
         SIMPLEXITY_LOGGER.info("[mlflow] active run exists with experiment id: %s", active_run.info.experiment_id)
-        return active_run.info.experiment_id
-    raise RuntimeError("No experiment name or active run found")
+        client = _get_client(client)
+        return client.get_experiment(active_run.info.experiment_id)
+    SIMPLEXITY_LOGGER.info("[mlflow] no active run found")
+    return None
 
 
-def get_run_id(
-    experiment_id: str,
-    run_name: str | None = None,
+def get_experiment(
+    experiment_id: str | None = None,
+    experiment_name: str | None = None,
     client: MlflowClient | None = None,
-) -> str:
-    """Get the run id of an MLflow run."""
-    client = mlflow.MlflowClient() if client is None else client
-    if run_name:
-        runs = client.search_runs(
-            experiment_ids=[experiment_id], filter_string=f"attributes.run_name = '{run_name}'", max_results=1
-        )
-        if runs:
-            SIMPLEXITY_LOGGER.info(
-                "[mlflow] run with name '%s' already exists with id: %s", run_name, runs[0].info.run_id
+    *,
+    create_if_missing: bool = True,
+) -> Experiment | None:
+    """Get an MLflow experiment."""
+    if experiment_id:
+        experiment = get_experiment_by_id(experiment_id, client)
+        if experiment_name is not None and experiment.name != experiment_name:
+            raise RuntimeError(
+                f"Experiment with id '{experiment_id}' has name '{experiment.name}' but expected '{experiment_name}'"
             )
-            return runs[0].info.run_id
-        run: Run = client.create_run(experiment_id=experiment_id, run_name=run_name)
+        return experiment
+    if experiment_name:
+        return get_experiment_by_name(experiment_name, client, create_if_missing=create_if_missing)
+    return get_active_experiment(client)
+
+
+def get_run_by_id(run_id: str, client: MlflowClient | None = None) -> Run:
+    """Get a run by id."""
+    client = _get_client(client)
+    run = client.get_run(run_id)
+    if not run:
+        raise RuntimeError(f"Run with id '{run_id}' does not exist")
+    SIMPLEXITY_LOGGER.info("[mlflow] run with id '%s' exists with name: '%s'", run_id, run.info.run_name)
+    return run
+
+
+def get_run_by_name(
+    run_name: str, experiment_id: str, client: MlflowClient | None = None, *, create_if_missing: bool = True
+) -> Run | None:
+    """Get a run by name."""
+    client = _get_client(client)
+    runs = client.search_runs(
+        experiment_ids=[experiment_id], filter_string=f"attributes.run_name = '{run_name}'", max_results=1
+    )
+    if runs:
+        SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' exists with id: %s", run_name, runs[0].info.run_id)
+        return runs[0]
+    SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' does not exist", run_name)
+    if create_if_missing:
+        run = client.create_run(experiment_id=experiment_id, run_name=run_name)
         SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' created with id: %s", run_name, run.info.run_id)
-        return run.info.run_id
+        return run
+    return None
+
+
+def get_active_run() -> Run | None:
+    """Get the active run."""
     active_run = mlflow.active_run()
     if active_run:
         SIMPLEXITY_LOGGER.info("[mlflow] active run exists with id: %s", active_run.info.run_id)
-        if active_run.info.experiment_id != experiment_id:
+        return active_run
+    SIMPLEXITY_LOGGER.info("[mlflow] no active run found")
+    return None
+
+
+def get_run(
+    run_id: str | None = None,
+    run_name: str | None = None,
+    experiment_id: str | None = None,
+    client: MlflowClient | None = None,
+    *,
+    create_if_missing: bool = True,
+) -> Run | None:
+    """Get the run id of an MLflow run."""
+    if run_id:
+        run = get_run_by_id(run_id, client)
+        if run_name is not None and run.info.run_name != run_name:
+            raise RuntimeError(f"Run with id '{run_id}' has name '{run.info.run_name}' but expected '{run_name}'")
+        return run
+    if run_name:
+        if experiment_id is None:
+            raise RuntimeError("Experiment id is required when getting a run by name")
+        return get_run_by_name(run_name, experiment_id, client, create_if_missing=create_if_missing)
+    active_run = get_active_run()
+    if active_run:
+        if experiment_id is not None and active_run.info.experiment_id != experiment_id:
             raise RuntimeError(
                 f"Active run experiment id {active_run.info.experiment_id} does not match experiment id {experiment_id}"
             )
-        return active_run.info.run_id
-    run = client.create_run(experiment_id=experiment_id, run_name=run_name)
-    SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' created with id: %s", run_name, run.info.run_id)
-    return run.info.run_id
+        return active_run
+    if create_if_missing:
+        if experiment_id is None:
+            raise RuntimeError("Experiment id is required when creating a run")
+        client = _get_client(client)
+        run = client.create_run(experiment_id=experiment_id)
+        SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' created with id: %s", run_name, run.info.run_id)
+        return run
+    return None
 
 
 def maybe_terminate_run(run_id: str, client: MlflowClient | None = None) -> None:

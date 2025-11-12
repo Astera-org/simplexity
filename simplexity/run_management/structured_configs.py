@@ -95,11 +95,13 @@ def _validate_instance_config(cfg: DictConfig) -> None:
 class MLFlowConfig:
     """Configuration for MLflow."""
 
-    experiment_name: str
-    run_name: str
+    experiment_id: str | None = None
+    experiment_name: str | None = None
+    run_id: str | None = None
+    run_name: str | None = None
     tracking_uri: str | None = None
     registry_uri: str | None = None
-    downgrade_unity_catalog: bool | None = None
+    downgrade_unity_catalog: bool = True
 
 
 def _validate_uri(uri: str, field_name: str) -> None:

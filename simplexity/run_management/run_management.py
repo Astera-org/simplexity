@@ -64,7 +64,7 @@ from simplexity.utils.config_utils import (
     get_instance_keys,
     typed_instantiate,
 )
-from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_uri
+from simplexity.utils.mlflow_utils import get_experiment, get_run, resolve_registry_uri
 from simplexity.utils.pytorch_utils import resolve_device
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
@@ -173,49 +173,48 @@ def _assert_tagged(cfg: DictConfig) -> None:
 
 def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
     mlflow_config: DictConfig | None = cfg.get("mlflow", None)
-    if mlflow_config:
-        experiment_name: str | None = mlflow_config.get("experiment_name", None)
-        assert experiment_name is not None, "Experiment name must be set"
-        run_name: str | None = mlflow_config.get("run_name", None)
-        assert run_name is not None, "Run name must be set"
-        tracking_uri: str | None = mlflow_config.get("tracking_uri", None)
-        registry_uri: str | None = mlflow_config.get("registry_uri", None)
-        downgrade_unity_catalog: bool = mlflow_config.get("downgrade_unity_catalog", True)
-        if tracking_uri:
-            mlflow.set_tracking_uri(tracking_uri)
-            SIMPLEXITY_LOGGER.info("[mlflow] tracking uri: %s", mlflow.get_tracking_uri())
-        resolved_registry_uri = resolve_registry_uri(
-            registry_uri=registry_uri,
-            tracking_uri=tracking_uri,
-            downgrade_unity_catalog=downgrade_unity_catalog,
-        )
-        if resolved_registry_uri:
-            mlflow.set_registry_uri(resolved_registry_uri)
-            SIMPLEXITY_LOGGER.info("[mlflow] registry uri: %s", mlflow.get_registry_uri())
-        experiment_id = get_experiment_id(experiment_name)
-        runs = mlflow.search_runs(
-            experiment_ids=[experiment_id],
-            filter_string=f"attributes.run_name = '{run_name}'",
-            max_results=1,
-            output_format="list",
-        )
-        assert isinstance(runs, list)
-        if runs:
-            run_id = runs[0].info.run_id
-            SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' already exists with id: %s", run_name, run_id)
-        else:
-            run_id = None
-            SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' does not yet exist", run_name)
-        SIMPLEXITY_LOGGER.info(
-            "[mlflow] starting run with: {id: %s, experiment id: %s, run name: %s}", run_id, experiment_id, run_name
-        )
-        return mlflow.start_run(
-            run_id=run_id,
-            experiment_id=experiment_id,
-            run_name=run_name,
-            log_system_metrics=True,
-        )
-    return nullcontext()
+    if mlflow_config is None:
+        return nullcontext()
+
+    tracking_uri: str | None = mlflow_config.get("tracking_uri", None)
+    if tracking_uri:
+        mlflow.set_tracking_uri(tracking_uri)
+        SIMPLEXITY_LOGGER.info("[mlflow] tracking uri: %s", mlflow.get_tracking_uri())
+
+    registry_uri: str | None = mlflow_config.get("registry_uri", None)
+    downgrade_unity_catalog: bool = mlflow_config.get("downgrade_unity_catalog", True)
+    resolved_registry_uri = resolve_registry_uri(
+        registry_uri=registry_uri,
+        tracking_uri=tracking_uri,
+        downgrade_unity_catalog=downgrade_unity_catalog,
+    )
+    if resolved_registry_uri:
+        mlflow.set_registry_uri(resolved_registry_uri)
+        SIMPLEXITY_LOGGER.info("[mlflow] registry uri: %s", mlflow.get_registry_uri())
+
+    client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
+
+    experiment_id: str | None = mlflow_config.get("experiment_id", None)
+    experiment_name: str | None = mlflow_config.get("experiment_name", None)
+    experiment = get_experiment(
+        experiment_id=experiment_id,
+        experiment_name=experiment_name,
+        client=client,
+        create_if_missing=True,
+    )
+    assert experiment is not None
+
+    run_id: str | None = mlflow_config.get("run_id", None)
+    run_name: str | None = mlflow_config.get("run_name", None)
+    run = get_run(run_id=run_id, run_name=run_name, experiment_id=experiment.experiment_id, client=client)
+    assert run is not None
+
+    return mlflow.start_run(
+        run_id=run.info.run_id,
+        experiment_id=experiment.experiment_id,
+        run_name=run.info.run_name,
+        log_system_metrics=True,
+    )
 
 
 def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
