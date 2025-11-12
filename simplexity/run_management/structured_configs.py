@@ -145,6 +145,19 @@ def validate_mlflow_config(cfg: DictConfig) -> None:
         _validate_uri(registry_uri, "MLFlowConfig.registry_uri")
 
 
+@dynamic_resolve
+def update_mlflow_config(cfg: DictConfig, updated_cfg: DictConfig) -> None:
+    """Update a MLFlowConfig with the updated configuration."""
+    # TODO: Is there a better way to do this?
+    cfg.experiment_id = updated_cfg.get("experiment_id")
+    cfg.experiment_name = updated_cfg.get("experiment_name")
+    cfg.run_id = updated_cfg.get("run_id")
+    cfg.run_name = updated_cfg.get("run_name")
+    cfg.tracking_uri = updated_cfg.get("tracking_uri")
+    cfg.registry_uri = updated_cfg.get("registry_uri")
+    cfg.downgrade_unity_catalog = updated_cfg.get("downgrade_unity_catalog")
+
+
 # ============================================================================
 # Logging Config
 # ============================================================================
@@ -185,6 +198,20 @@ def validate_logging_config(cfg: DictConfig) -> None:
     if not is_logger_target(target):
         raise ConfigValidationError(f"LoggingConfig.instance._target_ must be a logger target, got {target}")
     _validate_nonempty_str(cfg.get("name"), "LoggingConfig.name", is_none_allowed=True)
+
+
+@dynamic_resolve
+def update_logging_instance_config(cfg: DictConfig, updated_cfg: DictConfig) -> None:
+    """Update a LoggingInstanceConfig with the updated configuration."""
+    # TODO: Is there a better way to do this?
+    cfg._target_ = updated_cfg.get("_target_")  # pylint: disable=protected-access
+    cfg.experiment_id = updated_cfg.get("experiment_id")
+    cfg.experiment_name = updated_cfg.get("experiment_name")
+    cfg.run_id = updated_cfg.get("run_id")
+    cfg.run_name = updated_cfg.get("run_name")
+    cfg.tracking_uri = updated_cfg.get("tracking_uri")
+    cfg.registry_uri = updated_cfg.get("registry_uri")
+    cfg.downgrade_unity_catalog = updated_cfg.get("downgrade_unity_catalog")
 
 
 # ============================================================================
@@ -398,6 +425,22 @@ def validate_persistence_config(cfg: DictConfig) -> None:
     if not is_model_persister_target(target):
         raise ConfigValidationError(f"PersistenceConfig.instance._target_ must be a persister target, got {target}")
     _validate_nonempty_str(cfg.get("name"), "PersistenceConfig.name", is_none_allowed=True)
+
+
+@dynamic_resolve
+def update_persister_instance_config(cfg: DictConfig, updated_cfg: DictConfig) -> None:
+    """Update a PersistenceConfig with the updated configuration."""
+    # TODO: Is there a better way to do this?
+    cfg._target_ = updated_cfg.get("_target_")  # pylint: disable=protected-access
+    cfg.experiment_id = updated_cfg.get("experiment_id")
+    cfg.experiment_name = updated_cfg.get("experiment_name")
+    cfg.run_id = updated_cfg.get("run_id")
+    cfg.run_name = updated_cfg.get("run_name")
+    cfg.tracking_uri = updated_cfg.get("tracking_uri")
+    cfg.registry_uri = updated_cfg.get("registry_uri")
+    cfg.downgrade_unity_catalog = updated_cfg.get("downgrade_unity_catalog")
+    cfg.artifact_path = updated_cfg.get("artifact_path")
+    cfg.config_path = updated_cfg.get("config_path")
 
 
 # ============================================================================

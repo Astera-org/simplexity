@@ -33,6 +33,7 @@ from torch.nn import Module as PytorchModel
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
+from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.components import Components
 from simplexity.run_management.run_logging import (
@@ -52,6 +53,9 @@ from simplexity.run_management.structured_configs import (
     is_pytorch_optimizer_config,
     resolve_generative_process_config,
     resolve_hooked_transformer_config,
+    update_logging_instance_config,
+    update_mlflow_config,
+    update_persister_instance_config,
     validate_base_config,
     validate_generative_process_config,
     validate_logging_config,
@@ -209,6 +213,19 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
     run = get_run(run_id=run_id, run_name=run_name, experiment_id=experiment.experiment_id, client=client)
     assert run is not None
 
+    updated_cfg = DictConfig(
+        {
+            "experiment_id": experiment.experiment_id,
+            "experiment_name": experiment.name,
+            "run_id": run.info.run_id,
+            "run_name": run.info.run_name,
+            "tracking_uri": mlflow.get_tracking_uri(),
+            "registry_uri": mlflow.get_registry_uri(),
+            "downgrade_unity_catalog": downgrade_unity_catalog,
+        }
+    )
+    update_mlflow_config(cfg, updated_cfg=updated_cfg)
+
     return mlflow.start_run(
         run_id=run.info.run_id,
         experiment_id=experiment.experiment_id,
@@ -223,6 +240,9 @@ def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     if logging_instance_config:
         logger = typed_instantiate(logging_instance_config, Logger)
         SIMPLEXITY_LOGGER.info("[logging] instantiated logger: %s", logger.__class__.__name__)
+        if isinstance(logger, MLFlowLogger):
+            updated_cfg = OmegaConf.structured(logger.cfg)
+            update_logging_instance_config(cfg, updated_cfg=updated_cfg)
         return logger
     raise KeyError
 
@@ -307,6 +327,9 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
     if instance_config:
         persister: ModelPersister = hydra.utils.instantiate(instance_config)
         SIMPLEXITY_LOGGER.info("[persister] instantiated persister: %s", persister.__class__.__name__)
+        if isinstance(persister, MLFlowPersister):
+            updated_cfg = OmegaConf.structured(persister.cfg)
+            update_persister_instance_config(cfg, updated_cfg=updated_cfg)
         return persister
     raise KeyError
 
