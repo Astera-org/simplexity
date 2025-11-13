@@ -14,10 +14,13 @@ from simplexity.utils.mlflow_utils import (
     UC_PREFIX,
     WORKSPACE_PREFIX,
     get_active_experiment,
+    get_active_run,
     get_experiment,
     get_experiment_by_id,
     get_experiment_by_name,
     get_run,
+    get_run_by_id,
+    get_run_by_name,
     maybe_terminate_run,
     resolve_registry_uri,
 )
@@ -338,63 +341,255 @@ class TestGetExperiment:
 class TestGetRun:
     """Test class for get_run_id function."""
 
-    def test_named_run_exists(self) -> None:
-        """Get run ID."""
-        existing_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id"))
+    def test_get_by_id_exists(self, mocker: MockerFixture) -> None:
+        """Get run by ID.
+
+        If a run exists with the given ID, it is returned.
+        Applies to get_run_by_id and get_run.
+        """
+        existing_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id", run_name="test_run_name"))
+
+        mock_info = mocker.patch("simplexity.utils.mlflow_utils.SIMPLEXITY_LOGGER.info")
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.get_run.return_value = existing_run
+
+        assert get_run_by_id("test_run_id", client=mock_client) == existing_run
+        mock_info.assert_called_once_with(
+            "[mlflow] run with id '%s' exists with name: '%s'",
+            "test_run_id",
+            "test_run_name",
+        )
+
+        mock_client.reset_mock()
+        mock_info.reset_mock()
+
+        assert get_run(run_id="test_run_id", client=mock_client) == existing_run
+        mock_info.assert_called_once_with(
+            "[mlflow] run with id '%s' exists with name: '%s'",
+            "test_run_id",
+            "test_run_name",
+        )
+
+    def test_get_by_id_does_not_exist(self) -> None:
+        """Get run by ID.
+
+        If a run does not exist with the given ID, a RuntimeError is raised.
+        Applies to get_run_by_id and get_run.
+        """
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.get_run.return_value = None
+
+        with pytest.raises(RuntimeError):
+            get_run_by_id("test_run_id", client=mock_client)
+
+        mock_client.reset_mock()
+
+        with pytest.raises(RuntimeError):
+            get_run(run_id="test_run_id", client=mock_client)
+
+    def test_conflicting_id_and_name(self) -> None:
+        """Get run by ID.
+
+        If a run exists with the given ID but has a different name than the given name,
+        a RuntimeError is raised.
+        Applies to get_run.
+        """
+        existing_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id", run_name="test_run_name"))
+
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.get_run.return_value = existing_run
+
+        with pytest.raises(RuntimeError):
+            get_run(run_id="test_run_id", run_name="different_name", client=mock_client)
+
+    def test_get_by_name_exists(self, mocker: MockerFixture) -> None:
+        """Get run by name.
+
+        If a run exists with the given name, it is returned.
+        Applies to get_run_by_name and get_run (without run_id argument).
+        """
+        existing_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id", run_name="test_run_name"))
+
+        mock_info = mocker.patch("simplexity.utils.mlflow_utils.SIMPLEXITY_LOGGER.info")
         mock_client = create_autospec(MlflowClient, instance=True)
         mock_client.search_runs.return_value = [existing_run]
-        assert (
-            get_run(experiment_id="test_experiment_id", run_name="test_run_name", client=mock_client) == "test_run_id"
-        )
-        mock_client.search_runs.assert_called_once_with(
-            experiment_ids=["test_experiment_id"], filter_string="attributes.run_name = 'test_run_name'", max_results=1
-        )
-        mock_client.create_run.assert_not_called()
 
-    def test_named_run_does_not_exist(self) -> None:
-        """Get run ID."""
-        new_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id"))
+        assert get_run_by_name("test_run_name", "test_experiment_id", client=mock_client) == existing_run
+        mock_info.assert_called_once_with(
+            "[mlflow] run with name '%s' exists with id: %s",
+            "test_run_name",
+            "test_run_id",
+        )
+
+        mock_client.reset_mock()
+        mock_info.reset_mock()
+
+        assert get_run(run_name="test_run_name", experiment_id="test_experiment_id", client=mock_client) == existing_run
+        mock_info.assert_called_once_with(
+            "[mlflow] run with name '%s' exists with id: %s",
+            "test_run_name",
+            "test_run_id",
+        )
+
+    def test_get_by_name_creates_missing(self, mocker: MockerFixture) -> None:
+        """Get run by name.
+
+        If a run does not exist with the given name,
+        by default a new run is created with that name and returned.
+        Applies to get_run_by_name and get_run (without run_id argument).
+        """
+        created_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id", run_name="test_run_name"))
+
+        mock_info = mocker.patch("simplexity.utils.mlflow_utils.SIMPLEXITY_LOGGER.info")
         mock_client = create_autospec(MlflowClient, instance=True)
         mock_client.search_runs.return_value = []
-        mock_client.create_run.return_value = new_run
-        assert (
-            get_run(experiment_id="test_experiment_id", run_name="test_run_name", client=mock_client) == "test_run_id"
-        )
-        mock_client.search_runs.assert_called_once_with(
-            experiment_ids=["test_experiment_id"], filter_string="attributes.run_name = 'test_run_name'", max_results=1
-        )
+        mock_client.create_run.return_value = created_run
+
+        assert get_run_by_name("test_run_name", "test_experiment_id", client=mock_client) == created_run
         mock_client.create_run.assert_called_once_with(experiment_id="test_experiment_id", run_name="test_run_name")
-
-    def test_active_run_exists(self, mocker: MockerFixture) -> None:
-        """Get run ID."""
-        active_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id", experiment_id="test_experiment_id"))
-        mock_client = create_autospec(MlflowClient, instance=True)
-        mocker.patch("mlflow.active_run", return_value=active_run)
-        assert get_run(experiment_id="test_experiment_id", client=mock_client) == "test_run_id"
-        mock_client.search_runs.assert_not_called()
-        mock_client.create_run.assert_not_called()
-
-    def test_active_run_experiment_id_does_not_match_experiment_id(self, mocker: MockerFixture) -> None:
-        """Get run ID."""
-        active_run = SimpleNamespace(
-            info=SimpleNamespace(run_id="test_run_id", experiment_id="different_experiment_id")
+        mock_info.assert_has_calls(
+            [
+                call("[mlflow] run with name '%s' does not exist", "test_run_name"),
+                call("[mlflow] run with name '%s' created with id: %s", "test_run_name", "test_run_id"),
+            ]
         )
-        mock_client = create_autospec(MlflowClient, instance=True)
-        mocker.patch("mlflow.active_run", return_value=active_run)
-        with pytest.raises(RuntimeError):
-            get_run(experiment_id="test_experiment_id", client=mock_client)
-        mock_client.search_runs.assert_not_called()
-        mock_client.create_run.assert_not_called()
 
-    def test_no_run_name_or_active_run(self, mocker: MockerFixture) -> None:
-        """Get run ID."""
-        new_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id"))
+        mock_client.reset_mock()
+        mock_info.reset_mock()
+
+        assert get_run(run_name="test_run_name", experiment_id="test_experiment_id", client=mock_client) == created_run
+        mock_client.create_run.assert_called_once_with(experiment_id="test_experiment_id", run_name="test_run_name")
+        mock_info.assert_has_calls(
+            [
+                call("[mlflow] run with name '%s' does not exist", "test_run_name"),
+                call("[mlflow] run with name '%s' created with id: %s", "test_run_name", "test_run_id"),
+            ]
+        )
+
+    def test_get_name_does_not_create_missing(self, mocker: MockerFixture) -> None:
+        """Get run by name.
+
+        If a run does not exist with the given name and create_if_missing is False,
+        nothing is returned.
+        Applies to get_run_by_name and get_run (without run_id argument).
+        """
+        mock_info = mocker.patch("simplexity.utils.mlflow_utils.SIMPLEXITY_LOGGER.info")
         mock_client = create_autospec(MlflowClient, instance=True)
-        mock_client.create_run.return_value = new_run
+        mock_client.search_runs.return_value = []
+
+        assert (
+            get_run_by_name("test_run_name", "test_experiment_id", client=mock_client, create_if_missing=False) is None
+        )
+        mock_client.create_run.assert_not_called()
+        mock_info.assert_called_once_with("[mlflow] run with name '%s' does not exist", "test_run_name")
+
+        mock_client.reset_mock()
+        mock_info.reset_mock()
+
+        assert (
+            get_run(
+                run_name="test_run_name",
+                experiment_id="test_experiment_id",
+                client=mock_client,
+                create_if_missing=False,
+            )
+            is None
+        )
+        mock_client.create_run.assert_not_called()
+        mock_info.assert_called_once_with("[mlflow] run with name '%s' does not exist", "test_run_name")
+
+    def test_get_name_requires_experiment_id(self) -> None:
+        """Get run by name.
+
+        If a run is requested by name without an experiment_id, a RuntimeError is raised.
+        Applies to get_run.
+        """
+        mock_client = create_autospec(MlflowClient, instance=True)
+
+        with pytest.raises(RuntimeError):
+            get_run(run_name="test_run_name", client=mock_client)
+
+    def test_get_active_run(self, mocker: MockerFixture) -> None:
+        """Get active run.
+
+        If an active run exists, it is returned.
+        Applies to get_active_run and get_run (without run_id or run_name arguments).
+        """
+        active_run = SimpleNamespace(
+            info=SimpleNamespace(run_id="test_run_id", run_name="test_run_name", experiment_id="test_experiment_id")
+        )
+
+        mocker.patch("mlflow.active_run", return_value=active_run)
+        mock_info = mocker.patch("simplexity.utils.mlflow_utils.SIMPLEXITY_LOGGER.info")
+
+        assert get_active_run() == active_run
+        mock_info.assert_called_once_with("[mlflow] active run exists with id: %s", "test_run_id")
+
+        mock_info.reset_mock()
+
+        assert get_run() == active_run
+        mock_info.assert_called_once_with("[mlflow] active run exists with id: %s", "test_run_id")
+
+    def test_active_run_experiment_mismatch(self, mocker: MockerFixture) -> None:
+        """Get active run.
+
+        If an active run exists but the experiment_id does not match the requested experiment,
+        a RuntimeError is raised.
+        Applies to get_run.
+        """
+        active_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id", experiment_id="actual_experiment_id"))
+        mocker.patch("mlflow.active_run", return_value=active_run)
+
+        with pytest.raises(RuntimeError):
+            get_run(experiment_id="different_experiment_id")
+
+    def test_create_run_when_missing(self, mocker: MockerFixture) -> None:
+        """Create run if missing.
+
+        If no active run exists and create_if_missing is True,
+        a new run is created with the provided experiment_id.
+        Applies to get_run.
+        """
+        mocker.patch("simplexity.utils.mlflow_utils.get_active_run", return_value=None)
+        created_run = SimpleNamespace(info=SimpleNamespace(run_id="test_run_id", run_name=None))
+
+        mock_info = mocker.patch("simplexity.utils.mlflow_utils.SIMPLEXITY_LOGGER.info")
+        mock_client = create_autospec(MlflowClient, instance=True)
+        mock_client.create_run.return_value = created_run
+
+        assert get_run(experiment_id="test_experiment_id", client=mock_client) == created_run
+        mock_client.create_run.assert_called_once_with(experiment_id="test_experiment_id")
+        mock_info.assert_called_once_with("[mlflow] run with name '%s' created with id: %s", None, "test_run_id")
+
+    def test_create_run_requires_experiment_id(self, mocker: MockerFixture) -> None:
+        """Create run if missing.
+
+        If no active run exists and create_if_missing is True but experiment_id is missing,
+        a RuntimeError is raised.
+        Applies to get_run.
+        """
+        mocker.patch("simplexity.utils.mlflow_utils.get_active_run", return_value=None)
+
+        with pytest.raises(RuntimeError):
+            get_run()
+
+    def test_no_active_run(self, mocker: MockerFixture) -> None:
+        """Get active run.
+
+        If no active run exists and create_if_missing is False,
+        nothing is returned.
+        Applies to get_active_run and get_run.
+        """
         mocker.patch("mlflow.active_run", return_value=None)
-        assert get_run(experiment_id="test_experiment_id", client=mock_client) == "test_run_id"
-        mock_client.search_runs.assert_not_called()
-        mock_client.create_run.assert_called_once_with(experiment_id="test_experiment_id", run_name=None)
+        mock_info = mocker.patch("simplexity.utils.mlflow_utils.SIMPLEXITY_LOGGER.info")
+
+        assert get_active_run() is None
+        mock_info.assert_called_once_with("[mlflow] no active run found")
+
+        mock_info.reset_mock()
+
+        assert get_run(create_if_missing=False) is None
+        mock_info.assert_called_once_with("[mlflow] no active run found")
 
 
 class TestMaybeTerminateRun:
