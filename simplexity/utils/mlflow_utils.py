@@ -141,9 +141,9 @@ def get_active_experiment(client: MlflowClient | None = None) -> Experiment | No
 
 def get_experiment(
     experiment_id: str | None = None,
+    *,
     experiment_name: str | None = None,
     client: MlflowClient | None = None,
-    *,
     create_if_missing: bool = True,
 ) -> Experiment | None:
     """Get an MLflow experiment."""
