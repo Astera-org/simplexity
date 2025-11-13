@@ -16,6 +16,10 @@ from typing import Any, Literal
 import jax
 import jax.numpy as jnp
 
+from simplexity.generative_processes.alternating_process import AlternatingProcess
+from simplexity.generative_processes.factored_beliefs.topology.chain import ChainTopology
+from simplexity.generative_processes.factored_beliefs.topology.symmetric import SymmetricTopology
+from simplexity.generative_processes.factored_beliefs.topology.transition_coupled import TransitionCoupledTopology
 from simplexity.generative_processes.factored_generative_process import ComponentType, FactoredGenerativeProcess
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
@@ -24,10 +28,6 @@ from simplexity.generative_processes.transition_matrices import (
     HMM_MATRIX_FUNCTIONS,
     get_stationary_state,
 )
-from simplexity.generative_processes.factored_beliefs.topology.chain import ChainTopology
-from simplexity.generative_processes.factored_beliefs.topology.symmetric import SymmetricTopology
-from simplexity.generative_processes.factored_beliefs.topology.transition_coupled import TransitionCoupledTopology
-
 
 
 def build_transition_matrices(matrix_functions: dict[str, Callable], process_name: str, **kwargs) -> jax.Array:
@@ -254,6 +254,144 @@ def build_transition_coupled_process(
     )
 
 
+def build_simple_alternating_process(
+    *,
+    component_type: ComponentType,
+    transition_matrices: jnp.ndarray,
+    normalizing_eigenvectors: jnp.ndarray,
+    initial_state: jnp.ndarray,
+    n_repetitions: int = 1,
+) -> AlternatingProcess:
+    """Build a simple alternating process (non-factored).
+
+    The process cycles through n different transition matrices. This is simpler
+    than the factored alternating process - it's just a single HMM/GHMM that
+    switches between different parameter sets.
+
+    Args:
+        component_type: Either "hmm" or "ghmm"
+        transition_matrices: Array of shape [n, V, S, S] with n variants
+        normalizing_eigenvectors: Array of shape [n, S] for GHMM normalization
+        initial_state: Initial belief state distribution [S]
+        n_repetitions: Number of times each variant is used consecutively
+
+    Returns:
+        AlternatingProcess that cycles through the n variants
+
+    Example:
+        ```python
+        # Build process alternating between 2 HMM variants
+        # Each variant used 3 times before switching
+        n = 2
+        V, S = 3, 4  # 3 tokens, 4 hidden states
+
+        # Stack n transition matrices
+        T0 = ...  # [V, S, S]
+        T1 = ...  # [V, S, S]
+        transition_matrices = jnp.stack([T0, T1])  # [2, V, S, S]
+
+        process = build_simple_alternating_process(
+            component_type="hmm",
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=jnp.ones((2, S)),  # dummy for HMM
+            initial_state=jnp.ones(S) / S,  # uniform initial state
+            n_repetitions=3,
+        )
+        ```
+    """
+    return AlternatingProcess(
+        component_type=component_type,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_state=initial_state,
+        n_repetitions=n_repetitions,
+    )
+
+
+def build_simple_alternating_process_from_spec(
+    variants: list[dict[str, Any]],
+    component_type: ComponentType = "ghmm",
+    n_repetitions: int = 1,
+) -> AlternatingProcess:
+    """Build simple alternating process from specification.
+
+    Args:
+        variants: List of variant specifications, one per sub-process
+        component_type: Either "hmm" or "ghmm"
+        n_repetitions: Number of times each variant is used consecutively
+
+    Returns:
+        AlternatingProcess
+
+    Example:
+        ```python
+        variants = [
+            {"process_name": "coin", "p": 0.7},  # Variant 0
+            {"process_name": "coin", "p": 0.3},  # Variant 1
+            {"process_name": "coin", "p": 0.5},  # Variant 2
+        ]
+
+        process = build_simple_alternating_process_from_spec(
+            variants=variants,
+            component_type="hmm",
+            n_repetitions=2,  # Each variant repeated twice
+        )
+        ```
+    """
+    if not variants:
+        raise ValueError("Must provide at least one variant")
+
+    # Build each variant
+    matrix_functions = HMM_MATRIX_FUNCTIONS if component_type == "hmm" else GHMM_MATRIX_FUNCTIONS
+    built_processes = []
+
+    for variant_spec in variants:
+        T = build_transition_matrices(matrix_functions, **variant_spec)
+        built_processes.append(T)
+
+    # Validate all have same shape
+    shapes = [T.shape for T in built_processes]
+    if len(set(shapes)) != 1:
+        raise ValueError(f"All variants must have same shape, got {shapes}")
+
+    # Stack into [n, V, S, S]
+    transition_matrices = jnp.stack(built_processes, axis=0)
+    n, V, S, _ = transition_matrices.shape
+
+    # Get initial state from first variant (uniform if stationary fails)
+    try:
+        initial_state = get_stationary_state(built_processes[0])
+    except (IndexError, ValueError):
+        # Fall back to uniform distribution if stationary state computation fails
+        initial_state = jnp.ones(S) / S
+
+    # Build normalizing eigenvectors
+    if component_type == "ghmm":
+        eigenvectors = []
+        for T in built_processes:
+            # Compute normalizing eigenvector for this variant
+            state_transition_matrix = jnp.sum(T, axis=0)
+            eigenvalues, right_eigenvectors = jnp.linalg.eig(state_transition_matrix)
+            principal_eigenvalue = jnp.max(eigenvalues)
+            normalizing_eigenvector = (
+                right_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
+            )
+            normalizing_eigenvector = normalizing_eigenvector / jnp.sum(normalizing_eigenvector) * S
+            eigenvectors.append(normalizing_eigenvector)
+        normalizing_eigenvectors = jnp.stack(eigenvectors, axis=0)
+    else:
+        # Dummy for HMM
+        normalizing_eigenvectors = jnp.ones((n, S))
+
+    return build_simple_alternating_process(
+        component_type=component_type,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_state=initial_state,
+        n_repetitions=n_repetitions,
+    )
+
+
 def build_factored_process(
     topology_type: Literal["chain", "symmetric", "transition_coupled"],
     component_types: Sequence[ComponentType],
@@ -310,8 +448,7 @@ def build_factored_process(
         )
     else:
         raise ValueError(
-            f"Unknown topology_type: {topology_type}. "
-            f"Must be one of: 'chain', 'symmetric', 'transition_coupled'"
+            f"Unknown topology_type: {topology_type}. Must be one of: 'chain', 'symmetric', 'transition_coupled'"
         )
 
 
@@ -512,25 +649,20 @@ def build_matrices_from_spec(
             raise ValueError(f"spec[{idx}].variants must be non-empty")
 
         # Build all variants for this factor
-        built = [build_hidden_markov_model(**v) if ctype == "hmm" else build_generalized_hidden_markov_model(**v) for v in variants]
+        built = [
+            build_hidden_markov_model(**v) if ctype == "hmm" else build_generalized_hidden_markov_model(**v)
+            for v in variants
+        ]
 
         # Validate dimensions
         vocab_sizes = [b.vocab_size for b in built]
-        num_states = [
-            b.num_states if hasattr(b, "num_states") else b.transition_matrices.shape[1]
-            for b in built
-        ]
+        num_states = [b.num_states if hasattr(b, "num_states") else b.transition_matrices.shape[1] for b in built]
 
         if len(set(vocab_sizes)) != 1:
-            raise ValueError(
-                f"All variants in spec[{idx}] must have same vocab size; got {vocab_sizes}"
-            )
+            raise ValueError(f"All variants in spec[{idx}] must have same vocab size; got {vocab_sizes}")
         if len(set(num_states)) != 1:
-            raise ValueError(
-                f"All variants in spec[{idx}] must have same state dim; got {num_states}"
-            )
+            raise ValueError(f"All variants in spec[{idx}] must have same state dim; got {num_states}")
 
-        V = vocab_sizes[0]
         S = num_states[0]
 
         # Stack transition matrices: [K, V, S, S]
@@ -599,9 +731,7 @@ def build_chain_from_spec(
         raise ValueError("chain must contain at least one node")
 
     # Build base matrices
-    component_types, transition_matrices, normalizing_eigenvectors, initial_states = (
-        build_matrices_from_spec(chain)
-    )
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(chain)
 
     # Extract control maps
     control_maps: list[jnp.ndarray | None] = []
@@ -619,8 +749,7 @@ def build_chain_from_spec(
 
             if expected_prev_vocab is not None and int(cm_arr.shape[0]) != int(expected_prev_vocab):
                 raise ValueError(
-                    f"chain[{idx}].control_map length {cm_arr.shape[0]} must equal "
-                    f"parent vocab {expected_prev_vocab}"
+                    f"chain[{idx}].control_map length {cm_arr.shape[0]} must equal parent vocab {expected_prev_vocab}"
                 )
 
             control_maps.append(cm_arr)
@@ -671,8 +800,8 @@ def build_symmetric_from_spec(
         ```
     """
     # Build base matrices
-    component_types, transition_matrices, normalizing_eigenvectors, initial_states = (
-        build_matrices_from_spec(components)
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
+        components
     )
 
     # Convert control maps to JAX arrays
@@ -690,10 +819,7 @@ def build_symmetric_from_spec(
                 expected *= vocab_sizes[j]
 
         if int(cm.shape[0]) != expected:
-            raise ValueError(
-                f"control_maps[{i}] length {cm.shape[0]} must equal "
-                f"prod(V_j for j!={i}) = {expected}"
-            )
+            raise ValueError(f"control_maps[{i}] length {cm.shape[0]} must equal prod(V_j for j!={i}) = {expected}")
 
     return component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps_arrays
 
@@ -734,8 +860,8 @@ def build_transition_coupled_from_spec(
         ```
     """
     # Build base matrices
-    component_types, transition_matrices, normalizing_eigenvectors, initial_states = (
-        build_matrices_from_spec(components)
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
+        components
     )
 
     # Convert transition control maps
@@ -748,8 +874,7 @@ def build_transition_coupled_from_spec(
     emission_control_maps_arrays = None
     if emission_control_maps is not None:
         emission_control_maps_arrays = [
-            jnp.asarray(cm, dtype=jnp.int32) if cm is not None else None
-            for cm in emission_control_maps
+            jnp.asarray(cm, dtype=jnp.int32) if cm is not None else None for cm in emission_control_maps
         ]
 
     return (

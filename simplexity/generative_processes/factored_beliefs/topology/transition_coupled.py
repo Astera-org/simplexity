@@ -168,7 +168,7 @@ class TransitionCoupledTopology(eqx.Module):
         T0 = transition_matrices[0][k0]
         norm0 = normalizing_eigenvectors[0][k0] if component_types[0] == "ghmm" else None
         joint = compute_obs_dist_for_variant(component_types[0], states[0], T0, norm0)
-        prev_prod = context.vocab_sizes[0]
+        prev_prod = self.vocab_sizes_py[0]
 
         for i in range(1, F):
             K_i = num_variants[i]
@@ -193,7 +193,7 @@ class TransitionCoupledTopology(eqx.Module):
 
             left = joint.reshape(prev_prod)
             extended = cond * left[:, None]
-            curr_vocab_size = context.vocab_sizes[i]
+            curr_vocab_size = self.vocab_sizes_py[i]
             joint = extended.reshape(*(list(joint.shape) + [curr_vocab_size]))
             prev_prod *= curr_vocab_size
 
