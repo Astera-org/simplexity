@@ -1,0 +1,85 @@
+# Unified API: Transition-Coupled Topology
+# Transition-coupled topology separates emission and transition coupling:
+# - Emissions: Can be independent OR chain-style (factor i depends on i-1's token)
+# - Transitions: Always coupled (factor i's transition depends on all other factors)
+
+name: unified_transition_coupled_example
+base_vocab_size: 36  # 3 * 3 * 4 = 24
+vocab_size: ???
+
+instance:
+  _target_: simplexity.generative_processes.builder.build_transition_coupled_process_from_spec
+
+  # Component specifications
+  components:
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          x: 0.15
+          a: 0.6
+        - process_name: mess3
+          x: 0.5
+          a: 0.6
+
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          x: 0.15
+          a: 0.6
+        - process_name: mess3
+          x: 0.5
+          a: 0.6
+
+    - component_type: ghmm
+      variants:
+        - process_name: tom_quantum
+          alpha: 1.0
+          beta: 1.0
+        - process_name: tom_quantum
+          alpha: 1.0
+          beta: 4.0
+
+  # Transition control maps: how other-factors' tokens select transition variant
+  # control_maps_transition[i] has shape [prod(V_j for j!=i)]
+  # For 3 factors with vocab_sizes [3,3,4]:
+  #   - Factor 0: depends on (t1,t2): 3*4=12 combinations -> 2 variants
+  #   - Factor 1: depends on (t0,t2): 3*4=12 combinations -> 2 variants
+  #   - Factor 2: depends on (t0,t1): 3*3=9 combinations -> 2 variants
+  control_maps_transition:
+    # Factor 0: 12 other-token combos -> 2 transition variants
+    - [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+
+    # Factor 1: 12 other-token combos -> 2 transition variants
+    - [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+
+    # Factor 2: 9 other-token combos -> 2 transition variants
+    - [0, 1, 0, 1, 0, 1, 0, 1, 0]
+
+  # Emission variant indices: which variant to use for emissions (shape [F])
+  # This uses independent emission mode (each factor uses fixed variant)
+  emission_variant_indices: [0, 0, 0]
+
+  # Optional: emission_control_maps for chain-style emissions
+  # If provided, emission mode becomes chain-style (factor i depends on previous tokens)
+  # Uncomment to enable chain emissions:
+  # emission_control_maps:
+  #   - null          # Factor 0: root
+  #   - [0, 1, 0]     # Factor 1: depends on t0 (3 values) -> use emission variants
+  #   - [0, 1, 0, 1, 0, 1, 0, 1, 0]  # Factor 2: depends on (t0,t1) (9 combos)
+
+bos_token: ???
+eos_token: null
+batch_size: 1024
+
+# Example interpretation (independent emission mode):
+# - Emissions: Each factor independently emits using variant 0
+#   P(t) = P0(t0|s0) * P1(t1|s1) * P2(t2|s2)
+# - Transitions: After observing (t0,t1,t2):
+#   - Factor 0 selects transition variant based on (t1,t2)
+#   - Factor 1 selects transition variant based on (t0,t2)
+#   - Factor 2 selects transition variant based on (t0,t1)
+#   Each updates its state using the selected transition variant
+
+# If emission_control_maps is enabled (chain mode):
+# - Emissions: P(t) = P0(t0|s0) * P1(t1|t0,s1) * P2(t2|t0,t1,s2)
+# - Transitions: Same coupling as above
