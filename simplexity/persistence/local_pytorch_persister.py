@@ -1,10 +1,18 @@
 """Local PyTorch persister."""
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import torch
 
-from simplexity.persistence.local_persister import LocalPersister
+from simplexity.persistence.local_persister import LocalPersister, LocalPersisterInstanceConfig
+
+
+@dataclass
+class LocalPytorchPersisterInstanceConfig(LocalPersisterInstanceConfig):
+    """Configuration for the local pytorch persister."""
+
+    filename: str = "model.pt"
 
 
 class LocalPytorchPersister(LocalPersister):

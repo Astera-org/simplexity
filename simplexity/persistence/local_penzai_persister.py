@@ -1,5 +1,6 @@
 """Local Penzai persister."""
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import orbax.checkpoint as ocp
@@ -7,8 +8,13 @@ from orbax.checkpoint.handlers import DefaultCheckpointHandlerRegistry
 from penzai import pz
 from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.persistence.local_persister import LocalPersister
+from simplexity.persistence.local_persister import LocalPersister, LocalPersisterInstanceConfig
 from simplexity.utils.penzai_utils import deconstruct_variables, reconstruct_variables
+
+
+@dataclass
+class LocalPenzaiPersisterInstanceConfig(LocalPersisterInstanceConfig):
+    """Configuration for the local penzai persister."""
 
 
 class LocalPenzaiPersister(LocalPersister):
