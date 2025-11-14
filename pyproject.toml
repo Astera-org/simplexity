@@ -12,7 +12,6 @@ description = "Computational Mechanics of sequence prediction models."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "altair>=5.3.0",
     "chex",
     "dotenv",
     "equinox>=0.13.0",
@@ -28,6 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+altair = ["altair>=5.3.0"]
 aws = ["boto3>=1.37.24"] # Deprecated S3 Persister.
 cuda = [
     "jax[cuda12_pip]",
