@@ -72,12 +72,12 @@ def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame):
     )
 
     if aes.color and aes.color.value is not None:
-        figure.update_traces(marker=dict(color=aes.color.value))
+        figure.update_traces(marker={"color": aes.color.value})
     if aes.size and aes.size.value is not None:
-        figure.update_traces(marker=dict(size=aes.size.value))
+        figure.update_traces(marker={"size": aes.size.value})
 
     trace_name = layer.name or (color_field or "3d_scatter")
-    figure.update_traces(name=trace_name, selector=dict(type="scatter3d"))
+    figure.update_traces(name=trace_name, selector={"type": "scatter3d"})
     return figure
 
 
