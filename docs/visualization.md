@@ -435,6 +435,7 @@ class AestheticsConfig:
     """
     x: ChannelAestheticsConfig | None = None
     y: ChannelAestheticsConfig | None = None
+    z: ChannelAestheticsConfig | None = None
 
     color: ChannelAestheticsConfig | None = None
     size: ChannelAestheticsConfig | None = None
@@ -455,6 +456,9 @@ This structure is expressive enough for:
 - Altair: `.encode(x=..., y=..., color=...)`
 - ggplot2: `aes(x=..., y=..., color=...)`
 - Matplotlib: parameters to `scatter`, `plot`, etc.
+
+The optional `z` channel is ignored by strictly 2D backends, but enables 3D
+scatter support for engines such as Plotly.
 
 ---
 
@@ -915,31 +919,49 @@ def build_altair_chart(plot_cfg: PlotConfig,
                        data_registry: dict[str, pd.DataFrame]) -> alt.Chart
 ```
 
+### Plotly Renderer (Prototype)
+
+A lightweight Plotly backend focuses on interactive 3D scatter plots. It reuses
+the shared pandas pipeline (filters + transforms) and maps the first layer of a
+`PlotConfig` into `plotly.express.scatter_3d`. Current constraints:
+
+- Single point geometry layer per plot (sufficient for demos/prototypes)
+- Requires `x`, `y`, and `z` aesthetics
+- Honors `color`, `size`, `opacity`, and tooltip channel lists
+- Writes self-contained HTML via `Figure.write_html`
+
+Renderer API:
+
+```python
+def build_plotly_figure(plot_cfg: PlotConfig,
+                        data_registry: dict[str, pd.DataFrame]) -> plotly.Figure
+```
+
 ---
 
 ## 9. Backend Capability Matrix
 
 The following table outlines which features are supported by each backend:
 
-| Feature           | Altair | Plotnine | Matplotlib | Notes                         |
-| ----------------- | ------ | -------- | ---------- | ----------------------------- |
-| **Transforms**    |        |          |            |                               |
-| filter            | ✅     | ✅       | ✅         | pandas query / Vega-Lite      |
-| calculate         | ✅     | ⚠️       | ⚠️         | Via pandas eval / limited     |
-| aggregate         | ✅     | ✅       | ✅         | Via pandas groupby            |
-| bin               | ✅     | ✅       | ⚠️         | Manual binning for matplotlib |
-| window            | ✅     | ⚠️       | ⚠️         | Limited pandas support        |
-| fold/pivot        | ✅     | ✅       | ✅         | Via pandas                    |
-| **Geometries**    |        |          |            |                               |
-| point, line, bar  | ✅     | ✅       | ✅         | Core geometries               |
-| area, rect        | ✅     | ✅       | ✅         |                               |
-| text              | ✅     | ✅       | ✅         |                               |
-| boxplot, errorbar | ✅     | ✅       | ✅         |                               |
-| **Interactivity** |        |          |            |                               |
-| Selections        | ✅     | ❌       | ❌         | Altair-only                   |
-| Tooltips          | ✅     | ❌       | ⚠️         | Limited in matplotlib         |
-| **Facets**        | ✅     | ✅       | ⚠️         | Manual subplots in matplotlib |
-| **Scales**        | ✅     | ✅       | ✅         | All support log/linear/etc    |
+| Feature           | Altair | Plotnine | Matplotlib | Plotly | Notes                                      |
+| ----------------- | ------ | -------- | ---------- | ------ | ------------------------------------------ |
+| **Transforms**    |        |          |            |        |                                            |
+| filter            | ✅     | ✅       | ✅         | ✅     | pandas query / Vega-Lite                   |
+| calculate         | ✅     | ⚠️       | ⚠️         | ✅     | Via pandas eval / limited                  |
+| aggregate         | ✅     | ✅       | ✅         | ✅     | Via pandas groupby                         |
+| bin               | ✅     | ✅       | ⚠️         | ✅     | Manual binning for matplotlib              |
+| window            | ✅     | ⚠️       | ⚠️         | ✅     | Limited pandas support                     |
+| fold/pivot        | ✅     | ✅       | ✅         | ✅     | Via pandas                                 |
+| **Geometries**    |        |          |            |        |                                            |
+| point, line, bar  | ✅     | ✅       | ✅         | ⚠️     | Plotly prototype currently supports point  |
+| area, rect        | ✅     | ✅       | ✅         | ❌     |                                            |
+| text              | ✅     | ✅       | ✅         | ❌     |                                            |
+| boxplot, errorbar | ✅     | ✅       | ✅         | ❌     |                                            |
+| **Interactivity** |        |          |            |        |                                            |
+| Selections        | ✅     | ❌       | ❌         | ❌     | Altair-only                                |
+| Tooltips          | ✅     | ❌       | ⚠️         | ✅     | Plotly hover support is built-in           |
+| **Facets**        | ✅     | ✅       | ⚠️         | ⚠️     | Plotly demo does not yet facet 3D charts   |
+| **Scales**        | ✅     | ✅       | ✅         | ✅     | All support log/linear/etc                 |
 
 **Legend:**
 
@@ -978,10 +1000,14 @@ This configuration system provides:
 - A **unified Grammar-of-Graphics-style schema**
 - **Declarative, reproducible plots**
 - **Immediate support for Altair** (interactive plots)
+- Prototype support for **Plotly 3D scatter** rendering
 - A path to **plotnine/matplotlib** (static publication-ready plots)
 - A clean separation between _configuration_, _data_, and _rendering backends_
 
 By adopting this design, we gain long-term flexibility in visualization tooling while keeping plot definitions clean, expressive, and consistent across projects.
+
+See `examples/visualization_3d_demo.py` plus the Hydra configs in
+`examples/configs/visualization/` for a complete YAML-driven demo.
 
 ---
 

@@ -9,35 +9,9 @@ plotnine, matplotlib, etc.).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 from simplexity.exceptions import ConfigValidationError
-
-BackendType = Literal["altair"]  # Currently only Altair is supported, but we could add other backends later
-
-TransformOp = Literal["filter", "calculate", "aggregate", "bin", "window", "fold", "pivot"]
-
-ScaleType = Literal["linear", "log", "sqrt", "pow", "symlog", "time", "utc", "ordinal", "band", "point"]
-
-ChannelType = Literal["quantitative", "ordinal", "nominal", "temporal"]
-
-GeometryType = Literal[
-    "point",
-    "line",
-    "area",
-    "bar",
-    "rect",
-    "rule",
-    "tick",
-    "circle",
-    "square",
-    "text",
-    "boxplot",
-    "errorbar",
-    "errorband",
-]
-
-SelectionType = Literal["interval", "single", "multi"]
 
 
 def _ensure(condition: bool, message: str) -> None:
@@ -59,7 +33,7 @@ class DataConfig:
 class TransformConfig:  # pylint: disable=too-many-instance-attributes
     """Represents a single data transform stage."""
 
-    op: TransformOp
+    op: str  # ["filter", "calculate", "aggregate", "bin", "window", "fold", "pivot"]
     filter: str | None = None
     as_field: str | None = None
     expr: str | None = None
@@ -96,7 +70,7 @@ class TransformConfig:  # pylint: disable=too-many-instance-attributes
 class ScaleConfig:
     """Describes how raw data values are mapped to visual ranges."""
 
-    type: ScaleType | None = None
+    type: str | None = None  # ["linear", "log", "sqrt", "pow", "symlog", "time", "utc", "ordinal", "band", "point"]
     domain: list[Any] | None = None
     range: list[Any] | None = None
     clamp: bool | None = None
@@ -130,7 +104,7 @@ class ChannelAestheticsConfig:
     """Represents one visual encoding channel (x, y, color, etc.)."""
 
     field: str | None = None
-    type: ChannelType | None = None
+    type: str | None = None  # ["quantitative", "ordinal", "nominal", "temporal"]
     value: Any | None = None
     aggregate: str | None = None
     bin: bool | None = None
@@ -154,6 +128,7 @@ class AestheticsConfig:
 
     x: ChannelAestheticsConfig | None = None
     y: ChannelAestheticsConfig | None = None
+    z: ChannelAestheticsConfig | None = None
     color: ChannelAestheticsConfig | None = None
     size: ChannelAestheticsConfig | None = None
     shape: ChannelAestheticsConfig | None = None
@@ -167,7 +142,7 @@ class AestheticsConfig:
 class GeometryConfig:
     """Visual primitive used to draw the layer."""
 
-    type: GeometryType
+    type: str  # [point, line, area, bar, rect, rule, tick, circle, square, text, boxplot, errorbar, errorband]
     props: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -179,7 +154,7 @@ class SelectionConfig:
     """Interactive selection definition."""
 
     name: str
-    type: SelectionType = "interval"
+    type: str = "interval"  # ["interval", "single", "multi"]
     encodings: list[str] | None = None
     fields: list[str] | None = None
     bind: dict[str, Any] | None = None
@@ -239,7 +214,7 @@ class LayerConfig:
 class PlotConfig:
     """Top-level configuration for one plot."""
 
-    backend: BackendType = "altair"
+    backend: str = "altair"  # ["altair", "plotly"]
     data: DataConfig = field(default_factory=DataConfig)
     transforms: list[TransformConfig] = field(default_factory=list)
     layers: list[LayerConfig] = field(default_factory=list)
@@ -257,5 +232,5 @@ class PlotConfig:
 class GraphicsConfig:
     """Root Visualization config that multiplexes multiple named plots."""
 
-    default_backend: BackendType = "altair"
+    default_backend: str = "altair"  # ["altair", "plotly"]
     plots: dict[str, PlotConfig] = field(default_factory=dict)

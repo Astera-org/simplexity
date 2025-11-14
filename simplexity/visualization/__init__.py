@@ -1,6 +1,8 @@
-"""Visualization utilities and configuration schemas."""
+"""Visualization utilities, renderers, and structured config schemas."""
 
+from .altair_renderer import build_altair_chart
 from .data_registry import DataRegistry, DictDataRegistry, resolve_data_source
+from .plotly_renderer import build_plotly_figure
 from .structured_configs import (
     AestheticsConfig,
     AxisConfig,
@@ -26,6 +28,8 @@ from .structured_configs import (
 )
 
 __all__ = [
+    "build_altair_chart",
+    "build_plotly_figure",
     "DataRegistry",
     "DictDataRegistry",
     "resolve_data_source",
