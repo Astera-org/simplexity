@@ -100,7 +100,7 @@ class LegendConfig:
 
 
 @dataclass
-class ChannelAestheticsConfig:
+class ChannelAestheticsConfig:  # pylint: disable=too-many-instance-attributes
     """Represents one visual encoding channel (x, y, color, etc.)."""
 
     field: str | None = None
@@ -123,7 +123,7 @@ class ChannelAestheticsConfig:
 
 
 @dataclass
-class AestheticsConfig:
+class AestheticsConfig:  # pylint: disable=too-many-instance-attributes
     """Collection of channel encodings for a layer."""
 
     x: ChannelAestheticsConfig | None = None
@@ -211,7 +211,7 @@ class LayerConfig:
 
 
 @dataclass
-class PlotConfig:
+class PlotConfig:  # pylint: disable=too-many-instance-attributes
     """Top-level configuration for one plot."""
 
     backend: str = "altair"  # ["altair", "plotly"]
