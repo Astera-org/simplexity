@@ -30,8 +30,13 @@ for step in validation_steps:
         activations_by_layer=activations,
     )
 
-# Generate all interactive plots
-tracker.save_all_plots(output_dir="analysis_results/")
+# Generate all interactive plots and get their file paths
+saved_plots = tracker.save_all_plots(output_dir="analysis_results/")
+# saved_plots is a dict mapping plot name -> file path
+
+# Example: log to MLflow
+# for plot_name, plot_path in saved_plots.items():
+#     mlflow.log_artifact(plot_path, artifact_path="analysis_plots")
 ```
 
 ## Integration with Training Loop
@@ -175,8 +180,45 @@ for step in range(0, 100000, 100):
 
     # Save and clear every 1000 steps to manage memory
     if step % 1000 == 0:
-        tracker.save_all_plots(f"checkpoints/step_{step}/")
+        saved_plots = tracker.save_all_plots(f"checkpoints/step_{step}/")
         tracker.clear()
+```
+
+## MLflow Integration
+
+The tracker integrates seamlessly with MLflow for experiment tracking:
+
+```python
+import mlflow
+from simplexity.analysis import AnalysisTracker
+
+# During training with MLflow
+with mlflow.start_run():
+    tracker = AnalysisTracker()
+
+    # Training loop
+    for step in validation_steps:
+        # ... training code ...
+
+        # Add analysis
+        tracker.add_step(
+            step=step,
+            inputs=val_inputs,
+            beliefs=val_beliefs,
+            probs=val_probs,
+            activations_by_layer=val_activations,
+        )
+
+    # Save plots and log to MLflow
+    saved_plots = tracker.save_all_plots(output_dir="analysis_plots/")
+    for plot_name, plot_path in saved_plots.items():
+        mlflow.log_artifact(plot_path, artifact_path="analysis")
+
+    # Also log metric summaries
+    regression_summary = tracker.get_regression_metrics_summary()
+    for layer_name, metrics in regression_summary["by_layer"].items():
+        final_r2 = metrics["r2"][-1]
+        mlflow.log_metric(f"final_r2_{layer_name}", final_r2)
 ```
 
 ## Example: Full Training Script

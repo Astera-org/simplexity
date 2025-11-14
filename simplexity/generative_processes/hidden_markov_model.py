@@ -89,21 +89,37 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         return jax.nn.logsumexp(log_obs_state_dist, axis=1)
 
     @eqx.filter_jit
-    def probability(self, observations: jax.Array) -> jax.Array:
+    def probability(self, observations: jax.Array, return_all_probabilities: bool = False) -> jax.Array:
         """Compute the probability of the process generating a sequence of observations."""
+        if return_all_probabilities:
+            def _scan_fn_cummulative(state_vector, observation):
+                new_state = state_vector @ self.transition_matrices[observation]
+                prob = jnp.sum(new_state) / self.normalizing_constant
+                return new_state, prob
 
-        def _scan_fn(state_vector, observation):
-            return state_vector @ self.transition_matrices[observation], None
+            _, probs = jax.lax.scan(_scan_fn_cummulative, init=self._initial_state, xs=observations)
+            return probs
+        else:
+            def _scan_fn(state_vector, observation):
+                return state_vector @ self.transition_matrices[observation], None
 
-        state_vector, _ = jax.lax.scan(_scan_fn, init=self._initial_state, xs=observations)
-        return jnp.sum(state_vector) / self.normalizing_constant
+            state_vector, _ = jax.lax.scan(_scan_fn, init=self._initial_state, xs=observations)
+            return jnp.sum(state_vector) / self.normalizing_constant
 
     @eqx.filter_jit
-    def log_probability(self, observations: jax.Array) -> jax.Array:
+    def log_probability(self, observations: jax.Array, return_all_probabilities: bool = False) -> jax.Array:
         """Compute the log probability of the process generating a sequence of observations."""
+        if return_all_probabilities:
+            def _scan_fn_cumulative(log_belief_state, observation):
+                new_log_state = jax.nn.logsumexp(log_belief_state[:, None] + self.log_transition_matrices[observation], axis=0)
+                log_prob = jax.nn.logsumexp(new_log_state) - self.log_normalizing_constant
+                return new_log_state, log_prob
 
-        def _scan_fn(log_belief_state, observation):
-            return jax.nn.logsumexp(log_belief_state[:, None] + self.log_transition_matrices[observation], axis=0), None
+            _, log_probs = jax.lax.scan(_scan_fn_cumulative, init=self.log_initial_state, xs=observations)
+            return log_probs
+        else:
+            def _scan_fn(log_belief_state, observation):
+                return jax.nn.logsumexp(log_belief_state[:, None] + self.log_transition_matrices[observation], axis=0), None
 
-        log_belief_state, _ = jax.lax.scan(_scan_fn, init=self.log_initial_state, xs=observations)
-        return jax.nn.logsumexp(log_belief_state) - self.log_normalizing_constant
+            log_belief_state, _ = jax.lax.scan(_scan_fn, init=self.log_initial_state, xs=observations)
+            return jax.nn.logsumexp(log_belief_state) - self.log_normalizing_constant

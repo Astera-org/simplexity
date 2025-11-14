@@ -25,10 +25,11 @@ def generate_data_batch(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
+    return_all_states: bool = False,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Generate a batch of data."""
     batch_keys = jax.random.split(key, batch_size)
-    gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, False)
+    gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, return_all_states)
     if bos_token is not None:
         tokens = jnp.concatenate([jnp.full((batch_size, 1), bos_token), tokens], axis=1)
     if eos_token is not None:

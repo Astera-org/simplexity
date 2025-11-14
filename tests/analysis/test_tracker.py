@@ -285,13 +285,26 @@ class TestAnalysisTracker:
 
         # Save to temporary directory
         with tempfile.TemporaryDirectory() as tmpdir:
-            self.tracker.save_all_plots(tmpdir)
+            saved_plots = self.tracker.save_all_plots(tmpdir)
 
             # Check that files were created
             files = os.listdir(tmpdir)
             assert len(files) > 0
             # Should have HTML files
             assert any(f.endswith(".html") for f in files)
+
+            # Check return value is dict mapping names to paths
+            assert isinstance(saved_plots, dict)
+            assert len(saved_plots) > 0
+            for name, filepath in saved_plots.items():
+                # Check name is a string
+                assert isinstance(name, str)
+                # Check filepath exists
+                assert os.path.exists(filepath)
+                # Check filepath is in tmpdir
+                assert filepath.startswith(tmpdir)
+                # Check filepath ends with .html
+                assert filepath.endswith(".html")
 
     def test_clear(self):
         """Test clearing the tracker."""

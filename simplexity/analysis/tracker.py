@@ -365,26 +365,37 @@ class AnalysisTracker:
 
         return summary
 
-    def save_all_plots(self, output_dir: str) -> None:
+    def save_all_plots(self, output_dir: str) -> Dict[str, str]:
         """
         Save all plots to HTML files in the output directory.
 
         Args:
             output_dir: directory to save plots (will be created if it doesn't exist)
+
+        Returns:
+            dict mapping plot name -> file path
         """
         import os
 
         os.makedirs(output_dir, exist_ok=True)
 
+        saved_plots = {}
+
         # Generate and save PCA plots
         pca_plots = self.generate_pca_plots()
         for name, fig in pca_plots.items():
-            fig.write_html(os.path.join(output_dir, f"{name}.html"))
+            filepath = os.path.join(output_dir, f"{name}.html")
+            fig.write_html(filepath)
+            saved_plots[name] = filepath
 
         # Generate and save regression plots
         regression_plots = self.generate_regression_plots()
         for name, fig in regression_plots.items():
-            fig.write_html(os.path.join(output_dir, f"{name}.html"))
+            filepath = os.path.join(output_dir, f"{name}.html")
+            fig.write_html(filepath)
+            saved_plots[name] = filepath
+
+        return saved_plots
 
     def clear(self) -> None:
         """Clear all stored results."""

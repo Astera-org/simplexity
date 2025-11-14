@@ -25,6 +25,7 @@ def generate_data_batch(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
+    return_all_states: bool = False,
 ) -> tuple[jax.Array, torch.Tensor, torch.Tensor]:
     """Generate a batch of data."""
     gen_states, inputs, labels = generate_jax_data_batch(
@@ -35,5 +36,6 @@ def generate_data_batch(
         key,
         bos_token,
         eos_token,
+        return_all_states,
     )
     return gen_states, jax_to_torch(inputs), jax_to_torch(labels)

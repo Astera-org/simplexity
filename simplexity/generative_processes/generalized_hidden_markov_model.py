@@ -128,18 +128,26 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         return jnp.log(obs_prob_dist)
 
     @eqx.filter_jit
-    def probability(self, observations: jax.Array) -> jax.Array:
+    def probability(self, observations: jax.Array, return_all_probabilities: bool = False) -> jax.Array:
         """Compute the probability of the process generating a sequence of observations."""
+        if return_all_probabilities:
+            def _scan_fn_cumulative(state_vector, observation):
+                new_state = state_vector @ self.transition_matrices[observation]
+                prob = (new_state @ self.normalizing_eigenvector) / self.normalizing_constant
+                return new_state, prob
 
-        def _scan_fn(state_vector, observation):
-            return state_vector @ self.transition_matrices[observation], None
+            _, probs = jax.lax.scan(_scan_fn_cumulative, init=self._initial_state, xs=observations)
+            return probs
+        else:
+            def _scan_fn(state_vector, observation):
+                return state_vector @ self.transition_matrices[observation], None
 
-        state_vector, _ = jax.lax.scan(_scan_fn, init=self._initial_state, xs=observations)
-        return (state_vector @ self.normalizing_eigenvector) / self.normalizing_constant
+            state_vector, _ = jax.lax.scan(_scan_fn, init=self._initial_state, xs=observations)
+            return (state_vector @ self.normalizing_eigenvector) / self.normalizing_constant
 
     @eqx.filter_jit
-    def log_probability(self, observations: jax.Array) -> jax.Array:
+    def log_probability(self, observations: jax.Array, return_all_probabilities: bool = False) -> jax.Array:
         """Compute the log probability of the process generating a sequence of observations."""
         # TODO: fix log math (https://github.com/Astera-org/simplexity/issues/9)
-        prob = self.probability(observations)
+        prob = self.probability(observations, return_all_probabilities=return_all_probabilities)
         return jnp.log(prob)

@@ -82,9 +82,9 @@ class GenerativeProcess[State](eqx.Module):
         """Compute the log probability distribution of the observations that can be emitted by the process."""
 
     @abstractmethod
-    def probability(self, observations: jax.Array) -> jax.Array:
+    def probability(self, observations: jax.Array, return_all_probabilities: bool = False) -> jax.Array:
         """Compute the probability of the process generating a sequence of observations."""
 
     @abstractmethod
-    def log_probability(self, observations: jax.Array) -> jax.Array:
+    def log_probability(self, observations: jax.Array, return_all_probabilities: bool = False) -> jax.Array:
         """Compute the log probability of the process generating a sequence of observations."""
