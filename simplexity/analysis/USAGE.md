@@ -30,9 +30,10 @@ for step in validation_steps:
         activations_by_layer=activations,
     )
 
-# Generate all interactive plots and get their file paths
+# Save combined plots (only 4 plots with full interactivity)
 saved_plots = tracker.save_all_plots(output_dir="analysis_results/")
-# saved_plots is a dict mapping plot name -> file path
+# Saves: pca_combined, pca_3d_combined, regression_combined, components_for_thresholds
+# These plots have sliders/dropdowns for all steps and layers
 
 # Example: log to MLflow
 # for plot_name, plot_path in saved_plots.items():
@@ -167,7 +168,49 @@ for name, fig in plots.items():
 # Generate regression plots only
 regression_plots = tracker.generate_regression_plots()
 regression_plots["regression_combined"].write_html("regression_analysis.html")
+
+# Generate 3D PCA plots
+pca_3d_plots = tracker.generate_pca_3d_plots()
+pca_3d_plots["pca_3d_combined"].show()
+
+# Generate variance explained plots
+variance_plots = tracker.generate_variance_plots(max_components=20)
+variance_plots["components_for_thresholds"].show()  # Shows components needed for thresholds over training
+variance_plots["variance_explained_layer_0"].show()  # Scree plot for layer_0
+variance_plots["cumulative_variance_layer_0"].show()  # Cumulative variance for layer_0
 ```
+
+## Available Plot Types
+
+The tracker can generate many types of plots. **By default, `save_all_plots()` only saves the 4 combined plots** since they provide full interactivity via sliders/dropdowns:
+
+### Plots Saved by Default
+- `pca_combined` - 2D PCA with step slider and layer dropdown
+- `pca_3d_combined` - 3D PCA with step slider and layer dropdown
+- `regression_combined` - Simplex projection with step slider and layer dropdown
+- `components_for_thresholds` - Components needed for variance thresholds over training
+
+### Additional Plots (generated on-demand)
+
+You can generate additional plots programmatically using the `generate_*_plots()` methods:
+
+**2D PCA Plots:**
+- `pca_step_slider_{layer}` - 2D PCA for one layer across training steps
+- `pca_layer_dropdown_step_{step}` - 2D PCA comparing layers at one checkpoint
+
+**3D PCA Plots:**
+- `pca_3d_step_slider_{layer}` - 3D PCA for one layer across training steps
+- `pca_3d_layer_dropdown_step_{step}` - 3D PCA comparing layers at one checkpoint
+
+**Regression Plots:**
+- `regression_step_slider_{layer}` - Simplex projection for one layer across steps
+- `regression_layer_dropdown_step_{step}` - Simplex projection comparing layers
+
+**Variance Explained Plots:**
+- `variance_explained_step_{step}` - Scree plot comparing layers at one step
+- `variance_explained_{layer}` - Scree plot for one layer across training
+- `cumulative_variance_step_{step}` - Cumulative variance by layer at one step
+- `cumulative_variance_{layer}` - Cumulative variance for one layer over training
 
 ## Memory Management
 
@@ -282,18 +325,13 @@ if __name__ == "__main__":
     main()
 ```
 
-## Plot Types Generated
+## Saved Plots
 
-The tracker generates several interactive HTML plots:
+By default, `tracker.save_all_plots()` saves **only 4 combined plots** with full interactivity:
 
-### PCA Plots
-- `pca_step_slider_{layer}.html` - PCA for one layer across training steps
-- `pca_layer_dropdown_step_{step}.html` - Compare layers at one checkpoint
-- `pca_combined.html` - Both step slider and layer dropdown
+- `pca_combined.html` - 2D PCA with step slider and layer dropdown
+- `pca_3d_combined.html` - 3D PCA with step slider and layer dropdown
+- `regression_combined.html` - Simplex projection with step slider and layer dropdown
+- `components_for_thresholds.html` - Components needed for variance thresholds over training
 
-### Regression Plots
-- `regression_step_slider_{layer}.html` - Simplex projection for one layer across steps
-- `regression_layer_dropdown_step_{step}.html` - Compare layers at one checkpoint
-- `regression_combined.html` - Both step slider and layer dropdown
-
-All plots are fully interactive - zoom, pan, hover for details, and use sliders/dropdowns to navigate.
+All plots are fully interactive - zoom, pan, rotate (3D), hover for details, and use sliders/dropdowns to navigate through all steps and layers.

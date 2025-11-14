@@ -668,3 +668,563 @@ def plot_pca_2d_with_step_and_layer(
     )
 
     return fig
+
+
+# ===========================
+# 3D PCA Plotting Functions
+# ===========================
+
+
+def plot_pca_3d_with_step_slider(
+    pca_results_by_step: Dict[int, Dict[str, Any]],
+    labels_by_step: Optional[Dict[int, Sequence]] = None,
+    title: str = "3D PCA Projection Over Training Steps",
+    marker_size: int = 4,
+) -> go.Figure:
+    """
+    Create interactive 3D PCA plot with slider to navigate through training steps.
+
+    Args:
+        pca_results_by_step: dict mapping step -> PCA result from compute_pca()
+        labels_by_step: optional dict mapping step -> labels for coloring
+        title: plot title
+        marker_size: point size
+
+    Returns:
+        Plotly Figure with step slider
+    """
+    steps_sorted = sorted(pca_results_by_step.keys())
+
+    if not steps_sorted:
+        raise ValueError("pca_results_by_step must not be empty")
+
+    fig = go.Figure()
+
+    # Create traces for each step (initially all hidden)
+    for step in steps_sorted:
+        pca_res = pca_results_by_step[step]
+        proj = pca_res["X_proj"][:, :3]  # first 3 components
+        labels = labels_by_step.get(step) if labels_by_step else None
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=proj[:, 0],
+                y=proj[:, 1],
+                z=proj[:, 2],
+                mode="markers",
+                marker=dict(
+                    size=marker_size,
+                    color=labels if labels is not None else None,
+                    colorscale="Viridis" if labels is not None else None,
+                    showscale=labels is not None,
+                ),
+                text=labels,
+                name=f"Step {step}",
+                visible=False,
+            )
+        )
+
+    # Make first trace visible
+    fig.data[0].visible = True
+
+    # Create slider steps
+    slider_steps = []
+    for i, step in enumerate(steps_sorted):
+        step_dict = {
+            "method": "update",
+            "args": [
+                {"visible": [j == i for j in range(len(steps_sorted))]},
+                {"title": f"{title} (Step {step})"},
+            ],
+            "label": str(step),
+        }
+        slider_steps.append(step_dict)
+
+    sliders = [
+        {
+            "active": 0,
+            "yanchor": "top",
+            "y": -0.1,
+            "xanchor": "left",
+            "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
+            "pad": {"b": 10, "t": 50},
+            "len": 0.9,
+            "x": 0.05,
+            "steps": slider_steps,
+        }
+    ]
+
+    fig.update_layout(
+        sliders=sliders,
+        title=f"{title} (Step {steps_sorted[0]})",
+        scene=dict(
+            xaxis_title="PC 1",
+            yaxis_title="PC 2",
+            zaxis_title="PC 3",
+        ),
+        template="plotly_white",
+        height=700,
+    )
+
+    return fig
+
+
+def plot_pca_3d_with_layer_dropdown(
+    pca_results_by_layer: Dict[str, Dict[str, Any]],
+    labels_by_layer: Optional[Dict[str, Sequence]] = None,
+    title: str = "3D PCA Projection Across Layers",
+    marker_size: int = 4,
+) -> go.Figure:
+    """
+    Create interactive 3D PCA plot with dropdown to switch between layers.
+
+    Args:
+        pca_results_by_layer: dict mapping layer_name -> PCA result from compute_pca()
+        labels_by_layer: optional dict mapping layer_name -> labels for coloring
+        title: plot title
+        marker_size: point size
+
+    Returns:
+        Plotly Figure with layer dropdown
+    """
+    layers_sorted = sorted(pca_results_by_layer.keys())
+
+    if not layers_sorted:
+        raise ValueError("pca_results_by_layer must not be empty")
+
+    fig = go.Figure()
+
+    # Create traces for each layer (initially all hidden)
+    for layer_name in layers_sorted:
+        pca_res = pca_results_by_layer[layer_name]
+        proj = pca_res["X_proj"][:, :3]  # first 3 components
+        labels = labels_by_layer.get(layer_name) if labels_by_layer else None
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=proj[:, 0],
+                y=proj[:, 1],
+                z=proj[:, 2],
+                mode="markers",
+                marker=dict(
+                    size=marker_size,
+                    color=labels if labels is not None else None,
+                    colorscale="Viridis" if labels is not None else None,
+                    showscale=labels is not None,
+                ),
+                text=labels,
+                name=layer_name,
+                visible=False,
+            )
+        )
+
+    # Make first trace visible
+    fig.data[0].visible = True
+
+    # Create dropdown menu
+    dropdown_buttons = []
+    for i, layer_name in enumerate(layers_sorted):
+        button_dict = {
+            "method": "update",
+            "args": [
+                {"visible": [j == i for j in range(len(layers_sorted))]},
+                {"title": f"{title} ({layer_name})"},
+            ],
+            "label": layer_name,
+        }
+        dropdown_buttons.append(button_dict)
+
+    fig.update_layout(
+        updatemenus=[
+            {
+                "buttons": dropdown_buttons,
+                "direction": "down",
+                "showactive": True,
+                "x": 0.15,
+                "xanchor": "left",
+                "y": 1.15,
+                "yanchor": "top",
+            }
+        ],
+        title=f"{title} ({layers_sorted[0]})",
+        scene=dict(
+            xaxis_title="PC 1",
+            yaxis_title="PC 2",
+            zaxis_title="PC 3",
+        ),
+        template="plotly_white",
+        height=700,
+    )
+
+    return fig
+
+
+def plot_pca_3d_with_step_and_layer(
+    pca_results_by_step_and_layer: Dict[int, Dict[str, Dict[str, Any]]],
+    labels_by_step_and_layer: Optional[Dict[int, Dict[str, Sequence]]] = None,
+    title: str = "3D PCA: Training Evolution Across Layers",
+    marker_size: int = 4,
+) -> go.Figure:
+    """
+    Create interactive 3D PCA plot with both step slider and layer dropdown.
+
+    Args:
+        pca_results_by_step_and_layer: nested dict {step: {layer_name: pca_result}}
+        labels_by_step_and_layer: optional nested dict {step: {layer_name: labels}}
+        title: plot title
+        marker_size: point size
+
+    Returns:
+        Plotly Figure with step slider and layer dropdown
+    """
+    steps_sorted = sorted(pca_results_by_step_and_layer.keys())
+    if not steps_sorted:
+        raise ValueError("pca_results_by_step_and_layer must not be empty")
+
+    # Get all unique layers across all steps
+    all_layers = set()
+    for step_results in pca_results_by_step_and_layer.values():
+        all_layers.update(step_results.keys())
+    layers_sorted = sorted(all_layers)
+
+    fig = go.Figure()
+
+    # Create traces for each (step, layer) combination
+    for step in steps_sorted:
+        for layer_name in layers_sorted:
+            if layer_name not in pca_results_by_step_and_layer[step]:
+                continue
+
+            pca_res = pca_results_by_step_and_layer[step][layer_name]
+            proj = pca_res["X_proj"][:, :3]  # first 3 components
+
+            labels = None
+            if labels_by_step_and_layer and step in labels_by_step_and_layer:
+                labels = labels_by_step_and_layer[step].get(layer_name)
+
+            fig.add_trace(
+                go.Scatter3d(
+                    x=proj[:, 0],
+                    y=proj[:, 1],
+                    z=proj[:, 2],
+                    mode="markers",
+                    marker=dict(
+                        size=marker_size,
+                        color=labels if labels is not None else None,
+                        colorscale="Viridis" if labels is not None else None,
+                        showscale=labels is not None,
+                    ),
+                    text=labels,
+                    name=f"Step {step}, {layer_name}",
+                    visible=False,
+                )
+            )
+
+    # Make first trace visible
+    fig.data[0].visible = True
+
+    # Create slider steps (for training steps)
+    slider_steps = []
+    for i, step in enumerate(steps_sorted):
+        # For each step, show all layers for that step
+        visibility = []
+        for s in steps_sorted:
+            for _ in layers_sorted:
+                visibility.append(s == step)
+
+        step_dict = {
+            "method": "update",
+            "args": [{"visible": visibility}],
+            "label": str(step),
+        }
+        slider_steps.append(step_dict)
+
+    # Create dropdown buttons (for layers)
+    dropdown_buttons = []
+    for i, layer_name in enumerate(layers_sorted):
+        # For each layer, show all steps for that layer
+        visibility = []
+        trace_idx = 0
+        for step in steps_sorted:
+            for layer in layers_sorted:
+                if layer not in pca_results_by_step_and_layer[step]:
+                    continue
+                visibility.append(layer == layer_name)
+                trace_idx += 1
+
+        button_dict = {
+            "method": "update",
+            "args": [{"visible": visibility}],
+            "label": layer_name,
+        }
+        dropdown_buttons.append(button_dict)
+
+    fig.update_layout(
+        sliders=[
+            {
+                "active": 0,
+                "yanchor": "top",
+                "y": -0.1,
+                "xanchor": "left",
+                "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
+                "pad": {"b": 10, "t": 50},
+                "len": 0.9,
+                "x": 0.05,
+                "steps": slider_steps,
+            }
+        ],
+        updatemenus=[
+            {
+                "buttons": dropdown_buttons,
+                "direction": "down",
+                "showactive": True,
+                "x": 0.15,
+                "xanchor": "left",
+                "y": 1.15,
+                "yanchor": "top",
+            }
+        ],
+        title=f"{title} (Step {steps_sorted[0]}, {layers_sorted[0]})",
+        scene=dict(
+            xaxis_title="PC 1",
+            yaxis_title="PC 2",
+            zaxis_title="PC 3",
+        ),
+        template="plotly_white",
+        height=700,
+    )
+
+    return fig
+
+
+# ===========================
+# Variance Explained Plotting
+# ===========================
+
+
+def plot_variance_explained(
+    pca_results_by_step: Optional[Dict[int, Dict[str, Any]]] = None,
+    pca_results_by_layer: Optional[Dict[str, Dict[str, Any]]] = None,
+    title: str = "PCA Variance Explained",
+    max_components: Optional[int] = None,
+) -> go.Figure:
+    """
+    Create scree plot showing variance explained by each principal component.
+
+    Args:
+        pca_results_by_step: optional dict mapping step -> PCA result
+        pca_results_by_layer: optional dict mapping layer_name -> PCA result
+        title: plot title
+        max_components: maximum number of components to display
+
+    Returns:
+        Plotly Figure showing variance explained (scree plot)
+    """
+    if pca_results_by_step is None and pca_results_by_layer is None:
+        raise ValueError("Must provide either pca_results_by_step or pca_results_by_layer")
+
+    fig = go.Figure()
+
+    # Plot by step
+    if pca_results_by_step is not None:
+        for step in sorted(pca_results_by_step.keys()):
+            pca_res = pca_results_by_step[step]
+            var_ratio = pca_res["explained_variance_ratio"]
+            if max_components is not None:
+                var_ratio = var_ratio[:max_components]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=list(range(1, len(var_ratio) + 1)),
+                    y=var_ratio,
+                    mode="lines+markers",
+                    name=f"Step {step}",
+                    line=dict(width=2),
+                    marker=dict(size=6),
+                )
+            )
+
+    # Plot by layer
+    if pca_results_by_layer is not None:
+        for layer_name in sorted(pca_results_by_layer.keys()):
+            pca_res = pca_results_by_layer[layer_name]
+            var_ratio = pca_res["explained_variance_ratio"]
+            if max_components is not None:
+                var_ratio = var_ratio[:max_components]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=list(range(1, len(var_ratio) + 1)),
+                    y=var_ratio,
+                    mode="lines+markers",
+                    name=layer_name,
+                    line=dict(width=2),
+                    marker=dict(size=6),
+                )
+            )
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Principal Component",
+        yaxis_title="Variance Explained Ratio",
+        template="plotly_white",
+        height=500,
+        hovermode="x unified",
+    )
+
+    return fig
+
+
+def plot_cumulative_variance_explained(
+    pca_results_by_step: Optional[Dict[int, Dict[str, Any]]] = None,
+    pca_results_by_layer: Optional[Dict[str, Dict[str, Any]]] = None,
+    title: str = "Cumulative Variance Explained",
+    max_components: Optional[int] = None,
+    thresholds: Optional[list[float]] = None,
+) -> go.Figure:
+    """
+    Create plot showing cumulative variance explained by principal components.
+
+    Args:
+        pca_results_by_step: optional dict mapping step -> PCA result
+        pca_results_by_layer: optional dict mapping layer_name -> PCA result
+        title: plot title
+        max_components: maximum number of components to display
+        thresholds: optional list of variance thresholds to mark (e.g., [0.8, 0.9, 0.95])
+
+    Returns:
+        Plotly Figure showing cumulative variance explained
+    """
+    if pca_results_by_step is None and pca_results_by_layer is None:
+        raise ValueError("Must provide either pca_results_by_step or pca_results_by_layer")
+
+    fig = go.Figure()
+
+    # Plot by step
+    if pca_results_by_step is not None:
+        for step in sorted(pca_results_by_step.keys()):
+            pca_res = pca_results_by_step[step]
+            var_ratio = pca_res["explained_variance_ratio"]
+            cumsum = np.cumsum(var_ratio)
+            if max_components is not None:
+                cumsum = cumsum[:max_components]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=list(range(1, len(cumsum) + 1)),
+                    y=cumsum,
+                    mode="lines+markers",
+                    name=f"Step {step}",
+                    line=dict(width=2),
+                    marker=dict(size=6),
+                )
+            )
+
+    # Plot by layer
+    if pca_results_by_layer is not None:
+        for layer_name in sorted(pca_results_by_layer.keys()):
+            pca_res = pca_results_by_layer[layer_name]
+            var_ratio = pca_res["explained_variance_ratio"]
+            cumsum = np.cumsum(var_ratio)
+            if max_components is not None:
+                cumsum = cumsum[:max_components]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=list(range(1, len(cumsum) + 1)),
+                    y=cumsum,
+                    mode="lines+markers",
+                    name=layer_name,
+                    line=dict(width=2),
+                    marker=dict(size=6),
+                )
+            )
+
+    # Add threshold lines
+    if thresholds is not None:
+        for threshold in thresholds:
+            fig.add_hline(
+                y=threshold,
+                line_dash="dash",
+                line_color="gray",
+                annotation_text=f"{threshold:.0%}",
+                annotation_position="right",
+            )
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Number of Components",
+        yaxis_title="Cumulative Variance Explained",
+        yaxis=dict(tickformat=".0%"),
+        template="plotly_white",
+        height=500,
+        hovermode="x unified",
+    )
+
+    return fig
+
+
+def plot_components_for_variance_threshold(
+    variance_threshold_results: Dict[int, Dict[str, Dict[float, int]]],
+    title: str = "Components Required for Variance Thresholds",
+) -> go.Figure:
+    """
+    Plot number of components required to reach variance thresholds over training.
+
+    Args:
+        variance_threshold_results: nested dict {step: {layer_name: {threshold: n_components}}}
+        title: plot title
+
+    Returns:
+        Plotly Figure showing components vs. training step
+    """
+    if not variance_threshold_results:
+        raise ValueError("variance_threshold_results must not be empty")
+
+    steps_sorted = sorted(variance_threshold_results.keys())
+
+    # Get all layers and thresholds
+    all_layers = set()
+    all_thresholds = set()
+    for step_results in variance_threshold_results.values():
+        all_layers.update(step_results.keys())
+        for threshold_dict in step_results.values():
+            all_thresholds.update(threshold_dict.keys())
+
+    layers_sorted = sorted(all_layers)
+    thresholds_sorted = sorted(all_thresholds)
+
+    fig = go.Figure()
+
+    # Create traces for each (layer, threshold) combination
+    for layer_name in layers_sorted:
+        for threshold in thresholds_sorted:
+            n_components_over_steps = []
+            for step in steps_sorted:
+                if layer_name in variance_threshold_results[step]:
+                    n_comp = variance_threshold_results[step][layer_name].get(threshold)
+                    n_components_over_steps.append(n_comp)
+                else:
+                    n_components_over_steps.append(None)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=steps_sorted,
+                    y=n_components_over_steps,
+                    mode="lines+markers",
+                    name=f"{layer_name} ({threshold:.0%})",
+                    line=dict(width=2),
+                    marker=dict(size=6),
+                )
+            )
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Training Step",
+        yaxis_title="Number of Components",
+        template="plotly_white",
+        height=500,
+        hovermode="x unified",
+    )
+
+    return fig

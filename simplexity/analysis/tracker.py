@@ -11,7 +11,13 @@ from simplexity.analysis.pca import (
     plot_pca_2d_with_step_slider,
     plot_pca_2d_with_layer_dropdown,
     plot_pca_2d_with_step_and_layer,
+    plot_pca_3d_with_step_slider,
+    plot_pca_3d_with_layer_dropdown,
+    plot_pca_3d_with_step_and_layer,
     compute_variance_thresholds,
+    plot_variance_explained,
+    plot_cumulative_variance_explained,
+    plot_components_for_variance_threshold,
 )
 from simplexity.analysis.regression import (
     regress_activations_to_beliefs,
@@ -279,6 +285,157 @@ class AnalysisTracker:
 
         return plots
 
+    def generate_pca_3d_plots(
+        self, by_step: bool = True, by_layer: bool = True, combined: bool = True
+    ) -> Dict[str, go.Figure]:
+        """
+        Generate interactive 3D PCA plots.
+
+        Args:
+            by_step: generate step slider plots (one per layer)
+            by_layer: generate layer dropdown plots (one per step)
+            combined: generate combined step+layer plot
+
+        Returns:
+            dict mapping plot name -> Plotly Figure
+        """
+        # Return empty if no steps added yet
+        if self.layer_names is None:
+            return {}
+
+        plots = {}
+
+        if by_step:
+            # One plot per layer with step slider
+            for layer_name in self.layer_names:
+                pca_by_step = {
+                    step: self._pca_results[step][layer_name]
+                    for step in self.get_steps()
+                    if layer_name in self._pca_results[step]
+                }
+                if pca_by_step:
+                    fig = plot_pca_3d_with_step_slider(
+                        pca_by_step, title=f"3D PCA: {layer_name} Over Training"
+                    )
+                    plots[f"pca_3d_step_slider_{layer_name}"] = fig
+
+        if by_layer:
+            # One plot per step with layer dropdown
+            for step in self.get_steps():
+                pca_by_layer = {
+                    layer_name: self._pca_results[step][layer_name]
+                    for layer_name in self.layer_names
+                    if layer_name in self._pca_results[step]
+                }
+                if pca_by_layer:
+                    fig = plot_pca_3d_with_layer_dropdown(
+                        pca_by_layer, title=f"3D PCA: Layers at Step {step}"
+                    )
+                    plots[f"pca_3d_layer_dropdown_step_{step}"] = fig
+
+        if combined and self._pca_results:
+            # Single plot with both step and layer controls
+            fig = plot_pca_3d_with_step_and_layer(
+                self._pca_results, title="3D PCA: Training Evolution Across Layers"
+            )
+            plots["pca_3d_combined"] = fig
+
+        return plots
+
+    def generate_variance_plots(
+        self, max_components: Optional[int] = 20
+    ) -> Dict[str, go.Figure]:
+        """
+        Generate variance explained plots.
+
+        Args:
+            max_components: maximum number of components to display in scree plots
+
+        Returns:
+            dict mapping plot name -> Plotly Figure
+        """
+        # Return empty if no steps added yet
+        if self.layer_names is None:
+            return {}
+
+        plots = {}
+
+        # Scree plots (variance per component)
+        if self._pca_results:
+            # By step (for each step, show all layers)
+            for step in self.get_steps():
+                pca_by_layer = {
+                    layer_name: self._pca_results[step][layer_name]
+                    for layer_name in self.layer_names
+                    if layer_name in self._pca_results[step]
+                }
+                if pca_by_layer:
+                    fig = plot_variance_explained(
+                        pca_results_by_layer=pca_by_layer,
+                        title=f"Variance Explained at Step {step}",
+                        max_components=max_components,
+                    )
+                    plots[f"variance_explained_step_{step}"] = fig
+
+            # By layer (for each layer, show across steps)
+            for layer_name in self.layer_names:
+                pca_by_step = {
+                    step: self._pca_results[step][layer_name]
+                    for step in self.get_steps()
+                    if layer_name in self._pca_results[step]
+                }
+                if pca_by_step:
+                    fig = plot_variance_explained(
+                        pca_results_by_step=pca_by_step,
+                        title=f"Variance Explained: {layer_name} Over Training",
+                        max_components=max_components,
+                    )
+                    plots[f"variance_explained_{layer_name}"] = fig
+
+        # Cumulative variance plots
+        if self._pca_results:
+            # By step
+            for step in self.get_steps():
+                pca_by_layer = {
+                    layer_name: self._pca_results[step][layer_name]
+                    for layer_name in self.layer_names
+                    if layer_name in self._pca_results[step]
+                }
+                if pca_by_layer:
+                    fig = plot_cumulative_variance_explained(
+                        pca_results_by_layer=pca_by_layer,
+                        title=f"Cumulative Variance Explained at Step {step}",
+                        max_components=max_components,
+                        thresholds=self.variance_thresholds,
+                    )
+                    plots[f"cumulative_variance_step_{step}"] = fig
+
+            # By layer
+            for layer_name in self.layer_names:
+                pca_by_step = {
+                    step: self._pca_results[step][layer_name]
+                    for step in self.get_steps()
+                    if layer_name in self._pca_results[step]
+                }
+                if pca_by_step:
+                    fig = plot_cumulative_variance_explained(
+                        pca_results_by_step=pca_by_step,
+                        title=f"Cumulative Variance Explained: {layer_name} Over Training",
+                        max_components=max_components,
+                        thresholds=self.variance_thresholds,
+                    )
+                    plots[f"cumulative_variance_{layer_name}"] = fig
+
+        # Components required for thresholds over training
+        if self._variance_threshold_results:
+            fig = plot_components_for_variance_threshold(
+                self._variance_threshold_results,
+                title="Components Required for Variance Thresholds",
+            )
+            plots["components_for_thresholds"] = fig
+
+        return plots
+
     def get_variance_threshold_summary(self) -> Dict[str, Any]:
         """
         Get summary of variance thresholds across all steps and layers.
@@ -367,7 +524,10 @@ class AnalysisTracker:
 
     def save_all_plots(self, output_dir: str) -> Dict[str, str]:
         """
-        Save all plots to HTML files in the output directory.
+        Save combined plots to HTML files in the output directory.
+
+        Only saves the combined plots that have both step slider and layer dropdown controls,
+        since these provide access to all the data interactively.
 
         Args:
             output_dir: directory to save plots (will be created if it doesn't exist)
@@ -381,19 +541,33 @@ class AnalysisTracker:
 
         saved_plots = {}
 
-        # Generate and save PCA plots
-        pca_plots = self.generate_pca_plots()
+        # 2D PCA combined (has step slider + layer dropdown)
+        pca_plots = self.generate_pca_plots(by_step=False, by_layer=False, combined=True)
         for name, fig in pca_plots.items():
             filepath = os.path.join(output_dir, f"{name}.html")
             fig.write_html(filepath)
             saved_plots[name] = filepath
 
-        # Generate and save regression plots
-        regression_plots = self.generate_regression_plots()
+        # 3D PCA combined (has step slider + layer dropdown)
+        pca_3d_plots = self.generate_pca_3d_plots(by_step=False, by_layer=False, combined=True)
+        for name, fig in pca_3d_plots.items():
+            filepath = os.path.join(output_dir, f"{name}.html")
+            fig.write_html(filepath)
+            saved_plots[name] = filepath
+
+        # Regression combined (has step slider + layer dropdown)
+        regression_plots = self.generate_regression_plots(by_step=False, by_layer=False, combined=True)
         for name, fig in regression_plots.items():
             filepath = os.path.join(output_dir, f"{name}.html")
             fig.write_html(filepath)
             saved_plots[name] = filepath
+
+        # Variance: components for thresholds over training
+        variance_plots = self.generate_variance_plots()
+        if "components_for_thresholds" in variance_plots:
+            filepath = os.path.join(output_dir, "components_for_thresholds.html")
+            variance_plots["components_for_thresholds"].write_html(filepath)
+            saved_plots["components_for_thresholds"] = filepath
 
         return saved_plots
 
