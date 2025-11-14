@@ -582,49 +582,34 @@ def plot_simplex_projection_with_step_and_layer(
     fig.data[0].visible = True
     fig.data[1].visible = True
 
-    # Create slider for steps
-    slider_steps = []
-    for step_idx, step in enumerate(steps_sorted):
-        visible_flags = []
-        for s_idx in range(len(steps_sorted)):
-            for l_idx in range(len(layers_sorted)):
-                # Each (step, layer) has 2 traces
-                # Show only traces for this step with the first layer
-                visible_flags.append(s_idx == step_idx and l_idx == 0)
-                visible_flags.append(s_idx == step_idx and l_idx == 0)
-
-        step_dict = {
-            "method": "update",
-            "args": [
-                {"visible": visible_flags},
-                {"title": f"{title} (Step {step}, {layers_sorted[0]})"},
-            ],
-            "label": str(step),
-        }
-        slider_steps.append(step_dict)
-
-    # Create dropdown for layers
-    buttons = []
+    # Create slider steps for each layer
+    # Each layer gets its own set of slider steps
+    # Note: each (step, layer) has 2 traces (true and predicted)
+    sliders_for_layers = []
     for layer_idx, layer_name in enumerate(layers_sorted):
-        visible_flags = []
-        for s_idx in range(len(steps_sorted)):
-            for l_idx in range(len(layers_sorted)):
-                # Show only traces for the first step with this layer
-                visible_flags.append(s_idx == 0 and l_idx == layer_idx)
-                visible_flags.append(s_idx == 0 and l_idx == layer_idx)
+        slider_steps = []
+        for step_idx, step in enumerate(steps_sorted):
+            # When we select a step, show only this step for the current layer
+            visible_flags = []
+            for s_idx in range(len(steps_sorted)):
+                for l_idx in range(len(layers_sorted)):
+                    # Each (step, layer) has 2 traces (true and predicted)
+                    # Show only the traces for this step and this layer
+                    is_visible = (s_idx == step_idx and l_idx == layer_idx)
+                    visible_flags.append(is_visible)
+                    visible_flags.append(is_visible)
 
-        button_dict = {
-            "method": "update",
-            "args": [
-                {"visible": visible_flags},
-                {"title": f"{title} (Step {steps_sorted[0]}, {layer_name})"},
-            ],
-            "label": layer_name,
-        }
-        buttons.append(button_dict)
+            step_dict = {
+                "method": "update",
+                "args": [
+                    {"visible": visible_flags},
+                    {"title": f"{title} (Step {step}, {layer_name})"},
+                ],
+                "label": str(step),
+            }
+            slider_steps.append(step_dict)
 
-    sliders = [
-        {
+        sliders_for_layers.append({
             "active": 0,
             "yanchor": "top",
             "y": -0.1,
@@ -634,11 +619,34 @@ def plot_simplex_projection_with_step_and_layer(
             "len": 0.9,
             "x": 0.05,
             "steps": slider_steps,
-        }
-    ]
+        })
 
+    # Create dropdown for layers
+    buttons = []
+    for layer_idx, layer_name in enumerate(layers_sorted):
+        # When we select a layer, show it for the first step and switch to this layer's slider
+        visible_flags = []
+        for s_idx in range(len(steps_sorted)):
+            for l_idx in range(len(layers_sorted)):
+                # Show only traces for the first step with this layer
+                is_visible = (s_idx == 0 and l_idx == layer_idx)
+                visible_flags.append(is_visible)
+                visible_flags.append(is_visible)
+
+        button_dict = {
+            "method": "update",
+            "args": [
+                {"visible": visible_flags},
+                {"title": f"{title} (Step {steps_sorted[0]}, {layer_name})"},
+                {"sliders": [sliders_for_layers[layer_idx]]},  # Switch to this layer's slider
+            ],
+            "label": layer_name,
+        }
+        buttons.append(button_dict)
+
+    # Start with the first layer's slider
     fig.update_layout(
-        sliders=sliders,
+        sliders=[sliders_for_layers[0]],
         updatemenus=[
             {
                 "buttons": buttons,

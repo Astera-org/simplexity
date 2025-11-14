@@ -592,31 +592,45 @@ def plot_pca_2d_with_step_and_layer(
     # Make first trace visible
     fig.data[0].visible = True
 
-    # Create slider for steps
-    slider_steps = []
-    for step_idx, step in enumerate(steps_sorted):
-        # When we select a step, show only the first layer for that step
-        visible_flags = []
-        for s_idx, s in enumerate(steps_sorted):
-            for l_idx, layer in enumerate(layers_sorted):
-                trace_idx = s_idx * len(layers_sorted) + l_idx
-                # Show only traces for this step with the first layer
-                visible_flags.append(s_idx == step_idx and l_idx == 0)
+    # Create slider steps for each layer
+    # Each layer gets its own set of slider steps
+    sliders_for_layers = []
+    for layer_idx, layer_name in enumerate(layers_sorted):
+        slider_steps = []
+        for step_idx, step in enumerate(steps_sorted):
+            # When we select a step, show only this step for the current layer
+            visible_flags = []
+            for s_idx, s in enumerate(steps_sorted):
+                for l_idx, layer in enumerate(layers_sorted):
+                    # Show only the trace for this step and this layer
+                    visible_flags.append(s_idx == step_idx and l_idx == layer_idx)
 
-        step_dict = {
-            "method": "update",
-            "args": [
-                {"visible": visible_flags},
-                {"title": f"{title} (Step {step}, {layers_sorted[0]})"},
-            ],
-            "label": str(step),
-        }
-        slider_steps.append(step_dict)
+            step_dict = {
+                "method": "update",
+                "args": [
+                    {"visible": visible_flags},
+                    {"title": f"{title} (Step {step}, {layer_name})"},
+                ],
+                "label": str(step),
+            }
+            slider_steps.append(step_dict)
+
+        sliders_for_layers.append({
+            "active": 0,
+            "yanchor": "top",
+            "y": -0.1,
+            "xanchor": "left",
+            "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
+            "pad": {"b": 10, "t": 50},
+            "len": 0.9,
+            "x": 0.05,
+            "steps": slider_steps,
+        })
 
     # Create dropdown for layers
     buttons = []
     for layer_idx, layer_name in enumerate(layers_sorted):
-        # When we select a layer, show it for the first step
+        # When we select a layer, show it for the first step and switch to this layer's slider
         visible_flags = []
         for s_idx, s in enumerate(steps_sorted):
             for l_idx, layer in enumerate(layers_sorted):
@@ -628,27 +642,15 @@ def plot_pca_2d_with_step_and_layer(
             "args": [
                 {"visible": visible_flags},
                 {"title": f"{title} (Step {steps_sorted[0]}, {layer_name})"},
+                {"sliders": [sliders_for_layers[layer_idx]]},  # Switch to this layer's slider
             ],
             "label": layer_name,
         }
         buttons.append(button_dict)
 
-    sliders = [
-        {
-            "active": 0,
-            "yanchor": "top",
-            "y": -0.1,
-            "xanchor": "left",
-            "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
-            "pad": {"b": 10, "t": 50},
-            "len": 0.9,
-            "x": 0.05,
-            "steps": slider_steps,
-        }
-    ]
-
+    # Start with the first layer's slider
     fig.update_layout(
-        sliders=sliders,
+        sliders=[sliders_for_layers[0]],
         updatemenus=[
             {
                 "buttons": buttons,
@@ -923,56 +925,69 @@ def plot_pca_3d_with_step_and_layer(
     # Make first trace visible
     fig.data[0].visible = True
 
-    # Create slider steps (for training steps)
-    slider_steps = []
-    for i, step in enumerate(steps_sorted):
-        # For each step, show all layers for that step
-        visibility = []
-        for s in steps_sorted:
-            for _ in layers_sorted:
-                visibility.append(s == step)
+    # Create slider steps for each layer
+    # Each layer gets its own set of slider steps
+    sliders_for_layers = []
+    for layer_idx, layer_name in enumerate(layers_sorted):
+        slider_steps = []
+        for step_idx, step in enumerate(steps_sorted):
+            # When we select a step, show only this step for the current layer
+            visible_flags = []
+            for s_idx, s in enumerate(steps_sorted):
+                for l_idx, layer in enumerate(layers_sorted):
+                    if layer not in pca_results_by_step_and_layer[s]:
+                        continue
+                    # Show only the trace for this step and this layer
+                    visible_flags.append(s_idx == step_idx and l_idx == layer_idx)
 
-        step_dict = {
-            "method": "update",
-            "args": [{"visible": visibility}],
-            "label": str(step),
-        }
-        slider_steps.append(step_dict)
+            step_dict = {
+                "method": "update",
+                "args": [
+                    {"visible": visible_flags},
+                    {"title": f"{title} (Step {step}, {layer_name})"},
+                ],
+                "label": str(step),
+            }
+            slider_steps.append(step_dict)
+
+        sliders_for_layers.append({
+            "active": 0,
+            "yanchor": "top",
+            "y": -0.1,
+            "xanchor": "left",
+            "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
+            "pad": {"b": 10, "t": 50},
+            "len": 0.9,
+            "x": 0.05,
+            "steps": slider_steps,
+        })
 
     # Create dropdown buttons (for layers)
     dropdown_buttons = []
-    for i, layer_name in enumerate(layers_sorted):
-        # For each layer, show all steps for that layer
-        visibility = []
-        trace_idx = 0
-        for step in steps_sorted:
-            for layer in layers_sorted:
-                if layer not in pca_results_by_step_and_layer[step]:
+    for layer_idx, layer_name in enumerate(layers_sorted):
+        # When we select a layer, show it for the first step and switch to this layer's slider
+        visible_flags = []
+        for s_idx, s in enumerate(steps_sorted):
+            for l_idx, layer in enumerate(layers_sorted):
+                if layer not in pca_results_by_step_and_layer[s]:
                     continue
-                visibility.append(layer == layer_name)
-                trace_idx += 1
+                # Show only traces for the first step with this layer
+                visible_flags.append(s_idx == 0 and l_idx == layer_idx)
 
         button_dict = {
             "method": "update",
-            "args": [{"visible": visibility}],
+            "args": [
+                {"visible": visible_flags},
+                {"title": f"{title} (Step {steps_sorted[0]}, {layer_name})"},
+                {"sliders": [sliders_for_layers[layer_idx]]},  # Switch to this layer's slider
+            ],
             "label": layer_name,
         }
         dropdown_buttons.append(button_dict)
 
+    # Start with the first layer's slider
     fig.update_layout(
-        sliders=[
-            {
-                "active": 0,
-                "yanchor": "top",
-                "y": -0.1,
-                "xanchor": "left",
-                "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
-                "pad": {"b": 10, "t": 50},
-                "len": 0.9,
-                "x": 0.05,
-                "steps": slider_steps,
-            }
-        ],
+        sliders=[sliders_for_layers[0]],
         updatemenus=[
             {
                 "buttons": dropdown_buttons,
@@ -1086,18 +1101,18 @@ def plot_cumulative_variance_explained(
     Create plot showing cumulative variance explained by principal components.
 
     The plot shows cumulative variance (y-axis) vs number of components (x-axis).
-    Vertical dashed lines mark the component positions where variance thresholds are reached.
+    Horizontal dashed lines mark the variance threshold levels (e.g., 90%, 95%, 99%).
 
     Args:
         pca_results_by_step: optional dict mapping step -> PCA result
         pca_results_by_layer: optional dict mapping layer_name -> PCA result
         title: plot title
         max_components: maximum number of components to display
-        thresholds: optional list of variance thresholds to mark with vertical lines
+        thresholds: optional list of variance thresholds to mark with horizontal lines
                    (e.g., [0.8, 0.9, 0.95])
 
     Returns:
-        Plotly Figure showing cumulative variance explained with threshold markers
+        Plotly Figure showing cumulative variance explained with horizontal threshold lines
     """
     if pca_results_by_step is None and pca_results_by_layer is None:
         raise ValueError("Must provide either pca_results_by_step or pca_results_by_layer")
@@ -1154,27 +1169,16 @@ def plot_cumulative_variance_explained(
                 )
             )
 
-    # Add vertical lines at component positions where thresholds are reached
-    if thresholds is not None and all_cumsums:
+    # Add horizontal lines at variance threshold levels
+    if thresholds is not None:
         for threshold in thresholds:
-            # Find where each curve crosses this threshold
-            crossings = []
-            for cumsum in all_cumsums:
-                # Find first component where cumsum >= threshold
-                crossing_idx = np.where(cumsum >= threshold)[0]
-                if len(crossing_idx) > 0:
-                    n_components = crossing_idx[0] + 1  # +1 because we use 1-based indexing
-                    crossings.append(n_components)
-
-            # Draw vertical line for each crossing point
-            for n_comp in set(crossings):  # Use set to avoid duplicate lines
-                fig.add_vline(
-                    x=n_comp,
-                    line_dash="dash",
-                    line_color="gray",
-                    annotation_text=f"{threshold:.0%}",
-                    annotation_position="top",
-                )
+            fig.add_hline(
+                y=threshold,
+                line_dash="dash",
+                line_color="gray",
+                annotation_text=f"{threshold:.0%}",
+                annotation_position="right",
+            )
 
     fig.update_layout(
         title=title,

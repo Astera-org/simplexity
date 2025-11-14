@@ -534,14 +534,21 @@ class AnalysisTracker:
         """
         Save combined plots to HTML files in the output directory.
 
-        Only saves the combined plots that have both step slider and layer dropdown controls,
-        since these provide access to all the data interactively.
+        Saves the interactive combined plots with step slider and layer dropdown controls,
+        plus variance-related plots with threshold markers.
 
         Args:
             output_dir: directory to save plots (will be created if it doesn't exist)
 
         Returns:
             dict mapping plot name -> file path
+
+        Saved plots:
+            - pca_combined: 2D PCA with step slider + layer dropdown
+            - pca_3d_combined: 3D PCA with step slider + layer dropdown
+            - regression_combined: Simplex projection with step slider + layer dropdown
+            - components_for_thresholds: Components needed for variance thresholds over training
+            - cumulative_variance_*: Cumulative variance plots with horizontal threshold lines
         """
         import os
 
@@ -570,12 +577,22 @@ class AnalysisTracker:
             fig.write_html(filepath)
             saved_plots[name] = filepath
 
-        # Variance: components for thresholds over training
+        # Variance plots
         variance_plots = self.generate_variance_plots()
+
+        # Components for thresholds over training
         if "components_for_thresholds" in variance_plots:
             filepath = os.path.join(output_dir, "components_for_thresholds.html")
             variance_plots["components_for_thresholds"].write_html(filepath)
             saved_plots["components_for_thresholds"] = filepath
+
+        # Cumulative variance explained plots (with horizontal threshold lines)
+        # Only save by-layer plots (showing evolution over training), not by-step plots
+        for name, fig in variance_plots.items():
+            if name.startswith("cumulative_variance_") and not name.startswith("cumulative_variance_step_"):
+                filepath = os.path.join(output_dir, f"{name}.html")
+                fig.write_html(filepath)
+                saved_plots[name] = filepath
 
         return saved_plots
 

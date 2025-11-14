@@ -37,10 +37,12 @@ for step in validation_steps:
         activations_by_layer=activations,
     )
 
-# Save combined plots (only 4 plots with full interactivity)
+# Save combined plots with full interactivity plus variance analysis
 saved_plots = tracker.save_all_plots(output_dir="analysis_results/")
-# Saves: pca_combined, pca_3d_combined, regression_combined, components_for_thresholds
-# These plots have sliders/dropdowns for all steps and layers
+# Saves: pca_combined, pca_3d_combined, regression_combined,
+#        components_for_thresholds, cumulative_variance_{layer}
+# Interactive plots have sliders/dropdowns for all steps and layers
+# Cumulative variance plots show horizontal lines at threshold levels (80%, 90%, 95%, 99%)
 
 # Example: log to MLflow
 # for plot_name, plot_path in saved_plots.items():
@@ -334,11 +336,15 @@ if __name__ == "__main__":
 
 ## Saved Plots
 
-By default, `tracker.save_all_plots()` saves **only 4 combined plots** with full interactivity:
+By default, `tracker.save_all_plots()` saves combined plots with full interactivity plus variance analysis:
 
+**Combined Interactive Plots:**
 - `pca_combined.html` - 2D PCA with step slider and layer dropdown
 - `pca_3d_combined.html` - 3D PCA with step slider and layer dropdown
 - `regression_combined.html` - Simplex projection with step slider and layer dropdown
+
+**Variance Analysis Plots:**
 - `components_for_thresholds.html` - Components needed for variance thresholds over training
+- `cumulative_variance_{layer}.html` - Cumulative variance explained with horizontal threshold lines (one per layer, showing evolution over training)
 
 All plots are fully interactive - zoom, pan, rotate (3D), hover for details, and use sliders/dropdowns to navigate through all steps and layers.
