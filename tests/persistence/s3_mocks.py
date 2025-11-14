@@ -1,3 +1,5 @@
+"""Mock S3 client and paginator for testing."""
+
 import shutil
 import tempfile
 from collections.abc import Iterable, Mapping
@@ -5,13 +7,13 @@ from pathlib import Path
 from typing import Any
 
 
-class MockS3Paginator:
+class MockS3Paginator:  # pylint: disable=too-few-public-methods
     """Local filesystem implementation of S3 paginator for testing."""
 
     def __init__(self, root_dir: Path):
         self.root_dir = root_dir
 
-    def paginate(self, Bucket: str, Prefix: str) -> Iterable[Mapping[str, Any]]:
+    def paginate(self, Bucket: str, Prefix: str) -> Iterable[Mapping[str, Any]]:  # pylint: disable=invalid-name
         """Paginate over the objects in an S3 bucket."""
         bucket_dir = self.root_dir / Bucket
         bucket_dir.mkdir(exist_ok=True)
@@ -39,7 +41,7 @@ class MockS3Client:
             raise RuntimeError(f"File not found: {object_name}")
         shutil.copy(source_path, file_name)
 
-    def get_paginator(self, operation_name: str) -> MockS3Paginator:
+    def get_paginator(self, operation_name: str) -> MockS3Paginator:  # pylint: disable=unused-argument
         """Get a paginator for the given operation."""
         return MockS3Paginator(self.root_dir)
 
@@ -47,7 +49,7 @@ class MockS3Client:
 class MockBoto3Session:
     """Mock Boto3 Session for testing."""
 
-    def __init__(self, profile_name: str | None = None):
+    def __init__(self, profile_name: str | None = None):  # pylint: disable=unused-argument
         self._root_dir: Path | None = None
         self._s3_client: MockS3Client | None = None
 

@@ -1,3 +1,5 @@
+"""Test the Queue data structure."""
+
 import chex
 import equinox as eqx
 import jax
@@ -7,7 +9,9 @@ import pytest
 from simplexity.data_structures.queue import Queue
 
 
-class Element(eqx.Module):
+class Element(eqx.Module):  # pylint: disable=too-few-public-methods
+    """An element for the queue."""
+
     x: jax.Array
     y: jax.Array
     z: jax.Array
@@ -15,16 +19,19 @@ class Element(eqx.Module):
 
 @pytest.fixture
 def default_element() -> Element:
+    """A default element for the queue."""
     return Element(x=jnp.zeros(4), y=jnp.zeros((2, 3)), z=jnp.array(0))
 
 
 @pytest.fixture
 def queue(default_element: Element) -> Queue:
+    """A queue for the test."""
     return Queue(max_size=2, default_element=default_element)
 
 
 @pytest.fixture
 def elements() -> list[Element]:
+    """A list of elements for the test."""
     num_elements = 3
     key = jax.random.PRNGKey(0)
     keys = jax.random.split(key, 3 * num_elements)

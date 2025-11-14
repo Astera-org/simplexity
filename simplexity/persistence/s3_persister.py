@@ -1,3 +1,5 @@
+"""S3 persister for predictive models."""
+
 import configparser
 import tempfile
 from collections.abc import Iterable, Mapping
@@ -11,8 +13,6 @@ from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
 from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
-from simplexity.persistence.model_persister import ModelPersister
-from simplexity.predictive_models.predictive_model import PredictiveModel
 from simplexity.predictive_models.types import ModelFramework
 
 
@@ -23,9 +23,9 @@ class S3Paginator(Protocol):
     Since boto3 does not currently support type checking: https://github.com/boto/boto3/issues/1055
     """
 
-    def paginate(self, Bucket: str, Prefix: str) -> Iterable[Mapping[str, Any]]:
+    def paginate(self, Bucket: str, Prefix: str) -> Iterable[Mapping[str, Any]]:  # pylint: disable=invalid-name
         """Paginate over the objects in an S3 bucket."""
-        ...
+        ...  # pylint: disable=unnecessary-ellipsis
 
 
 class S3Client(Protocol):
@@ -37,31 +37,37 @@ class S3Client(Protocol):
 
     def upload_file(self, file_name: str, bucket: str, object_name: str) -> None:
         """Upload a file to S3."""
-        ...
 
     def download_file(self, bucket: str, object_name: str, file_name: str) -> None:
         """Download a file from S3."""
-        ...
 
     def get_paginator(self, operation_name: str) -> S3Paginator:
         """Get a paginator for the given operation."""
-        ...
+        ...  # pylint: disable=unnecessary-ellipsis
 
 
-class S3Persister(ModelPersister):
+class S3Persister:
     """Persists a model to an S3 bucket."""
 
-    bucket: str
-    prefix: str
-    s3_client: S3Client
-    temp_dir: tempfile.TemporaryDirectory
-    local_persister: LocalPersister
+    def __init__(
+        self,
+        bucket: str,
+        prefix: str,
+        s3_client: S3Client,
+        temp_dir: tempfile.TemporaryDirectory,
+        local_persister: LocalPersister,
+    ):
+        self.bucket = bucket
+        self.prefix = prefix
+        self.s3_client = s3_client
+        self.temp_dir = temp_dir
+        self.local_persister = local_persister
 
     @classmethod
     def from_config(
         cls,
         prefix: str,
-        model_framework: ModelFramework = ModelFramework.Equinox,
+        model_framework: ModelFramework = ModelFramework.EQUINOX,
         config_filename: str = "config.ini",
     ) -> "S3Persister":
         """Creates a new S3Persister from configuration parameters.
@@ -79,11 +85,11 @@ class S3Persister(ModelPersister):
         session = boto3.session.Session(profile_name=profile_name)
         s3_client = session.client("s3")
         temp_dir = tempfile.TemporaryDirectory()
-        if model_framework == ModelFramework.Equinox:
+        if model_framework == ModelFramework.EQUINOX:
             local_persister = LocalEquinoxPersister(directory=temp_dir.name)
-        elif model_framework == ModelFramework.Penzai:
+        elif model_framework == ModelFramework.PENZAI:
             local_persister = LocalPenzaiPersister(directory=temp_dir.name)
-        elif model_framework == ModelFramework.Pytorch:
+        elif model_framework == ModelFramework.PYTORCH:
             local_persister = LocalPytorchPersister(directory=temp_dir.name)
         else:
             raise ValueError(f"Unsupported model framework: {model_framework}")
@@ -100,13 +106,13 @@ class S3Persister(ModelPersister):
         """Cleans up the temporary directory."""
         self.temp_dir.cleanup()
 
-    def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
+    def save_weights(self, model: Any, step: int = 0) -> None:
         """Saves a model to S3."""
         self.local_persister.save_weights(model, step)
         directory = self.local_persister.directory / str(step)
         self._upload_local_directory(directory)
 
-    def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
+    def load_weights(self, model: Any, step: int = 0) -> Any:
         """Loads a model from S3."""
         self._download_s3_objects(step)
         return self.local_persister.load_weights(model, step)

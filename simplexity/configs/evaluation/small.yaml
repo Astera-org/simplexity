@@ -1,5 +1,0 @@
-seed: ${seed}
-sequence_len: 32
-batch_size: 4
-num_steps: 10
-log_every:

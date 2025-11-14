@@ -1,5 +1,7 @@
+"""Generative process interface."""
+
 from abc import abstractmethod
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import chex
 import equinox as eqx
@@ -8,25 +10,22 @@ import jax
 State = TypeVar("State")
 
 
-class GenerativeProcess(eqx.Module, Generic[State]):
+class GenerativeProcess[State](eqx.Module):
     """A generative process is a probabilistic model that can be used to generate data."""
 
     @property
     @abstractmethod
     def vocab_size(self) -> int:
         """The number of observations that can be emitted by the generative process."""
-        ...
 
     @property
     @abstractmethod
     def initial_state(self) -> State:
         """The initial state of the generative process."""
-        ...
 
     @abstractmethod
     def emit_observation(self, state: State, key: chex.PRNGKey) -> chex.Array:
         """Emit an observation based on the state of the generative process."""
-        ...
 
     @abstractmethod
     def transition_states(self, state: State, obs: chex.Array) -> State:
@@ -36,7 +35,6 @@ class GenerativeProcess(eqx.Module, Generic[State]):
         the returned state represents a posterior distribution over hidden states
         conditioned on the observation.
         """
-        ...
 
     @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
     def generate(
@@ -78,24 +76,15 @@ class GenerativeProcess(eqx.Module, Generic[State]):
     @abstractmethod
     def observation_probability_distribution(self, state: State) -> jax.Array:
         """Compute the probability distribution of the observations that can be emitted by the process."""
-        ...
 
     @abstractmethod
     def log_observation_probability_distribution(self, log_belief_state: State) -> jax.Array:
         """Compute the log probability distribution of the observations that can be emitted by the process."""
-        ...
 
     @abstractmethod
     def probability(self, observations: jax.Array) -> jax.Array:
         """Compute the probability of the process generating a sequence of observations."""
-        ...
 
     @abstractmethod
     def log_probability(self, observations: jax.Array) -> jax.Array:
         """Compute the log probability of the process generating a sequence of observations."""
-        ...
-
-
-def is_generative_process_target(target: str) -> bool:
-    """Check if the target is a generative process target."""
-    return target.startswith("simplexity.generative_processes.")

@@ -1,13 +1,20 @@
+"""Torch generator for generative processes."""
+
+# pylint: disable-all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 import jax
+import torch
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.generator import generate_data_batch as generate_jax_data_batch
 from simplexity.utils.pytorch_utils import jax_to_torch
-
-try:
-    import torch
-except ImportError as e:
-    raise ImportError("To use PyTorch support install the torch extra:\nuv sync --extra pytorch") from e
 
 
 def generate_data_batch(

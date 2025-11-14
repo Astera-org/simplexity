@@ -1,21 +1,24 @@
+"""Test the local pytorch persister."""
+
 from pathlib import Path
 
 import torch
-import torch.nn as nn
+from torch.nn import GRU, Embedding, Linear, Module
 
 from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
 
 
-class SimpleLM(nn.Module):
+class SimpleLM(Module):
     """A simple language model for testing."""
 
     def __init__(self, vocab_size: int, embed_size: int = 64, hidden_size: int = 64):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, embed_size)
-        self.gru = nn.GRU(embed_size, hidden_size, batch_first=True)
-        self.output = nn.Linear(hidden_size, vocab_size)
+        self.embedding = Embedding(vocab_size, embed_size)
+        self.gru = GRU(embed_size, hidden_size, batch_first=True)
+        self.output = Linear(hidden_size, vocab_size)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass."""
         embedded = self.embedding(x)
         gru_out, _ = self.gru(embedded)
         logits = self.output(gru_out)
@@ -23,6 +26,7 @@ class SimpleLM(nn.Module):
 
 
 def get_model(seed: int) -> SimpleLM:
+    """Get a model for testing."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(seed)
     vocab_size = 2  # Binary vocab
@@ -30,7 +34,7 @@ def get_model(seed: int) -> SimpleLM:
     return model.to(device)
 
 
-def models_equal(model1: nn.Module, model2: nn.Module) -> bool:
+def models_equal(model1: Module, model2: Module) -> bool:
     """Check if two PyTorch models have identical parameters."""
     params1 = dict(model1.named_parameters())
     params2 = dict(model2.named_parameters())
@@ -42,6 +46,7 @@ def models_equal(model1: nn.Module, model2: nn.Module) -> bool:
 
 
 def test_local_persister(tmp_path: Path):
+    """Test the local pytorch persister."""
     directory = tmp_path
     filename = "test_model.pt"
     persister = LocalPytorchPersister(directory, filename)

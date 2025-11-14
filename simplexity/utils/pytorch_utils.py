@@ -10,13 +10,11 @@ import warnings
 import jax
 import jax.numpy as jnp
 import numpy as np
+import torch
 from jax import dlpack as jax_dlpack
 from torch.utils import dlpack as torch_dlpack
 
-try:
-    import torch
-except ImportError as e:
-    raise ImportError("To use PyTorch support install the torch extra:\nuv sync --extra pytorch") from e
+from simplexity.exceptions import DeviceResolutionError
 
 
 def jax_to_torch(jax_array: jax.Array) -> torch.Tensor:
@@ -30,15 +28,12 @@ def jax_to_torch(jax_array: jax.Array) -> torch.Tensor:
 
     Returns:
         PyTorch tensor
-
-    Raises:
-        ImportError: If JAX or PyTorch is not available
     """
     try:
         torch_tensor = torch_dlpack.from_dlpack(jax_array)
         return torch_tensor
 
-    except Exception as e:
+    except TypeError as e:
         warnings.warn(
             f"DLPack conversion failed ({e}), falling back to numpy. This may cause GPU-to-CPU transfer.",
             UserWarning,
@@ -60,16 +55,13 @@ def torch_to_jax(torch_tensor: torch.Tensor) -> jax.Array:
 
     Returns:
         JAX array
-
-    Raises:
-        ImportError: If JAX or PyTorch is not available
     """
     try:
         dlpack_tensor = torch_dlpack.to_dlpack(torch_tensor)  # type: ignore
         jax_array = jax_dlpack.from_dlpack(dlpack_tensor)
         return jax_array
 
-    except Exception as e:
+    except TypeError as e:
         warnings.warn(
             f"DLPack conversion failed ({e}), falling back to numpy. This may cause GPU-to-CPU transfer.",
             UserWarning,
@@ -93,14 +85,14 @@ def resolve_device(device_spec: str | None = "auto") -> str:
     if device_spec == "cuda":
         if torch.cuda.is_available():
             return "cuda"
-        raise RuntimeError("CUDA requested but CUDA is not available")
+        raise DeviceResolutionError("CUDA requested but CUDA is not available")
 
     if device_spec == "mps":
         if torch.backends.mps.is_available():
             return "mps"
-        raise RuntimeError("MPS requested but MPS is not available")
+        raise DeviceResolutionError("MPS requested but MPS is not available")
 
     if device_spec == "cpu":
         return "cpu"
 
-    raise ValueError(f"Unknown device specification: {device_spec}")
+    raise DeviceResolutionError(f"Unknown device specification: {device_spec}")

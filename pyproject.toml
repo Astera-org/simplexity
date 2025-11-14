@@ -12,20 +12,14 @@ description = "Computational Mechanics of sequence prediction models."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "boto3>=1.37.24",
     "chex",
     "dotenv",
     "equinox>=0.13.0",
     "hydra-core",
     "hydra-optuna-sweeper",
     "jax>=0.8.0",
-    "jupyter",
     "matplotlib",
     "mlflow>=3.0.0",
-    "optax",
-    "orbax-checkpoint",
-    "pandas",
-    "penzai",
     "plotly",
     "torch>=2.9.0",
     "transformer-lens>=2.15.4",
@@ -33,7 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-aws = ["boto3"]
+aws = ["boto3>=1.37.24"] # Deprecated S3 Persister.
 cuda = [
     "jax[cuda12_pip]",
     "jax-cuda12-plugin>=0.8.0",
@@ -51,15 +45,19 @@ cuda = [
 dev = [
     "diff-cover",
     "jaxtyping",
-    "nbqa",
+    "pylint",
+    "pylint-per-file-ignores",
     "pyright",
     "pytest",
     "pytest-cov",
     "pytest-mock",
     "ruff",
 ]
+penzai = [
+    "orbax-checkpoint",
+    "penzai",
+] # Deprecated: penzai is no longer maintained.
 mac = ["jax-metal"]
-pytorch = ["torch", "transformer-lens"]
 
 [tool.ruff]
 line-length = 120
@@ -90,6 +88,21 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "test_*.py" = ["D"]
 "*.ipynb" = ["D"]
+
+[tool.pylint.MASTER]
+# Add project root to Python path so pylint can resolve simplexity imports
+init-hook = 'import sys; import os; sys.path.insert(0, os.path.abspath("."))'
+load-plugins = ["pylint_per_file_ignores"]
+
+[tool.pylint."MESSAGES CONTROL"]
+# Disable line-too-long check since ruff handles line length (120 chars)
+disable = ["line-too-long", "duplicate-code"]
+per-file-ignores = ["tests/**:redefined-outer-name"]
+
+[tool.pylint.IMPORTS]
+# Ignore simplexity module to prevent astroid crashes during import resolution
+# This is a known bug: https://github.com/pylint-dev/pylint/issues/10185
+ignored-modules = ["simplexity"]
 
 [tool.pyright]
 typeCheckingMode = "standard"

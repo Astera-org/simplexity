@@ -1,3 +1,5 @@
+"""Logger interface for logging to a variety of backends."""
+
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from typing import Any
@@ -16,22 +18,18 @@ class Logger(ABC):
     @abstractmethod
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to the logger."""
-        ...
 
     @abstractmethod
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
         """Log metrics to the logger."""
-        ...
 
     @abstractmethod
     def log_params(self, param_dict: Mapping[str, Any]) -> None:
         """Log params to the logger."""
-        ...
 
     @abstractmethod
     def log_tags(self, tag_dict: Mapping[str, Any]) -> None:
         """Log tags to the logger."""
-        ...
 
     @abstractmethod
     def log_figure(
@@ -41,7 +39,6 @@ class Logger(ABC):
         **kwargs,
     ) -> None:
         """Log a figure to the logger."""
-        ...
 
     @abstractmethod
     def log_image(
@@ -65,7 +62,6 @@ class Logger(ABC):
             Must provide either artifact_file OR both key and step parameters.
             Providing neither or only one of key/step will result in an error.
         """
-        ...
 
     @abstractmethod
     def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
@@ -76,7 +72,6 @@ class Logger(ABC):
             artifact_path: Optional artifact path within the experiment run.
                           If None, uses the filename from local_path.
         """
-        ...
 
     @abstractmethod
     def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
@@ -86,14 +81,7 @@ class Logger(ABC):
             data: Dictionary or list to serialize as JSON
             artifact_name: Name for the artifact (e.g., "results.json")
         """
-        ...
 
     @abstractmethod
     def close(self) -> None:
         """Close the logger."""
-        ...
-
-
-def is_logger_target(target: str) -> bool:
-    """Check if the target is a logger target."""
-    return target.startswith("simplexity.logging.")

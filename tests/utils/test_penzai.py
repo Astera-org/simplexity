@@ -1,3 +1,5 @@
+"""Tests for penzai utilities."""
+
 import dataclasses
 
 import jax
@@ -5,9 +7,9 @@ import pytest
 from penzai import pz
 from penzai.core.variables import UnboundVariableError
 from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
+from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.predictive_models.predictive_model import PredictiveModel
-from simplexity.utils.penzai import (
+from simplexity.utils.penzai_utils import (
     ParamCountNode,
     PenzaiWrapper,
     VariableLabelClass,
@@ -20,6 +22,7 @@ from simplexity.utils.penzai import (
 
 
 def test_penzai_wrapper():
+    """Test PenzaiWrapper."""
     vocab_size = 4
     batch_size = 2
     seq_length = 16
@@ -47,6 +50,7 @@ def test_penzai_wrapper():
 
 
 def test_use_penzai_model():
+    """Test use_penzai_model decorator."""
     vocab_size = 4
     batch_size = 2
     seq_length = 16
@@ -69,7 +73,7 @@ def test_use_penzai_model():
     assert isinstance(inputs, jax.Array)
 
     @use_penzai_model
-    def f(model: PredictiveModel, inputs: jax.Array) -> jax.Array:
+    def f(model: PenzaiModel, inputs: jax.Array) -> jax.Array:
         return model(inputs)
 
     outputs = f(model=transformer, inputs=inputs)
@@ -78,6 +82,7 @@ def test_use_penzai_model():
 
 
 def test_get_parameter_count_tree():
+    """Test get_parameter_count_tree function."""
     config = LlamalikeTransformerConfig(
         embedding_dim=2,
         num_decoder_blocks=3,
@@ -315,15 +320,17 @@ DECONSTRUCTED_VARIABLES = {
 
 
 def test_deconstruct_variables():
+    """Test deconstruct_variables function."""
     base_rng = jax.random.PRNGKey(0)
     transformer = build_llamalike_transformer(CONFIG, init_base_rng=base_rng)
     _, variables = pz.unbind_variables(transformer, freeze=True)
     actual = deconstruct_variables(variables)
-    for key in DECONSTRUCTED_VARIABLES:
-        assert actual[key] == DECONSTRUCTED_VARIABLES[key]
+    for key, value in DECONSTRUCTED_VARIABLES.items():
+        assert actual[key] == value
 
 
 def test_reconstruct_variables():
+    """Test reconstruct_variables function."""
     sequences = jax.random.randint(jax.random.PRNGKey(0), (4, 16), 0, CONFIG.vocab_size)
     inputs = pz.nx.wrap(sequences, "batch", "seq")
     unbound_transformer = build_llamalike_transformer(CONFIG)

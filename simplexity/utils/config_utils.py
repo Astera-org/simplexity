@@ -1,4 +1,7 @@
+"""Config utilities."""
+
 import importlib
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -6,7 +9,10 @@ import hydra
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.errors import MissingMandatoryValue
 
+from simplexity.exceptions import ConfigValidationError
+
 TARGET: str = "_target_"
+SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 def get_instance_keys(cfg: DictConfig, *, nested: bool = False) -> list[str]:
@@ -26,12 +32,39 @@ def get_instance_keys(cfg: DictConfig, *, nested: bool = False) -> list[str]:
     return instance_keys
 
 
-def filter_instance_keys(cfg: DictConfig, instance_keys: list[str], filter_fn: Callable[[str], bool]) -> list[str]:
+def _validate(
+    cfg: DictConfig,
+    instance_key: str,
+    validate_fn: Callable[[DictConfig], None] | None,
+    component_name: str | None = None,
+) -> bool:
+    if validate_fn is None:
+        return True
+    config_key = instance_key.rsplit(".", 1)[0]
+    config: DictConfig | None = OmegaConf.select(cfg, config_key, throw_on_missing=True)
+    if config is None:
+        return False
+    try:
+        validate_fn(config)
+    except ConfigValidationError as e:
+        component_prefix = f"[{component_name}] " if component_name else ""
+        SIMPLEXITY_LOGGER.warning("%serror validating config: %s", component_prefix, e)
+        return False
+    return True
+
+
+def filter_instance_keys(
+    cfg: DictConfig,
+    instance_keys: list[str],
+    filter_fn: Callable[[str], bool],
+    validate_fn: Callable[[DictConfig], None] | None = None,
+    component_name: str | None = None,
+) -> list[str]:
     """Filter instance keys by filter function to their targets."""
     filtered_instance_keys: list[str] = []
     for instance_key in instance_keys:
         target = OmegaConf.select(cfg, f"{instance_key}._target_", throw_on_missing=False)
-        if isinstance(target, str) and filter_fn(target):
+        if isinstance(target, str) and filter_fn(target) and _validate(cfg, instance_key, validate_fn, component_name):
             filtered_instance_keys.append(instance_key)
     return filtered_instance_keys
 

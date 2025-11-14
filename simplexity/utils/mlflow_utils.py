@@ -43,7 +43,7 @@ def get_databricks_host() -> str | None:
             raise configparser.NoOptionError("host", "databricks")
 
         host = config["databricks"]["host"]
-        SIMPLEXITY_LOGGER.info(f"[mlflow] databricks host: {host}")
+        SIMPLEXITY_LOGGER.info("[mlflow] databricks host: %s", host)
         return host
     except (configparser.NoSectionError, configparser.NoOptionError) as e:
         warnings.warn(
@@ -79,13 +79,13 @@ def resolve_registry_uri(
     if registry_uri:
         if downgrade_unity_catalog:
             registry_uri = convert_uri(registry_uri)
-        SIMPLEXITY_LOGGER.info(f"[mlflow] registry uri: {registry_uri}")
+        SIMPLEXITY_LOGGER.info("[mlflow] registry uri: %s", registry_uri)
         return registry_uri
 
     if tracking_uri and tracking_uri.startswith("databricks"):
         if downgrade_unity_catalog:
             tracking_uri = convert_uri(tracking_uri)
-        SIMPLEXITY_LOGGER.info(f"[mlflow] registry uri defaulting to tracking uri: {tracking_uri}")
+        SIMPLEXITY_LOGGER.info("[mlflow] registry uri defaulting to tracking uri: %s", tracking_uri)
         return tracking_uri
 
     SIMPLEXITY_LOGGER.info("[mlflow] no registry uri or tracking uri found")
@@ -102,15 +102,17 @@ def get_experiment_id(
         experiment = client.get_experiment_by_name(experiment_name)
         if experiment:
             SIMPLEXITY_LOGGER.info(
-                f"[mlflow] experiment with name '{experiment_name}' already exists with id: {experiment.experiment_id}"
+                "[mlflow] experiment with name '%s' already exists with id: %s",
+                experiment_name,
+                experiment.experiment_id,
             )
             return experiment.experiment_id
         experiment_id = client.create_experiment(experiment_name)
-        SIMPLEXITY_LOGGER.info(f"[mlflow] experiment with name '{experiment_name}' created with id: {experiment_id}")
+        SIMPLEXITY_LOGGER.info("[mlflow] experiment with name '%s' created with id: %s", experiment_name, experiment_id)
         return experiment_id
     active_run = mlflow.active_run()
     if active_run:
-        SIMPLEXITY_LOGGER.info(f"[mlflow] active run exists with experiment id: {active_run.info.experiment_id}")
+        SIMPLEXITY_LOGGER.info("[mlflow] active run exists with experiment id: %s", active_run.info.experiment_id)
         return active_run.info.experiment_id
     raise RuntimeError("No experiment name or active run found")
 
@@ -127,21 +129,23 @@ def get_run_id(
             experiment_ids=[experiment_id], filter_string=f"attributes.run_name = '{run_name}'", max_results=1
         )
         if runs:
-            SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' already exists with id: {runs[0].info.run_id}")
+            SIMPLEXITY_LOGGER.info(
+                "[mlflow] run with name '%s' already exists with id: %s", run_name, runs[0].info.run_id
+            )
             return runs[0].info.run_id
         run: Run = client.create_run(experiment_id=experiment_id, run_name=run_name)
-        SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' created with id: {run.info.run_id}")
+        SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' created with id: %s", run_name, run.info.run_id)
         return run.info.run_id
     active_run = mlflow.active_run()
     if active_run:
-        SIMPLEXITY_LOGGER.info(f"[mlflow] active run exists with id: {active_run.info.run_id}")
+        SIMPLEXITY_LOGGER.info("[mlflow] active run exists with id: %s", active_run.info.run_id)
         if active_run.info.experiment_id != experiment_id:
             raise RuntimeError(
                 f"Active run experiment id {active_run.info.experiment_id} does not match experiment id {experiment_id}"
             )
         return active_run.info.run_id
     run = client.create_run(experiment_id=experiment_id, run_name=run_name)
-    SIMPLEXITY_LOGGER.info(f"[mlflow] run with name '{run_name}' created with id: {run.info.run_id}")
+    SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' created with id: %s", run_name, run.info.run_id)
     return run.info.run_id
 
 
@@ -150,10 +154,10 @@ def maybe_terminate_run(run_id: str, client: MlflowClient | None = None) -> None
     client = mlflow.MlflowClient() if client is None else client
     status = client.get_run(run_id).info.status
     if status not in TERMINAL_STATES:
-        SIMPLEXITY_LOGGER.info(f"[mlflow] terminating run with id: {run_id}")
+        SIMPLEXITY_LOGGER.info("[mlflow] terminating run with id: %s", run_id)
         client.set_terminated(run_id)
     else:
-        SIMPLEXITY_LOGGER.debug(f"[mlflow] run with id: {run_id} is already terminated with status: {status}")
+        SIMPLEXITY_LOGGER.debug("[mlflow] run with id: %s is already terminated with status: %s", run_id, status)
 
 
 __all__ = ["resolve_registry_uri"]

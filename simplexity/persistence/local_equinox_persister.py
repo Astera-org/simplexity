@@ -1,9 +1,10 @@
+"""Local Equinox persister."""
+
 from pathlib import Path
 
 import equinox as eqx
 
 from simplexity.persistence.local_persister import LocalPersister
-from simplexity.predictive_models.predictive_model import PredictiveModel
 
 
 class LocalEquinoxPersister(LocalPersister):
@@ -15,13 +16,13 @@ class LocalEquinoxPersister(LocalPersister):
         self.directory = Path(directory)
         self.filename = filename
 
-    def save_weights(self, model: PredictiveModel, step: int = 0) -> None:
+    def save_weights(self, model: eqx.Module, step: int = 0) -> None:
         """Saves a model to the local filesystem."""
         path = self._get_path(step)
         path.parent.mkdir(parents=True, exist_ok=True)
         eqx.tree_serialise_leaves(path, model)
 
-    def load_weights(self, model: PredictiveModel, step: int = 0) -> PredictiveModel:
+    def load_weights(self, model: eqx.Module, step: int = 0) -> eqx.Module:
         """Loads a model from the local filesystem."""
         path = self._get_path(step)
         return eqx.tree_deserialise_leaves(path, model)

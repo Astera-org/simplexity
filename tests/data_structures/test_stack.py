@@ -1,3 +1,5 @@
+"""Test the Stack data structure."""
+
 import chex
 import equinox as eqx
 import jax
@@ -7,7 +9,9 @@ import pytest
 from simplexity.data_structures.stack import Stack
 
 
-class Element(eqx.Module):
+class Element(eqx.Module):  # pylint: disable=too-few-public-methods
+    """An element stored in the stack."""
+
     x: jax.Array
     y: jax.Array
     z: jax.Array
@@ -15,16 +19,19 @@ class Element(eqx.Module):
 
 @pytest.fixture
 def default_element() -> Element:
+    """Return a default element for stack tests."""
     return Element(x=jnp.zeros(4), y=jnp.zeros((2, 3)), z=jnp.array(0))
 
 
 @pytest.fixture
 def stack(default_element: Element) -> Stack:
+    """Return a stack preconfigured with the default element."""
     return Stack(max_size=2, default_element=default_element)
 
 
 @pytest.fixture
 def elements() -> list[Element]:
+    """Return a list of random elements for stack tests."""
     num_elements = 3
     key = jax.random.PRNGKey(0)
     keys = jax.random.split(key, 3 * num_elements)

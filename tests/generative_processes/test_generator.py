@@ -1,3 +1,5 @@
+"""Test the generator module."""
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -7,6 +9,7 @@ from simplexity.generative_processes.generator import generate_data_batch
 
 
 def test_generate_data_batch():
+    """Test the generate_data_batch function."""
     hmm = build_hidden_markov_model("zero_one_random", p=0.5)
     batch_size = 10
     sequence_len = 10
@@ -25,6 +28,7 @@ def test_generate_data_batch():
 
 
 def test_generate_data_batch_with_bos_token():
+    """Test the generate_data_batch function with a BOS token."""
     hmm = build_hidden_markov_model("zero_one_random", p=0.5)
     batch_size = 10
     sequence_len = 10
@@ -45,6 +49,7 @@ def test_generate_data_batch_with_bos_token():
 
 
 def test_generate_data_batch_with_eos_token():
+    """Test the generate_data_batch function with an EOS token."""
     hmm = build_hidden_markov_model("zero_one_random", p=0.5)
     batch_size = 10
     sequence_len = 10

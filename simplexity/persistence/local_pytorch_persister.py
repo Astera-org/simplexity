@@ -1,11 +1,10 @@
+"""Local PyTorch persister."""
+
 from pathlib import Path
 
-from simplexity.persistence.local_persister import LocalPersister
+import torch
 
-try:
-    import torch
-except ImportError as e:
-    raise ImportError("To use PyTorch support install the torch extra:\nuv sync --extra pytorch") from e
+from simplexity.persistence.local_persister import LocalPersister
 
 
 class LocalPytorchPersister(LocalPersister):
@@ -17,8 +16,7 @@ class LocalPytorchPersister(LocalPersister):
         self.directory = Path(directory)
         self.filename = filename
 
-    # TODO: This is a hack to get the type checker to work.
-    def save_weights(self, model: torch.nn.Module, step: int = 0, overwrite_existing: bool = False) -> None:  # type: ignore
+    def save_weights(self, model: torch.nn.Module, step: int = 0, overwrite_existing: bool = False) -> None:
         """Saves a PyTorch model to the local filesystem."""
         path = self._get_path(step)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -28,8 +26,7 @@ class LocalPytorchPersister(LocalPersister):
 
         torch.save(model.state_dict(), path)
 
-    # TODO: This is a hack to get the type checker to work.
-    def load_weights(self, model: torch.nn.Module, step: int = 0) -> torch.nn.Module:  # type: ignore
+    def load_weights(self, model: torch.nn.Module, step: int = 0) -> torch.nn.Module:
         """Loads weights into a PyTorch model from the local filesystem."""
         path = self._get_path(step)
         device = next(model.parameters()).device if list(model.parameters()) else "cpu"

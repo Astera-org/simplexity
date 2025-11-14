@@ -1,13 +1,10 @@
+"""Transition matrices for generative processes."""
+
 import jax
 import jax.numpy as jnp
 
-"""
-Each process defines P(cur_obs, cur_state | prev_state) with a tensor of shape
-[cur_obs, cur_state, prev_state]
-"""
 
-
-def stationary_state(state_transition_matrix: jax.Array) -> jax.Array:
+def get_stationary_state(state_transition_matrix: jax.Array) -> jax.Array:
     """Compute the stationary distribution of a transition matrix."""
     eigenvalues, left_eigenvectors = jnp.linalg.eig(state_transition_matrix)
     stationary_state = left_eigenvectors[:, jnp.isclose(eigenvalues, 1)].real
@@ -84,9 +81,9 @@ def fanizza(alpha: float, lamb: float) -> jax.Array:
         [1, 1 - lamb, 1 + lamb * (jnp.sin(alpha) - jnp.cos(alpha)), 1 - lamb * (jnp.sin(alpha) + jnp.cos(alpha))]
     )
 
-    Da = jnp.outer(w, pi0)
+    da = jnp.outer(w, pi0)
 
-    Db = lamb * jnp.array(
+    db = lamb * jnp.array(
         [
             [0, 0, 0, 0],
             [0, 1, 0, 0],
@@ -95,7 +92,7 @@ def fanizza(alpha: float, lamb: float) -> jax.Array:
         ]
     )
 
-    return jnp.stack([Da, Db], axis=0)
+    return jnp.stack([da, db], axis=0)
 
 
 def matching_parens(open_probs: list[float]) -> jax.Array:
@@ -223,7 +220,7 @@ def no_consecutive_ones(p: float) -> jax.Array:
 
 
 def _validate_post_quantum_conditions(alpha: jax.Array, beta: float) -> None:
-    if not (alpha > 1 > beta > 0):
+    if not alpha > 1 > beta > 0:
         raise ValueError("Condition alpha > 1 > beta > 0 not satisfied")
     if alpha + beta == 2:
         raise ValueError("Condition alpha + beta ≠ 2 not satisfied")
@@ -259,7 +256,7 @@ def post_quantum(log_alpha: float, beta: float) -> jax.Array:
     return transition_matrices
 
 
-def rrxor(pR1: float, pR2: float) -> jax.Array:
+def rrxor(p1: float, p2: float) -> jax.Array:
     """Creates a transition matrix for the RRXOR Process.
 
     Steady-state distribution = [2, 1, 1, 1, 1] / 6
@@ -267,12 +264,12 @@ def rrxor(pR1: float, pR2: float) -> jax.Array:
     s = {"S": 0, "0": 1, "1": 2, "T": 3, "F": 4}
 
     transition_matrices = jnp.zeros((2, 5, 5))
-    transition_matrices = transition_matrices.at[0, s["S"], s["0"]].set(pR1)
-    transition_matrices = transition_matrices.at[1, s["S"], s["1"]].set(1 - pR1)
-    transition_matrices = transition_matrices.at[0, s["0"], s["F"]].set(pR2)
-    transition_matrices = transition_matrices.at[1, s["0"], s["T"]].set(1 - pR2)
-    transition_matrices = transition_matrices.at[0, s["1"], s["T"]].set(pR2)
-    transition_matrices = transition_matrices.at[1, s["1"], s["F"]].set(1 - pR2)
+    transition_matrices = transition_matrices.at[0, s["S"], s["0"]].set(p1)
+    transition_matrices = transition_matrices.at[1, s["S"], s["1"]].set(1 - p1)
+    transition_matrices = transition_matrices.at[0, s["0"], s["F"]].set(p2)
+    transition_matrices = transition_matrices.at[1, s["0"], s["T"]].set(1 - p2)
+    transition_matrices = transition_matrices.at[0, s["1"], s["T"]].set(p2)
+    transition_matrices = transition_matrices.at[1, s["1"], s["F"]].set(1 - p2)
     transition_matrices = transition_matrices.at[1, s["T"], s["S"]].set(1.0)
     transition_matrices = transition_matrices.at[0, s["F"], s["S"]].set(1.0)
 
