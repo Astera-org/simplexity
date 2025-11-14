@@ -17,6 +17,8 @@ from simplexity.analysis.pca import (
     compute_variance_thresholds,
     plot_variance_explained,
     plot_cumulative_variance_explained,
+    plot_cumulative_variance_with_step_dropdown,
+    plot_cumulative_variance_with_layer_dropdown,
     plot_components_for_variance_threshold,
 )
 from simplexity.analysis.regression import (
@@ -368,71 +370,25 @@ class AnalysisTracker:
 
         plots = {}
 
-        # Scree plots (variance per component)
+        # Cumulative variance plots with dropdowns
         if self._pca_results:
-            # By step (for each step, show all layers)
-            for step in self.get_steps():
-                pca_by_layer = {
-                    layer_name: self._pca_results[step][layer_name]
-                    for layer_name in self.layer_names
-                    if layer_name in self._pca_results[step]
-                }
-                if pca_by_layer:
-                    fig = plot_variance_explained(
-                        pca_results_by_layer=pca_by_layer,
-                        title=f"Variance Explained at Step {step}",
-                        max_components=max_components,
-                    )
-                    plots[f"variance_explained_step_{step}"] = fig
+            # Combined plot with step dropdown (compare layers at each step)
+            fig_by_step = plot_cumulative_variance_with_step_dropdown(
+                pca_results_by_step_and_layer=self._pca_results,
+                title="Cumulative Variance Explained by Step",
+                max_components=max_components,
+                thresholds=self.variance_thresholds,
+            )
+            plots["cumulative_variance_by_step"] = fig_by_step
 
-            # By layer (for each layer, show across steps)
-            for layer_name in self.layer_names:
-                pca_by_step = {
-                    step: self._pca_results[step][layer_name]
-                    for step in self.get_steps()
-                    if layer_name in self._pca_results[step]
-                }
-                if pca_by_step:
-                    fig = plot_variance_explained(
-                        pca_results_by_step=pca_by_step,
-                        title=f"Variance Explained: {layer_name} Over Training",
-                        max_components=max_components,
-                    )
-                    plots[f"variance_explained_{layer_name}"] = fig
-
-        # Cumulative variance plots
-        if self._pca_results:
-            # By step
-            for step in self.get_steps():
-                pca_by_layer = {
-                    layer_name: self._pca_results[step][layer_name]
-                    for layer_name in self.layer_names
-                    if layer_name in self._pca_results[step]
-                }
-                if pca_by_layer:
-                    fig = plot_cumulative_variance_explained(
-                        pca_results_by_layer=pca_by_layer,
-                        title=f"Cumulative Variance Explained at Step {step}",
-                        max_components=max_components,
-                        thresholds=self.variance_thresholds,
-                    )
-                    plots[f"cumulative_variance_step_{step}"] = fig
-
-            # By layer
-            for layer_name in self.layer_names:
-                pca_by_step = {
-                    step: self._pca_results[step][layer_name]
-                    for step in self.get_steps()
-                    if layer_name in self._pca_results[step]
-                }
-                if pca_by_step:
-                    fig = plot_cumulative_variance_explained(
-                        pca_results_by_step=pca_by_step,
-                        title=f"Cumulative Variance Explained: {layer_name} Over Training",
-                        max_components=max_components,
-                        thresholds=self.variance_thresholds,
-                    )
-                    plots[f"cumulative_variance_{layer_name}"] = fig
+            # Combined plot with layer dropdown (compare steps for each layer)
+            fig_by_layer = plot_cumulative_variance_with_layer_dropdown(
+                pca_results_by_step_and_layer=self._pca_results,
+                title="Cumulative Variance Explained by Layer",
+                max_components=max_components,
+                thresholds=self.variance_thresholds,
+            )
+            plots["cumulative_variance_by_layer"] = fig_by_layer
 
         # Components required for thresholds over training
         if self._variance_threshold_results:
@@ -548,7 +504,8 @@ class AnalysisTracker:
             - pca_3d_combined: 3D PCA with step slider + layer dropdown
             - regression_combined: Simplex projection with step slider + layer dropdown
             - components_for_thresholds: Components needed for variance thresholds over training
-            - cumulative_variance_*: Cumulative variance plots with horizontal threshold lines
+            - cumulative_variance_by_step: CVE with step dropdown (compare layers at each step)
+            - cumulative_variance_by_layer: CVE with layer dropdown (compare steps for each layer)
         """
         import os
 
@@ -580,19 +537,11 @@ class AnalysisTracker:
         # Variance plots
         variance_plots = self.generate_variance_plots()
 
-        # Components for thresholds over training
-        if "components_for_thresholds" in variance_plots:
-            filepath = os.path.join(output_dir, "components_for_thresholds.html")
-            variance_plots["components_for_thresholds"].write_html(filepath)
-            saved_plots["components_for_thresholds"] = filepath
-
-        # Cumulative variance explained plots (with horizontal threshold lines)
-        # Only save by-layer plots (showing evolution over training), not by-step plots
+        # Save all variance plots (now includes combined dropdown versions)
         for name, fig in variance_plots.items():
-            if name.startswith("cumulative_variance_") and not name.startswith("cumulative_variance_step_"):
-                filepath = os.path.join(output_dir, f"{name}.html")
-                fig.write_html(filepath)
-                saved_plots[name] = filepath
+            filepath = os.path.join(output_dir, f"{name}.html")
+            fig.write_html(filepath)
+            saved_plots[name] = filepath
 
         return saved_plots
 

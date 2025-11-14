@@ -15,6 +15,8 @@ from simplexity.analysis.pca import (
     plot_pca_2d_with_step_slider,
     plot_pca_2d_with_layer_dropdown,
     plot_pca_2d_with_step_and_layer,
+    plot_cumulative_variance_with_step_dropdown,
+    plot_cumulative_variance_with_layer_dropdown,
 )
 
 
@@ -292,3 +294,65 @@ class TestPlotPCAWithStepAndLayer:
         """Test that empty results raise an error."""
         with pytest.raises(ValueError, match="must not be empty"):
             plot_pca_2d_with_step_and_layer({})
+
+
+class TestPlotCumulativeVarianceWithStepDropdown:
+    def test_step_dropdown_plot(self):
+        """Test cumulative variance plot with step dropdown."""
+        X = np.random.randn(50, 10)
+
+        # Create results for multiple steps and layers
+        pca_results_by_step_and_layer = {}
+        for step in [0, 1, 2]:
+            pca_results_by_step_and_layer[step] = {}
+            for layer in ["layer_0", "layer_1"]:
+                pca_results_by_step_and_layer[step][layer] = compute_pca(
+                    X, n_components=5
+                )
+
+        fig = plot_cumulative_variance_with_step_dropdown(
+            pca_results_by_step_and_layer,
+            thresholds=[0.8, 0.9],
+        )
+
+        assert isinstance(fig, go.Figure)
+        # Should have dropdown for steps
+        assert len(fig.layout.updatemenus) == 1
+        # Should have 3 buttons (one per step)
+        assert len(fig.layout.updatemenus[0].buttons) == 3
+
+    def test_empty_results_raises_error(self):
+        """Test that empty results raise an error."""
+        with pytest.raises(ValueError, match="must not be empty"):
+            plot_cumulative_variance_with_step_dropdown({})
+
+
+class TestPlotCumulativeVarianceWithLayerDropdown:
+    def test_layer_dropdown_plot(self):
+        """Test cumulative variance plot with layer dropdown."""
+        X = np.random.randn(50, 10)
+
+        # Create results for multiple steps and layers
+        pca_results_by_step_and_layer = {}
+        for step in [0, 1, 2]:
+            pca_results_by_step_and_layer[step] = {}
+            for layer in ["layer_0", "layer_1"]:
+                pca_results_by_step_and_layer[step][layer] = compute_pca(
+                    X, n_components=5
+                )
+
+        fig = plot_cumulative_variance_with_layer_dropdown(
+            pca_results_by_step_and_layer,
+            thresholds=[0.8, 0.9],
+        )
+
+        assert isinstance(fig, go.Figure)
+        # Should have dropdown for layers
+        assert len(fig.layout.updatemenus) == 1
+        # Should have 2 buttons (one per layer)
+        assert len(fig.layout.updatemenus[0].buttons) == 2
+
+    def test_empty_results_raises_error(self):
+        """Test that empty results raise an error."""
+        with pytest.raises(ValueError, match="must not be empty"):
+            plot_cumulative_variance_with_layer_dropdown({})

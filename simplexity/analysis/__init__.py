@@ -12,6 +12,8 @@ from simplexity.analysis.pca import (
     plot_pca_2d_with_step_slider,
     plot_pca_2d_with_layer_dropdown,
     plot_pca_2d_with_step_and_layer,
+    plot_cumulative_variance_with_step_dropdown,
+    plot_cumulative_variance_with_layer_dropdown,
 )
 from simplexity.analysis.regression import (
     RegressionResult,
@@ -37,6 +39,8 @@ __all__ = [
     "plot_pca_2d_with_step_slider",
     "plot_pca_2d_with_layer_dropdown",
     "plot_pca_2d_with_step_and_layer",
+    "plot_cumulative_variance_with_step_dropdown",
+    "plot_cumulative_variance_with_layer_dropdown",
     # Regression
     "RegressionResult",
     "regress_with_kfold_rcond_cv",

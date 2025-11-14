@@ -1204,6 +1204,235 @@ def plot_cumulative_variance_explained(
     return fig
 
 
+def plot_cumulative_variance_with_step_dropdown(
+    pca_results_by_step_and_layer: Dict[int, Dict[str, Dict[str, Any]]],
+    title: str = "Cumulative Variance Explained by Step",
+    max_components: Optional[int] = None,
+    thresholds: Optional[list[float]] = None,
+) -> go.Figure:
+    """
+    Create interactive cumulative variance plot with dropdown to select step.
+    Shows all layers at the selected step.
+
+    Args:
+        pca_results_by_step_and_layer: nested dict {step: {layer_name: pca_result}}
+        title: plot title
+        max_components: maximum number of components to display
+        thresholds: optional list of variance thresholds to mark with horizontal lines
+
+    Returns:
+        Plotly Figure with step dropdown
+    """
+    steps_sorted = sorted(pca_results_by_step_and_layer.keys())
+    if not steps_sorted:
+        raise ValueError("pca_results_by_step_and_layer must not be empty")
+
+    fig = go.Figure()
+
+    # Create traces for each (step, layer) combination
+    for step in steps_sorted:
+        for layer_name in sorted(pca_results_by_step_and_layer[step].keys()):
+            pca_res = pca_results_by_step_and_layer[step][layer_name]
+            var_ratio = pca_res["explained_variance_ratio"]
+            cumsum = np.cumsum(var_ratio)
+            if max_components is not None:
+                cumsum = cumsum[:max_components]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=list(range(1, len(cumsum) + 1)),
+                    y=cumsum,
+                    mode="lines+markers",
+                    name=layer_name,
+                    line=dict(width=2),
+                    marker=dict(size=6),
+                    visible=False,
+                )
+            )
+
+    # Make first step's traces visible
+    layers_per_step = len(pca_results_by_step_and_layer[steps_sorted[0]])
+    for i in range(layers_per_step):
+        fig.data[i].visible = True
+
+    # Add horizontal lines at variance threshold levels
+    if thresholds is not None:
+        for threshold in thresholds:
+            fig.add_hline(
+                y=threshold,
+                line_dash="dash",
+                line_color="gray",
+                annotation_text=f"{threshold:.0%}",
+                annotation_position="right",
+            )
+
+    # Create dropdown buttons for steps
+    buttons = []
+    trace_idx = 0
+    for step_idx, step in enumerate(steps_sorted):
+        layers_at_step = sorted(pca_results_by_step_and_layer[step].keys())
+        n_layers = len(layers_at_step)
+
+        # Visibility: show only traces for this step
+        visible_flags = []
+        for s_idx in range(len(steps_sorted)):
+            step_layers = sorted(pca_results_by_step_and_layer[steps_sorted[s_idx]].keys())
+            for _ in step_layers:
+                visible_flags.append(s_idx == step_idx)
+
+        button_dict = {
+            "method": "update",
+            "args": [
+                {"visible": visible_flags},
+                {"title": f"{title} (Step {step})"},
+            ],
+            "label": f"Step {step}",
+        }
+        buttons.append(button_dict)
+
+    fig.update_layout(
+        updatemenus=[
+            {
+                "buttons": buttons,
+                "direction": "down",
+                "showactive": True,
+                "x": 0.02,
+                "xanchor": "left",
+                "y": 1.15,
+                "yanchor": "top",
+            }
+        ],
+        title=f"{title} (Step {steps_sorted[0]})",
+        xaxis_title="Number of Components",
+        yaxis_title="Cumulative Variance Explained",
+        yaxis=dict(tickformat=".0%"),
+        template="plotly_white",
+        height=500,
+        hovermode="x unified",
+    )
+
+    return fig
+
+
+def plot_cumulative_variance_with_layer_dropdown(
+    pca_results_by_step_and_layer: Dict[int, Dict[str, Dict[str, Any]]],
+    title: str = "Cumulative Variance Explained by Layer",
+    max_components: Optional[int] = None,
+    thresholds: Optional[list[float]] = None,
+) -> go.Figure:
+    """
+    Create interactive cumulative variance plot with dropdown to select layer.
+    Shows all steps for the selected layer.
+
+    Args:
+        pca_results_by_step_and_layer: nested dict {step: {layer_name: pca_result}}
+        title: plot title
+        max_components: maximum number of components to display
+        thresholds: optional list of variance thresholds to mark with horizontal lines
+
+    Returns:
+        Plotly Figure with layer dropdown
+    """
+    steps_sorted = sorted(pca_results_by_step_and_layer.keys())
+    if not steps_sorted:
+        raise ValueError("pca_results_by_step_and_layer must not be empty")
+
+    # Get all unique layers
+    all_layers = set()
+    for step_data in pca_results_by_step_and_layer.values():
+        all_layers.update(step_data.keys())
+    layers_sorted = sorted(all_layers)
+
+    fig = go.Figure()
+
+    # Create traces for each (layer, step) combination (note: swapped order from above)
+    for layer_name in layers_sorted:
+        for step in steps_sorted:
+            if layer_name not in pca_results_by_step_and_layer[step]:
+                continue
+
+            pca_res = pca_results_by_step_and_layer[step][layer_name]
+            var_ratio = pca_res["explained_variance_ratio"]
+            cumsum = np.cumsum(var_ratio)
+            if max_components is not None:
+                cumsum = cumsum[:max_components]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=list(range(1, len(cumsum) + 1)),
+                    y=cumsum,
+                    mode="lines+markers",
+                    name=f"Step {step}",
+                    line=dict(width=2),
+                    marker=dict(size=6),
+                    visible=False,
+                )
+            )
+
+    # Make first layer's traces visible
+    first_layer_trace_count = sum(
+        1 for step in steps_sorted
+        if layers_sorted[0] in pca_results_by_step_and_layer[step]
+    )
+    for i in range(first_layer_trace_count):
+        fig.data[i].visible = True
+
+    # Add horizontal lines at variance threshold levels
+    if thresholds is not None:
+        for threshold in thresholds:
+            fig.add_hline(
+                y=threshold,
+                line_dash="dash",
+                line_color="gray",
+                annotation_text=f"{threshold:.0%}",
+                annotation_position="right",
+            )
+
+    # Create dropdown buttons for layers
+    buttons = []
+    for layer_idx, layer_name in enumerate(layers_sorted):
+        # Count traces for each layer
+        visible_flags = []
+        for l_idx in range(len(layers_sorted)):
+            for step in steps_sorted:
+                if layers_sorted[l_idx] not in pca_results_by_step_and_layer[step]:
+                    continue
+                visible_flags.append(l_idx == layer_idx)
+
+        button_dict = {
+            "method": "update",
+            "args": [
+                {"visible": visible_flags},
+                {"title": f"{title} ({layer_name})"},
+            ],
+            "label": layer_name,
+        }
+        buttons.append(button_dict)
+
+    fig.update_layout(
+        updatemenus=[
+            {
+                "buttons": buttons,
+                "direction": "down",
+                "showactive": True,
+                "x": 0.02,
+                "xanchor": "left",
+                "y": 1.15,
+                "yanchor": "top",
+            }
+        ],
+        title=f"{title} ({layers_sorted[0]})",
+        xaxis_title="Number of Components",
+        yaxis_title="Cumulative Variance Explained",
+        yaxis=dict(tickformat=".0%"),
+        template="plotly_white",
+        height=500,
+        hovermode="x unified",
+    )
+
+    return fig
+
+
 def plot_components_for_variance_threshold(
     variance_threshold_results: Dict[int, Dict[str, Dict[float, int]]],
     title: str = "Components Required for Variance Thresholds",
