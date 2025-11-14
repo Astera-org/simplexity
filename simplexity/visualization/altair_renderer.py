@@ -6,6 +6,11 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+try:
+    import altair as alt  # type: ignore import-not-found
+except ImportError as exc:  # pragma: no cover - dependency missing only in unsupported envs
+    raise ImportError("Altair is required for visualization rendering. Install `altair` to continue.") from exc
+
 import pandas as pd
 
 from simplexity.exceptions import ConfigValidationError
@@ -48,46 +53,36 @@ def build_altair_chart(
     data_registry: DataRegistry | Mapping[str, pd.DataFrame],
 ):
     """Render a PlotConfig into an Altair Chart."""
-    alt = _import_altair()
     if not plot_cfg.layers:
         raise ConfigValidationError("PlotConfig.layers must include at least one layer for Altair rendering.")
 
     plot_df = build_plot_level_dataframe(plot_cfg.data, plot_cfg.transforms, data_registry)
 
     layer_charts = [
-        _build_layer_chart(alt, layer, resolve_layer_dataframe(layer, plot_df, data_registry))
-        for layer in plot_cfg.layers
+        _build_layer_chart(layer, resolve_layer_dataframe(layer, plot_df, data_registry)) for layer in plot_cfg.layers
     ]
 
     chart = layer_charts[0] if len(layer_charts) == 1 else alt.layer(*layer_charts)
 
     if plot_cfg.selections:
-        chart = chart.add_params(*[_build_selection_param(alt, sel) for sel in plot_cfg.selections])
+        chart = chart.add_params(*[_build_selection_param(sel) for sel in plot_cfg.selections])
 
     if plot_cfg.facet:
-        chart = _apply_facet(alt, chart, plot_cfg.facet)
+        chart = _apply_facet(chart, plot_cfg.facet)
 
-    chart = _apply_plot_level_properties(alt, chart, plot_cfg.guides, plot_cfg.size, plot_cfg.background)
+    chart = _apply_plot_level_properties(chart, plot_cfg.guides, plot_cfg.size, plot_cfg.background)
 
     return chart
 
 
-def _import_altair():
-    try:
-        import altair as alt  # type: ignore import-not-found
-    except ImportError as exc:  # pragma: no cover - dependency missing only in unsupported envs
-        raise ImportError("Altair is required for visualization rendering. Install `altair` to continue.") from exc
-    return alt
-
-
-def _build_layer_chart(alt, layer: LayerConfig, df: pd.DataFrame):
+def _build_layer_chart(layer: LayerConfig, df: pd.DataFrame):
     chart = alt.Chart(df)
     chart = _apply_geometry(chart, layer.geometry)
-    encoding_kwargs = _encode_aesthetics(alt, layer.aesthetics)
+    encoding_kwargs = _encode_aesthetics(layer.aesthetics)
     if encoding_kwargs:
         chart = chart.encode(**encoding_kwargs)
     if layer.selections:
-        chart = chart.add_params(*[_build_selection_param(alt, sel) for sel in layer.selections])
+        chart = chart.add_params(*[_build_selection_param(sel) for sel in layer.selections])
     return chart
 
 
@@ -99,21 +94,21 @@ def _apply_geometry(chart, geometry: GeometryConfig):
     return mark_fn(**(geometry.props or {}))
 
 
-def _encode_aesthetics(alt, aesthetics: AestheticsConfig) -> dict[str, Any]:
+def _encode_aesthetics(aesthetics: AestheticsConfig) -> dict[str, Any]:
     encodings: dict[str, Any] = {}
     for channel_name in ("x", "y", "color", "size", "shape", "opacity", "row", "column"):
         channel_cfg = getattr(aesthetics, channel_name)
-        channel_value = _channel_to_alt(alt, channel_name, channel_cfg)
+        channel_value = _channel_to_alt(channel_name, channel_cfg)
         if channel_value is not None:
             encodings[channel_name] = channel_value
 
     if aesthetics.tooltip:
-        encodings["tooltip"] = [_tooltip_to_alt(alt, tooltip_cfg) for tooltip_cfg in aesthetics.tooltip]
+        encodings["tooltip"] = [_tooltip_to_alt(tooltip_cfg) for tooltip_cfg in aesthetics.tooltip]
 
     return encodings
 
 
-def _channel_to_alt(alt, channel_name: str, cfg: ChannelAestheticsConfig | None):
+def _channel_to_alt(channel_name: str, cfg: ChannelAestheticsConfig | None):
     if cfg is None:
         return None
     if cfg.value is not None and cfg.field is None:
@@ -136,15 +131,15 @@ def _channel_to_alt(alt, channel_name: str, cfg: ChannelAestheticsConfig | None)
     if cfg.sort is not None:
         kwargs["sort"] = alt.Sort(cfg.sort) if isinstance(cfg.sort, list) else cfg.sort
     if cfg.scale:
-        kwargs["scale"] = _scale_to_alt(alt, cfg.scale)
+        kwargs["scale"] = _scale_to_alt(cfg.scale)
     if cfg.axis and channel_name in {"x", "y", "row", "column"}:
-        kwargs["axis"] = _axis_to_alt(alt, cfg.axis)
+        kwargs["axis"] = _axis_to_alt(cfg.axis)
     if cfg.legend and channel_name in {"color", "size", "shape", "opacity"}:
-        kwargs["legend"] = _legend_to_alt(alt, cfg.legend)
+        kwargs["legend"] = _legend_to_alt(cfg.legend)
     return channel_cls(**kwargs)
 
 
-def _tooltip_to_alt(alt, cfg: ChannelAestheticsConfig):
+def _tooltip_to_alt(cfg: ChannelAestheticsConfig):
     if cfg.value is not None and cfg.field is None:
         return alt.Tooltip(value=cfg.value, title=cfg.title)
     if cfg.field is None:
@@ -158,32 +153,41 @@ def _tooltip_to_alt(alt, cfg: ChannelAestheticsConfig):
     return alt.Tooltip(**kwargs)
 
 
-def _scale_to_alt(alt, cfg: ScaleConfig):
+def _scale_to_alt(cfg: ScaleConfig):
     kwargs = {k: v for k, v in vars(cfg).items() if v is not None}
     return alt.Scale(**kwargs)
 
 
-def _axis_to_alt(alt, cfg: AxisConfig):
+def _axis_to_alt(cfg: AxisConfig):
     kwargs = {k: v for k, v in vars(cfg).items() if v is not None}
     return alt.Axis(**kwargs)
 
 
-def _legend_to_alt(alt, cfg: LegendConfig):
+def _legend_to_alt(cfg: LegendConfig):
     kwargs = {k: v for k, v in vars(cfg).items() if v is not None}
     return alt.Legend(**kwargs)
 
 
-def _build_selection_param(alt, cfg: SelectionConfig):
+def _build_selection_param(cfg: SelectionConfig):
+    kwargs: dict[str, Any] = {}
+    if cfg.name:
+        kwargs["name"] = cfg.name
+    if cfg.encodings:
+        kwargs["encodings"] = cfg.encodings
+    if cfg.fields:
+        kwargs["fields"] = cfg.fields
+    if cfg.bind:
+        kwargs["bind"] = cfg.bind
     if cfg.type == "interval":
-        return alt.selection_interval(name=cfg.name, encodings=cfg.encodings, fields=cfg.fields, bind=cfg.bind)
+        return alt.selection_interval(**kwargs)
     if cfg.type == "single":
-        return alt.selection_single(name=cfg.name, encodings=cfg.encodings, fields=cfg.fields, bind=cfg.bind)
+        return alt.selection_single(**kwargs)
     if cfg.type == "multi":
-        return alt.selection_multi(name=cfg.name, encodings=cfg.encodings, fields=cfg.fields, bind=cfg.bind)
+        return alt.selection_multi(**kwargs)
     raise ConfigValidationError(f"Unsupported selection type '{cfg.type}' for Altair renderer.")
 
 
-def _apply_facet(alt, chart, facet_cfg: FacetConfig):
+def _apply_facet(chart, facet_cfg: FacetConfig):
     facet_args: dict[str, Any] = {}
     if facet_cfg.row:
         facet_args["row"] = alt.Row(facet_cfg.row)
@@ -196,10 +200,8 @@ def _apply_facet(alt, chart, facet_cfg: FacetConfig):
     return chart.facet(**facet_args)
 
 
-def _apply_plot_level_properties(
-    alt, chart, guides: PlotLevelGuideConfig, size: PlotSizeConfig, background: str | None
-):
-    title_params = _build_title_params(alt, guides)
+def _apply_plot_level_properties(chart, guides: PlotLevelGuideConfig, size: PlotSizeConfig, background: str | None):
+    title_params = _build_title_params(guides)
     if title_params is not None:
         chart = chart.properties(title=title_params)
     width = size.width
@@ -215,7 +217,7 @@ def _apply_plot_level_properties(
     return chart
 
 
-def _build_title_params(alt, guides: PlotLevelGuideConfig):
+def _build_title_params(guides: PlotLevelGuideConfig):
     subtitle_lines = [text for text in (guides.subtitle, guides.caption) if text]
     if not guides.title and not subtitle_lines:
         return None
