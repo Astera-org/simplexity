@@ -29,7 +29,11 @@ class AnalysisTracker:
     Track analysis metrics across training steps and layers.
 
     Usage:
+        # Explicit layer names
         tracker = AnalysisTracker(layer_names=["layer_0", "layer_1", "layer_2"])
+
+        # Or auto-detect all layers
+        tracker = AnalysisTracker()
 
         # During training/validation
         for step in training_steps:
@@ -49,7 +53,7 @@ class AnalysisTracker:
         tracker.save_all_plots(output_dir="analysis_plots/")
     """
 
-    layer_names: List[str]
+    layer_names: Optional[List[str]] = None
     variance_thresholds: List[float] = field(
         default_factory=lambda: [0.80, 0.90, 0.95, 0.99]
     )
@@ -89,6 +93,10 @@ class AnalysisTracker:
             compute_regression: whether to compute regression analysis
             n_pca_components: number of PCA components (default: all)
         """
+        # Auto-detect layer names from first call if not provided
+        if self.layer_names is None:
+            self.layer_names = sorted(activations_by_layer.keys())
+
         # Build prefix dataset once (shared by all analyses)
         prefix_dataset = build_prefix_dataset(
             inputs, beliefs, probs, activations_by_layer
@@ -170,6 +178,10 @@ class AnalysisTracker:
         Returns:
             dict mapping plot name -> Plotly Figure
         """
+        # Return empty if no steps added yet
+        if self.layer_names is None:
+            return {}
+
         plots = {}
 
         if by_step:
@@ -223,6 +235,10 @@ class AnalysisTracker:
         Returns:
             dict mapping plot name -> Plotly Figure
         """
+        # Return empty if no steps added yet
+        if self.layer_names is None:
+            return {}
+
         plots = {}
 
         if by_step:
@@ -275,6 +291,10 @@ class AnalysisTracker:
         """
         summary = {"by_layer": {}, "by_step": {}}
 
+        # Return empty if no steps added yet
+        if self.layer_names is None:
+            return summary
+
         # By layer
         for layer_name in self.layer_names:
             summary["by_layer"][layer_name] = {
@@ -307,6 +327,10 @@ class AnalysisTracker:
             }
         """
         summary = {"by_layer": {}, "by_step": {}}
+
+        # Return empty if no steps added yet
+        if self.layer_names is None:
+            return summary
 
         # By layer
         for layer_name in self.layer_names:

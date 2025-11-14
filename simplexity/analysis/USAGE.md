@@ -7,7 +7,10 @@ This guide shows how to integrate analysis tracking into your training/evaluatio
 ```python
 from simplexity.analysis import AnalysisTracker
 
-# Initialize tracker with your layer names
+# Option 1: Auto-detect all layers (recommended)
+tracker = AnalysisTracker()
+
+# Option 2: Explicitly specify layer names
 tracker = AnalysisTracker(
     layer_names=["layer_0", "layer_1", "layer_2", "output"],
     variance_thresholds=[0.80, 0.90, 0.95, 0.99]
@@ -18,7 +21,7 @@ for step in validation_steps:
     # Get your data (however you compute it)
     inputs, beliefs, probs, activations = get_validation_data(model, step)
 
-    # Add to tracker
+    # Add to tracker - layers are auto-detected from first call
     tracker.add_step(
         step=step,
         inputs=inputs,
@@ -37,11 +40,8 @@ tracker.save_all_plots(output_dir="analysis_results/")
 from simplexity.analysis import AnalysisTracker
 
 def train_model(model, train_data, val_data, config):
-    # Initialize tracker
-    tracker = AnalysisTracker(
-        layer_names=config.layer_names,
-        variance_thresholds=[0.80, 0.90, 0.95, 0.99]
-    )
+    # Initialize tracker - layers will be auto-detected
+    tracker = AnalysisTracker(variance_thresholds=[0.80, 0.90, 0.95, 0.99])
 
     for epoch in range(config.n_epochs):
         # Training

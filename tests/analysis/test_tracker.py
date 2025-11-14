@@ -392,3 +392,52 @@ class TestAnalysisTrackerEdgeCases:
 
         plots = tracker.generate_regression_plots()
         assert len(plots) == 0
+
+    def test_auto_detect_layer_names(self):
+        """Test that layer names are auto-detected when not provided."""
+        # Create tracker without layer_names
+        tracker = AnalysisTracker()
+
+        batch_size, seq_len = 5, 4
+        n_beliefs = 3
+        d_layer = 6
+
+        inputs = jnp.array(np.random.randint(0, 10, size=(batch_size, seq_len)))
+        beliefs = jnp.array(np.random.rand(batch_size, seq_len, n_beliefs))
+        beliefs = beliefs / beliefs.sum(axis=-1, keepdims=True)
+        probs = jnp.array(np.random.rand(batch_size, seq_len))
+        activations = {
+            "layer_2": jnp.array(np.random.randn(batch_size, seq_len, d_layer)),
+            "layer_0": jnp.array(np.random.randn(batch_size, seq_len, d_layer)),
+            "layer_1": jnp.array(np.random.randn(batch_size, seq_len, d_layer)),
+        }
+
+        # layer_names should be None initially
+        assert tracker.layer_names is None
+
+        # Add step
+        tracker.add_step(
+            step=0,
+            inputs=inputs,
+            beliefs=beliefs,
+            probs=probs,
+            activations_by_layer=activations,
+        )
+
+        # layer_names should be auto-detected and sorted
+        assert tracker.layer_names == ["layer_0", "layer_1", "layer_2"]
+
+        # Should have results for all layers
+        assert tracker.get_pca_result(step=0, layer_name="layer_0") is not None
+        assert tracker.get_pca_result(step=0, layer_name="layer_1") is not None
+        assert tracker.get_pca_result(step=0, layer_name="layer_2") is not None
+
+    def test_empty_tracker_with_no_layer_names(self):
+        """Test that empty tracker with no layer_names returns empty summaries."""
+        tracker = AnalysisTracker()  # No layer_names
+
+        # Should return empty summaries
+        assert tracker.get_variance_threshold_summary() == {"by_layer": {}, "by_step": {}}
+        assert tracker.get_regression_metrics_summary() == {"by_layer": {}, "by_step": {}}
+        assert tracker.generate_pca_plots() == {}
+        assert tracker.generate_regression_plots() == {}
