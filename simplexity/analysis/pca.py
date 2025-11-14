@@ -592,67 +592,71 @@ def plot_pca_2d_with_step_and_layer(
     # Make first trace visible
     fig.data[0].visible = True
 
-    # Strategy: Use opacity for layer selection (dropdown), visible for step selection (slider)
-    # This allows them to work independently without overriding each other
+    # Create a single slider that updates visibility based on step
+    # Dropdown will update the slider configuration to work with the selected layer
 
-    # Set all traces to full opacity initially (all layers "available")
-    for trace in fig.data:
-        trace.opacity = 0  # type: ignore[attr-defined]  # Hide all layers initially
+    # Build slider steps for first layer
+    def make_slider_for_layer(layer_idx: int, layer_name: str):
+        slider_steps = []
+        for step_idx, step in enumerate(steps_sorted):
+            # Show only traces for this step and this layer
+            visible_flags = []
+            for s_idx in range(len(steps_sorted)):
+                for l_idx in range(len(layers_sorted)):
+                    visible_flags.append(s_idx == step_idx and l_idx == layer_idx)
 
-    # Make first layer visible by setting its opacity to 1
-    for s_idx in range(len(steps_sorted)):
-        fig.data[s_idx * len(layers_sorted)].opacity = 1  # type: ignore[attr-defined]
+            slider_steps.append({
+                "method": "update",
+                "args": [
+                    {"visible": visible_flags},
+                    {"title": f"{title} (Step {step}, {layer_name})"},
+                ],
+                "label": str(step),
+            })
 
-    # Create slider for steps - controls the "visible" property
-    slider_steps = []
-    for step_idx, step in enumerate(steps_sorted):
-        visible_flags = []
-        for s_idx, _ in enumerate(steps_sorted):
-            for l_idx, _ in enumerate(layers_sorted):
-                # Show only this step (across all layers)
-                visible_flags.append(s_idx == step_idx)
+        return {
+            "active": 0,
+            "yanchor": "top",
+            "y": -0.1,
+            "xanchor": "left",
+            "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
+            "pad": {"b": 10, "t": 50},
+            "len": 0.9,
+            "x": 0.05,
+            "steps": slider_steps,
+        }
 
-        slider_steps.append({
-            "method": "restyle",
-            "args": [
-                {"visible": visible_flags},
-            ],
-            "label": str(step),
-        })
-
-    slider = {
-        "active": 0,
-        "yanchor": "top",
-        "y": -0.1,
-        "xanchor": "left",
-        "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
-        "pad": {"b": 10, "t": 50},
-        "len": 0.9,
-        "x": 0.05,
-        "steps": slider_steps,
-    }
-
-    # Create dropdown for layers - controls the "opacity" property
+    # Create dropdown that switches between layer-specific sliders
     buttons = []
+    sliders_by_layer = []
+
     for layer_idx, layer_name in enumerate(layers_sorted):
-        opacity_values = []
-        for s_idx, _ in enumerate(steps_sorted):
-            for l_idx, _ in enumerate(layers_sorted):
-                # Set opacity to 1 only for this layer (across all steps)
-                opacity_values.append(1 if l_idx == layer_idx else 0)
+        # Create slider for this layer
+        layer_slider = make_slider_for_layer(layer_idx, layer_name)
+        sliders_by_layer.append(layer_slider)
+
+        # Dropdown button switches to this layer's slider and shows first step
+        visible_flags = []
+        for s_idx in range(len(steps_sorted)):
+            for l_idx in range(len(layers_sorted)):
+                visible_flags.append(s_idx == 0 and l_idx == layer_idx)
 
         button_dict = {
-            "method": "restyle",
+            "method": "update",
             "args": [
-                {"opacity": opacity_values},
+                {"visible": visible_flags},
+                {
+                    "sliders": [layer_slider],
+                    "title": f"{title} (Step {steps_sorted[0]}, {layer_name})",
+                },
             ],
             "label": layer_name,
         }
         buttons.append(button_dict)
 
-    # Start with the single slider
+    # Start with the first layer's slider
     fig.update_layout(
-        sliders=[slider],
+        sliders=[sliders_by_layer[0]],
         updatemenus=[
             {
                 "buttons": buttons,
@@ -927,72 +931,74 @@ def plot_pca_3d_with_step_and_layer(
     # Make first trace visible
     fig.data[0].visible = True
 
-    # Strategy: Use opacity for layer selection (dropdown), visible for step selection (slider)
-    # This allows them to work independently without overriding each other
+    # Build slider for a specific layer
+    def make_slider_for_layer_3d(layer_idx: int, layer_name: str):
+        slider_steps = []
+        for step_idx, step in enumerate(steps_sorted):
+            # Show only traces for this step and this layer
+            visible_flags = []
+            trace_idx = 0
+            for s_idx, s in enumerate(steps_sorted):
+                for l_idx, layer in enumerate(layers_sorted):
+                    if layer not in pca_results_by_step_and_layer[s]:
+                        continue
+                    visible_flags.append(s_idx == step_idx and l_idx == layer_idx)
+                    trace_idx += 1
 
-    # Set all traces to opacity 0 initially
-    for trace in fig.data:
-        trace.opacity = 0  # type: ignore[attr-defined]
+            slider_steps.append({
+                "method": "update",
+                "args": [
+                    {"visible": visible_flags},
+                    {"title": f"{title} (Step {step}, {layer_name})"},
+                ],
+                "label": str(step),
+            })
 
-    # Make first layer visible by setting its opacity to 1
-    for trace in fig.data:
-        if layers_sorted[0] in trace.name:  # type: ignore[operator]
-            trace.opacity = 1  # type: ignore[attr-defined]
+        return {
+            "active": 0,
+            "yanchor": "top",
+            "y": -0.1,
+            "xanchor": "left",
+            "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
+            "pad": {"b": 10, "t": 50},
+            "len": 0.9,
+            "x": 0.05,
+            "steps": slider_steps,
+        }
 
-    # Create slider for steps - controls the "visible" property
-    slider_steps = []
-    for step_idx, step in enumerate(steps_sorted):
+    # Create dropdown that switches between layer-specific sliders
+    dropdown_buttons = []
+    sliders_by_layer = []
+
+    for layer_idx, layer_name in enumerate(layers_sorted):
+        # Create slider for this layer
+        layer_slider = make_slider_for_layer_3d(layer_idx, layer_name)
+        sliders_by_layer.append(layer_slider)
+
+        # Dropdown button switches to this layer's slider
         visible_flags = []
         for s_idx, s in enumerate(steps_sorted):
             for l_idx, layer in enumerate(layers_sorted):
                 if layer not in pca_results_by_step_and_layer[s]:
                     continue
-                # Show only this step (across all layers)
-                visible_flags.append(s_idx == step_idx)
-
-        slider_steps.append({
-            "method": "restyle",
-            "args": [
-                {"visible": visible_flags},
-            ],
-            "label": str(step),
-        })
-
-    slider = {
-        "active": 0,
-        "yanchor": "top",
-        "y": -0.1,
-        "xanchor": "left",
-        "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
-        "pad": {"b": 10, "t": 50},
-        "len": 0.9,
-        "x": 0.05,
-        "steps": slider_steps,
-    }
-
-    # Create dropdown buttons (for layers) - controls the "opacity" property
-    dropdown_buttons = []
-    for layer_idx, layer_name in enumerate(layers_sorted):
-        opacity_values = []
-        for s_idx, s in enumerate(steps_sorted):
-            for l_idx, layer in enumerate(layers_sorted):
-                if layer not in pca_results_by_step_and_layer[s]:
-                    continue
-                # Set opacity to 1 only for this layer (across all steps)
-                opacity_values.append(1 if l_idx == layer_idx else 0)
+                visible_flags.append(s_idx == 0 and l_idx == layer_idx)
 
         button_dict = {
-            "method": "restyle",
+            "method": "update",
             "args": [
-                {"opacity": opacity_values},
+                {"visible": visible_flags},
+                {
+                    "sliders": [layer_slider],
+                    "title": f"{title} (Step {steps_sorted[0]}, {layer_name})",
+                },
             ],
             "label": layer_name,
         }
         dropdown_buttons.append(button_dict)
 
-    # Start with the single slider
+    # Start with the first layer's slider
     fig.update_layout(
-        sliders=[slider],
+        sliders=[sliders_by_layer[0]],
         updatemenus=[
             {
                 "buttons": dropdown_buttons,

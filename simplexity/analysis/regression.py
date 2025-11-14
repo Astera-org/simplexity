@@ -582,75 +582,75 @@ def plot_simplex_projection_with_step_and_layer(
     fig.data[0].visible = True
     fig.data[1].visible = True
 
-    # Strategy: Use opacity for layer selection (dropdown), visible for step selection (slider)
-    # This allows them to work independently without overriding each other
     # Note: each (step, layer) has 2 traces (true and predicted)
+    # Build slider for a specific layer
+    def make_slider_for_layer_regression(layer_idx: int, layer_name: str):
+        slider_steps = []
+        for step_idx, step in enumerate(steps_sorted):
+            # Show only traces for this step and this layer
+            visible_flags = []
+            for s_idx in range(len(steps_sorted)):
+                for l_idx in range(len(layers_sorted)):
+                    # Each (step, layer) has 2 traces (true and predicted)
+                    is_visible = (s_idx == step_idx and l_idx == layer_idx)
+                    visible_flags.append(is_visible)
+                    visible_flags.append(is_visible)
 
-    # Set all traces to opacity 0 initially
-    for trace in fig.data:
-        trace.opacity = 0  # type: ignore[attr-defined]
+            slider_steps.append({
+                "method": "update",
+                "args": [
+                    {"visible": visible_flags},
+                    {"title": f"{title} (Step {step}, {layer_name})"},
+                ],
+                "label": str(step),
+            })
 
-    # Make first layer visible by setting its opacity to 0.5 (matching the marker opacity)
-    # First layer has first 2*len(steps_sorted) traces
-    for i in range(2 * len(steps_sorted)):
-        fig.data[i].opacity = 0.5  # type: ignore[attr-defined]
+        return {
+            "active": 0,
+            "yanchor": "top",
+            "y": -0.1,
+            "xanchor": "left",
+            "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
+            "pad": {"b": 10, "t": 50},
+            "len": 0.9,
+            "x": 0.05,
+            "steps": slider_steps,
+        }
 
-    # Create slider for steps - controls the "visible" property
-    slider_steps = []
-    for step_idx, step in enumerate(steps_sorted):
+    # Create dropdown that switches between layer-specific sliders
+    buttons = []
+    sliders_by_layer = []
+
+    for layer_idx, layer_name in enumerate(layers_sorted):
+        # Create slider for this layer
+        layer_slider = make_slider_for_layer_regression(layer_idx, layer_name)
+        sliders_by_layer.append(layer_slider)
+
+        # Dropdown button switches to this layer's slider
         visible_flags = []
         for s_idx in range(len(steps_sorted)):
-            for _l_idx in range(len(layers_sorted)):
-                # Each (step, layer) has 2 traces (true and predicted)
-                # Show only this step (across all layers)
-                is_visible = (s_idx == step_idx)
-                visible_flags.append(is_visible)
-                visible_flags.append(is_visible)
-
-        slider_steps.append({
-            "method": "restyle",
-            "args": [
-                {"visible": visible_flags},
-            ],
-            "label": str(step),
-        })
-
-    slider = {
-        "active": 0,
-        "yanchor": "top",
-        "y": -0.1,
-        "xanchor": "left",
-        "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
-        "pad": {"b": 10, "t": 50},
-        "len": 0.9,
-        "x": 0.05,
-        "steps": slider_steps,
-    }
-
-    # Create dropdown for layers - controls the "opacity" property
-    buttons = []
-    for layer_idx, layer_name in enumerate(layers_sorted):
-        opacity_values = []
-        for _s_idx in range(len(steps_sorted)):
             for l_idx in range(len(layers_sorted)):
-                # Each (step, layer) has 2 traces (true and predicted)
-                # Set opacity to 0.5 only for this layer (across all steps)
-                is_visible = (l_idx == layer_idx)
-                opacity_values.append(0.5 if is_visible else 0)
-                opacity_values.append(0.5 if is_visible else 0)
+                # Show only traces for the first step with this layer
+                is_visible = (s_idx == 0 and l_idx == layer_idx)
+                visible_flags.append(is_visible)
+                visible_flags.append(is_visible)
 
         button_dict = {
-            "method": "restyle",
+            "method": "update",
             "args": [
-                {"opacity": opacity_values},
+                {"visible": visible_flags},
+                {
+                    "sliders": [layer_slider],
+                    "title": f"{title} (Step {steps_sorted[0]}, {layer_name})",
+                },
             ],
             "label": layer_name,
         }
         buttons.append(button_dict)
 
-    # Start with the single slider
+    # Start with the first layer's slider
     fig.update_layout(
-        sliders=[slider],
+        sliders=[sliders_by_layer[0]],
         updatemenus=[
             {
                 "buttons": buttons,
