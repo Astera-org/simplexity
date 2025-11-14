@@ -13,7 +13,10 @@ import pandas as pd
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
 
-from simplexity.visualization import DictDataRegistry, PlotConfig, build_altair_chart, build_plotly_figure
+from simplexity.visualization.altair_renderer import build_altair_chart
+from simplexity.visualization.data_registry import DictDataRegistry
+from simplexity.visualization.plotly_renderer import build_plotly_figure
+from simplexity.visualization.structured_configs import PlotConfig
 
 
 @dataclass

@@ -7,11 +7,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from simplexity.visualization import (
+from simplexity.visualization.altair_renderer import build_altair_chart
+from simplexity.visualization.data_registry import DictDataRegistry
+from simplexity.visualization.structured_configs import (
     AestheticsConfig,
     ChannelAestheticsConfig,
     DataConfig,
-    DictDataRegistry,
     GeometryConfig,
     LayerConfig,
     PlotConfig,
@@ -19,7 +20,6 @@ from simplexity.visualization import (
     PlotSizeConfig,
     TransformConfig,
 )
-from simplexity.visualization.altair_renderer import build_altair_chart
 
 
 def main() -> None:
