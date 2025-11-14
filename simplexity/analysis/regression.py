@@ -4,6 +4,7 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Dict, Iterable, Tuple
 from sklearn.model_selection import KFold
+from sklearn.linear_model import LinearRegression
 
 from simplexity.utils.analysis_utils import build_prefix_dataset
 from plotly import graph_objs as go
@@ -178,6 +179,69 @@ def regress_with_kfold_rcond_cv(
         per_rcond_cv_error=per_rcond_cv_error,
     )
 
+
+def regress_simple_sklearn(
+    X: jax.Array,  # (N, D)
+    Y: jax.Array,  # (N, B)
+    weights: jax.Array,  # (N,)
+) -> RegressionResult:
+    """
+    Simple weighted linear regression using sklearn (no cross-validation, no regularization).
+
+    This is a faster alternative to regress_with_kfold_rcond_cv when you don't
+    need cross-validation and hyperparameter tuning. Uses standard OLS regression.
+
+    Args:
+        X: input features (N, D)
+        Y: target values (N, B)
+        weights: sample weights (N,)
+
+    Returns:
+        RegressionResult with fitted model
+    """
+    # Convert to numpy
+    X_np = np.asarray(X)
+    Y_np = np.asarray(Y)
+    weights_np = np.asarray(weights)
+
+    # Fit standard linear regression with sample weights
+    model = LinearRegression(fit_intercept=True)
+    model.fit(X_np, Y_np, sample_weight=weights_np)
+
+    # Make predictions
+    Y_pred = model.predict(X_np)
+
+    # Compute metrics using weights
+    residuals = Y_pred - Y_np
+    weighted_sq_residuals = (residuals ** 2) * weights_np[:, np.newaxis]
+    mse = weighted_sq_residuals.mean(axis=0)
+    mae = (np.abs(residuals) * weights_np[:, np.newaxis]).mean(axis=0)
+    rmse = np.sqrt(mse)
+
+    # Compute R² (weighted)
+    weighted_ss_res = weighted_sq_residuals.sum()
+    y_mean = np.average(Y_np, axis=0, weights=weights_np)
+    weighted_ss_tot = ((Y_np - y_mean) ** 2 * weights_np[:, np.newaxis]).sum()
+    r2 = 1 - (weighted_ss_res / weighted_ss_tot) if weighted_ss_tot > 0 else 0.0
+
+    # Compute distance metric (weighted sum of Euclidean errors)
+    dists = np.sqrt(np.sum(residuals ** 2, axis=1))
+    dist = float((dists * weights_np).sum())
+
+    return RegressionResult(
+        best_rcond=0.0,  # No regularization used
+        dist=dist,
+        r2=float(r2),
+        mse=mse,
+        mae=mae,
+        rmse=rmse,
+        predictions=Y_pred,
+        true_values=Y_np,
+        weights=weights_np,
+        per_rcond_cv_error={},  # No CV performed
+    )
+
+
 def project_to_simplex(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Project points onto the 2-simplex (equilateral triangle in 2D)."""
     x = points[:, 1] + 0.5 * points[:, 2]
@@ -191,7 +255,7 @@ def regress_activations_to_beliefs(
     probs: jax.Array,  # (batch, seq_len)
     activations_by_layer: Dict[str, jax.Array],  # layer -> (batch, seq_len, d_layer)
     layer_name: str,
-    rcond_values: Iterable[float] | None = None,
+    rcond_values: Iterable[float],
     n_splits: int = 10,
     random_state: int = 42,
     plot_projection: bool = False,
@@ -199,8 +263,6 @@ def regress_activations_to_beliefs(
     """
     Regress from activations at a given layer to beliefs using K-fold CV over rcond.
     """
-    if rcond_values is None:
-        rcond_values = [1e-15, 1e-10, 1e-5] + np.logspace(-8, -3, 50).tolist()
 
     prefix_dataset = build_prefix_dataset(inputs, beliefs, probs, activations_by_layer)
     X = prefix_dataset.activations_by_layer[layer_name]  # (N, d_layer)

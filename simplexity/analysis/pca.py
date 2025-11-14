@@ -1085,20 +1085,28 @@ def plot_cumulative_variance_explained(
     """
     Create plot showing cumulative variance explained by principal components.
 
+    The plot shows cumulative variance (y-axis) vs number of components (x-axis).
+    Vertical dashed lines mark the component positions where variance thresholds are reached.
+
     Args:
         pca_results_by_step: optional dict mapping step -> PCA result
         pca_results_by_layer: optional dict mapping layer_name -> PCA result
         title: plot title
         max_components: maximum number of components to display
-        thresholds: optional list of variance thresholds to mark (e.g., [0.8, 0.9, 0.95])
+        thresholds: optional list of variance thresholds to mark with vertical lines
+                   (e.g., [0.8, 0.9, 0.95])
 
     Returns:
-        Plotly Figure showing cumulative variance explained
+        Plotly Figure showing cumulative variance explained with threshold markers
     """
     if pca_results_by_step is None and pca_results_by_layer is None:
         raise ValueError("Must provide either pca_results_by_step or pca_results_by_layer")
 
     fig = go.Figure()
+
+    # Track all cumsum curves and their threshold crossings
+    all_cumsums = []
+    all_names = []
 
     # Plot by step
     if pca_results_by_step is not None:
@@ -1108,6 +1116,9 @@ def plot_cumulative_variance_explained(
             cumsum = np.cumsum(var_ratio)
             if max_components is not None:
                 cumsum = cumsum[:max_components]
+
+            all_cumsums.append(cumsum)
+            all_names.append(f"Step {step}")
 
             fig.add_trace(
                 go.Scatter(
@@ -1129,6 +1140,9 @@ def plot_cumulative_variance_explained(
             if max_components is not None:
                 cumsum = cumsum[:max_components]
 
+            all_cumsums.append(cumsum)
+            all_names.append(layer_name)
+
             fig.add_trace(
                 go.Scatter(
                     x=list(range(1, len(cumsum) + 1)),
@@ -1140,16 +1154,27 @@ def plot_cumulative_variance_explained(
                 )
             )
 
-    # Add threshold lines
-    if thresholds is not None:
+    # Add vertical lines at component positions where thresholds are reached
+    if thresholds is not None and all_cumsums:
         for threshold in thresholds:
-            fig.add_hline(
-                y=threshold,
-                line_dash="dash",
-                line_color="gray",
-                annotation_text=f"{threshold:.0%}",
-                annotation_position="right",
-            )
+            # Find where each curve crosses this threshold
+            crossings = []
+            for cumsum in all_cumsums:
+                # Find first component where cumsum >= threshold
+                crossing_idx = np.where(cumsum >= threshold)[0]
+                if len(crossing_idx) > 0:
+                    n_components = crossing_idx[0] + 1  # +1 because we use 1-based indexing
+                    crossings.append(n_components)
+
+            # Draw vertical line for each crossing point
+            for n_comp in set(crossings):  # Use set to avoid duplicate lines
+                fig.add_vline(
+                    x=n_comp,
+                    line_dash="dash",
+                    line_color="gray",
+                    annotation_text=f"{threshold:.0%}",
+                    annotation_position="top",
+                )
 
     fig.update_layout(
         title=title,

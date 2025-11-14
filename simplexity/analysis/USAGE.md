@@ -16,6 +16,13 @@ tracker = AnalysisTracker(
     variance_thresholds=[0.80, 0.90, 0.95, 0.99]
 )
 
+# Option 3: Use simple sklearn regression for speed (~17x faster)
+tracker = AnalysisTracker(use_simple_regression=True)
+
+# Note:
+# - use_simple_regression=True: Fast sklearn OLS (no cross-validation)
+# - use_simple_regression=False (default): Slower k-fold CV with rcond tuning (more robust)
+
 # During validation loops
 for step in validation_steps:
     # Get your data (however you compute it)

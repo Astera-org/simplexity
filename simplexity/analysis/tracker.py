@@ -63,6 +63,7 @@ class AnalysisTracker:
     variance_thresholds: List[float] = field(
         default_factory=lambda: [0.80, 0.90, 0.95, 0.99]
     )
+    use_simple_regression: bool = False  # If True, use sklearn OLS; if False, use k-fold CV
 
     # Internal storage
     _pca_results: Dict[int, Dict[str, Dict[str, Any]]] = field(
@@ -137,15 +138,22 @@ class AnalysisTracker:
             # Regression analysis
             if compute_regression:
                 Y = prefix_dataset.beliefs
-                from simplexity.analysis.regression import regress_with_kfold_rcond_cv
-                import numpy as np
 
-                reg_result = regress_with_kfold_rcond_cv(
-                    X,
-                    Y,
-                    weights,
-                    rcond_values=[1e-15, 1e-10, 1e-5] + np.logspace(-8, -3, 50).tolist(),
-                )
+                if self.use_simple_regression:
+                    # Simple sklearn linear regression (fast, no CV)
+                    from simplexity.analysis.regression import regress_simple_sklearn
+                    reg_result = regress_simple_sklearn(X, Y, weights)
+                else:
+                    # K-fold CV with rcond tuning (slower, more robust)
+                    from simplexity.analysis.regression import regress_with_kfold_rcond_cv
+                    import numpy as np
+                    reg_result = regress_with_kfold_rcond_cv(
+                        X,
+                        Y,
+                        weights,
+                        rcond_values=[1e-15, 1e-10, 1e-5] + np.logspace(-8, -3, 50).tolist(),
+                    )
+
                 self._regression_results[step][layer_name] = reg_result
 
     def get_steps(self) -> List[int]:
