@@ -103,7 +103,13 @@ def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame):
     if aes.color and aes.color.value is not None:
         marker["color"] = aes.color.value
     elif color_field:
-        marker["color"] = df[color_field]
+        # Check if there's a custom scale mapping for nominal/categorical data
+        if aes.color and aes.color.scale and aes.color.scale.domain and aes.color.scale.range:
+            # Map categorical values to colors using the scale
+            color_map = dict(zip(aes.color.scale.domain, aes.color.scale.range))
+            marker["color"] = df[color_field].map(color_map)
+        else:
+            marker["color"] = df[color_field]
     if aes.size and aes.size.value is not None:
         marker["size"] = aes.size.value
     elif size_field:
@@ -150,11 +156,17 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame):
     if aes.color and aes.color.value is not None:
         marker["color"] = aes.color.value
     elif color_field:
-        marker["color"] = df[color_field]
-        # Add colorscale if it's a numeric field
-        if pd.api.types.is_numeric_dtype(df[color_field]):
-            marker["colorscale"] = "Viridis"
-            marker["showscale"] = True
+        # Check if there's a custom scale mapping for nominal/categorical data
+        if aes.color and aes.color.scale and aes.color.scale.domain and aes.color.scale.range:
+            # Map categorical values to colors using the scale
+            color_map = dict(zip(aes.color.scale.domain, aes.color.scale.range))
+            marker["color"] = df[color_field].map(color_map)
+        else:
+            marker["color"] = df[color_field]
+            # Add colorscale if it's a numeric field
+            if pd.api.types.is_numeric_dtype(df[color_field]):
+                marker["colorscale"] = "Viridis"
+                marker["showscale"] = True
     if aes.size and aes.size.value is not None:
         marker["size"] = aes.size.value
     elif size_field:
