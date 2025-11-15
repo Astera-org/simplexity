@@ -139,9 +139,25 @@ class GradientWeightedTokensMetric:
 class CurrentLossMetric:
     """Logs the instantaneous training loss."""
 
+    def __init__(self, ma_window_size: int = 100, ema_gamma: float = 0.9) -> None:
+        self.min_loss = float("inf")
+        self.ma_window_size = ma_window_size
+        self.ma_losses = [float("inf")] * ma_window_size
+        self.ema_gamma = ema_gamma
+        self.ema_loss = float("inf")
+
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the current loss metric."""
-        return {"loss": context.loss}
+        self.min_loss = min(self.min_loss, context.loss)
+        self.ma_losses.append(context.loss)
+        self.ma_losses[context.step % self.ma_window_size] = context.loss
+        self.ema_loss = self.ema_gamma * self.ema_loss + (1 - self.ema_gamma) * context.loss
+        return {
+            "loss": context.loss,
+            "loss/min": self.min_loss,
+            "loss/ma": sum(self.ma_losses) / self.ma_window_size,
+            "loss/ema": self.ema_loss,
+        }
 
 
 class ParameterNormMetric:
@@ -175,12 +191,17 @@ class DistanceFromInitializationMetric:
     initial_named_parameters: Mapping[str, torch.Tensor]
     requires_named_parameters = True
     requires_initial_named_parameters = True
+    max_distance: float = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the distance from initialization metric."""
         assert context.current_named_parameters is not None, "Current named parameters are required for this metric"
         distance = _named_tensor_distance(context.current_named_parameters, self.initial_named_parameters)
-        return {"params/distance_from_init": distance}
+        self.max_distance = max(self.max_distance, distance)
+        return {
+            "params/distance_from_init": distance,
+            "params/distance_from_init/max": self.max_distance,
+        }
 
 
 class CumulativeParameterUpdateMetric:
