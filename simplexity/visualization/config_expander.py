@@ -24,7 +24,7 @@ def expand_plot_config(
 ) -> PlotConfig:
     """Expand a plot configuration with layer templates into a full PlotConfig.
 
-    This function takes a configuration dictionary that may contain an 'expand' directive
+    This function takes a configuration dictionary that may contain an 'expands' directive
     and generates all necessary layers based on the data dimensions.
 
     Args:
@@ -46,6 +46,7 @@ def expand_plot_config(
         ...             "aesthetics": {
         ...                 "x": {"field": "pc1", "type": "quantitative"},
         ...                 "y": {"field": "pc2", "type": "quantitative"},
+        ...                 "color": {"field": "point_id", "type": "quantitative"}
         ...             }
         ...         }
         ...     }]
@@ -66,13 +67,11 @@ def expand_plot_config(
 
     expand_configs = config_dict["expands"]
 
-    # Get all available data sources
-    # Support both "source" (single) and "sources" (multiple)
-    available_sources = []
-    if "sources" in config_dict.get("data", {}):
-        available_sources = config_dict["data"]["sources"]
-    elif "source" in config_dict.get("data", {}):
-        available_sources = [config_dict["data"]["source"]]
+    # Get the data source from config
+    if "source" not in config_dict.get("data", {}):
+        raise ValueError("No data source specified in config")
+
+    data_source = config_dict["data"]["source"]
 
     # Generate layers from all expand configs
     layers = []
@@ -80,15 +79,6 @@ def expand_plot_config(
         expand_by = expand_cfg["by"]
         layer_name_pattern = expand_cfg["layer_name_pattern"]
         template = expand_cfg["template"]
-
-        # Get the data source for this expansion
-        # Can be specified in expand, or use first available source
-        if "source" in expand_cfg:
-            data_source = expand_cfg["source"]
-        elif available_sources:
-            data_source = available_sources[0]
-        else:
-            raise ValueError("No data source specified for expansion")
 
         df = registry_dict[data_source]
 
