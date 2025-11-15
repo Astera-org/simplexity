@@ -240,9 +240,9 @@ def _dict_to_guides_config(guides_dict: dict[str, Any]):
 
     return PlotLevelGuideConfig(
         title=guides_dict.get("title"),
-        x_title=guides_dict.get("x_title"),
-        y_title=guides_dict.get("y_title"),
-        z_title=guides_dict.get("z_title"),
+        subtitle=guides_dict.get("subtitle"),
+        caption=guides_dict.get("caption"),
+        labels=guides_dict.get("labels"),
     )
 
 
