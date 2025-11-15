@@ -81,30 +81,32 @@ def regression_results_to_dataframe(
         DataFrame with columns: step, layer, point_id, x, y, belief_type
             where belief_type is either 'true' or 'predicted'
     """
+    from simplexity.analysis.regression import project_to_simplex
+
     rows = []
     for step, layer_dict in regression_results_by_step_and_layer.items():
         for layer_name, reg_result in layer_dict.items():
-            # True beliefs
-            true_proj = reg_result.projected_true_beliefs
-            for i in range(len(true_proj)):
+            # Project true beliefs to simplex
+            true_x, true_y = project_to_simplex(reg_result.true_values)
+            for i in range(len(true_x)):
                 rows.append({
                     "step": step,
                     "layer": layer_name,
                     "point_id": i,
-                    "x": true_proj[i, 0],
-                    "y": true_proj[i, 1],
+                    "x": true_x[i],
+                    "y": true_y[i],
                     "belief_type": "true",
                 })
 
-            # Predicted beliefs
-            pred_proj = reg_result.projected_predicted_beliefs
-            for i in range(len(pred_proj)):
+            # Project predicted beliefs to simplex
+            pred_x, pred_y = project_to_simplex(reg_result.predictions)
+            for i in range(len(pred_x)):
                 rows.append({
                     "step": step,
                     "layer": layer_name,
                     "point_id": i,
-                    "x": pred_proj[i, 0],
-                    "y": pred_proj[i, 1],
+                    "x": pred_x[i],
+                    "y": pred_y[i],
                     "belief_type": "predicted",
                 })
 
