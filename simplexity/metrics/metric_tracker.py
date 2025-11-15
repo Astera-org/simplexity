@@ -26,9 +26,9 @@ class TrainingMetricTracker:  # pylint: disable=too-many-instance-attributes
         self,
         metric_names: dict[str, Sequence[str]] | Sequence[str] | None = None,
         *,
+        initial_loss: float,
         model: torch.nn.Module | None = None,
         optimizer: torch.optim.Optimizer | None = None,
-        initial_loss: float | None = None,
         optimal_loss: float | None = None,
     ) -> None:
         self._set_requirement_flags(metric_names)
@@ -43,11 +43,13 @@ class TrainingMetricTracker:  # pylint: disable=too-many-instance-attributes
         self._metrics = self._initialize_metrics(metric_names, initial_loss, optimal_loss, initial_named_parameters)
         self._metric_groups = self._initialize_metric_groups(metric_names)
 
-    def metrics(self, group: str = "all") -> dict[str, Mapping[str, float]]:
+    def metrics(self, group: str = "all") -> dict[str, float]:
         """Get the metrics for the given group."""
-        return {
-            metric_name: self._metrics[metric_name].compute(self._context) for metric_name in self._metric_groups[group]
-        }
+        collected = {}
+        for metric_name in self._metric_groups[group]:
+            computed = self._metrics[metric_name].compute(self._context)
+            collected.update(computed)
+        return collected
 
     def update(
         self,
@@ -117,9 +119,9 @@ class TrainingMetricTracker:  # pylint: disable=too-many-instance-attributes
         return {name: param.detach().clone().cpu() for name, param in self.model.named_parameters()}
 
     def _initialize_context(
-        self, initial_loss: float | None = None, initial_named_parameters: Mapping[str, torch.Tensor] | None = None
+        self, initial_loss: float, initial_named_parameters: Mapping[str, torch.Tensor] | None = None
     ) -> MetricContext:
-        learning_rates: Mapping[str, float] | None = None
+        learning_rates: Mapping[str, float] = {}
         if self._needs_learning_rates:
             learning_rates = self._extract_learning_rates()
 
