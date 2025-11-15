@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
+from omegaconf import DictConfig
 
 from simplexity.visualization.data_registry import DataRegistry
 from simplexity.visualization.structured_configs import (
@@ -18,17 +19,27 @@ from simplexity.visualization.structured_configs import (
 )
 
 
+def _get(obj: Any, key: str, default: Any = None) -> Any:
+    """Get value from dict-like object (supports both dict and OmegaConf DictConfig)."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    elif isinstance(obj, DictConfig):
+        return obj.get(key, default)
+    else:
+        return getattr(obj, key, default)
+
+
 def expand_plot_config(
-    config_dict: dict[str, Any],
+    config_dict: dict[str, Any] | DictConfig,
     data_registry: DataRegistry | dict[str, pd.DataFrame],
 ) -> PlotConfig:
     """Expand a plot configuration with layer templates into a full PlotConfig.
 
-    This function takes a configuration dictionary that may contain an 'expands' directive
-    and generates all necessary layers based on the data dimensions.
+    This function takes a configuration dictionary (or OmegaConf DictConfig) that may
+    contain an 'expands' directive and generates all necessary layers based on the data dimensions.
 
     Args:
-        config_dict: Plot configuration dictionary (potentially from YAML/Hydra)
+        config_dict: Plot configuration dict or OmegaConf DictConfig (from YAML/Hydra)
         data_registry: Registry of DataFrames for resolving data sources
 
     Returns:
@@ -61,24 +72,25 @@ def expand_plot_config(
         registry_dict = {name: data_registry.get(name) for name in dir(data_registry)}
 
     # Check if expansion is needed
-    if "expands" not in config_dict:
+    if _get(config_dict, "expands") is None:
         # No expansion needed, convert directly to PlotConfig
         return _dict_to_plot_config(config_dict)
 
-    expand_configs = config_dict["expands"]
+    expand_configs = _get(config_dict, "expands")
 
     # Get the data source from config
-    if "source" not in config_dict.get("data", {}):
+    data_section = _get(config_dict, "data", {})
+    if _get(data_section, "source") is None:
         raise ValueError("No data source specified in config")
 
-    data_source = config_dict["data"]["source"]
+    data_source = _get(data_section, "source")
 
     # Generate layers from all expand configs
     layers = []
     for expand_cfg in expand_configs:
-        expand_by = expand_cfg["by"]
-        layer_name_pattern = expand_cfg["layer_name_pattern"]
-        template = expand_cfg["template"]
+        expand_by = _get(expand_cfg, "by")
+        layer_name_pattern = _get(expand_cfg, "layer_name_pattern")
+        template = _get(expand_cfg, "template")
 
         df = registry_dict[data_source]
 
@@ -100,8 +112,9 @@ def expand_plot_config(
                        for dim in expand_by]
 
             # Add any additional filters from template
-            if "filters" in template:
-                filters.extend(template["filters"])
+            template_filters = _get(template, "filters")
+            if template_filters:
+                filters.extend(template_filters)
 
             # Create layer config
             layer = LayerConfig(
@@ -110,22 +123,22 @@ def expand_plot_config(
                     source=data_source,
                     filters=filters,
                 ),
-                geometry=_dict_to_geometry_config(template["geometry"]),
-                aesthetics=_dict_to_aesthetics_config(template["aesthetics"]),
+                geometry=_dict_to_geometry_config(_get(template, "geometry")),
+                aesthetics=_dict_to_aesthetics_config(_get(template, "aesthetics")),
             )
             layers.append(layer)
 
     # Build the full plot config
-    # Use the top-level data source as default (first expand may override)
-    default_source = config_dict.get("data", {}).get("source", "main")
+    # Use the top-level data source as default
+    default_source = _get(data_section, "source", "main")
 
     plot_config = PlotConfig(
-        backend=config_dict.get("backend", "plotly"),
+        backend=_get(config_dict, "backend", "plotly"),
         data=DataConfig(source=default_source),
         layers=layers,
-        size=_dict_to_size_config(config_dict.get("size", {})),
-        guides=_dict_to_guides_config(config_dict.get("guides", {})),
-        background=config_dict.get("background"),
+        size=_dict_to_size_config(_get(config_dict, "size", {})),
+        guides=_dict_to_guides_config(_get(config_dict, "guides", {})),
+        background=_get(config_dict, "background"),
     )
 
     return plot_config
@@ -139,62 +152,103 @@ def _dict_to_plot_config(config_dict: dict[str, Any]) -> PlotConfig:
     return PlotConfig(**config_dict)
 
 
-def _dict_to_geometry_config(geom_dict: dict[str, Any]):
-    """Convert dict to GeometryConfig."""
+def _dict_to_geometry_config(geom_dict: dict[str, Any] | DictConfig):
+    """Convert dict/DictConfig to GeometryConfig."""
     from simplexity.visualization.structured_configs import GeometryConfig
 
     return GeometryConfig(
-        type=geom_dict["type"],
-        props=geom_dict.get("props", {}),
+        type=_get(geom_dict, "type"),
+        props=_get(geom_dict, "props", {}),
     )
 
 
-def _dict_to_aesthetics_config(aes_dict: dict[str, Any]):
-    """Convert dict to AestheticsConfig."""
+def _dict_to_aesthetics_config(aes_dict: dict[str, Any] | DictConfig):
+    """Convert dict/DictConfig to AestheticsConfig."""
     from simplexity.visualization.structured_configs import (
         AestheticsConfig,
         ChannelAestheticsConfig,
+        ScaleConfig,
     )
 
     # Helper to convert channel dicts
     def to_channel(ch_dict):
         if ch_dict is None:
             return None
-        return ChannelAestheticsConfig(**ch_dict)
+        # Handle scale if present
+        scale_dict = _get(ch_dict, "scale")
+        scale = None
+        if scale_dict is not None:
+            scale = ScaleConfig(
+                type=_get(scale_dict, "type"),
+                domain=_get(scale_dict, "domain"),
+                range=_get(scale_dict, "range"),
+                clamp=_get(scale_dict, "clamp"),
+                nice=_get(scale_dict, "nice"),
+                reverse=_get(scale_dict, "reverse"),
+            )
+
+        return ChannelAestheticsConfig(
+            field=_get(ch_dict, "field"),
+            type=_get(ch_dict, "type"),
+            value=_get(ch_dict, "value"),
+            aggregate=_get(ch_dict, "aggregate"),
+            bin=_get(ch_dict, "bin"),
+            time_unit=_get(ch_dict, "time_unit"),
+            scale=scale,
+            axis=_get(ch_dict, "axis"),
+            legend=_get(ch_dict, "legend"),
+            sort=_get(ch_dict, "sort"),
+            title=_get(ch_dict, "title"),
+        )
 
     # Build tooltip list if present
     tooltip = None
-    if "tooltip" in aes_dict and aes_dict["tooltip"]:
-        tooltip_list = [to_channel(tt) for tt in aes_dict["tooltip"]]
+    tooltip_data = _get(aes_dict, "tooltip")
+    if tooltip_data:
+        tooltip_list = [to_channel(tt) for tt in tooltip_data]
         # Filter out None values
         tooltip = [t for t in tooltip_list if t is not None]
         if not tooltip:
             tooltip = None
 
     return AestheticsConfig(
-        x=to_channel(aes_dict.get("x")),
-        y=to_channel(aes_dict.get("y")),
-        z=to_channel(aes_dict.get("z")),
-        color=to_channel(aes_dict.get("color")),
-        size=to_channel(aes_dict.get("size")),
-        shape=to_channel(aes_dict.get("shape")),
-        opacity=to_channel(aes_dict.get("opacity")),
+        x=to_channel(_get(aes_dict, "x")) if _get(aes_dict, "x") else None,
+        y=to_channel(_get(aes_dict, "y")) if _get(aes_dict, "y") else None,
+        z=to_channel(_get(aes_dict, "z")) if _get(aes_dict, "z") else None,
+        color=to_channel(_get(aes_dict, "color")) if _get(aes_dict, "color") else None,
+        size=to_channel(_get(aes_dict, "size")) if _get(aes_dict, "size") else None,
+        shape=to_channel(_get(aes_dict, "shape")) if _get(aes_dict, "shape") else None,
+        opacity=to_channel(_get(aes_dict, "opacity")) if _get(aes_dict, "opacity") else None,
         tooltip=tooltip,
     )
 
 
-def _dict_to_size_config(size_dict: dict[str, Any]):
-    """Convert dict to PlotSizeConfig."""
+def _dict_to_size_config(size_dict: dict[str, Any] | DictConfig):
+    """Convert dict/DictConfig to PlotSizeConfig."""
     from simplexity.visualization.structured_configs import PlotSizeConfig
 
-    return PlotSizeConfig(**size_dict)
+    if not size_dict:
+        return PlotSizeConfig()
+
+    return PlotSizeConfig(
+        width=_get(size_dict, "width"),
+        height=_get(size_dict, "height"),
+    )
 
 
-def _dict_to_guides_config(guides_dict: dict[str, Any]):
-    """Convert dict to PlotLevelGuideConfig."""
+def _dict_to_guides_config(guides_dict: dict[str, Any] | DictConfig):
+    """Convert dict/DictConfig to PlotLevelGuideConfig."""
     from simplexity.visualization.structured_configs import PlotLevelGuideConfig
 
-    return PlotLevelGuideConfig(**guides_dict)
+    if not guides_dict:
+        return PlotLevelGuideConfig()
+
+    return PlotLevelGuideConfig(
+        title=_get(guides_dict, "title"),
+        x_title=_get(guides_dict, "x_title"),
+        y_title=_get(guides_dict, "y_title"),
+        z_title=_get(guides_dict, "z_title"),
+    )
 
 
 __all__ = ["expand_plot_config"]
