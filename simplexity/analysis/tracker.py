@@ -1,40 +1,42 @@
 """Analysis tracker for collecting metrics across training steps."""
 
-import jax
-import jax.numpy as jnp
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
+from typing import Any
+
+import jax
+import pandas as pd
 import plotly.graph_objects as go
 
+from simplexity.analysis.data_adapters import (
+    pca_results_to_dataframe,
+    regression_results_to_dataframe,
+    variance_to_dataframe,
+)
 from simplexity.analysis.pca import (
-    compute_pca,
-    plot_pca_2d_with_step_slider,
-    plot_pca_2d_with_layer_dropdown,
-    plot_pca_2d_with_step_and_layer,
-    plot_pca_3d_with_step_slider,
-    plot_pca_3d_with_layer_dropdown,
-    plot_pca_3d_with_step_and_layer,
-    compute_variance_thresholds,
-    plot_variance_explained,
-    plot_cumulative_variance_explained,
-    plot_cumulative_variance_with_step_dropdown,
-    plot_cumulative_variance_with_layer_dropdown,
     plot_components_for_variance_threshold,
 )
+from simplexity.analysis.plot_configs import (
+    generate_cumulative_variance_config,
+    generate_pca_2d_config,
+    generate_pca_3d_config,
+    generate_regression_config,
+)
+from simplexity.analysis.plot_style_configs import (
+    PCA2DStyleConfig,
+    PCA3DStyleConfig,
+    RegressionStyleConfig,
+    VarianceStyleConfig,
+)
 from simplexity.analysis.regression import (
-    regress_activations_to_beliefs,
-    plot_simplex_projection_with_step_slider,
-    plot_simplex_projection_with_layer_dropdown,
-    plot_simplex_projection_with_step_and_layer,
     RegressionResult,
 )
 from simplexity.utils.analysis_utils import build_prefix_dataset
+from simplexity.visualization.plotly_renderer import build_plotly_figure
 
 
 @dataclass
 class AnalysisTracker:
-    """
-    Track analysis metrics across training steps and layers.
+    """Track analysis metrics across training steps and layers.
 
     Usage:
         # Explicit layer names
@@ -61,20 +63,26 @@ class AnalysisTracker:
         tracker.save_all_plots(output_dir="analysis_plots/")
     """
 
-    layer_names: Optional[List[str]] = None
-    variance_thresholds: List[float] = field(
+    layer_names: list[str] | None = None
+    variance_thresholds: list[float] = field(
         default_factory=lambda: [0.80, 0.90, 0.95, 0.99]
     )
     use_simple_regression: bool = False  # If True, use sklearn OLS; if False, use k-fold CV
 
+    # Plot styling configurations (can be loaded from YAML via Hydra)
+    pca_2d_style: PCA2DStyleConfig | None = None
+    pca_3d_style: PCA3DStyleConfig | None = None
+    regression_style: RegressionStyleConfig | None = None
+    variance_style: VarianceStyleConfig | None = None
+
     # Internal storage
-    _pca_results: Dict[int, Dict[str, Dict[str, Any]]] = field(
+    _pca_results: dict[int, dict[str, dict[str, Any]]] = field(
         default_factory=dict, init=False
     )
-    _regression_results: Dict[int, Dict[str, RegressionResult]] = field(
+    _regression_results: dict[int, dict[str, RegressionResult]] = field(
         default_factory=dict, init=False
     )
-    _variance_threshold_results: Dict[int, Dict[str, Dict[float, int]]] = field(
+    _variance_threshold_results: dict[int, dict[str, dict[float, int]]] = field(
         default_factory=dict, init=False
     )
 
@@ -84,13 +92,12 @@ class AnalysisTracker:
         inputs: jax.Array,
         beliefs: jax.Array,
         probs: jax.Array,
-        activations_by_layer: Dict[str, jax.Array],
+        activations_by_layer: dict[str, jax.Array],
         compute_pca: bool = True,
         compute_regression: bool = True,
-        n_pca_components: Optional[int] = None,
+        n_pca_components: int | None = None,
     ) -> None:
-        """
-        Add analysis results for a single training/validation step.
+        """Add analysis results for a single training/validation step.
 
         Args:
             step: training step number
@@ -123,6 +130,8 @@ class AnalysisTracker:
             if compute_pca:
                 from simplexity.analysis.pca import (
                     compute_pca as compute_pca_fn,
+                )
+                from simplexity.analysis.pca import (
                     compute_variance_thresholds,
                 )
 
@@ -147,8 +156,9 @@ class AnalysisTracker:
                     reg_result = regress_simple_sklearn(X, Y, weights)
                 else:
                     # K-fold CV with rcond tuning (slower, more robust)
-                    from simplexity.analysis.regression import regress_with_kfold_rcond_cv
                     import numpy as np
+
+                    from simplexity.analysis.regression import regress_with_kfold_rcond_cv
                     reg_result = regress_with_kfold_rcond_cv(
                         X,
                         Y,
@@ -158,37 +168,66 @@ class AnalysisTracker:
 
                 self._regression_results[step][layer_name] = reg_result
 
-    def get_steps(self) -> List[int]:
+    def get_steps(self) -> list[int]:
         """Get all recorded steps."""
         return sorted(self._pca_results.keys())
 
     def get_pca_result(
         self, step: int, layer_name: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get PCA result for a specific step and layer."""
         return self._pca_results.get(step, {}).get(layer_name)
 
     def get_regression_result(
         self, step: int, layer_name: str
-    ) -> Optional[RegressionResult]:
+    ) -> RegressionResult | None:
         """Get regression result for a specific step and layer."""
         return self._regression_results.get(step, {}).get(layer_name)
 
     def get_variance_thresholds(
         self, step: int, layer_name: str
-    ) -> Optional[Dict[float, int]]:
+    ) -> dict[float, int] | None:
         """Get variance threshold results for a specific step and layer."""
         return self._variance_threshold_results.get(step, {}).get(layer_name)
 
-    def generate_pca_plots(
-        self, by_step: bool = True, by_layer: bool = True, combined: bool = True
-    ) -> Dict[str, go.Figure]:
-        """
-        Generate interactive PCA plots.
+    def get_pca_dataframe(self, n_components: int = 2) -> pd.DataFrame:
+        """Get PCA results as a DataFrame for visualization.
 
         Args:
-            by_step: generate step slider plots (one per layer)
-            by_layer: generate layer dropdown plots (one per step)
+            n_components: Number of principal components (2 for 2D, 3 for 3D)
+
+        Returns:
+            DataFrame with columns: step, layer, point_id, pc1, pc2, [pc3]
+        """
+        return pca_results_to_dataframe(self._pca_results, n_components=n_components)
+
+    def get_variance_dataframe(self, max_components: int | None = None) -> pd.DataFrame:
+        """Get variance explained results as a DataFrame for visualization.
+
+        Args:
+            max_components: Maximum number of components to include
+
+        Returns:
+            DataFrame with columns: step, layer, component, cumulative_variance
+        """
+        return variance_to_dataframe(self._pca_results, max_components=max_components)
+
+    def get_regression_dataframe(self) -> pd.DataFrame:
+        """Get regression results as a DataFrame for visualization.
+
+        Returns:
+            DataFrame with columns: step, layer, point_id, x, y, belief_type
+        """
+        return regression_results_to_dataframe(self._regression_results)
+
+    def generate_pca_plots(
+        self, by_step: bool = True, by_layer: bool = True, combined: bool = True
+    ) -> dict[str, go.Figure]:
+        """Generate interactive PCA plots using declarative visualization backend.
+
+        Args:
+            by_step: deprecated (ignored, only combined plots generated)
+            by_layer: deprecated (ignored, only combined plots generated)
             combined: generate combined step+layer plot
 
         Returns:
@@ -200,52 +239,31 @@ class AnalysisTracker:
 
         plots = {}
 
-        if by_step:
-            # One plot per layer with step slider
-            for layer_name in self.layer_names:
-                pca_by_step = {
-                    step: self._pca_results[step][layer_name]
-                    for step in self.get_steps()
-                    if layer_name in self._pca_results[step]
-                }
-                if pca_by_step:
-                    fig = plot_pca_2d_with_step_slider(
-                        pca_by_step, title=f"PCA: {layer_name} Over Training"
-                    )
-                    plots[f"pca_step_slider_{layer_name}"] = fig
-
-        if by_layer:
-            # One plot per step with layer dropdown
-            for step in self.get_steps():
-                pca_by_layer = {
-                    layer_name: self._pca_results[step][layer_name]
-                    for layer_name in self.layer_names
-                    if layer_name in self._pca_results[step]
-                }
-                if pca_by_layer:
-                    fig = plot_pca_2d_with_layer_dropdown(
-                        pca_by_layer, title=f"PCA: Layers at Step {step}"
-                    )
-                    plots[f"pca_layer_dropdown_step_{step}"] = fig
-
         if combined and self._pca_results:
-            # Single plot with both step and layer controls
-            fig = plot_pca_2d_with_step_and_layer(
-                self._pca_results, title="PCA: Training Evolution Across Layers"
+            # Convert data to DataFrame
+            pca_df = pca_results_to_dataframe(self._pca_results, n_components=2)
+
+            # Generate config with optional custom styling
+            config = generate_pca_2d_config(
+                steps=self.get_steps(),
+                layers=self.layer_names,
+                style=self.pca_2d_style,
             )
+
+            # Build figure
+            fig = build_plotly_figure(config, data_registry={"pca_data": pca_df})
             plots["pca_combined"] = fig
 
         return plots
 
     def generate_regression_plots(
         self, by_step: bool = True, by_layer: bool = True, combined: bool = True
-    ) -> Dict[str, go.Figure]:
-        """
-        Generate interactive regression simplex projection plots.
+    ) -> dict[str, go.Figure]:
+        """Generate interactive regression simplex projection plots using declarative backend.
 
         Args:
-            by_step: generate step slider plots (one per layer)
-            by_layer: generate layer dropdown plots (one per step)
+            by_step: deprecated (ignored, only combined plots generated)
+            by_layer: deprecated (ignored, only combined plots generated)
             combined: generate combined step+layer plot
 
         Returns:
@@ -257,53 +275,31 @@ class AnalysisTracker:
 
         plots = {}
 
-        if by_step:
-            # One plot per layer with step slider
-            for layer_name in self.layer_names:
-                reg_by_step = {
-                    step: self._regression_results[step][layer_name]
-                    for step in self.get_steps()
-                    if layer_name in self._regression_results[step]
-                }
-                if reg_by_step:
-                    fig = plot_simplex_projection_with_step_slider(
-                        reg_by_step, title=f"Regression: {layer_name} Over Training"
-                    )
-                    plots[f"regression_step_slider_{layer_name}"] = fig
-
-        if by_layer:
-            # One plot per step with layer dropdown
-            for step in self.get_steps():
-                reg_by_layer = {
-                    layer_name: self._regression_results[step][layer_name]
-                    for layer_name in self.layer_names
-                    if layer_name in self._regression_results[step]
-                }
-                if reg_by_layer:
-                    fig = plot_simplex_projection_with_layer_dropdown(
-                        reg_by_layer, title=f"Regression: Layers at Step {step}"
-                    )
-                    plots[f"regression_layer_dropdown_step_{step}"] = fig
-
         if combined and self._regression_results:
-            # Single plot with both step and layer controls
-            fig = plot_simplex_projection_with_step_and_layer(
-                self._regression_results,
-                title="Regression: Training Evolution Across Layers",
+            # Convert data to DataFrame
+            reg_df = regression_results_to_dataframe(self._regression_results)
+
+            # Generate config with optional custom styling
+            config = generate_regression_config(
+                steps=self.get_steps(),
+                layers=self.layer_names,
+                style=self.regression_style,
             )
+
+            # Build figure
+            fig = build_plotly_figure(config, data_registry={"regression_data": reg_df})
             plots["regression_combined"] = fig
 
         return plots
 
     def generate_pca_3d_plots(
         self, by_step: bool = True, by_layer: bool = True, combined: bool = True
-    ) -> Dict[str, go.Figure]:
-        """
-        Generate interactive 3D PCA plots.
+    ) -> dict[str, go.Figure]:
+        """Generate interactive 3D PCA plots using declarative visualization backend.
 
         Args:
-            by_step: generate step slider plots (one per layer)
-            by_layer: generate layer dropdown plots (one per step)
+            by_step: deprecated (ignored, only combined plots generated)
+            by_layer: deprecated (ignored, only combined plots generated)
             combined: generate combined step+layer plot
 
         Returns:
@@ -315,51 +311,30 @@ class AnalysisTracker:
 
         plots = {}
 
-        if by_step:
-            # One plot per layer with step slider
-            for layer_name in self.layer_names:
-                pca_by_step = {
-                    step: self._pca_results[step][layer_name]
-                    for step in self.get_steps()
-                    if layer_name in self._pca_results[step]
-                }
-                if pca_by_step:
-                    fig = plot_pca_3d_with_step_slider(
-                        pca_by_step, title=f"3D PCA: {layer_name} Over Training"
-                    )
-                    plots[f"pca_3d_step_slider_{layer_name}"] = fig
-
-        if by_layer:
-            # One plot per step with layer dropdown
-            for step in self.get_steps():
-                pca_by_layer = {
-                    layer_name: self._pca_results[step][layer_name]
-                    for layer_name in self.layer_names
-                    if layer_name in self._pca_results[step]
-                }
-                if pca_by_layer:
-                    fig = plot_pca_3d_with_layer_dropdown(
-                        pca_by_layer, title=f"3D PCA: Layers at Step {step}"
-                    )
-                    plots[f"pca_3d_layer_dropdown_step_{step}"] = fig
-
         if combined and self._pca_results:
-            # Single plot with both step and layer controls
-            fig = plot_pca_3d_with_step_and_layer(
-                self._pca_results, title="3D PCA: Training Evolution Across Layers"
+            # Convert data to DataFrame
+            pca_df = pca_results_to_dataframe(self._pca_results, n_components=3)
+
+            # Generate config with optional custom styling
+            config = generate_pca_3d_config(
+                steps=self.get_steps(),
+                layers=self.layer_names,
+                style=self.pca_3d_style,
             )
+
+            # Build figure
+            fig = build_plotly_figure(config, data_registry={"pca_data": pca_df})
             plots["pca_3d_combined"] = fig
 
         return plots
 
     def generate_variance_plots(
-        self, max_components: Optional[int] = 20
-    ) -> Dict[str, go.Figure]:
-        """
-        Generate variance explained plots.
+        self, max_components: int | None = 20
+    ) -> dict[str, go.Figure]:
+        """Generate variance explained plots using declarative visualization backend.
 
         Args:
-            max_components: maximum number of components to display in scree plots
+            max_components: maximum number of components to display in plots
 
         Returns:
             dict mapping plot name -> Plotly Figure
@@ -372,22 +347,34 @@ class AnalysisTracker:
 
         # Cumulative variance plots with dropdowns
         if self._pca_results:
+            # Use max_components from style config if provided, otherwise use parameter
+            _max_components = max_components
+            if self.variance_style is not None and self.variance_style.max_components is not None:
+                _max_components = self.variance_style.max_components
+
+            # Convert data to DataFrame
+            var_df = variance_to_dataframe(self._pca_results, max_components=_max_components)
+
             # Combined plot with step dropdown (compare layers at each step)
-            fig_by_step = plot_cumulative_variance_with_step_dropdown(
-                pca_results_by_step_and_layer=self._pca_results,
-                title="Cumulative Variance Explained by Step",
-                max_components=max_components,
-                thresholds=self.variance_thresholds,
+            config_by_step = generate_cumulative_variance_config(
+                steps=self.get_steps(),
+                layers=self.layer_names,
+                style=self.variance_style,
+                group_by_step=True,
             )
+            fig_by_step = build_plotly_figure(config_by_step, data_registry={"variance_data": var_df})
+            # TODO: Add threshold lines using shapes
             plots["cumulative_variance_by_step"] = fig_by_step
 
             # Combined plot with layer dropdown (compare steps for each layer)
-            fig_by_layer = plot_cumulative_variance_with_layer_dropdown(
-                pca_results_by_step_and_layer=self._pca_results,
-                title="Cumulative Variance Explained by Layer",
-                max_components=max_components,
-                thresholds=self.variance_thresholds,
+            config_by_layer = generate_cumulative_variance_config(
+                steps=self.get_steps(),
+                layers=self.layer_names,
+                style=self.variance_style,
+                group_by_step=False,
             )
+            fig_by_layer = build_plotly_figure(config_by_layer, data_registry={"variance_data": var_df})
+            # TODO: Add threshold lines using shapes
             plots["cumulative_variance_by_layer"] = fig_by_layer
 
         # Components required for thresholds over training
@@ -400,9 +387,8 @@ class AnalysisTracker:
 
         return plots
 
-    def get_variance_threshold_summary(self) -> Dict[str, Any]:
-        """
-        Get summary of variance thresholds across all steps and layers.
+    def get_variance_threshold_summary(self) -> dict[str, Any]:
+        """Get summary of variance thresholds across all steps and layers.
 
         Returns:
             dict with structure: {
@@ -437,9 +423,8 @@ class AnalysisTracker:
 
         return summary
 
-    def get_regression_metrics_summary(self) -> Dict[str, Any]:
-        """
-        Get summary of regression metrics across all steps and layers.
+    def get_regression_metrics_summary(self) -> dict[str, Any]:
+        """Get summary of regression metrics across all steps and layers.
 
         Returns:
             dict with structure: {
@@ -486,9 +471,8 @@ class AnalysisTracker:
 
         return summary
 
-    def save_all_plots(self, output_dir: str) -> Dict[str, str]:
-        """
-        Save combined plots to HTML files in the output directory.
+    def save_all_plots(self, output_dir: str) -> dict[str, str]:
+        """Save combined plots to HTML files in the output directory.
 
         Saves the interactive combined plots with step slider and layer dropdown controls,
         plus variance-related plots with threshold markers.
