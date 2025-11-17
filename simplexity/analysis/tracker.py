@@ -292,17 +292,31 @@ class AnalysisTracker:
         Returns:
             Dict mapping analysis name to DataFrame
         """
+        from typing import cast
+
+        from omegaconf import DictConfig, OmegaConf
+
         data_registry = {}
         for analysis_cfg in analysis_configs.values():
-            if not isinstance(analysis_cfg, dict):
+            # Skip non-dict/non-DictConfig values
+            if not isinstance(analysis_cfg, (dict, DictConfig)):
                 continue
 
+            # Convert DictConfig to plain dict for type safety
+            if isinstance(analysis_cfg, DictConfig):
+                converted = OmegaConf.to_container(analysis_cfg, resolve=True)
+                if not isinstance(converted, dict):
+                    continue
+                cfg_dict = cast(dict[str, Any], converted)
+            else:
+                cfg_dict = analysis_cfg
+
             # Extract kwargs for the appropriate getter (exclude metadata fields)
-            getter_kwargs = {k: v for k, v in analysis_cfg.items() if k not in ["name", "type", "use_simple", "scope"]}
+            getter_kwargs = {k: v for k, v in cfg_dict.items() if k not in ["name", "type", "use_simple", "scope"]}
 
             # Call the appropriate getter based on type
-            analysis_type = analysis_cfg.get("type")
-            analysis_name = analysis_cfg.get("name")
+            analysis_type = cfg_dict.get("type")
+            analysis_name = cfg_dict.get("name")
 
             if analysis_type == "pca":
                 data_registry[analysis_name] = self.get_pca_dataframe(**getter_kwargs)

@@ -112,9 +112,9 @@ def expand_plot_config(
             filters = [f"{dim} == {combo[dim]!r}" if isinstance(combo[dim], str) else f"{dim} == {combo[dim]}"
                        for dim in expand_by]
 
-            # Add any additional filters from template
-            if "filters" in template:
-                filters.extend(template["filters"])
+            # Add any additional filters from template.data.filters
+            if "data" in template and "filters" in template["data"]:
+                filters.extend(template["data"]["filters"])
 
             # Create layer config
             layer = LayerConfig(
