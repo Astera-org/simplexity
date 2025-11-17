@@ -221,8 +221,23 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
 
         log_kwargs.update(kwargs)
 
-        with mlflow.start_run(run_id=self.run_id):
-            mlflow_pytorch.log_model(**log_kwargs)
+        # Save current global tracking and registry URIs
+        original_tracking_uri = mlflow.get_tracking_uri()
+        original_registry_uri = mlflow.get_registry_uri()
+
+        try:
+            # Set tracking and registry URIs before starting the run
+            if self.tracking_uri:
+                mlflow.set_tracking_uri(self.tracking_uri)
+            if self.registry_uri:
+                mlflow.set_registry_uri(self.registry_uri)
+
+            with mlflow.start_run(run_id=self.run_id):
+                mlflow_pytorch.log_model(**log_kwargs)
+        finally:
+            # Restore original global tracking and registry URIs
+            mlflow.set_tracking_uri(original_tracking_uri)
+            mlflow.set_registry_uri(original_registry_uri)
 
     def load_model_from_registry(
         self,
