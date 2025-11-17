@@ -8,6 +8,7 @@ from unittest.mock import patch
 import chex
 import equinox as eqx
 import jax
+import mlflow
 import pytest
 import torch
 import yaml
@@ -270,7 +271,7 @@ def test_mlflow_persister_save_model_to_registry(tmp_path: Path) -> None:
     client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
     model_versions = client.search_model_versions(filter_string=f"name='{registered_model_name}'", max_results=10)
     assert len(model_versions) == 1
-    assert model_versions[0].version == "1"
+    assert model_versions[0].version == 1
     assert model_versions[0].current_stage == "None"
 
     persister.cleanup()
@@ -307,20 +308,61 @@ def test_mlflow_persister_save_model_to_registry_with_requirements(tmp_path: Pat
     client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
     model_versions = client.search_model_versions(filter_string=f"name='{registered_model_name}'", max_results=10)
     assert len(model_versions) == 1
-    assert model_versions[0].version == "1"
+    assert model_versions[0].version == 1
     assert model_versions[0].current_stage == "None"
 
     # Verify that requirements are automatically saved
-    download_path = tmp_path / "downloaded_model"
-    download_path.mkdir()
-    run_id = model_versions[0].run_id
+    # The model version's source points to where the model artifacts are stored
+    model_version = model_versions[0]
+    run_id = model_version.run_id
     assert run_id is not None, "Model version must have a run_id"
-    client.download_artifacts(run_id, "model", dst_path=str(download_path))
-    requirements_path = download_path / "requirements.txt"
-    assert requirements_path.exists(), "Requirements file should be automatically saved"
+
+    # Get the run to find the experiment ID
+    run = client.get_run(run_id)
+    experiment_id = run.info.experiment_id
+
+    # The source attribute contains the URI to the model artifacts
+    # For file-based tracking, it should be something like "runs:/run_id/model" or "models:/model_name/version"
+    # But we can also access it directly from the filesystem
+    # MLflow stores models logged via log_model in the run's artifacts/model directory
+    artifacts_base_dir = artifact_dir / experiment_id / run_id / "artifacts"
+
+    # Check if artifacts directory exists and list what's in it
+    if artifacts_base_dir.exists():
+        # List all subdirectories/files in artifacts
+        artifact_items = list(artifacts_base_dir.iterdir())
+        # Look for model directory
+        model_artifact_dir = None
+        for item in artifact_items:
+            if item.is_dir() and (item.name == "model" or "model" in item.name.lower()):
+                model_artifact_dir = item
+                break
+
+        # If not found, try the standard "model" path
+        if model_artifact_dir is None:
+            model_artifact_dir = artifacts_base_dir / "model"
+    else:
+        # If artifacts directory doesn't exist, try the standard path anyway
+        model_artifact_dir = artifacts_base_dir / "model"
+
+    # Verify the model directory exists
+    assert model_artifact_dir.exists(), (
+        f"Model artifact directory should exist at {model_artifact_dir}. "
+        f"Artifacts base dir exists: {artifacts_base_dir.exists()}, "
+        f"Items in artifacts dir: {list(artifacts_base_dir.iterdir()) if artifacts_base_dir.exists() else 'N/A'}, "
+        f"Model version source: {model_version.source if hasattr(model_version, 'source') else 'N/A'}"
+    )
+    assert model_artifact_dir.is_dir()
+
+    # Check for requirements.txt in the model directory
+    requirements_path = model_artifact_dir / "requirements.txt"
+    assert requirements_path.exists(), (
+        f"Requirements file should be automatically saved at {requirements_path}. "
+        f"Files in model directory: {list(model_artifact_dir.iterdir()) if model_artifact_dir.exists() else 'N/A'}"
+    )
     assert requirements_path.is_file()
-    requirements_content = requirements_path.read_text()
-    assert requirements_content == requirements_content
+    downloaded_content = requirements_path.read_text()
+    assert downloaded_content == requirements_content
 
     persister.cleanup()
 
@@ -348,6 +390,11 @@ def test_mlflow_persister_save_model_to_registry_with_model_inputs(tmp_path: Pat
         persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
 
     # Verify that the registered model has a signature
+    # Set tracking and registry URIs so get_model_info uses the same URIs as the persister
+    tracking_uri = artifact_dir.as_uri()
+    registry_uri = artifact_dir.as_uri()
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_registry_uri(registry_uri)
     model_uri = f"models:/{registered_model_name}/1"
     model_info = get_model_info(model_uri)
     assert model_info.signature is not None, "Registered model should have a signature when model_inputs is provided"
@@ -403,6 +450,11 @@ def test_mlflow_persister_save_model_to_registry_with_signature(tmp_path: Path) 
         mock_warning.assert_called_once_with("Signature provided in kwargs, ignoring inferred signature")
 
     # Verify that the registered model has a signature
+    # Set tracking and registry URIs so get_model_info uses the same URIs as the persister
+    tracking_uri = artifact_dir.as_uri()
+    registry_uri = artifact_dir.as_uri()
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_registry_uri(registry_uri)
     model_uri = f"models:/{registered_model_name}/1"
     model_info = get_model_info(model_uri)
     assert model_info.signature == signature
