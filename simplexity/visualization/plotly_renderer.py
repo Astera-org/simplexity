@@ -6,6 +6,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from simplexity.exceptions import ConfigValidationError
@@ -24,6 +25,21 @@ from simplexity.visualization.structured_configs import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _beliefs_to_rgb(df: pd.DataFrame) -> pd.Series:
+    """Convert belief_0, belief_1, belief_2 columns to RGB color strings.
+
+    Args:
+        df: DataFrame with belief_0, belief_1, belief_2 columns
+
+    Returns:
+        Series of RGB color strings in format "rgb(r,g,b)"
+    """
+    beliefs = np.asarray(df[["belief_0", "belief_1", "belief_2"]].values)
+    rgb = (beliefs * 255).astype(int)
+    rgb = np.clip(rgb, 0, 255)
+    return pd.Series([f"rgb({r},{g},{b})" for r, g, b in rgb], index=df.index)
 
 
 def build_plotly_figure(
@@ -91,6 +107,20 @@ def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame):
     z_field = _require_field(aes.z, "z")
 
     color_field = _optional_field(aes.color)
+
+    # Handle belief_state: convert belief columns to RGB
+    if color_field == "belief_state":
+        required_cols = ["belief_0", "belief_1", "belief_2"]
+        if all(col in df.columns for col in required_cols):
+            df = df.copy()
+            df["belief_state"] = _beliefs_to_rgb(df)
+        else:
+            LOGGER.warning(
+                "color field 'belief_state' requires belief_0, belief_1, belief_2 columns. "
+                "Falling back to default coloring."
+            )
+            color_field = None
+
     size_field = _optional_field(aes.size)
     opacity_value = _resolve_opacity(aes.opacity)
     hover_fields = _collect_tooltip_fields(aes.tooltip)
@@ -145,6 +175,20 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame):
     y_field = _require_field(aes.y, "y")
 
     color_field = _optional_field(aes.color)
+
+    # Handle belief_state: convert belief columns to RGB
+    if color_field == "belief_state":
+        required_cols = ["belief_0", "belief_1", "belief_2"]
+        if all(col in df.columns for col in required_cols):
+            df = df.copy()
+            df["belief_state"] = _beliefs_to_rgb(df)
+        else:
+            LOGGER.warning(
+                "color field 'belief_state' requires belief_0, belief_1, belief_2 columns. "
+                "Falling back to default coloring."
+            )
+            color_field = None
+
     size_field = _optional_field(aes.size)
     opacity_value = _resolve_opacity(aes.opacity)
     hover_fields = _collect_tooltip_fields(aes.tooltip)

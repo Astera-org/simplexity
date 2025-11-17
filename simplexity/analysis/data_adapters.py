@@ -8,24 +8,6 @@ import numpy as np
 import pandas as pd
 
 
-def beliefs_to_rgb(beliefs: np.ndarray) -> list[str]:
-    """Convert 3D belief vectors to RGB color strings.
-
-    Args:
-        beliefs: Array of shape (N, 3) with belief probabilities
-
-    Returns:
-        List of RGB color strings in format "rgb(r,g,b)"
-    """
-    if beliefs.shape[1] != 3:
-        raise ValueError(f"Expected beliefs with 3 dimensions, got {beliefs.shape[1]}")
-
-    rgb = (beliefs * 255).astype(int)
-    rgb = np.clip(rgb, 0, 255)
-
-    return [f"rgb({r},{g},{b})" for r, g, b in rgb]
-
-
 def pca_results_to_dataframe(
     pca_results_by_step_and_layer: dict[int, dict[str, dict[str, Any]]],
     n_components: int = 2,
@@ -36,21 +18,16 @@ def pca_results_to_dataframe(
     Args:
         pca_results_by_step_and_layer: Nested dict {step: {layer_name: pca_result}}
         n_components: Number of principal components to include (2 for 2D, 3 for 3D)
-        include_beliefs: Whether to include belief columns (belief_0, belief_1, belief_2, rgb_color)
+        include_beliefs: Whether to include belief columns (belief_0, belief_1, belief_2)
 
     Returns:
-        DataFrame with columns: step, layer, point_id, pc1, pc2, [pc3], [belief_0, belief_1, belief_2, rgb_color]
+        DataFrame with columns: step, layer, point_id, pc1, pc2, [pc3], [belief_0, belief_1, belief_2]
     """
     rows = []
     for step, layer_dict in pca_results_by_step_and_layer.items():
         for layer_name, pca_res in layer_dict.items():
             X_proj = pca_res["X_proj"][:, :n_components]
             beliefs = pca_res.get("beliefs") if include_beliefs else None
-
-            if beliefs is not None and beliefs.shape[1] == 3:
-                rgb_colors = beliefs_to_rgb(np.asarray(beliefs))
-            else:
-                rgb_colors = None
 
             for i in range(len(X_proj)):
                 row = {
@@ -61,11 +38,10 @@ def pca_results_to_dataframe(
                 for comp_idx in range(n_components):
                     row[f"pc{comp_idx + 1}"] = X_proj[i, comp_idx]
 
-                if beliefs is not None and rgb_colors is not None and beliefs.shape[1] == 3:
+                if beliefs is not None and beliefs.shape[1] == 3:
                     row["belief_0"] = beliefs[i, 0]
                     row["belief_1"] = beliefs[i, 1]
                     row["belief_2"] = beliefs[i, 2]
-                    row["rgb_color"] = rgb_colors[i]
 
                 rows.append(row)
     return pd.DataFrame(rows)
@@ -113,10 +89,10 @@ def regression_results_to_dataframe(
 
     Args:
         regression_results_by_step_and_layer: Nested dict {step: {layer_name: RegressionResult}}
-        include_beliefs: Whether to include belief columns (belief_0, belief_1, belief_2, rgb_color)
+        include_beliefs: Whether to include belief columns (belief_0, belief_1, belief_2)
 
     Returns:
-        DataFrame with columns: step, layer, point_id, x, y, belief_type, [belief_0, belief_1, belief_2, rgb_color]
+        DataFrame with columns: step, layer, point_id, x, y, belief_type, [belief_0, belief_1, belief_2]
             where belief_type is either 'true' or 'predicted'
     """
     from simplexity.analysis.regression import project_to_simplex
@@ -128,11 +104,6 @@ def regression_results_to_dataframe(
             true_x, true_y = project_to_simplex(reg_result.true_values)
             true_beliefs = np.asarray(reg_result.true_values)
 
-            if include_beliefs and true_beliefs.shape[1] == 3:
-                true_rgb_colors = beliefs_to_rgb(true_beliefs)
-            else:
-                true_rgb_colors = None
-
             for i in range(len(true_x)):
                 row = {
                     "step": step,
@@ -143,22 +114,16 @@ def regression_results_to_dataframe(
                     "belief_type": "true",
                 }
 
-                if include_beliefs and true_beliefs.shape[1] == 3 and true_rgb_colors is not None:
+                if include_beliefs and true_beliefs.shape[1] == 3:
                     row["belief_0"] = true_beliefs[i, 0]
                     row["belief_1"] = true_beliefs[i, 1]
                     row["belief_2"] = true_beliefs[i, 2]
-                    row["rgb_color"] = true_rgb_colors[i]
 
                 rows.append(row)
 
             # Project predicted beliefs to simplex
             pred_x, pred_y = project_to_simplex(reg_result.predictions)
             pred_beliefs = np.asarray(reg_result.predictions)
-
-            if include_beliefs and pred_beliefs.shape[1] == 3:
-                pred_rgb_colors = beliefs_to_rgb(pred_beliefs)
-            else:
-                pred_rgb_colors = None
 
             for i in range(len(pred_x)):
                 row = {
@@ -170,11 +135,10 @@ def regression_results_to_dataframe(
                     "belief_type": "predicted",
                 }
 
-                if include_beliefs and pred_beliefs.shape[1] == 3 and pred_rgb_colors is not None:
+                if include_beliefs and pred_beliefs.shape[1] == 3:
                     row["belief_0"] = pred_beliefs[i, 0]
                     row["belief_1"] = pred_beliefs[i, 1]
                     row["belief_2"] = pred_beliefs[i, 2]
-                    row["rgb_color"] = pred_rgb_colors[i]
 
                 rows.append(row)
 

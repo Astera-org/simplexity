@@ -52,7 +52,8 @@ def generate_pca_2d_config(
 
             # Use belief-based RGB colors if enabled, otherwise default to point_id coloring
             if style.use_belief_colors:
-                color_config = ChannelAestheticsConfig(field="rgb_color", type="nominal")
+                # Use special field pattern that renderer will recognize and convert to RGB
+                color_config = ChannelAestheticsConfig(field="belief_state", type="nominal")
             else:
                 color_config = ChannelAestheticsConfig(field="point_id", type="quantitative")
 
@@ -108,7 +109,8 @@ def generate_pca_3d_config(
 
             # Use belief-based RGB colors if enabled, otherwise default to point_id coloring
             if style.use_belief_colors:
-                color_config = ChannelAestheticsConfig(field="rgb_color", type="nominal")
+                # Use special field pattern that renderer will recognize and convert to RGB
+                color_config = ChannelAestheticsConfig(field="belief_state", type="nominal")
             else:
                 color_config = ChannelAestheticsConfig(field="point_id", type="quantitative")
 
@@ -251,8 +253,9 @@ def generate_regression_config(
 
             # Use belief-based RGB colors if enabled, otherwise use fixed colors
             if style.use_belief_colors:
-                true_color_config = ChannelAestheticsConfig(field="rgb_color", type="nominal")
-                pred_color_config = ChannelAestheticsConfig(field="rgb_color", type="nominal")
+                # Use special field pattern that renderer will recognize and convert to RGB
+                true_color_config = ChannelAestheticsConfig(field="belief_state", type="nominal")
+                pred_color_config = ChannelAestheticsConfig(field="belief_state", type="nominal")
             else:
                 true_color_config = ChannelAestheticsConfig(value=style.true_color)
                 pred_color_config = ChannelAestheticsConfig(value=style.predicted_color)
