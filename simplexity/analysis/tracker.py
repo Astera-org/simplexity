@@ -64,9 +64,7 @@ class AnalysisTracker:
     """
 
     layer_names: list[str] | None = None
-    variance_thresholds: list[float] = field(
-        default_factory=lambda: [0.80, 0.90, 0.95, 0.99]
-    )
+    variance_thresholds: list[float] = field(default_factory=lambda: [0.80, 0.90, 0.95, 0.99])
     use_simple_regression: bool = False  # If True, use sklearn OLS; if False, use k-fold CV
 
     # Plot styling configurations (can be loaded from YAML via Hydra)
@@ -76,15 +74,9 @@ class AnalysisTracker:
     variance_style: VarianceStyleConfig | None = None
 
     # Internal storage
-    _pca_results: dict[int, dict[str, dict[str, Any]]] = field(
-        default_factory=dict, init=False
-    )
-    _regression_results: dict[int, dict[str, RegressionResult]] = field(
-        default_factory=dict, init=False
-    )
-    _variance_threshold_results: dict[int, dict[str, dict[float, int]]] = field(
-        default_factory=dict, init=False
-    )
+    _pca_results: dict[int, dict[str, dict[str, Any]]] = field(default_factory=dict, init=False)
+    _regression_results: dict[int, dict[str, RegressionResult]] = field(default_factory=dict, init=False)
+    _variance_threshold_results: dict[int, dict[str, dict[float, int]]] = field(default_factory=dict, init=False)
 
     def add_step(
         self,
@@ -115,6 +107,7 @@ class AnalysisTracker:
             regression_scope: "per_token" | "final_token" | "sequence_level"
             layers: list of layer names to analyze (None = all layers)
             analysis_configs: dict of analysis configs (auto-extracts scope/layers)
+            **kwargs: additional keyword arguments (currently unused)
         """
         # Auto-extract parameters from analysis_configs if provided
         if analysis_configs is not None:
@@ -136,9 +129,7 @@ class AnalysisTracker:
         # Only needed for per_token scope
         prefix_dataset = None
         if regression_scope == "per_token" or compute_pca:
-            prefix_dataset = build_prefix_dataset(
-                inputs, beliefs, probs, activations_by_layer
-            )
+            prefix_dataset = build_prefix_dataset(inputs, beliefs, probs, activations_by_layer)
 
         self._pca_results[step] = {}
         self._regression_results[step] = {}
@@ -147,6 +138,9 @@ class AnalysisTracker:
         for layer_name in layers_to_analyze:
             # PCA analysis (always uses per_token/prefix-deduplicated data)
             if compute_pca:
+                if prefix_dataset is None:
+                    raise ValueError("PCA requires prefix_dataset, but it was not initialized")
+
                 from simplexity.analysis.pca import (
                     compute_pca as compute_pca_fn,
                 )
@@ -157,21 +151,20 @@ class AnalysisTracker:
                 X = prefix_dataset.activations_by_layer[layer_name]
                 weights = prefix_dataset.probs
 
-                pca_res = compute_pca_fn(
-                    X, n_components=n_pca_components, weights=weights
-                )
+                pca_res = compute_pca_fn(X, n_components=n_pca_components, weights=weights)
+                pca_res["beliefs"] = prefix_dataset.beliefs
                 self._pca_results[step][layer_name] = pca_res
 
                 # Compute variance thresholds
-                threshold_res = compute_variance_thresholds(
-                    pca_res, self.variance_thresholds
-                )
+                threshold_res = compute_variance_thresholds(pca_res, self.variance_thresholds)
                 self._variance_threshold_results[step][layer_name] = threshold_res
 
             # Regression analysis (scope-dependent)
             if compute_regression:
                 # Prepare X, Y, weights based on scope
                 if regression_scope == "per_token":
+                    if prefix_dataset is None:
+                        raise ValueError("per_token regression requires prefix_dataset, but it was not initialized")
                     # Use prefix-deduplicated data (current behavior)
                     X = prefix_dataset.activations_by_layer[layer_name]
                     Y = prefix_dataset.beliefs
@@ -199,12 +192,14 @@ class AnalysisTracker:
                 if self.use_simple_regression:
                     # Simple sklearn linear regression (fast, no CV)
                     from simplexity.analysis.regression import regress_simple_sklearn
+
                     reg_result = regress_simple_sklearn(X, Y, weights)
                 else:
                     # K-fold CV with rcond tuning (slower, more robust)
                     import numpy as np
 
                     from simplexity.analysis.regression import regress_with_kfold_rcond_cv
+
                     reg_result = regress_with_kfold_rcond_cv(
                         X,
                         Y,
@@ -218,27 +213,19 @@ class AnalysisTracker:
         """Get all recorded steps."""
         return sorted(self._pca_results.keys())
 
-    def get_pca_result(
-        self, step: int, layer_name: str
-    ) -> dict[str, Any] | None:
+    def get_pca_result(self, step: int, layer_name: str) -> dict[str, Any] | None:
         """Get PCA result for a specific step and layer."""
         return self._pca_results.get(step, {}).get(layer_name)
 
-    def get_regression_result(
-        self, step: int, layer_name: str
-    ) -> RegressionResult | None:
+    def get_regression_result(self, step: int, layer_name: str) -> RegressionResult | None:
         """Get regression result for a specific step and layer."""
         return self._regression_results.get(step, {}).get(layer_name)
 
-    def get_variance_thresholds(
-        self, step: int, layer_name: str
-    ) -> dict[float, int] | None:
+    def get_variance_thresholds(self, step: int, layer_name: str) -> dict[float, int] | None:
         """Get variance threshold results for a specific step and layer."""
         return self._variance_threshold_results.get(step, {}).get(layer_name)
 
-    def get_pca_dataframe(
-        self, n_components: int = 2, layers: list[str] | None = None
-    ) -> pd.DataFrame:
+    def get_pca_dataframe(self, n_components: int = 2, layers: list[str] | None = None) -> pd.DataFrame:
         """Get PCA results as a DataFrame for visualization.
 
         Args:
@@ -311,10 +298,7 @@ class AnalysisTracker:
                 continue
 
             # Extract kwargs for the appropriate getter (exclude metadata fields)
-            getter_kwargs = {
-                k: v for k, v in analysis_cfg.items()
-                if k not in ["name", "type", "use_simple", "scope"]
-            }
+            getter_kwargs = {k: v for k, v in analysis_cfg.items() if k not in ["name", "type", "use_simple", "scope"]}
 
             # Call the appropriate getter based on type
             analysis_type = analysis_cfg.get("type")
@@ -437,9 +421,7 @@ class AnalysisTracker:
 
         return plots
 
-    def generate_variance_plots(
-        self, max_components: int | None = 20
-    ) -> dict[str, go.Figure]:
+    def generate_variance_plots(self, max_components: int | None = 20) -> dict[str, go.Figure]:
         """Generate variance explained plots using declarative visualization backend.
 
         Args:
@@ -513,9 +495,7 @@ class AnalysisTracker:
 
         # By layer
         for layer_name in self.layer_names:
-            summary["by_layer"][layer_name] = {
-                threshold: [] for threshold in self.variance_thresholds
-            }
+            summary["by_layer"][layer_name] = {threshold: [] for threshold in self.variance_thresholds}
             for step in self.get_steps():
                 thresholds = self.get_variance_thresholds(step, layer_name)
                 if thresholds:
@@ -559,9 +539,7 @@ class AnalysisTracker:
                 if result:
                     summary["by_layer"][layer_name]["r2"].append(result.r2)
                     summary["by_layer"][layer_name]["dist"].append(result.dist)
-                    summary["by_layer"][layer_name]["best_rcond"].append(
-                        result.best_rcond
-                    )
+                    summary["by_layer"][layer_name]["best_rcond"].append(result.best_rcond)
 
         # By step
         for step in self.get_steps():

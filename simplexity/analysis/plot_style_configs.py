@@ -29,6 +29,7 @@ class PCA2DStyleConfig(BasePlotStyleConfig):
     pc2_title: str = "PC 2"
     colorscale: str = "Viridis"
     marker_size: int | None = None
+    use_belief_colors: bool = False
 
 
 @dataclass
@@ -40,6 +41,7 @@ class PCA3DStyleConfig(BasePlotStyleConfig):
     pc2_title: str = "PC 2"
     pc3_title: str = "PC 3"
     marker_size: int | None = None
+    use_belief_colors: bool = False
 
 
 @dataclass
@@ -52,6 +54,7 @@ class RegressionStyleConfig(BasePlotStyleConfig):
     true_color: str = "blue"
     predicted_color: str = "red"
     marker_size: int | None = None
+    use_belief_colors: bool = False
 
 
 @dataclass

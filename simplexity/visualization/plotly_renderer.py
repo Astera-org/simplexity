@@ -44,6 +44,7 @@ def build_plotly_figure(
 
     # Build all layers
     import plotly.graph_objects as go
+
     figure = go.Figure()
 
     for layer in plot_cfg.layers:
@@ -72,9 +73,7 @@ def build_plotly_figure(
 
     # Apply plot-level properties
     default_aes = plot_cfg.layers[0].aesthetics if plot_cfg.layers else AestheticsConfig()
-    figure = _apply_plot_level_properties(
-        figure, plot_cfg.guides, plot_cfg.size, plot_cfg.background, default_aes
-    )
+    figure = _apply_plot_level_properties(figure, plot_cfg.guides, plot_cfg.size, plot_cfg.background, default_aes)
 
     # Auto-generate interactive controls from layer naming patterns
     figure = _auto_generate_controls(figure, plot_cfg.layers)
@@ -106,9 +105,10 @@ def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame):
         # Check if there's a custom scale mapping for nominal/categorical data
         if aes.color and aes.color.scale and aes.color.scale.domain and aes.color.scale.range:
             # Map categorical values to colors using the scale
-            color_map = dict(zip(aes.color.scale.domain, aes.color.scale.range))
-            marker["color"] = df[color_field].map(color_map)
+            color_map = dict(zip(aes.color.scale.domain, aes.color.scale.range, strict=False))
+            marker["color"] = df[color_field].replace(color_map)
         else:
+            # Use field directly - if it contains RGB strings, Plotly will handle them
             marker["color"] = df[color_field]
     if aes.size and aes.size.value is not None:
         marker["size"] = aes.size.value
@@ -159,11 +159,12 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame):
         # Check if there's a custom scale mapping for nominal/categorical data
         if aes.color and aes.color.scale and aes.color.scale.domain and aes.color.scale.range:
             # Map categorical values to colors using the scale
-            color_map = dict(zip(aes.color.scale.domain, aes.color.scale.range))
-            marker["color"] = df[color_field].map(color_map)
+            color_map = dict(zip(aes.color.scale.domain, aes.color.scale.range, strict=False))
+            marker["color"] = df[color_field].replace(color_map)
         else:
+            # Use field directly - if it contains RGB strings, Plotly will handle them
             marker["color"] = df[color_field]
-            # Add colorscale if it's a numeric field
+            # Add colorscale if it's a numeric field (but not for RGB strings)
             if pd.api.types.is_numeric_dtype(df[color_field]):
                 marker["colorscale"] = "Viridis"
                 marker["showscale"] = True
@@ -380,14 +381,10 @@ def _auto_generate_controls(figure, layers: list[LayerConfig]):
             # Temporal view: Show all steps for selected layer (layer dropdown only)
             # Each trace is visible/invisible based on selected layer
             # Steps are shown as different colored lines with legend toggles
-            figure = _generate_temporal_controls(
-                figure, step_layer_map, steps_sorted, layers_sorted
-            )
+            figure = _generate_temporal_controls(figure, step_layer_map, steps_sorted, layers_sorted)
         else:
             # Spatial view: Show one (step, layer) at a time (layer dropdown + step slider)
-            figure = _generate_spatial_controls(
-                figure, step_layer_map, steps_sorted, layers_sorted
-            )
+            figure = _generate_spatial_controls(figure, step_layer_map, steps_sorted, layers_sorted)
 
     return figure
 
@@ -405,10 +402,7 @@ def _generate_temporal_controls(figure, step_layer_map, steps_sorted, layers_sor
         visible = []
         for trace_idx in range(len(figure.data)):
             # Check if this trace belongs to any step of this layer
-            belongs_to_layer = any(
-                trace_idx in step_layer_map.get((step, layer_name), [])
-                for step in steps_sorted
-            )
+            belongs_to_layer = any(trace_idx in step_layer_map.get((step, layer_name), []) for step in steps_sorted)
             visible.append(belongs_to_layer)
 
         title_text = figure.layout.title.text if figure.layout.title else ""
@@ -424,22 +418,23 @@ def _generate_temporal_controls(figure, step_layer_map, steps_sorted, layers_sor
 
     # Apply dropdown
     figure.update_layout(
-        updatemenus=[{
-            "buttons": buttons,
-            "direction": "down",
-            "showactive": True,
-            "x": 0.02,
-            "xanchor": "left",
-            "y": 1.15,
-            "yanchor": "top",
-        }]
+        updatemenus=[
+            {
+                "buttons": buttons,
+                "direction": "down",
+                "showactive": True,
+                "x": 0.02,
+                "xanchor": "left",
+                "y": 1.15,
+                "yanchor": "top",
+            }
+        ]
     )
 
     # Set initial visibility (first layer, all steps)
     for trace_idx in range(len(figure.data)):
         belongs_to_first_layer = any(
-            trace_idx in step_layer_map.get((step, layers_sorted[0]), [])
-            for step in steps_sorted
+            trace_idx in step_layer_map.get((step, layers_sorted[0]), []) for step in steps_sorted
         )
         figure.data[trace_idx].visible = belongs_to_first_layer
 
@@ -474,14 +469,16 @@ def _generate_spatial_controls(figure, step_layer_map, steps_sorted, layers_sort
                 visible.append(trace_idx in step_layer_map.get(key, []))
 
             title_text = figure.layout.title.text if figure.layout.title else ""
-            slider_steps.append({
-                "method": "update",
-                "args": [
-                    {"visible": visible},
-                    {"title": f"{title_text} (Step {step}, {layer_name})"},
-                ],
-                "label": str(step),
-            })
+            slider_steps.append(
+                {
+                    "method": "update",
+                    "args": [
+                        {"visible": visible},
+                        {"title": f"{title_text} (Step {step}, {layer_name})"},
+                    ],
+                    "label": str(step),
+                }
+            )
 
         sliders_by_layer[layer_name] = {
             "active": 0,
@@ -521,15 +518,17 @@ def _generate_spatial_controls(figure, step_layer_map, steps_sorted, layers_sort
     # Apply controls to figure
     figure.update_layout(
         sliders=[sliders_by_layer[layers_sorted[0]]],  # Start with first layer's slider
-        updatemenus=[{
-            "buttons": buttons,
-            "direction": "down",
-            "showactive": True,
-            "x": 0.02,
-            "xanchor": "left",
-            "y": 1.15,
-            "yanchor": "top",
-        }]
+        updatemenus=[
+            {
+                "buttons": buttons,
+                "direction": "down",
+                "showactive": True,
+                "x": 0.02,
+                "xanchor": "left",
+                "y": 1.15,
+                "yanchor": "top",
+            }
+        ],
     )
 
     # Set initial visibility (first step, first layer)
