@@ -96,6 +96,10 @@ class AnalysisTracker:
         compute_pca: bool = True,
         compute_regression: bool = True,
         n_pca_components: int | None = None,
+        regression_scope: str = "per_token",
+        layers: list[str] | None = None,
+        analysis_configs: dict | None = None,
+        **kwargs,
     ) -> None:
         """Add analysis results for a single training/validation step.
 
@@ -108,25 +112,40 @@ class AnalysisTracker:
             compute_pca: whether to compute PCA analysis
             compute_regression: whether to compute regression analysis
             n_pca_components: number of PCA components (default: all)
+            regression_scope: "per_token" | "final_token" | "sequence_level"
+            layers: list of layer names to analyze (None = all layers)
+            analysis_configs: dict of analysis configs (auto-extracts scope/layers)
         """
+        # Auto-extract parameters from analysis_configs if provided
+        if analysis_configs is not None:
+            for cfg in analysis_configs.values():
+                if isinstance(cfg, dict) and cfg.get("type") == "regression":
+                    if "scope" in cfg:
+                        regression_scope = cfg["scope"]
+                    if "layers" in cfg:
+                        layers = cfg["layers"]
+                    break
         # Auto-detect layer names from first call if not provided
         if self.layer_names is None:
             self.layer_names = sorted(activations_by_layer.keys())
 
+        # Filter layers if specified
+        layers_to_analyze = layers if layers is not None else self.layer_names
+
         # Build prefix dataset once (shared by all analyses)
-        prefix_dataset = build_prefix_dataset(
-            inputs, beliefs, probs, activations_by_layer
-        )
+        # Only needed for per_token scope
+        prefix_dataset = None
+        if regression_scope == "per_token" or compute_pca:
+            prefix_dataset = build_prefix_dataset(
+                inputs, beliefs, probs, activations_by_layer
+            )
 
         self._pca_results[step] = {}
         self._regression_results[step] = {}
         self._variance_threshold_results[step] = {}
 
-        for layer_name in self.layer_names:
-            X = prefix_dataset.activations_by_layer[layer_name]
-            weights = prefix_dataset.probs
-
-            # PCA analysis
+        for layer_name in layers_to_analyze:
+            # PCA analysis (always uses per_token/prefix-deduplicated data)
             if compute_pca:
                 from simplexity.analysis.pca import (
                     compute_pca as compute_pca_fn,
@@ -134,6 +153,9 @@ class AnalysisTracker:
                 from simplexity.analysis.pca import (
                     compute_variance_thresholds,
                 )
+
+                X = prefix_dataset.activations_by_layer[layer_name]
+                weights = prefix_dataset.probs
 
                 pca_res = compute_pca_fn(
                     X, n_components=n_pca_components, weights=weights
@@ -146,9 +168,33 @@ class AnalysisTracker:
                 )
                 self._variance_threshold_results[step][layer_name] = threshold_res
 
-            # Regression analysis
+            # Regression analysis (scope-dependent)
             if compute_regression:
-                Y = prefix_dataset.beliefs
+                # Prepare X, Y, weights based on scope
+                if regression_scope == "per_token":
+                    # Use prefix-deduplicated data (current behavior)
+                    X = prefix_dataset.activations_by_layer[layer_name]
+                    Y = prefix_dataset.beliefs
+                    weights = prefix_dataset.probs
+
+                elif regression_scope == "final_token":
+                    # Only use final token in each sequence
+                    X = activations_by_layer[layer_name][:, -1, :]  # (batch, d)
+                    Y = beliefs[:, -1, :]  # (batch, B)
+                    weights = probs[:, -1]  # (batch,)
+
+                elif regression_scope == "sequence_level":
+                    # Concatenate all activations in sequence
+                    batch_size, seq_len, d = activations_by_layer[layer_name].shape
+                    X = activations_by_layer[layer_name].reshape(batch_size, seq_len * d)
+                    Y = beliefs[:, -1, :]  # Predict final belief
+                    weights = probs[:, -1]  # Weight by final token probability
+
+                else:
+                    raise ValueError(
+                        f"Invalid regression_scope: {regression_scope}. "
+                        "Must be 'per_token', 'final_token', or 'sequence_level'"
+                    )
 
                 if self.use_simple_regression:
                     # Simple sklearn linear regression (fast, no CV)
@@ -190,35 +236,98 @@ class AnalysisTracker:
         """Get variance threshold results for a specific step and layer."""
         return self._variance_threshold_results.get(step, {}).get(layer_name)
 
-    def get_pca_dataframe(self, n_components: int = 2) -> pd.DataFrame:
+    def get_pca_dataframe(
+        self, n_components: int = 2, layers: list[str] | None = None
+    ) -> pd.DataFrame:
         """Get PCA results as a DataFrame for visualization.
 
         Args:
             n_components: Number of principal components (2 for 2D, 3 for 3D)
+            layers: Optional list of layer names to include (None = all layers)
 
         Returns:
             DataFrame with columns: step, layer, point_id, pc1, pc2, [pc3]
         """
-        return pca_results_to_dataframe(self._pca_results, n_components=n_components)
+        # Filter by layers if specified
+        pca_results = self._pca_results
+        if layers is not None:
+            pca_results = {
+                step: {layer: res for layer, res in layer_dict.items() if layer in layers}
+                for step, layer_dict in pca_results.items()
+            }
+        return pca_results_to_dataframe(pca_results, n_components=n_components)
 
-    def get_variance_dataframe(self, max_components: int | None = None) -> pd.DataFrame:
+    def get_variance_dataframe(
+        self, max_components: int | None = None, layers: list[str] | None = None
+    ) -> pd.DataFrame:
         """Get variance explained results as a DataFrame for visualization.
 
         Args:
             max_components: Maximum number of components to include
+            layers: Optional list of layer names to include (None = all layers)
 
         Returns:
             DataFrame with columns: step, layer, component, cumulative_variance
         """
-        return variance_to_dataframe(self._pca_results, max_components=max_components)
+        # Filter by layers if specified
+        pca_results = self._pca_results
+        if layers is not None:
+            pca_results = {
+                step: {layer: res for layer, res in layer_dict.items() if layer in layers}
+                for step, layer_dict in pca_results.items()
+            }
+        return variance_to_dataframe(pca_results, max_components=max_components)
 
-    def get_regression_dataframe(self) -> pd.DataFrame:
+    def get_regression_dataframe(self, layers: list[str] | None = None) -> pd.DataFrame:
         """Get regression results as a DataFrame for visualization.
+
+        Args:
+            layers: Optional list of layer names to include (None = all layers)
 
         Returns:
             DataFrame with columns: step, layer, point_id, x, y, belief_type
         """
-        return regression_results_to_dataframe(self._regression_results)
+        # Filter by layers if specified
+        regression_results = self._regression_results
+        if layers is not None:
+            regression_results = {
+                step: {layer: res for layer, res in layer_dict.items() if layer in layers}
+                for step, layer_dict in regression_results.items()
+            }
+        return regression_results_to_dataframe(regression_results)
+
+    def build_data_registry(self, analysis_configs: dict) -> dict[str, pd.DataFrame]:
+        """Build data registry from analysis configs.
+
+        Args:
+            analysis_configs: Dict of analysis configs with 'name' and 'type' fields
+
+        Returns:
+            Dict mapping analysis name to DataFrame
+        """
+        data_registry = {}
+        for analysis_cfg in analysis_configs.values():
+            if not isinstance(analysis_cfg, dict):
+                continue
+
+            # Extract kwargs for the appropriate getter (exclude metadata fields)
+            getter_kwargs = {
+                k: v for k, v in analysis_cfg.items()
+                if k not in ["name", "type", "use_simple", "scope"]
+            }
+
+            # Call the appropriate getter based on type
+            analysis_type = analysis_cfg.get("type")
+            analysis_name = analysis_cfg.get("name")
+
+            if analysis_type == "pca":
+                data_registry[analysis_name] = self.get_pca_dataframe(**getter_kwargs)
+            elif analysis_type == "variance":
+                data_registry[analysis_name] = self.get_variance_dataframe(**getter_kwargs)
+            elif analysis_type == "regression":
+                data_registry[analysis_name] = self.get_regression_dataframe(**getter_kwargs)
+
+        return data_registry
 
     def generate_pca_plots(
         self, by_step: bool = True, by_layer: bool = True, combined: bool = True

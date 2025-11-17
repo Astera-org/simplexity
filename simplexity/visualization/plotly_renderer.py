@@ -313,10 +313,14 @@ def _auto_generate_controls(figure, layers: list[LayerConfig]):
     """Auto-generate interactive controls (dropdown/slider) from layer naming patterns.
 
     Detects naming patterns like:
-    - "step_{n}__layer_{name}" → generates dropdown for layers, slider for steps
-    - "layer_{name}__step_{n}" → generates dropdown for layers, slider for steps
+    - "step_{n}__layer_{name}" → generates dropdown for layers, slider for steps (spatial view)
+    - "layer_{name}__step_{n}" → generates dropdown for layers, shows all steps (temporal view)
     - "step_{n}" → generates slider for steps only
     - "layer_{name}" → generates dropdown for layers only
+
+    The order matters:
+    - "layer_X__step_Y" = temporal view (show all steps for a layer, layer dropdown)
+    - "step_Y__layer_X" = spatial view (show one step, layer dropdown + step slider)
 
     Args:
         figure: Plotly Figure object
@@ -333,6 +337,7 @@ def _auto_generate_controls(figure, layers: list[LayerConfig]):
     steps = set()
     layer_names = set()
     has_step_layer_pattern = False
+    is_temporal_view = False  # layer__step pattern (show all steps per layer)
 
     for layer_idx, layer in enumerate(layers):
         if not layer.name:
@@ -343,6 +348,10 @@ def _auto_generate_controls(figure, layers: list[LayerConfig]):
             parts = layer.name.split("__")
             step_val = None
             layer_val = None
+
+            # Check the order to determine view type
+            if parts[0].startswith("layer_") and any(p.startswith("step_") for p in parts[1:]):
+                is_temporal_view = True
 
             for part in parts:
                 if part.startswith("step_"):
@@ -367,80 +376,165 @@ def _auto_generate_controls(figure, layers: list[LayerConfig]):
         steps_sorted = sorted(steps)
         layers_sorted = sorted(layer_names)
 
-        # Build slider for steps (controls which step is visible within selected layer)
-        sliders_by_layer = {}
-        for layer_name in layers_sorted:
-            slider_steps = []
-            for _, step in enumerate(steps_sorted):
-                # Determine visibility for this step + layer combination
-                visible = []
-                for trace_idx in range(len(figure.data)):
-                    # Check if this trace belongs to (step, layer_name)
-                    key = (step, layer_name)
-                    visible.append(trace_idx in step_layer_map.get(key, []))
+        if is_temporal_view:
+            # Temporal view: Show all steps for selected layer (layer dropdown only)
+            # Each trace is visible/invisible based on selected layer
+            # Steps are shown as different colored lines with legend toggles
+            figure = _generate_temporal_controls(
+                figure, step_layer_map, steps_sorted, layers_sorted
+            )
+        else:
+            # Spatial view: Show one (step, layer) at a time (layer dropdown + step slider)
+            figure = _generate_spatial_controls(
+                figure, step_layer_map, steps_sorted, layers_sorted
+            )
 
-                title_text = figure.layout.title.text if figure.layout.title else ""
-                slider_steps.append({
-                    "method": "update",
-                    "args": [
-                        {"visible": visible},
-                        {"title": f"{title_text} (Step {step}, {layer_name})"},
-                    ],
-                    "label": str(step),
-                })
+    return figure
 
-            sliders_by_layer[layer_name] = {
-                "active": 0,
-                "yanchor": "top",
-                "y": -0.1,
-                "xanchor": "left",
-                "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
-                "pad": {"b": 10, "t": 50},
-                "len": 0.9,
-                "x": 0.05,
-                "steps": slider_steps,
-            }
 
-        # Build dropdown for layers (switches between layers and their corresponding sliders)
-        buttons = []
-        for _, layer_name in enumerate(layers_sorted):
-            # Show first step of this layer
+def _generate_temporal_controls(figure, step_layer_map, steps_sorted, layers_sorted):
+    """Generate controls for temporal view: layer dropdown, all steps visible.
+
+    Shows all steps for the selected layer. Each step is a separate trace that can
+    be toggled on/off via the legend.
+    """
+    # Build dropdown for layers
+    buttons = []
+    for layer_name in layers_sorted:
+        # Show all steps for this layer
+        visible = []
+        for trace_idx in range(len(figure.data)):
+            # Check if this trace belongs to any step of this layer
+            belongs_to_layer = any(
+                trace_idx in step_layer_map.get((step, layer_name), [])
+                for step in steps_sorted
+            )
+            visible.append(belongs_to_layer)
+
+        title_text = figure.layout.title.text if figure.layout.title else ""
+        button = {
+            "method": "update",
+            "args": [
+                {"visible": visible},
+                {"title": f"{title_text} ({layer_name})"},
+            ],
+            "label": layer_name,
+        }
+        buttons.append(button)
+
+    # Apply dropdown
+    figure.update_layout(
+        updatemenus=[{
+            "buttons": buttons,
+            "direction": "down",
+            "showactive": True,
+            "x": 0.02,
+            "xanchor": "left",
+            "y": 1.15,
+            "yanchor": "top",
+        }]
+    )
+
+    # Set initial visibility (first layer, all steps)
+    for trace_idx in range(len(figure.data)):
+        belongs_to_first_layer = any(
+            trace_idx in step_layer_map.get((step, layers_sorted[0]), [])
+            for step in steps_sorted
+        )
+        figure.data[trace_idx].visible = belongs_to_first_layer
+
+    # Update trace names to show step for legend
+    for trace_idx, trace in enumerate(figure.data):
+        for step in steps_sorted:
+            for layer_name in layers_sorted:
+                if trace_idx in step_layer_map.get((step, layer_name), []):
+                    trace.name = f"Step {step}"
+                    trace.showlegend = True
+                    break
+
+    return figure
+
+
+def _generate_spatial_controls(figure, step_layer_map, steps_sorted, layers_sorted):
+    """Generate controls for spatial view: layer dropdown + step slider.
+
+    Shows one (step, layer) combination at a time. Layer dropdown switches layers,
+    step slider advances through steps for that layer.
+    """
+    # Build slider for steps (controls which step is visible within selected layer)
+    sliders_by_layer = {}
+    for layer_name in layers_sorted:
+        slider_steps = []
+        for _, step in enumerate(steps_sorted):
+            # Determine visibility for this step + layer combination
             visible = []
             for trace_idx in range(len(figure.data)):
-                key = (steps_sorted[0], layer_name)
+                # Check if this trace belongs to (step, layer_name)
+                key = (step, layer_name)
                 visible.append(trace_idx in step_layer_map.get(key, []))
 
             title_text = figure.layout.title.text if figure.layout.title else ""
-            button = {
+            slider_steps.append({
                 "method": "update",
                 "args": [
                     {"visible": visible},
-                    {
-                        "sliders": [sliders_by_layer[layer_name]],
-                        "title": f"{title_text} (Step {steps_sorted[0]}, {layer_name})",
-                    },
+                    {"title": f"{title_text} (Step {step}, {layer_name})"},
                 ],
-                "label": layer_name,
-            }
-            buttons.append(button)
+                "label": str(step),
+            })
 
-        # Apply controls to figure
-        figure.update_layout(
-            sliders=[sliders_by_layer[layers_sorted[0]]],  # Start with first layer's slider
-            updatemenus=[{
-                "buttons": buttons,
-                "direction": "down",
-                "showactive": True,
-                "x": 0.02,
-                "xanchor": "left",
-                "y": 1.15,
-                "yanchor": "top",
-            }]
-        )
+        sliders_by_layer[layer_name] = {
+            "active": 0,
+            "yanchor": "top",
+            "y": -0.1,
+            "xanchor": "left",
+            "currentvalue": {"prefix": "Step: ", "visible": True, "xanchor": "center"},
+            "pad": {"b": 10, "t": 50},
+            "len": 0.9,
+            "x": 0.05,
+            "steps": slider_steps,
+        }
 
-        # Set initial visibility (first step, first layer)
+    # Build dropdown for layers (switches between layers and their corresponding sliders)
+    buttons = []
+    for _, layer_name in enumerate(layers_sorted):
+        # Show first step of this layer
+        visible = []
         for trace_idx in range(len(figure.data)):
-            key = (steps_sorted[0], layers_sorted[0])
-            figure.data[trace_idx].visible = trace_idx in step_layer_map.get(key, [])
+            key = (steps_sorted[0], layer_name)
+            visible.append(trace_idx in step_layer_map.get(key, []))
+
+        title_text = figure.layout.title.text if figure.layout.title else ""
+        button = {
+            "method": "update",
+            "args": [
+                {"visible": visible},
+                {
+                    "sliders": [sliders_by_layer[layer_name]],
+                    "title": f"{title_text} (Step {steps_sorted[0]}, {layer_name})",
+                },
+            ],
+            "label": layer_name,
+        }
+        buttons.append(button)
+
+    # Apply controls to figure
+    figure.update_layout(
+        sliders=[sliders_by_layer[layers_sorted[0]]],  # Start with first layer's slider
+        updatemenus=[{
+            "buttons": buttons,
+            "direction": "down",
+            "showactive": True,
+            "x": 0.02,
+            "xanchor": "left",
+            "y": 1.15,
+            "yanchor": "top",
+        }]
+    )
+
+    # Set initial visibility (first step, first layer)
+    for trace_idx in range(len(figure.data)):
+        key = (steps_sorted[0], layers_sorted[0])
+        figure.data[trace_idx].visible = trace_idx in step_layer_map.get(key, [])
 
     return figure
