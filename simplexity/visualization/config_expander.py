@@ -54,11 +54,16 @@ def expand_plot_config(
         ... }
         >>> plot_config = expand_plot_config(config, data_registry)
     """
+    from typing import cast
+
     from omegaconf import OmegaConf
 
     # Convert OmegaConf to plain dict if needed (dataclasses need plain dicts)
     if isinstance(config_dict, DictConfig):
-        config_dict = OmegaConf.to_container(config_dict, resolve=True)
+        converted = OmegaConf.to_container(config_dict, resolve=True)
+        if not isinstance(converted, dict):
+            raise ValueError(f"Expected dict from OmegaConf.to_container, got {type(converted)}")
+        config_dict = cast(dict[str, Any], converted)
 
     # Convert registry to dict if needed
     if isinstance(data_registry, dict):
@@ -139,12 +144,38 @@ def expand_plot_config(
     return plot_config
 
 
-def _dict_to_plot_config(config_dict: dict[str, Any]) -> PlotConfig:
+def _dict_to_plot_config(config_dict: dict[str, Any] | DictConfig) -> PlotConfig:
     """Convert a dict to PlotConfig (no expansion)."""
     from simplexity.visualization.structured_configs import PlotConfig
 
-    # This is a simplified version - you may want more robust conversion
-    return PlotConfig(**config_dict)
+    # Convert top-level data dict to DataConfig
+    data_cfg = DataConfig(**config_dict.get("data", {}))
+
+    # Convert layers properly
+    layers = []
+    for layer_dict in config_dict.get("layers", []):
+        # Convert layer's data dict to DataConfig if present
+        layer_data = None
+        if "data" in layer_dict and layer_dict["data"] is not None:
+            layer_data = DataConfig(**layer_dict["data"])
+
+        # Build layer config with proper dataclass conversions
+        layer = LayerConfig(
+            name=layer_dict.get("name"),
+            data=layer_data,
+            geometry=_dict_to_geometry_config(layer_dict["geometry"]),
+            aesthetics=_dict_to_aesthetics_config(layer_dict["aesthetics"]),
+        )
+        layers.append(layer)
+
+    return PlotConfig(
+        backend=config_dict.get("backend", "plotly"),
+        data=data_cfg,
+        layers=layers,
+        size=_dict_to_size_config(config_dict.get("size", {})),
+        guides=_dict_to_guides_config(config_dict.get("guides", {})),
+        background=config_dict.get("background"),
+    )
 
 
 def _dict_to_geometry_config(geom_dict: dict[str, Any]):
