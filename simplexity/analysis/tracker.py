@@ -161,7 +161,9 @@ class AnalysisTracker:
 
             # Regression analysis (scope-dependent)
             if compute_regression:
-                # Prepare X, Y, weights based on scope
+                # Prepare X, Y, weights, and prefixes based on scope
+                prefixes_for_regression = None
+
                 if regression_scope == "per_token":
                     if prefix_dataset is None:
                         raise ValueError("per_token regression requires prefix_dataset, but it was not initialized")
@@ -169,12 +171,14 @@ class AnalysisTracker:
                     X = prefix_dataset.activations_by_layer[layer_name]
                     Y = prefix_dataset.beliefs
                     weights = prefix_dataset.probs
+                    prefixes_for_regression = prefix_dataset.prefixes
 
                 elif regression_scope == "final_token":
                     # Only use final token in each sequence
                     X = activations_by_layer[layer_name][:, -1, :]  # (batch, d)
                     Y = beliefs[:, -1, :]  # (batch, B)
                     weights = probs[:, -1]  # (batch,)
+                    # No prefix information for final_token scope
 
                 elif regression_scope == "sequence_level":
                     # Concatenate all activations in sequence
@@ -182,6 +186,7 @@ class AnalysisTracker:
                     X = activations_by_layer[layer_name].reshape(batch_size, seq_len * d)
                     Y = beliefs[:, -1, :]  # Predict final belief
                     weights = probs[:, -1]  # Weight by final token probability
+                    # No prefix information for sequence_level scope
 
                 else:
                     raise ValueError(
@@ -193,7 +198,7 @@ class AnalysisTracker:
                     # Simple sklearn linear regression (fast, no CV)
                     from simplexity.analysis.regression import regress_simple_sklearn
 
-                    reg_result = regress_simple_sklearn(X, Y, weights)
+                    reg_result = regress_simple_sklearn(X, Y, weights, prefixes=prefixes_for_regression)
                 else:
                     # K-fold CV with rcond tuning (slower, more robust)
                     import numpy as np
@@ -205,6 +210,7 @@ class AnalysisTracker:
                         Y,
                         weights,
                         rcond_values=[1e-15, 1e-10, 1e-5] + np.logspace(-8, -3, 50).tolist(),
+                        prefixes=prefixes_for_regression,
                     )
 
                 self._regression_results[step][layer_name] = reg_result

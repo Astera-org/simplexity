@@ -1,17 +1,20 @@
+from collections.abc import Iterable
+from dataclasses import dataclass
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from dataclasses import dataclass
-from typing import Dict, Iterable, Tuple
-from sklearn.model_selection import KFold
+from plotly import graph_objs as go
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import KFold
 
 from simplexity.utils.analysis_utils import build_prefix_dataset
-from plotly import graph_objs as go
 
 
 @dataclass
 class RegressionResult:
+    """Results from regression analysis with optional sequence metadata."""
+
     best_rcond: float
     dist: float              # weighted sum of Euclidean errors
     r2: float
@@ -21,7 +24,8 @@ class RegressionResult:
     predictions: np.ndarray  # (N, B)
     true_values: np.ndarray  # (N, B)
     weights: np.ndarray      # (N,)
-    per_rcond_cv_error: Dict[float, float]
+    per_rcond_cv_error: dict[float, float]
+    prefixes: list[tuple[int, ...]] | None = None  # Sequence-so-far for each point
 
 
 def _weighted_regression(
@@ -30,8 +34,8 @@ def _weighted_regression(
     weights: jax.Array,  # (N,)
     rcond: float,
 ) -> jax.Array:
-    """
-    Core: solve weighted linear regression with a bias term using SVD-based pseudoinverse.
+    """Solve weighted linear regression with a bias term using SVD-based pseudoinverse.
+
     Returns beta of shape (D+1, B).
     """
     # normalize weights once for numerical stability
@@ -50,7 +54,7 @@ def _weighted_regression(
 
     # rcond threshold
     tol = rcond * S.max()
-    S_inv = jnp.where(S > tol, 1.0 / S, jnp.zeros_like(S))
+    S_inv = jnp.where(tol < S, 1.0 / S, jnp.zeros_like(S))
 
     # pinv(Xw) = V S_inv U^T
     pinv_Xw = (Vh.T * S_inv) @ U.T  # (D+1, N)
@@ -61,12 +65,9 @@ def _weighted_regression(
 
 def _compute_metrics(
     X: jax.Array, Y: jax.Array, weights: jax.Array, beta: jax.Array
-) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Compute norm_dist, r2, mse, mae, rmse and predictions.
-    """
+) -> tuple[float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Compute norm_dist, r2, mse, mae, rmse and predictions."""
     N, D = X.shape
-    B = Y.shape[1]
 
     ones = jnp.ones((N, 1), dtype=X.dtype)
     Xb = jnp.concatenate([ones, X], axis=1)
@@ -119,6 +120,7 @@ def regress_with_kfold_rcond_cv(
     rcond_values: Iterable[float],
     n_splits: int = 10,
     random_state: int = 42,
+    prefixes: list[tuple[int, ...]] | None = None,
 ) -> RegressionResult:
     """K-fold CV over rcond, then fit final model on all data using best rcond."""
     N = X.shape[0]
@@ -127,7 +129,7 @@ def regress_with_kfold_rcond_cv(
     indices = np.arange(N)
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
 
-    per_rcond_cv_error: Dict[float, float] = {}
+    per_rcond_cv_error: dict[float, float] = {}
     best_rcond = None
     best_cv_error = float("inf")
 
@@ -177,6 +179,7 @@ def regress_with_kfold_rcond_cv(
         true_values=np.asarray(Y),
         weights=np.asarray(weights),
         per_rcond_cv_error=per_rcond_cv_error,
+        prefixes=prefixes,
     )
 
 
@@ -184,9 +187,9 @@ def regress_simple_sklearn(
     X: jax.Array,  # (N, D)
     Y: jax.Array,  # (N, B)
     weights: jax.Array,  # (N,)
+    prefixes: list[tuple[int, ...]] | None = None,
 ) -> RegressionResult:
-    """
-    Simple weighted linear regression using sklearn (no cross-validation, no regularization).
+    """Simple weighted linear regression using sklearn (no cross-validation, no regularization).
 
     This is a faster alternative to regress_with_kfold_rcond_cv when you don't
     need cross-validation and hyperparameter tuning. Uses standard OLS regression.
@@ -195,6 +198,7 @@ def regress_simple_sklearn(
         X: input features (N, D)
         Y: target values (N, B)
         weights: sample weights (N,)
+        prefixes: optional sequence metadata for each data point
 
     Returns:
         RegressionResult with fitted model
@@ -239,10 +243,11 @@ def regress_simple_sklearn(
         true_values=Y_np,
         weights=weights_np,
         per_rcond_cv_error={},  # No CV performed
+        prefixes=prefixes,
     )
 
 
-def project_to_simplex(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def project_to_simplex(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Project points onto the 2-simplex (equilateral triangle in 2D)."""
     x = points[:, 1] + 0.5 * points[:, 2]
     y = (np.sqrt(3) / 2) * points[:, 2]
@@ -253,17 +258,14 @@ def regress_activations_to_beliefs(
     inputs: jax.Array,  # (batch, seq_len)
     beliefs: jax.Array,  # (batch, seq_len, B)
     probs: jax.Array,  # (batch, seq_len)
-    activations_by_layer: Dict[str, jax.Array],  # layer -> (batch, seq_len, d_layer)
+    activations_by_layer: dict[str, jax.Array],  # layer -> (batch, seq_len, d_layer)
     layer_name: str,
     rcond_values: Iterable[float],
     n_splits: int = 10,
     random_state: int = 42,
     plot_projection: bool = False,
-) -> Tuple[RegressionResult, go.Figure | None]:
-    """
-    Regress from activations at a given layer to beliefs using K-fold CV over rcond.
-    """
-
+) -> tuple[RegressionResult, go.Figure | None]:
+    """Regress from activations at a given layer to beliefs using K-fold CV over rcond."""
     prefix_dataset = build_prefix_dataset(inputs, beliefs, probs, activations_by_layer)
     X = prefix_dataset.activations_by_layer[layer_name]  # (N, d_layer)
     Y = prefix_dataset.beliefs  # (N, B)
@@ -318,11 +320,10 @@ def regress_activations_to_beliefs(
 
 
 def plot_simplex_projection_with_step_slider(
-    regression_results_by_step: Dict[int, RegressionResult],
+    regression_results_by_step: dict[int, RegressionResult],
     title: str = "Belief Projections on 2-Simplex Over Training Steps",
 ) -> go.Figure:
-    """
-    Create interactive simplex projection plot with slider to navigate through training steps.
+    """Create interactive simplex projection plot with slider to navigate through training steps.
 
     Args:
         regression_results_by_step: dict mapping step -> RegressionResult
@@ -422,11 +423,10 @@ def plot_simplex_projection_with_step_slider(
 
 
 def plot_simplex_projection_with_layer_dropdown(
-    regression_results_by_layer: Dict[str, RegressionResult],
+    regression_results_by_layer: dict[str, RegressionResult],
     title: str = "Belief Projections on 2-Simplex Across Layers",
 ) -> go.Figure:
-    """
-    Create interactive simplex projection plot with dropdown to switch between layers.
+    """Create interactive simplex projection plot with dropdown to switch between layers.
 
     Args:
         regression_results_by_layer: dict mapping layer_name -> RegressionResult
@@ -522,11 +522,10 @@ def plot_simplex_projection_with_layer_dropdown(
 
 
 def plot_simplex_projection_with_step_and_layer(
-    regression_results_by_step_and_layer: Dict[int, Dict[str, RegressionResult]],
+    regression_results_by_step_and_layer: dict[int, dict[str, RegressionResult]],
     title: str = "Belief Projections on 2-Simplex",
 ) -> go.Figure:
-    """
-    Create interactive simplex projection plot with both step slider and layer dropdown.
+    """Create interactive simplex projection plot with both step slider and layer dropdown.
 
     Args:
         regression_results_by_step_and_layer: dict mapping step -> layer_name -> RegressionResult
