@@ -21,13 +21,15 @@ def pca_results_to_dataframe(
         include_beliefs: Whether to include belief columns (belief_0, belief_1, belief_2)
 
     Returns:
-        DataFrame with columns: step, layer, point_id, pc1, pc2, [pc3], [belief_0, belief_1, belief_2]
+        DataFrame with columns: step, layer, point_id, pc1, pc2, [pc3], [belief_0, belief_1, belief_2],
+            [sequence, next_token, seq_length] (if prefixes available)
     """
     rows = []
     for step, layer_dict in pca_results_by_step_and_layer.items():
         for layer_name, pca_res in layer_dict.items():
             X_proj = pca_res["X_proj"][:, :n_components]
             beliefs = pca_res.get("beliefs") if include_beliefs else None
+            prefixes = pca_res.get("prefixes")
 
             for i in range(len(X_proj)):
                 row = {
@@ -42,6 +44,13 @@ def pca_results_to_dataframe(
                     row["belief_0"] = beliefs[i, 0]
                     row["belief_1"] = beliefs[i, 1]
                     row["belief_2"] = beliefs[i, 2]
+
+                # Add sequence metadata if available
+                if prefixes is not None:
+                    prefix = prefixes[i]
+                    row["sequence"] = " ".join(str(t) for t in prefix)
+                    row["next_token"] = prefix[-1] if prefix else None
+                    row["seq_length"] = len(prefix)
 
                 rows.append(row)
     return pd.DataFrame(rows)

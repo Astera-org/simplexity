@@ -153,6 +153,7 @@ class AnalysisTracker:
 
                 pca_res = compute_pca_fn(X, n_components=n_pca_components, weights=weights)
                 pca_res["beliefs"] = prefix_dataset.beliefs
+                pca_res["prefixes"] = prefix_dataset.prefixes
                 self._pca_results[step][layer_name] = pca_res
 
                 # Compute variance thresholds
