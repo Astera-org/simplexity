@@ -417,7 +417,10 @@ def test_mlflow_persister_save_model_to_registry_non_pytorch(tmp_path: Path) -> 
     model = get_model(0)
     registered_model_name = "test_non_pytorch_model"
 
-    with pytest.raises(ValueError, match="Model must be a PyTorch model (torch.nn.Module)"):
+    with pytest.raises(
+        ValueError,
+        match=r"Model must be a PyTorch model \(torch\.nn\.Module\), got <class '.+'?>",
+    ):
         persister.save_model_to_registry(model, registered_model_name)
 
     persister.cleanup()
