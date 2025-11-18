@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -245,6 +246,19 @@ def test_mlflow_persister_pytorch_cleanup(tmp_path: Path) -> None:
     assert not local_persister.directory.exists()
 
 
+@pytest.fixture
+def mock_create_requirements_file(tmp_path: Path) -> Generator[str, None, None]:
+    """Mock the create_requirements_file function."""
+
+    requirements_content = "torch==2.0.0\nmlflow==2.0.0\nnumpy==1.20.0\n"
+    requirements_path = tmp_path / "requirements.txt"
+    requirements_path.write_text(requirements_content, encoding="utf-8")
+
+    with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
+        mock_create.return_value = str(requirements_path)
+        yield mock_create
+
+
 def test_mlflow_persister_save_model_to_registry(tmp_path: Path) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
     artifact_dir = tmp_path / "mlruns"
@@ -426,6 +440,7 @@ def test_mlflow_persister_save_model_to_registry_non_pytorch(tmp_path: Path) -> 
     persister.cleanup()
 
 
+@pytest.mark.usefixtures("mock_create_requirements_file")
 def test_mlflow_persister_save_model_to_registry_with_signature(tmp_path: Path) -> None:
     """Test saving a PyTorch model to the MLflow model registry with a signature."""
     artifact_dir = tmp_path / "mlruns"
@@ -444,11 +459,7 @@ def test_mlflow_persister_save_model_to_registry_with_signature(tmp_path: Path) 
     signature_data = {"some_key": "some_value", "some_other_key": "some_other_value"}
     signature = infer_signature(signature_data)
 
-    with (
-        patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create,
-        patch("simplexity.persistence.mlflow_persister.SIMPLEXITY_LOGGER.warning") as mock_warning,
-    ):
-        mock_create.side_effect = FileNotFoundError(f"pyproject.toml not found at {tmp_path / 'pyproject.toml'}")
+    with patch("simplexity.persistence.mlflow_persister.SIMPLEXITY_LOGGER.warning") as mock_warning:
         persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input, signature=signature)
         mock_warning.assert_called_once_with("Signature provided in kwargs, ignoring inferred signature")
 
