@@ -106,6 +106,7 @@ ignored-modules = ["simplexity"]
 
 [tool.pyright]
 typeCheckingMode = "standard"
+reportUnnecessaryEllipsis = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
