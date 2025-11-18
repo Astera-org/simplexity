@@ -15,8 +15,8 @@ import torch
 
 from simplexity.metrics.metrics import (
     ALL_METRICS,
+    Metric,
     MetricContext,
-    TrainingMetric,
 )
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
@@ -168,6 +168,6 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             named_parameters=named_parameters,
         )
 
-    def _initialize_metrics(self, metric_kwargs: dict[str, Any]) -> dict[str, TrainingMetric]:
+    def _initialize_metrics(self, metric_kwargs: dict[str, Any]) -> dict[str, Metric]:
         flat_metric_names = list(set([metric_name for group in self._metric_groups.values() for metric_name in group]))
         return {metric_name: ALL_METRICS[metric_name](**metric_kwargs) for metric_name in flat_metric_names}

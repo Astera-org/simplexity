@@ -26,7 +26,7 @@ class MetricContext:
     named_parameters: Mapping[str, torch.Tensor] | None = None
 
 
-class TrainingMetric(Protocol):
+class Metric(Protocol):
     """Protocol for metrics that can be plugged into the tracker."""
 
     def __init__(self, **kwargs: Any) -> None: ...
