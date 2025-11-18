@@ -246,13 +246,15 @@ def test_mlflow_persister_pytorch_cleanup(tmp_path: Path) -> None:
     assert not local_persister.directory.exists()
 
 
+REQUIREMENTS_CONTENT = "torch==2.0.0\nmlflow==2.0.0\nnumpy==1.20.0\n"
+
+
 @pytest.fixture
 def mock_create_requirements_file(tmp_path: Path) -> Generator[str, None, None]:
     """Mock the create_requirements_file function."""
 
-    requirements_content = "torch==2.0.0\nmlflow==2.0.0\nnumpy==1.20.0\n"
     requirements_path = tmp_path / "requirements.txt"
-    requirements_path.write_text(requirements_content, encoding="utf-8")
+    requirements_path.write_text(REQUIREMENTS_CONTENT, encoding="utf-8")
 
     with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
         mock_create.return_value = str(requirements_path)
@@ -291,6 +293,7 @@ def test_mlflow_persister_save_model_to_registry(tmp_path: Path) -> None:
     persister.cleanup()
 
 
+@pytest.mark.usefixtures("mock_create_requirements_file")
 def test_mlflow_persister_save_model_to_registry_with_requirements(tmp_path: Path) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
     artifact_dir = tmp_path / "mlruns"
@@ -298,10 +301,6 @@ def test_mlflow_persister_save_model_to_registry_with_requirements(tmp_path: Pat
 
     tracking_uri = artifact_dir.as_uri()
     registry_uri = artifact_dir.as_uri()
-
-    requirements_content = "torch>=2.0.0\nmlflow>=2.0.0\nnumpy>=1.20.0\n"
-    requirements_path = tmp_path / "requirements.txt"
-    requirements_path.write_text(requirements_content, encoding="utf-8")
 
     persister = MLFlowPersister(
         experiment_name="registry-save",
@@ -313,10 +312,7 @@ def test_mlflow_persister_save_model_to_registry_with_requirements(tmp_path: Pat
     model = get_pytorch_model(0)
     registered_model_name = "test_model"
 
-    # Mock create_requirements_file to return our temporary requirements file
-    with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
-        mock_create.return_value = str(requirements_path)
-        persister.save_model_to_registry(model, registered_model_name)
+    persister.save_model_to_registry(model, registered_model_name)
 
     # Verify the model was registered using an independent MLflow client
     client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
@@ -376,11 +372,12 @@ def test_mlflow_persister_save_model_to_registry_with_requirements(tmp_path: Pat
     )
     assert requirements_path.is_file()
     downloaded_content = requirements_path.read_text()
-    assert downloaded_content == requirements_content
+    assert downloaded_content == REQUIREMENTS_CONTENT
 
     persister.cleanup()
 
 
+@pytest.mark.usefixtures("mock_create_requirements_file")
 def test_mlflow_persister_save_model_to_registry_with_model_inputs(tmp_path: Path) -> None:
     """Test saving a PyTorch model to registry with model inputs for automatic signature inference."""
     artifact_dir = tmp_path / "mlruns"
@@ -399,9 +396,7 @@ def test_mlflow_persister_save_model_to_registry_with_model_inputs(tmp_path: Pat
     # Create sample input - signature should be inferred automatically
     sample_input = torch.randn(2, 4)
 
-    with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
-        mock_create.side_effect = FileNotFoundError(f"pyproject.toml not found at {tmp_path / 'pyproject.toml'}")
-        persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
+    persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
 
     # Verify that the registered model has a signature
     # Set tracking and registry URIs so get_model_info uses the same URIs as the persister
