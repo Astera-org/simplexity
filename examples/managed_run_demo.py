@@ -21,6 +21,7 @@ from torch.nn import Module as PytorchModel
 import simplexity
 from examples.configs.demo_config import Config
 from simplexity.generative_processes.torch_generator import generate_data_batch
+from simplexity.metrics.metric_tracker import TrainingMetricTracker
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 
 DEMO_DIR = Path(__file__).parent
@@ -47,6 +48,25 @@ def main(cfg: Config, components: simplexity.Components) -> None:
     assert components.persisters is not None
     assert components.predictive_models is not None
     assert components.optimizers is not None
+
+    metric_tracker = TrainingMetricTracker(
+        initial_loss=10.0,
+        model=components.get_predictive_model(),
+        optimizer=components.get_optimizer(),
+        optimal_loss=0.01,
+    )
+
+    logger = components.get_logger()
+    assert logger is not None
+
+    for i in range(100):
+        metric_tracker.update(
+            batch_tokens=100,
+            loss=float(10.0 - i * 0.1),
+        )
+        metrics = metric_tracker.metrics()
+        logger.log_metrics(i, metrics)
+
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
         persister = components.get_persister()
