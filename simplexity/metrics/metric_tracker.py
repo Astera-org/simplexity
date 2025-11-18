@@ -19,7 +19,7 @@ from simplexity.metrics.metrics import (
 )
 
 
-class TrainingMetricTracker:  # pylint: disable=too-many-instance-attributes
+class MetricTracker:  # pylint: disable=too-many-instance-attributes
     """Stateful helper that orchestrates instantaneous and cumulative metrics."""
 
     def __init__(  # pylint: disable=too-many-arguments
