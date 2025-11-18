@@ -21,8 +21,7 @@ class MetricContext:
     loss: float
     learning_rates: Mapping[str, float] = field(default_factory=dict)
     gradients: Mapping[str, torch.Tensor] | None = None
-    previous_named_parameters: Mapping[str, torch.Tensor] | None = None
-    current_named_parameters: Mapping[str, torch.Tensor] | None = None
+    named_parameters: Mapping[str, torch.Tensor] | None = None
 
 
 class TrainingMetric(Protocol):
@@ -182,8 +181,8 @@ class ParameterNormMetric:
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the parameter norm metric."""
-        assert context.current_named_parameters is not None, "Current named parameters are required for this metric"
-        return {"params/l2_norm": _tensor_collection_l2_norm(context.current_named_parameters.values())}
+        assert context.named_parameters is not None, "Named parameters are required for this metric"
+        return {"params/l2_norm": _tensor_collection_l2_norm(context.named_parameters.values())}
 
 
 class WeightNormMetric:
@@ -195,10 +194,8 @@ class WeightNormMetric:
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the weight norm metric."""
-        assert context.current_named_parameters is not None, "Current named parameters are required for this metric"
-        weight_tensors = [
-            tensor for name, tensor in context.current_named_parameters.items() if name.endswith("weight")
-        ]
+        assert context.named_parameters is not None, "Named parameters are required for this metric"
+        weight_tensors = [tensor for name, tensor in context.named_parameters.items() if name.endswith("weight")]
         return {"params/weights_l2_norm": _tensor_collection_l2_norm(weight_tensors)}
 
 
@@ -206,16 +203,17 @@ class DistanceFromInitializationMetric:
     """Reports the parameter space distance from the initial model state."""
 
     requires_named_parameters = True
-    requires_initial_named_parameters = True
 
-    def __init__(self, initial_named_parameters: Mapping[str, torch.Tensor], **_kwargs: Any) -> None:
-        self.initial_named_parameters = initial_named_parameters
+    def __init__(self, **kwargs: Any) -> None:
+        initial_named_parameters = kwargs.get("named_parameters")
+        assert initial_named_parameters is not None, "Named parameters are required for this metric"
+        self.initial_named_parameters: Mapping[str, torch.Tensor] = initial_named_parameters
         self.max_distance = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the distance from initialization metric."""
-        assert context.current_named_parameters is not None, "Current named parameters are required for this metric"
-        distance = _named_tensor_distance(context.current_named_parameters, self.initial_named_parameters)
+        assert context.named_parameters is not None, "Named parameters are required for this metric"
+        distance = _named_tensor_distance(context.named_parameters, self.initial_named_parameters)
         self.max_distance = max(self.max_distance, distance)
         return {
             "params/distance_from_init": distance,
@@ -226,18 +224,20 @@ class DistanceFromInitializationMetric:
 class CumulativeParameterUpdateMetric:
     """Tracks the cumulative parameter update."""
 
-    requires_current_named_parameters = True
-    requires_previous_named_parameters = True
+    requires_named_parameters = True
 
-    def __init__(self, **_kwargs: Any) -> None:
+    def __init__(self, **kwargs: Any) -> None:
+        named_parameters = kwargs.get("named_parameters")
+        assert named_parameters is not None, "Named parameters are required for this metric"
+        self.previous_named_parameters: Mapping[str, torch.Tensor] = named_parameters
         self.cumulative = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the update norm metric."""
-        assert context.current_named_parameters is not None, "Current named parameters are required for this metric"
-        assert context.previous_named_parameters is not None, "Previous named parameters are required for this metric"
-        step_norm = _named_tensor_distance(context.current_named_parameters, context.previous_named_parameters)
+        assert context.named_parameters is not None, "Named parameters are required for this metric"
+        step_norm = _named_tensor_distance(context.named_parameters, self.previous_named_parameters)
         self.cumulative += step_norm
+        self.previous_named_parameters = context.named_parameters
         return {
             "params/update_l2_norm": step_norm,
             "params/update_l2_norm/cumulative": self.cumulative,

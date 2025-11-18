@@ -36,13 +36,13 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
         self.model = model
 
-        initial_named_parameters: Mapping[str, torch.Tensor] | None = None
+        named_parameters: Mapping[str, torch.Tensor] | None = None
         if self._needs_named_parameters:
-            initial_named_parameters = self._snapshot_named_parameters()
-            metric_kwargs["initial_named_parameters"] = initial_named_parameters
+            named_parameters = self._snapshot_named_parameters()
+            metric_kwargs["named_parameters"] = named_parameters
 
         self.optimizer = optimizer
-        self._context = self._initialize_context(initial_named_parameters)
+        self._context = self._initialize_context(named_parameters)
         self._metrics = self._initialize_metrics(metric_names, metric_kwargs)
         self._metric_groups = self._initialize_metric_groups(metric_names)
 
@@ -70,10 +70,8 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             self._context.learning_rates = self._extract_learning_rates()
         if self._needs_gradients:
             self._context.gradients = self._snapshot_gradients()
-        if self._needs_previous_named_parameters:
-            self._context.previous_named_parameters = self._context.current_named_parameters
-        if self._needs_current_named_parameters:
-            self._context.current_named_parameters = self._snapshot_named_parameters()
+        if self._needs_named_parameters:
+            self._context.named_parameters = self._snapshot_named_parameters()
 
     def _set_requirement_flags(self, metric_names: dict[str, Sequence[str]] | Sequence[str] | None) -> None:
         metrics_list: list[str] = []
@@ -89,16 +87,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
         self._needs_learning_rates = requires("requires_learning_rates")
         self._needs_gradients = requires("requires_gradients")
-        self._needs_previous_named_parameters = requires("requires_previous_named_parameters")
-        self._needs_current_named_parameters = self._needs_previous_named_parameters or requires(
-            "requires_current_named_parameters"
-        )
-        self._needs_initial_named_parameters = requires("requires_initial_named_parameters")
-        self._needs_named_parameters = (
-            self._needs_current_named_parameters
-            or self._needs_initial_named_parameters
-            or self._needs_previous_named_parameters
-        )
+        self._needs_named_parameters = requires("requires_named_parameters")
 
     def _extract_learning_rates(self) -> Mapping[str, float]:
         assert self.optimizer is not None, "Optimizer is required for metrics that require learning rates"
@@ -121,7 +110,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         assert self.model is not None, "Model is required for metrics that require named parameters"
         return {name: param.detach().clone().cpu() for name, param in self.model.named_parameters()}
 
-    def _initialize_context(self, initial_named_parameters: Mapping[str, torch.Tensor] | None = None) -> MetricContext:
+    def _initialize_context(self, named_parameters: Mapping[str, torch.Tensor] | None = None) -> MetricContext:
         learning_rates: Mapping[str, float] = {}
         if self._needs_learning_rates:
             learning_rates = self._extract_learning_rates()
@@ -131,9 +120,6 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             assert self.model is not None, "Model is required for metrics that require gradients"
             gradients = self._snapshot_gradients()
 
-        current_named_parameters = initial_named_parameters if self._needs_named_parameters else None
-        previous_named_parameters = initial_named_parameters if self._needs_previous_named_parameters else None
-
         return MetricContext(
             step=0,
             batch_tokens=0,
@@ -141,8 +127,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             loss=float("inf"),
             learning_rates=learning_rates,
             gradients=gradients,
-            current_named_parameters=current_named_parameters,
-            previous_named_parameters=previous_named_parameters,
+            named_parameters=named_parameters,
         )
 
     def _initialize_metrics(
