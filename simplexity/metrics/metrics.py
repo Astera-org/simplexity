@@ -156,13 +156,14 @@ class CurrentLossMetric:
         self.ma_window_size = ma_window_size
         self.ma_losses = [float("inf")] * ma_window_size
         self.ema_gamma = ema_gamma
-        self.ema_loss = float("inf")
+        self.ema_loss: float | None = None
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the current loss metric."""
         self.min_loss = min(self.min_loss, context.loss)
-        self.ma_losses.append(context.loss)
         self.ma_losses[context.step % self.ma_window_size] = context.loss
+        if self.ema_loss is None:
+            self.ema_loss = context.loss
         self.ema_loss = self.ema_gamma * self.ema_loss + (1 - self.ema_gamma) * context.loss
         return {
             "loss": context.loss,
