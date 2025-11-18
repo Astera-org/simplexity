@@ -406,6 +406,34 @@ def test_load_model_from_registry_multiple_versions(persister: MLFlowPersister) 
     assert _pytorch_models_equal(loaded_latest, model_v2)
 
 
+def test_load_model_from_registry_with_stage(persister: MLFlowPersister) -> None:
+    """Test loading a model from the registry with a stage."""
+
+    registered_model_name = "test_model"
+
+    torch.manual_seed(0)
+    model_prod = Linear(in_features=4, out_features=2)
+    persister.save_model_to_registry(model_prod, registered_model_name)
+    persister.client.transition_model_version_stage(name=registered_model_name, version="1", stage="Production")
+
+    torch.manual_seed(1)
+    model_stage = Linear(in_features=4, out_features=2)
+    persister.save_model_to_registry(model_stage, registered_model_name)
+    persister.client.transition_model_version_stage(
+        name=registered_model_name,
+        version="2",
+        stage="Staging",
+    )
+
+    assert not _pytorch_models_equal(model_prod, model_stage)
+
+    loaded_prod = persister.load_model_from_registry(registered_model_name, stage="Production")
+    assert _pytorch_models_equal(loaded_prod, model_prod)
+
+    loaded_stage = persister.load_model_from_registry(registered_model_name, stage="Staging")
+    assert _pytorch_models_equal(loaded_stage, model_stage)
+
+
 def test_load_model_from_registry_no_registered_model(persister: MLFlowPersister) -> None:
     """Test that loading a non-existent version raises an error."""
 
