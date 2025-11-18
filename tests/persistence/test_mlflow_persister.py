@@ -20,12 +20,6 @@ from torch.nn import Linear, Module
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 
 
-def get_pytorch_model(seed: int) -> Linear:
-    """Build a small deterministic PyTorch model for serialization tests."""
-    torch.manual_seed(seed)
-    return Linear(in_features=4, out_features=2)
-
-
 def get_hydra_config_for_pytorch_model() -> dict:
     """Get a Hydra config dict for the given PyTorch model."""
     return {
@@ -48,11 +42,6 @@ def pytorch_models_equal(model1: Module, model2: Module) -> bool:
         return False
 
     return all(torch.allclose(params1[name], params2[name]) for name in params1)
-
-
-def get_model(seed: int) -> eqx.Module:
-    """Build a small deterministic model for serialization tests."""
-    return eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(seed))
 
 
 def get_hydra_config_for_model(seed: int) -> dict:
@@ -81,7 +70,7 @@ def test_round_trip(tmp_path: Path) -> None:
         artifact_path="models",
     )
 
-    original = get_model(0)
+    original = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
     persister.save_weights(original, step=0)
 
     # MLflow stores artifacts in experiment_id/run_id/artifacts/artifact_path/step/
@@ -90,7 +79,7 @@ def test_round_trip(tmp_path: Path) -> None:
     remote_model_path = artifact_dir / experiment_id / run_id / "artifacts" / "models" / "0" / "model.eqx"
     assert remote_model_path.exists()
 
-    updated = get_model(1)
+    updated = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(1))
     loaded = persister.load_weights(updated, step=0)
 
     chex.assert_trees_all_equal(loaded, original)
@@ -108,7 +97,7 @@ def test_round_trip_from_config(tmp_path: Path) -> None:
         artifact_path="models",
     )
 
-    original = get_model(0)
+    original = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
     persister.save_weights(original, step=0)
 
     # MLflow stores artifacts in experiment_id/run_id/artifacts/artifact_path/step/
@@ -147,7 +136,7 @@ def test_cleanup(tmp_path: Path) -> None:
 
     assert run_status() == "RUNNING"
 
-    model = get_model(0)
+    model = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
     persister.save_weights(model, step=0)
     local_persister = persister.get_local_persister(model)
     assert local_persister.directory.exists()
@@ -169,7 +158,8 @@ def test_pytorch_round_trip(tmp_path: Path) -> None:
         artifact_path="models",
     )
 
-    original = get_pytorch_model(0)
+    torch.manual_seed(0)
+    original = Linear(in_features=4, out_features=2)
     persister.save_weights(original, step=0)
 
     # MLflow stores artifacts in experiment_id/run_id/artifacts/artifact_path/step/
@@ -178,7 +168,8 @@ def test_pytorch_round_trip(tmp_path: Path) -> None:
     remote_model_path = artifact_dir / experiment_id / run_id / "artifacts" / "models" / "0" / "model.pt"
     assert remote_model_path.exists()
 
-    updated = get_pytorch_model(1)
+    torch.manual_seed(1)
+    updated = Linear(in_features=4, out_features=2)
     loaded = persister.load_weights(updated, step=0)
 
     # Type assertion since we know loaded is a PyTorch model
@@ -197,7 +188,7 @@ def test_pytorch_round_trip_from_config(tmp_path: Path) -> None:
         artifact_path="models",
     )
 
-    original = get_pytorch_model(0)
+    original = Linear(in_features=4, out_features=2)
     persister.save_weights(original, step=0)
 
     # MLflow stores artifacts in experiment_id/run_id/artifacts/artifact_path/step/
@@ -236,7 +227,7 @@ def test_pytorch_cleanup(tmp_path: Path) -> None:
 
     assert run_status() == "RUNNING"
 
-    model = get_pytorch_model(0)
+    model = Linear(in_features=4, out_features=2)
     persister.save_weights(model, step=0)
     local_persister = persister.get_local_persister(model)
     assert local_persister.directory.exists()
@@ -277,7 +268,7 @@ def test_save_model_to_registry(tmp_path: Path) -> None:
         registry_uri=registry_uri,
     )
 
-    model = get_pytorch_model(0)
+    model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model"
 
     persister.save_model_to_registry(model, registered_model_name)
@@ -323,7 +314,7 @@ def test_save_model_to_registry_with_no_requirements(tmp_path: Path) -> None:
         registry_uri=registry_uri,
     )
 
-    model = get_pytorch_model(0)
+    model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model"
 
     with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
@@ -353,7 +344,7 @@ def test_save_model_to_registry_with_model_inputs(tmp_path: Path) -> None:
         registry_uri=artifact_dir.as_uri(),
     )
 
-    model = get_pytorch_model(0)
+    model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model_inputs"
 
     # Create sample input - signature should be inferred automatically
@@ -386,14 +377,15 @@ def test_save_model_to_registry_non_pytorch(tmp_path: Path) -> None:
         registry_uri=artifact_dir.as_uri(),
     )
 
-    model = get_model(0)
     registered_model_name = "test_non_pytorch_model"
+
+    equinox_model = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
 
     with pytest.raises(
         ValueError,
         match=r"Model must be a PyTorch model \(torch\.nn\.Module\), got <class '.+'?>",
     ):
-        persister.save_model_to_registry(model, registered_model_name)
+        persister.save_model_to_registry(equinox_model, registered_model_name)
 
     persister.cleanup()
 
@@ -411,7 +403,7 @@ def test_save_model_to_registry_with_signature(tmp_path: Path) -> None:
         registry_uri=artifact_dir.as_uri(),
     )
 
-    model = get_pytorch_model(0)
+    model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model_signature"
     sample_input = torch.randn(2, 4)
     signature_data = {"some_key": "some_value", "some_other_key": "some_other_value"}
@@ -445,7 +437,7 @@ def test_load_model_from_registry(tmp_path: Path) -> None:
         registry_uri=artifact_dir.as_uri(),
     )
 
-    original = get_pytorch_model(0)
+    original = Linear(in_features=4, out_features=2)
     registered_model_name = "test_load_model"
 
     # Save model to registry
@@ -475,7 +467,8 @@ def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
     )
 
     # Save first version
-    model_v1 = get_pytorch_model(0)
+    torch.manual_seed(0)
+    model_v1 = Linear(in_features=4, out_features=2)
     registered_model_name = "test_multi_version"
     persister.save_model_to_registry(model_v1, registered_model_name)
 
@@ -488,7 +481,8 @@ def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
     )
 
     # Save second version
-    model_v2 = get_pytorch_model(1)
+    torch.manual_seed(1)
+    model_v2 = Linear(in_features=4, out_features=2)
     persister2.save_model_to_registry(model_v2, registered_model_name)
 
     # Load version 1
@@ -573,7 +567,8 @@ def test_list_model_versions(tmp_path: Path) -> None:
             registry_uri=artifact_dir.as_uri(),
         )
 
-        model = get_pytorch_model(version_number)
+        torch.manual_seed(version_number)
+        model = Linear(in_features=4, out_features=2)
         persister.save_model_to_registry(model, registered_model_name)
 
         versions = persister.list_model_versions(registered_model_name)
