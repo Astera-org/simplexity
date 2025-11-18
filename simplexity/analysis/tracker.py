@@ -653,11 +653,13 @@ class AnalysisTracker:
     def save_incremental_figures(
         self,
         visualization_configs: dict,
+        analysis_configs: dict,
     ) -> dict[str, str]:
         """Save incremental figures for the current step and return paths.
 
         Args:
             visualization_configs: Dict of visualization configs (from cfg.validation_visualization)
+            analysis_configs: Dict of analysis configs (from cfg.validation_analysis)
 
         Returns:
             Dict mapping viz_name to HTML file path
@@ -673,16 +675,7 @@ class AnalysisTracker:
             save_figure_html,
         )
 
-        # Build data registry from current tracker state
-        # Use the visualization configs to determine which analyses to include
-        analysis_configs = {}
-        for _viz_name, viz_cfg in visualization_configs.items():
-            if isinstance(viz_cfg, dict) and "data" in viz_cfg and "source" in viz_cfg["data"]:
-                source = viz_cfg["data"]["source"]
-                # Map source names to analysis configs
-                if source not in analysis_configs:
-                    analysis_configs[source] = {"type": source}
-
+        # Build data registry from current tracker state using provided analysis configs
         data_registry = self.build_data_registry(analysis_configs)
 
         # Use configured plots_dir or create tempdir
