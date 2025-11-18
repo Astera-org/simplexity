@@ -112,8 +112,8 @@ class TokensMetric:
     def compute(self) -> Mapping[str, float]:
         """Compute the token count metric."""
         return {
-            "tokens/batch": self.num_tokens,
-            "tokens/total": self.cumulative,
+            "tokens/raw": self.num_tokens,
+            "tokens/raw/cumulative": self.cumulative,
         }
 
 
