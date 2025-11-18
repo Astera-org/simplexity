@@ -378,36 +378,20 @@ def test_model_registry_round_trip(persister: MLFlowPersister) -> None:
     assert _pytorch_models_equal(loaded, original)
 
 
-def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
+def test_load_model_from_registry_multiple_versions(persister: MLFlowPersister) -> None:
     """Test loading different versions of a model from the registry."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
 
-    persister = MLFlowPersister(
-        experiment_name="registry-multi-version",
-        run_name="registry-multi-version-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
+    registered_model_name = "test_model"
 
-    # Save first version
     torch.manual_seed(0)
     model_v1 = Linear(in_features=4, out_features=2)
-    registered_model_name = "test_multi_version"
     persister.save_model_to_registry(model_v1, registered_model_name)
 
-    # Create a new persister for the second version (new run)
-    persister2 = MLFlowPersister(
-        experiment_name="registry-multi-version",
-        run_name="registry-multi-version-run-2",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
-
-    # Save second version
     torch.manual_seed(1)
     model_v2 = Linear(in_features=4, out_features=2)
-    persister2.save_model_to_registry(model_v2, registered_model_name)
+    persister.save_model_to_registry(model_v2, registered_model_name)
+
+    assert not _pytorch_models_equal(model_v1, model_v2)
 
     # Load version 1
     loaded_v1 = persister.load_model_from_registry(registered_model_name, version="1")
@@ -420,9 +404,6 @@ def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
     # Load latest (should be version 2)
     loaded_latest = persister.load_model_from_registry(registered_model_name)
     assert _pytorch_models_equal(loaded_latest, model_v2)
-
-    persister.cleanup()
-    persister2.cleanup()
 
 
 def test_load_model_from_registry_no_registered_model(persister: MLFlowPersister) -> None:
