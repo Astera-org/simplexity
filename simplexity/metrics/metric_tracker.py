@@ -33,11 +33,12 @@ class TrainingMetricTracker:  # pylint: disable=too-many-instance-attributes
     ) -> None:
         self._set_requirement_flags(metric_names)
 
+        self.model = model
+
         initial_named_parameters: Mapping[str, torch.Tensor] | None = None
         if self._needs_named_parameters:
             initial_named_parameters = self._snapshot_named_parameters()
 
-        self.model = model
         self.optimizer = optimizer
         self._context = self._initialize_context(initial_loss, initial_named_parameters)
         self._metrics = self._initialize_metrics(metric_names, initial_loss, optimal_loss, initial_named_parameters)
