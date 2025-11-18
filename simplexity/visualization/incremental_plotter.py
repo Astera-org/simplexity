@@ -6,11 +6,11 @@ new steps to existing plots, allowing slider functionality while keeping memory 
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import plotly.graph_objects as go
+import plotly.io as pio
 
 from simplexity.visualization.plotly_renderer import build_plotly_figure
 from simplexity.visualization.structured_configs import PlotConfig
@@ -28,9 +28,8 @@ def load_or_create_figure(figure_path: str | Path) -> go.Figure:
     figure_path = Path(figure_path)
 
     if figure_path.exists():
-        with open(figure_path) as f:
-            fig_dict = json.load(f)
-        return go.Figure(fig_dict)
+        # Use Plotly's read_json to properly deserialize
+        return pio.read_json(figure_path)
 
     # Create new figure with empty data
     return go.Figure()
@@ -143,8 +142,8 @@ def save_figure(fig: go.Figure, figure_path: str | Path) -> None:
     figure_path = Path(figure_path)
     figure_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(figure_path, "w") as f:
-        json.dump(fig.to_dict(), f)
+    # Use Plotly's write_json to handle numpy/JAX array serialization
+    fig.write_json(figure_path)
 
 
 def save_figure_html(fig: go.Figure, html_path: str | Path) -> None:
