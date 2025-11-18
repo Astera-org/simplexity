@@ -1,4 +1,4 @@
-"""Unified factored generative process with pluggable coupling topologies."""
+"""Unified factored generative process with pluggable conditional structures."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_beliefs.topology.topology import CouplingContext, CouplingTopology
+from simplexity.generative_processes.factored_beliefs.topology.topology import ConditionalContext, ConditionalStructure
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.utils.factoring_utils import TokenEncoder, transition_with_obs
 
@@ -19,10 +19,10 @@ FactoredState = tuple[jnp.ndarray, ...]
 
 
 class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
-    """Unified factored generative process with pluggable coupling topology.
+    """Unified factored generative process with pluggable conditional structures.
 
     This class provides a single implementation of factored generative processes
-    that supports different coupling patterns via the CouplingTopology protocol.
+    that supports different conditional dependency patterns via the ConditionalStructure protocol.
 
     Attributes:
         component_types: Type of each factor ("hmm" or "ghmm")
@@ -30,7 +30,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
         initial_states: Initial state per factor (shape [S_i])
         num_variants: Number of parameter variants per factor
-        topology: Coupling topology determining factor interactions
+        structure: Conditional structure determining factor interactions
         encoder: Token encoder for composite observations
     """
 
@@ -43,8 +43,8 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
     normalizing_eigenvectors: tuple[jnp.ndarray, ...]
     initial_states: tuple[jnp.ndarray, ...]
 
-    # Coupling topology and encoding
-    topology: CouplingTopology
+    # Conditional structure and encoding
+    structure: ConditionalStructure
     encoder: TokenEncoder
 
     def __init__(
@@ -54,7 +54,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         transition_matrices: Sequence[jnp.ndarray],
         normalizing_eigenvectors: Sequence[jnp.ndarray],
         initial_states: Sequence[jnp.ndarray],
-        topology: CouplingTopology,
+        structure: ConditionalStructure,
     ) -> None:
         """Initialize factored generative process.
 
@@ -65,7 +65,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             normalizing_eigenvectors: Per-factor eigenvectors for GHMM.
                 normalizing_eigenvectors[i] has shape [K_i, S_i]
             initial_states: Initial state per factor (shape [S_i])
-            topology: Coupling topology defining factor interactions
+            structure: Conditional structure defining factor interactions
         """
         if len(component_types) == 0:
             raise ValueError("Must provide at least one component")
@@ -74,7 +74,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         self.transition_matrices = tuple(transition_matrices)
         self.normalizing_eigenvectors = tuple(normalizing_eigenvectors)
         self.initial_states = tuple(initial_states)
-        self.topology = topology
+        self.structure = structure
 
         # Validate shapes and compute derived sizes
         vocab_sizes = []
@@ -95,9 +95,9 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         self.num_variants = tuple(int(k) for k in num_variants)
         self.encoder = TokenEncoder(jnp.array(vocab_sizes))
 
-    def _make_context(self, state: FactoredState) -> CouplingContext:
-        """Create coupling context for topology methods."""
-        return CouplingContext(
+    def _make_context(self, state: FactoredState) -> ConditionalContext:
+        """Create conditional context for structure methods."""
+        return ConditionalContext(
             states=state,
             component_types=self.component_types,
             transition_matrices=self.transition_matrices,
@@ -119,7 +119,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     @eqx.filter_jit
     def observation_probability_distribution(self, state: FactoredState) -> jnp.ndarray:
-        """Compute P(composite_token | state) under the coupling topology.
+        """Compute P(composite_token | state) under the conditional structure.
 
         Args:
             state: Tuple of state vectors (one per factor)
@@ -128,7 +128,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             Distribution over composite tokens, shape [prod(V_i)]
         """
         context = self._make_context(state)
-        return self.topology.compute_joint_distribution(context)
+        return self.structure.compute_joint_distribution(context)
 
     @eqx.filter_jit
     def log_observation_probability_distribution(
@@ -175,9 +175,9 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         # Decode composite observation to per-factor tokens
         obs_tuple = self.encoder.token_to_tuple(obs)
 
-        # Select variants based on topology
+        # Select variants based on conditional structure
         context = self._make_context(state)
-        variants = self.topology.select_variants(obs_tuple, context)
+        variants = self.structure.select_variants(obs_tuple, context)
 
         # Update each factor's state
         new_states: list[jnp.ndarray] = []

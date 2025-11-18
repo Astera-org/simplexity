@@ -1,5 +1,5 @@
-# Unified API: Symmetric (Fully Bidirectional) Topology
-# Symmetric topology creates mutual dependencies:
+# Unified API: Fully Conditional Structure
+# Fully conditional structure creates mutual dependencies:
 # Each factor's variant selection depends on ALL OTHER factors' tokens.
 # Uses product-of-experts to compute joint distribution.
 

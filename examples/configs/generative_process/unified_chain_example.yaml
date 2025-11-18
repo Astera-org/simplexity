@@ -1,5 +1,5 @@
-# Unified API: Chain Topology
-# Chain topology creates one-way conditional dependencies:
+# Unified API: Sequential Conditional Structure
+# Sequential conditional structure creates one-way conditional dependencies:
 # Factor 0 -> Factor 1 -> Factor 2 -> ...
 # Each factor i>0 selects its parameter variant based on factor i-1's token.
 

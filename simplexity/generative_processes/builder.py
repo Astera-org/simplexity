@@ -17,9 +17,9 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.alternating_process import AlternatingProcess
-from simplexity.generative_processes.factored_beliefs.topology.chain import ChainTopology
-from simplexity.generative_processes.factored_beliefs.topology.symmetric import SymmetricTopology
-from simplexity.generative_processes.factored_beliefs.topology.transition_coupled import TransitionCoupledTopology
+from simplexity.generative_processes.factored_beliefs.topology.sequential_conditional import SequentialConditional
+from simplexity.generative_processes.factored_beliefs.topology.fully_conditional import FullyConditional
+from simplexity.generative_processes.factored_beliefs.topology.conditional_transitions import ConditionalTransitions
 from simplexity.generative_processes.factored_generative_process import ComponentType, FactoredGenerativeProcess
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
@@ -152,18 +152,18 @@ def build_chain_process(
             be None. control_maps[i] for i>0 should have shape [V_{i-1}].
 
     Returns:
-        FactoredGenerativeProcess with chain topology
+        FactoredGenerativeProcess with sequential conditional structure
     """
     # Extract vocab sizes from transition matrices
     vocab_sizes = jnp.array([int(T.shape[1]) for T in transition_matrices])
 
-    topology = ChainTopology(control_maps=tuple(control_maps), vocab_sizes=vocab_sizes)
+    structure = SequentialConditional(control_maps=tuple(control_maps), vocab_sizes=vocab_sizes)
     return FactoredGenerativeProcess(
         component_types=component_types,
         transition_matrices=transition_matrices,
         normalizing_eigenvectors=normalizing_eigenvectors,
         initial_states=initial_states,
-        topology=topology,
+        structure=structure,
     )
 
 
@@ -188,12 +188,12 @@ def build_symmetric_process(
             have shape [prod(V_j for j!=i)].
 
     Returns:
-        FactoredGenerativeProcess with symmetric topology
+        FactoredGenerativeProcess with fully conditional structure
     """
     # Extract vocab sizes from transition matrices
     vocab_sizes = jnp.array([int(T.shape[1]) for T in transition_matrices])
 
-    topology = SymmetricTopology(
+    structure = FullyConditional(
         control_maps=tuple(control_maps),
         vocab_sizes=vocab_sizes,
     )
@@ -202,7 +202,7 @@ def build_symmetric_process(
         transition_matrices=transition_matrices,
         normalizing_eigenvectors=normalizing_eigenvectors,
         initial_states=initial_states,
-        topology=topology,
+        structure=structure,
     )
 
 
@@ -234,12 +234,12 @@ def build_transition_coupled_process(
             [prod(V_j for j<i)] for i>0.
 
     Returns:
-        FactoredGenerativeProcess with transition-coupled topology
+        FactoredGenerativeProcess with conditional transitions structure
     """
     # Extract vocab sizes from transition matrices
     vocab_sizes = jnp.array([int(T.shape[1]) for T in transition_matrices])
 
-    topology = TransitionCoupledTopology(
+    structure = ConditionalTransitions(
         control_maps_transition=tuple(control_maps_transition),
         emission_variant_indices=emission_variant_indices,
         vocab_sizes=vocab_sizes,
@@ -250,7 +250,7 @@ def build_transition_coupled_process(
         transition_matrices=transition_matrices,
         normalizing_eigenvectors=normalizing_eigenvectors,
         initial_states=initial_states,
-        topology=topology,
+        structure=structure,
     )
 
 

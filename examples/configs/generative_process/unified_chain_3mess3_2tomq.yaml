@@ -1,4 +1,4 @@
-# Unified API: Chain Topology - 3 mess3 + 2 tom_quantum
+# Unified API: Sequential Conditional Structure - 3 mess3 + 2 tom_quantum
 # Factor i depends on Factor i-1's emitted token (one-way conditional dependencies)
 
 name: unified_chain_3mess3_2tomq

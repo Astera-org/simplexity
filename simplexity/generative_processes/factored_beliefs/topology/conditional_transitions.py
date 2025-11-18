@@ -1,10 +1,10 @@
-"""Transition-coupled topology: independent/chain emissions with coupled transitions.
+"""Conditional transitions structure: independent/sequential emissions with mutually conditional transitions.
 
 Emissions can be either:
 - Independent: each factor uses a fixed emission variant
-- Chain-style: factor i selects emission variant based on previous tokens 0..i-1
+- Sequential: factor i selects emission variant based on previous tokens 0..i-1
 
-Transitions are always coupled: factor i selects transition variant based on
+Transitions are always mutually conditional: factor i selects transition variant based on
 all other factors' tokens.
 """
 
@@ -15,26 +15,26 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_beliefs.topology.topology import CouplingContext
+from simplexity.generative_processes.factored_beliefs.topology.topology import ConditionalContext
 from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
 
-class TransitionCoupledTopology(eqx.Module):
-    """Transition-coupled topology with flexible emission modes.
+class ConditionalTransitions(eqx.Module):
+    """Conditional transitions structure with flexible emission modes.
 
     Emissions can be:
     - Independent (use_emission_chain=False): P(t) = ∏_i P_i(t_i | s_i, k_emit_i)
-    - Chain (use_emission_chain=True): P(t) = P0(t0) * ∏_{i>0} P_i(t_i | t_0..t_{i-1}, s_i)
+    - Sequential (use_emission_chain=True): P(t) = P0(t0) * ∏_{i>0} P_i(t_i | t_0..t_{i-1}, s_i)
 
-    Transitions are always coupled: factor i selects transition variant based on
+    Transitions are always mutually conditional: factor i selects transition variant based on
     all other factors' tokens.
 
     Attributes:
         control_maps_transition: Transition control maps. control_maps_transition[i]
             has shape [prod(V_j for j!=i)] mapping other tokens to transition variant.
         emission_variant_indices: Fixed emission variants per factor (shape [F])
-        emission_control_maps: Optional chain-style emission control maps
-        use_emission_chain: Whether to use chain-style emissions
+        emission_control_maps: Optional sequential emission control maps
+        use_emission_chain: Whether to use sequential emissions
         other_multipliers: Precomputed radix multipliers for other-factor indexing
         prefix_multipliers: Precomputed radix multipliers for prefix indexing
         vocab_sizes_py: Python int tuple of vocab sizes
@@ -55,14 +55,14 @@ class TransitionCoupledTopology(eqx.Module):
         vocab_sizes: jnp.ndarray,
         emission_control_maps: tuple[jnp.ndarray | None, ...] | None = None,
     ):
-        """Initialize transition-coupled topology.
+        """Initialize conditional transitions structure.
 
         Args:
             control_maps_transition: Transition control maps for each factor.
                 control_maps_transition[i] should have shape [prod(V_j for j!=i)].
             emission_variant_indices: Fixed emission variant per factor (shape [F])
             vocab_sizes: Vocabulary sizes per factor (shape [F])
-            emission_control_maps: Optional chain-style emission control maps.
+            emission_control_maps: Optional sequential emission control maps.
                 If provided, emission_control_maps[i] should have shape
                 [prod(V_j for j<i)] for i>0.
         """
@@ -106,7 +106,7 @@ class TransitionCoupledTopology(eqx.Module):
             other_multipliers.append(jnp.array(mult))
         self.other_multipliers = tuple(other_multipliers)
 
-        # Precompute multipliers for prefix indexing (for chain emissions)
+        # Precompute multipliers for prefix indexing (for sequential emissions)
         prefix_multipliers: list[jnp.ndarray] = []
         for i in range(F):
             pmult = []
@@ -131,11 +131,11 @@ class TransitionCoupledTopology(eqx.Module):
         mult = self.prefix_multipliers[i]
         return jnp.sum(tokens * mult)
 
-    def compute_joint_distribution(self, context: CouplingContext) -> jnp.ndarray:
+    def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
         """Compute joint distribution based on emission mode.
 
         Args:
-            context: Coupling context with states and parameters
+            context: Conditional context with states and parameters
 
         Returns:
             Flattened joint distribution of shape [prod(V_i)]
@@ -163,7 +163,7 @@ class TransitionCoupledTopology(eqx.Module):
                 J = (J[..., None] * parts[i]).reshape(*J.shape, parts[i].shape[0])
             return J.reshape(-1)
 
-        # Chain-style emissions
+        # Sequential emissions
         k0 = self.emission_variant_indices[0]
         T0 = transition_matrices[0][k0]
         norm0 = normalizing_eigenvectors[0][k0] if component_types[0] == "ghmm" else None
@@ -202,7 +202,7 @@ class TransitionCoupledTopology(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: CouplingContext,
+        context: ConditionalContext,
     ) -> tuple[jnp.ndarray, ...]:
         """Select transition variants based on other factors' tokens.
 
@@ -210,7 +210,7 @@ class TransitionCoupledTopology(eqx.Module):
 
         Args:
             obs_tuple: Tuple of observed tokens (one per factor)
-            context: Coupling context (unused)
+            context: Conditional context (unused)
 
         Returns:
             Tuple of transition variant indices (one per factor)
@@ -224,7 +224,7 @@ class TransitionCoupledTopology(eqx.Module):
         return tuple(variants)
 
     def get_required_params(self) -> dict[str, type]:
-        """Return required parameters for transition-coupled topology."""
+        """Return required parameters for conditional transitions structure."""
         return {
             "control_maps_transition": tuple,
             "emission_variant_indices": jnp.ndarray,

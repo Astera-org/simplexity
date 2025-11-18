@@ -1,4 +1,4 @@
-"""Symmetric topology: fully bidirectional coupling between all factors.
+"""Fully conditional structure: mutual dependencies between all factors.
 
 Each factor's parameter variant is selected based on the tokens of
 ALL OTHER factors via a control map, producing mutual dependencies.
@@ -10,12 +10,12 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_beliefs.topology.topology import CouplingContext
+from simplexity.generative_processes.factored_beliefs.topology.topology import ConditionalContext
 from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
 
-class SymmetricTopology(eqx.Module):
-    """Symmetric/fully-bidirectional coupling topology.
+class FullyConditional(eqx.Module):
+    """Fully conditional structure with mutual dependencies.
 
     Each factor i selects its variant based on all other factors' tokens.
     Joint distribution uses product-of-experts with normalization.
@@ -42,7 +42,7 @@ class SymmetricTopology(eqx.Module):
         control_maps: tuple[jnp.ndarray, ...],
         vocab_sizes: jnp.ndarray,
     ):
-        """Initialize symmetric topology.
+        """Initialize fully conditional structure.
 
         Args:
             control_maps: Control maps for each factor. control_maps[i] should
@@ -112,14 +112,14 @@ class SymmetricTopology(eqx.Module):
         # Multiply elementwise and sum (mult[i] == 0)
         return jnp.sum(tokens * mult)
 
-    def compute_joint_distribution(self, context: CouplingContext) -> jnp.ndarray:
+    def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
         """Compute joint distribution using product-of-experts.
 
         For each factor i, computes conditional P(t_i | all other t_j),
         then multiplies all conditionals and normalizes.
 
         Args:
-            context: Coupling context with states and parameters
+            context: Conditional context with states and parameters
 
         Returns:
             Flattened joint distribution of shape [prod(V_i)]
@@ -172,13 +172,13 @@ class SymmetricTopology(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: CouplingContext,
+        context: ConditionalContext,
     ) -> tuple[jnp.ndarray, ...]:
         """Select variants based on all other factors' tokens.
 
         Args:
             obs_tuple: Tuple of observed tokens (one per factor)
-            context: Coupling context (unused for symmetric topology)
+            context: Conditional context (unused for fully conditional structure)
 
         Returns:
             Tuple of variant indices (one per factor)
@@ -192,5 +192,5 @@ class SymmetricTopology(eqx.Module):
         return tuple(variants)
 
     def get_required_params(self) -> dict[str, type]:
-        """Return required parameters for symmetric topology."""
+        """Return required parameters for fully conditional structure."""
         return {"control_maps": tuple, "vocab_sizes": jnp.ndarray}

@@ -1,4 +1,4 @@
-"""Chain topology: one-way conditional dependencies between factors.
+"""Sequential conditional structure: one-way conditional dependencies between factors.
 
 Factor i>0 selects its parameter variant based on the emitted token
 of factor i-1 (parent) via a control map.
@@ -10,12 +10,12 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_beliefs.topology.topology import CouplingContext
+from simplexity.generative_processes.factored_beliefs.topology.topology import ConditionalContext
 from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
 
-class ChainTopology(eqx.Module):
-    """Chain/conditional coupling topology.
+class SequentialConditional(eqx.Module):
+    """Sequential conditional structure (autoregressive chain).
 
     Factors form a chain: Factor i depends on Factor i-1's emitted token.
     - Factor 0 always uses variant 0
@@ -37,7 +37,7 @@ class ChainTopology(eqx.Module):
         control_maps: tuple[jnp.ndarray | None, ...],
         vocab_sizes: jnp.ndarray | None = None,
     ):
-        """Initialize chain topology.
+        """Initialize sequential conditional structure.
 
         Args:
             control_maps: Control maps for variant selection. control_maps[0]
@@ -49,14 +49,14 @@ class ChainTopology(eqx.Module):
         self.control_maps = tuple(control_maps)
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes) if vocab_sizes is not None else None
 
-    def compute_joint_distribution(self, context: CouplingContext) -> jnp.ndarray:
-        """Compute joint distribution using chain factorization.
+    def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
+        """Compute joint distribution using sequential factorization.
 
         Builds P(t0, t1, ..., tF) = P(t0) * P(t1|t0) * ... * P(tF|t_{F-1})
         iteratively, then flattens to radix encoding.
 
         Args:
-            context: Coupling context with states and parameters
+            context: Conditional context with states and parameters
 
         Returns:
             Flattened joint distribution of shape [prod(V_i)]
@@ -113,13 +113,13 @@ class ChainTopology(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: CouplingContext,
+        context: ConditionalContext,
     ) -> tuple[jnp.ndarray, ...]:
         """Select variants based on parent tokens in chain.
 
         Args:
             obs_tuple: Tuple of observed tokens (one per factor)
-            context: Coupling context (unused for chain topology)
+            context: Conditional context (unused for sequential conditional)
 
         Returns:
             Tuple of variant indices (one per factor)
@@ -137,5 +137,5 @@ class ChainTopology(eqx.Module):
         return tuple(variants)
 
     def get_required_params(self) -> dict[str, type]:
-        """Return required parameters for chain topology."""
+        """Return required parameters for sequential conditional structure."""
         return {"control_maps": tuple}

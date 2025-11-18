@@ -1,6 +1,6 @@
-"""Coupling topology protocol for factored generative processes.
+"""Conditional structure protocol for factored generative processes.
 
-Defines the interface for different coupling strategies between factors.
+Defines the interface for different conditional dependency structures between factors.
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ FactoredState = tuple[jnp.ndarray, ...]
 
 
 @dataclass
-class CouplingContext:
-    """Context information needed by topologies to compute joint distributions.
+class ConditionalContext:
+    """Context information needed by conditional structures to compute joint distributions.
 
     Attributes:
         states: Tuple of state vectors, one per factor (shape [S_i])
@@ -35,14 +35,14 @@ class CouplingContext:
     num_variants: tuple[int, ...]
 
 
-class CouplingTopology(Protocol):
-    """Protocol for coupling topologies between factors.
+class ConditionalStructure(Protocol):
+    """Protocol for conditional dependency structures between factors.
 
-    A coupling topology defines how factors interact to produce joint
-    observation distributions and how variant selection works.
+    A conditional structure defines how factors conditionally depend on each other
+    to produce joint observation distributions and how variant selection works.
     """
 
-    def compute_joint_distribution(self, context: CouplingContext) -> jnp.ndarray:
+    def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
         """Compute joint observation distribution across all factors.
 
         Args:
@@ -57,7 +57,7 @@ class CouplingTopology(Protocol):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: CouplingContext,
+        context: ConditionalContext,
     ) -> tuple[jnp.ndarray, ...]:
         """Select parameter variant for each factor given observations.
 
@@ -71,10 +71,10 @@ class CouplingTopology(Protocol):
         ...
 
     def get_required_params(self) -> dict[str, type]:
-        """Return dictionary of topology-specific parameters and their types.
+        """Return dictionary of structure-specific parameters and their types.
 
         Returns:
             Dict mapping parameter names to expected types
-            (e.g., {"control_maps": tuple} for chain topology)
+            (e.g., {"control_maps": tuple} for sequential conditional)
         """
         ...
