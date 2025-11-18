@@ -69,7 +69,7 @@ def get_hydra_config_for_model(seed: int) -> dict:
     }
 
 
-def test_mlflow_persister_round_trip(tmp_path: Path) -> None:
+def test_round_trip(tmp_path: Path) -> None:
     """Model weights saved via MLflow can be restored back into a new instance."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -96,7 +96,7 @@ def test_mlflow_persister_round_trip(tmp_path: Path) -> None:
     chex.assert_trees_all_equal(loaded, original)
 
 
-def test_mlflow_persister_round_trip_from_config(tmp_path: Path) -> None:
+def test_round_trip_from_config(tmp_path: Path) -> None:
     """Model weights saved via MLflow can be restored back into a new instance via the config."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -126,7 +126,7 @@ def test_mlflow_persister_round_trip_from_config(tmp_path: Path) -> None:
     chex.assert_trees_all_equal(loaded, original)
 
 
-def test_mlflow_persister_cleanup(tmp_path: Path) -> None:
+def test_cleanup(tmp_path: Path) -> None:
     """Test MLflow persister cleanup."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -157,7 +157,7 @@ def test_mlflow_persister_cleanup(tmp_path: Path) -> None:
     assert not local_persister.directory.exists()
 
 
-def test_mlflow_persister_pytorch_round_trip(tmp_path: Path) -> None:
+def test_pytorch_round_trip(tmp_path: Path) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -185,7 +185,7 @@ def test_mlflow_persister_pytorch_round_trip(tmp_path: Path) -> None:
     assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
 
 
-def test_mlflow_persister_pytorch_round_trip_from_config(tmp_path: Path) -> None:
+def test_pytorch_round_trip_from_config(tmp_path: Path) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance via the config."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -215,7 +215,7 @@ def test_mlflow_persister_pytorch_round_trip_from_config(tmp_path: Path) -> None
     assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
 
 
-def test_mlflow_persister_pytorch_cleanup(tmp_path: Path) -> None:
+def test_pytorch_cleanup(tmp_path: Path) -> None:
     """Test PyTorch model cleanup with MLflow persister."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -262,7 +262,7 @@ def mock_create_requirements_file(tmp_path: Path) -> Generator[str, None, None]:
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_mlflow_persister_save_model_to_registry(tmp_path: Path) -> None:
+def test_save_model_to_registry(tmp_path: Path) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -308,7 +308,7 @@ def test_mlflow_persister_save_model_to_registry(tmp_path: Path) -> None:
     persister.cleanup()
 
 
-def test_mlflow_persister_save_model_to_registry_with_no_requirements(tmp_path: Path) -> None:
+def test_save_model_to_registry_with_no_requirements(tmp_path: Path) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -341,7 +341,7 @@ def test_mlflow_persister_save_model_to_registry_with_no_requirements(tmp_path: 
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_mlflow_persister_save_model_to_registry_with_model_inputs(tmp_path: Path) -> None:
+def test_save_model_to_registry_with_model_inputs(tmp_path: Path) -> None:
     """Test saving a PyTorch model to registry with model inputs for automatic signature inference."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -374,7 +374,7 @@ def test_mlflow_persister_save_model_to_registry_with_model_inputs(tmp_path: Pat
     persister.cleanup()
 
 
-def test_mlflow_persister_save_model_to_registry_non_pytorch(tmp_path: Path) -> None:
+def test_save_model_to_registry_non_pytorch(tmp_path: Path) -> None:
     """Test saving a non-PyTorch model to the MLflow model registry."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -399,7 +399,7 @@ def test_mlflow_persister_save_model_to_registry_non_pytorch(tmp_path: Path) -> 
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_mlflow_persister_save_model_to_registry_with_signature(tmp_path: Path) -> None:
+def test_save_model_to_registry_with_signature(tmp_path: Path) -> None:
     """Test saving a PyTorch model to the MLflow model registry with a signature."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -433,7 +433,7 @@ def test_mlflow_persister_save_model_to_registry_with_signature(tmp_path: Path) 
     persister.cleanup()
 
 
-def test_mlflow_persister_load_model_from_registry(tmp_path: Path) -> None:
+def test_load_model_from_registry(tmp_path: Path) -> None:
     """Test loading a PyTorch model from the MLflow model registry."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -462,7 +462,7 @@ def test_mlflow_persister_load_model_from_registry(tmp_path: Path) -> None:
     persister.cleanup()
 
 
-def test_mlflow_persister_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
+def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
     """Test loading different versions of a model from the registry."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -507,7 +507,7 @@ def test_mlflow_persister_load_model_from_registry_multiple_versions(tmp_path: P
     persister2.cleanup()
 
 
-def test_mlflow_persister_list_model_versions(tmp_path: Path) -> None:
+def test_list_model_versions(tmp_path: Path) -> None:
     """Test listing model versions from the registry."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -554,7 +554,7 @@ def test_mlflow_persister_list_model_versions(tmp_path: Path) -> None:
     persister2.cleanup()
 
 
-def test_mlflow_persister_load_model_from_registry_invalid_version(tmp_path: Path) -> None:
+def test_load_model_from_registry_invalid_version(tmp_path: Path) -> None:
     """Test that loading a non-existent version raises an error."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -575,7 +575,7 @@ def test_mlflow_persister_load_model_from_registry_invalid_version(tmp_path: Pat
     persister.cleanup()
 
 
-def test_mlflow_persister_load_model_from_registry_both_version_and_stage(tmp_path: Path) -> None:
+def test_load_model_from_registry_both_version_and_stage(tmp_path: Path) -> None:
     """Test that specifying both version and stage raises an error."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
