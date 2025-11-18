@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import shutil
 import tempfile
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -232,11 +233,17 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         log_kwargs.update(kwargs)
 
         model_info: ModelInfo | None = None
-        with (
-            set_mlflow_uris(tracking_uri=self.tracking_uri, registry_uri=self.registry_uri),
-            mlflow.start_run(run_id=self.run_id),
-        ):
-            model_info = mlflow_pytorch.log_model(**log_kwargs)
+        with set_mlflow_uris(tracking_uri=self.tracking_uri, registry_uri=self.registry_uri):
+            active_run = mlflow.active_run()
+            if active_run is not None and active_run.info.run_id != self.run_id:
+                raise RuntimeError(
+                    "Cannot save model to registry because an active MLflow run "
+                    f"({active_run.info.run_id}) does not match the persister run id ({self.run_id}). "
+                    "End the active run or use the same run id."
+                )
+            run_context = mlflow.start_run(run_id=self.run_id) if active_run is None else nullcontext()
+            with run_context:
+                model_info = mlflow_pytorch.log_model(**log_kwargs)
         assert model_info is not None
         return model_info
 

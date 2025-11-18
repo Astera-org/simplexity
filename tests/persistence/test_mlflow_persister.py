@@ -9,6 +9,7 @@ from unittest.mock import patch
 import chex
 import equinox as eqx
 import jax
+import mlflow
 import pytest
 import torch
 import yaml
@@ -17,6 +18,7 @@ from torch.nn import Linear, Module
 
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.predictive_models.types import ModelFramework
+from simplexity.utils.mlflow_utils import set_mlflow_uris
 
 
 def _get_artifacts_root(persister: MLFlowPersister) -> Path:
@@ -231,6 +233,35 @@ def test_save_model_to_registry(persister: MLFlowPersister) -> None:
     assert requirements_content == REQUIREMENTS_CONTENT.rstrip()
 
     persister.cleanup()
+
+
+@pytest.mark.usefixtures("mock_create_requirements_file")
+def test_save_model_to_registry_with_matching_active_run(persister: MLFlowPersister) -> None:
+    """save_model_to_registry should reuse an already active run with the same id."""
+    model = Linear(in_features=4, out_features=2)
+    model_info = None
+    with (
+        set_mlflow_uris(tracking_uri=persister.tracking_uri, registry_uri=persister.registry_uri),
+        mlflow.start_run(run_id=persister.run_id),
+    ):
+        model_info = persister.save_model_to_registry(model, "test_model_active_run")
+
+    assert model_info is not None
+    assert model_info.run_id == persister.run_id
+
+
+@pytest.mark.usefixtures("mock_create_requirements_file")
+def test_save_model_to_registry_with_mismatched_active_run(persister: MLFlowPersister) -> None:
+    """save_model_to_registry should fail when another run is active."""
+
+    model = Linear(in_features=4, out_features=2)
+    with (
+        set_mlflow_uris(tracking_uri=persister.tracking_uri, registry_uri=persister.registry_uri),
+        mlflow.start_run(experiment_id=persister.experiment_id) as active_run,
+    ):
+        assert active_run.info.run_id != persister.run_id
+        with pytest.raises(RuntimeError, match="Cannot save model to registry"):
+            persister.save_model_to_registry(model, "test_model_mismatched_run")
 
 
 def test_save_model_to_registry_with_no_requirements(persister: MLFlowPersister) -> None:
