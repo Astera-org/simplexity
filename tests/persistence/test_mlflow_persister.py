@@ -20,20 +20,7 @@ from torch.nn import Linear, Module
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 
 
-def get_hydra_config_for_pytorch_model() -> dict:
-    """Get a Hydra config dict for the given PyTorch model."""
-    return {
-        "predictive_model": {
-            "instance": {
-                "_target_": "torch.nn.Linear",
-                "in_features": 4,
-                "out_features": 2,
-            }
-        }
-    }
-
-
-def pytorch_models_equal(model1: Module, model2: Module) -> bool:
+def _pytorch_models_equal(model1: Module, model2: Module) -> bool:
     """Check if two PyTorch models have identical parameters."""
     params1 = dict(model1.named_parameters())
     params2 = dict(model2.named_parameters())
@@ -42,20 +29,6 @@ def pytorch_models_equal(model1: Module, model2: Module) -> bool:
         return False
 
     return all(torch.allclose(params1[name], params2[name]) for name in params1)
-
-
-def get_hydra_config_for_model(seed: int) -> dict:
-    """Get a Hydra config dict for the given model."""
-    return {
-        "predictive_model": {
-            "instance": {
-                "_target_": "equinox.nn.Linear",
-                "in_features": 4,
-                "out_features": 2,
-                "key": {"_target_": "jax.random.key", "seed": seed},
-            }
-        }
-    }
 
 
 def test_round_trip(tmp_path: Path) -> None:
@@ -107,9 +80,19 @@ def test_round_trip_from_config(tmp_path: Path) -> None:
     assert remote_model_path.exists()
 
     # New function expects a config to live at experiment_id/run_id/artifacts/config_path
+    config = {
+        "predictive_model": {
+            "instance": {
+                "_target_": "equinox.nn.Linear",
+                "in_features": 4,
+                "out_features": 2,
+                "key": {"_target_": "jax.random.key", "seed": 0},
+            }
+        }
+    }
     config_path = artifact_dir / experiment_id / run_id / "artifacts" / "config.yaml"
     with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(get_hydra_config_for_model(0), f)
+        yaml.dump(config, f)
 
     loaded = persister.load_model(step=0)
     chex.assert_trees_all_equal(loaded, original)
@@ -173,7 +156,7 @@ def test_pytorch_round_trip(tmp_path: Path) -> None:
     loaded = persister.load_weights(updated, step=0)
 
     # Type assertion since we know loaded is a PyTorch model
-    assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
+    assert _pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
 
 
 def test_pytorch_round_trip_from_config(tmp_path: Path) -> None:
@@ -198,12 +181,21 @@ def test_pytorch_round_trip_from_config(tmp_path: Path) -> None:
     assert remote_model_path.exists()
 
     # New function expects a config to live at experiment_id/run_id/artifacts/config_path
+    config = {
+        "predictive_model": {
+            "instance": {
+                "_target_": "torch.nn.Linear",
+                "in_features": 4,
+                "out_features": 2,
+            }
+        }
+    }
     config_path = artifact_dir / experiment_id / run_id / "artifacts" / "config.yaml"
     with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(get_hydra_config_for_pytorch_model(), f)
+        yaml.dump(config, f)
 
     loaded = persister.load_model(step=0)
-    assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
+    assert _pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
 
 
 def test_pytorch_cleanup(tmp_path: Path) -> None:
@@ -445,11 +437,11 @@ def test_load_model_from_registry(tmp_path: Path) -> None:
 
     # Load model from registry by version
     loaded = persister.load_model_from_registry(registered_model_name, version="1")
-    assert pytorch_models_equal(loaded, original)
+    assert _pytorch_models_equal(loaded, original)
 
     # Load latest version (should be the same)
     loaded_latest = persister.load_model_from_registry(registered_model_name)
-    assert pytorch_models_equal(loaded_latest, original)
+    assert _pytorch_models_equal(loaded_latest, original)
 
     persister.cleanup()
 
@@ -487,15 +479,15 @@ def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
 
     # Load version 1
     loaded_v1 = persister.load_model_from_registry(registered_model_name, version="1")
-    assert pytorch_models_equal(loaded_v1, model_v1)
+    assert _pytorch_models_equal(loaded_v1, model_v1)
 
     # Load version 2
     loaded_v2 = persister.load_model_from_registry(registered_model_name, version="2")
-    assert pytorch_models_equal(loaded_v2, model_v2)
+    assert _pytorch_models_equal(loaded_v2, model_v2)
 
     # Load latest (should be version 2)
     loaded_latest = persister.load_model_from_registry(registered_model_name)
-    assert pytorch_models_equal(loaded_latest, model_v2)
+    assert _pytorch_models_equal(loaded_latest, model_v2)
 
     persister.cleanup()
     persister2.cleanup()
