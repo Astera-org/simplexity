@@ -350,12 +350,17 @@ class LossProgressMetric:
     def __init__(self, **kwargs: Any) -> None:
         self.initial_loss = kwargs.get("initial_loss", float("inf"))
         self.optimal_loss = kwargs.get("optimal_loss", 0)
+        self.current_loss = float("inf")
 
-    def compute(self, context: MetricContext) -> Mapping[str, float]:
-        """Compute the loss progress metric."""
+    def update(self, context: MetricContext) -> None:
+        """Update the loss progress metric."""
         if self.initial_loss == float("inf"):
             self.initial_loss = context.loss
-        progress = (self.initial_loss - context.loss) / (self.initial_loss - self.optimal_loss)
+        self.current_loss = context.loss
+
+    def compute(self) -> Mapping[str, float]:
+        """Compute the loss progress metric."""
+        progress = (self.initial_loss - self.current_loss) / (self.initial_loss - self.optimal_loss)
         return {"loss/progress_to_optimal": progress}
 
 
