@@ -65,7 +65,7 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
         downgrade_unity_catalog: bool = True,
-        artifact_path: str = "models",
+        model_dir: str = "models",
         config_path: str = "config.yaml",
     ):
         """Create a persister from an MLflow experiment."""
@@ -77,12 +77,10 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         self._client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
         self._experiment_id = get_experiment_id(experiment_name=experiment_name, client=self.client)
         self._run_id = get_run_id(experiment_id=self.experiment_id, run_name=run_name, client=self.client)
-        self._artifact_path = artifact_path.strip().strip("/")
+        self._model_dir = model_dir.strip().strip("/")
         self._temp_dir = tempfile.TemporaryDirectory()
-        self._artifact_dir = (
-            Path(self._temp_dir.name) / self._artifact_path if self._artifact_path else Path(self._temp_dir.name)
-        )
-        self._artifact_dir.mkdir(parents=True, exist_ok=True)
+        self._model_path = Path(self._temp_dir.name) / self._model_dir if self._model_dir else Path(self._temp_dir.name)
+        self._model_path.mkdir(parents=True, exist_ok=True)
         self._config_path = config_path
         self._local_persisters = {}
 
@@ -112,9 +110,9 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         return self.client._registry_uri  # pylint: disable=protected-access
 
     @property
-    def artifact_path(self) -> str:
+    def model_dir(self) -> str:
         """Return the artifact path associated with this persister."""
-        return self._artifact_path
+        return self._model_dir
 
     def save_weights(self, model: Any, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
@@ -123,14 +121,14 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         _clear_subdirectory(step_dir)
         local_persister.save_weights(model, step)
         framework_dir = step_dir.parent
-        self.client.log_artifacts(self.run_id, str(framework_dir), artifact_path=self._artifact_path)
+        self.client.log_artifacts(self.run_id, str(framework_dir), artifact_path=self._model_dir)
 
     def load_weights(self, model: Any, step: int = 0) -> Any:
         """Download MLflow artifacts and restore them into the provided model."""
         local_persister = self.get_local_persister(model)
         step_dir = local_persister.directory / str(step)
         _clear_subdirectory(step_dir)
-        artifact_path = f"{self._artifact_path}/{step}"
+        artifact_path = f"{self._model_dir}/{step}"
         downloaded_path = self.client.download_artifacts(
             self.run_id,
             artifact_path,
@@ -169,7 +167,7 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         """Get the local persister for the given model."""
         model_framework = get_model_framework(model)
         if model_framework not in self._local_persisters:
-            self._local_persisters[model_framework] = _build_local_persister(model_framework, self._artifact_dir)
+            self._local_persisters[model_framework] = _build_local_persister(model_framework, self._model_path)
         return self._local_persisters[model_framework]
 
     def save_model_to_registry(
