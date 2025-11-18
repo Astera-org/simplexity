@@ -507,53 +507,6 @@ def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
     persister2.cleanup()
 
 
-def test_list_model_versions(tmp_path: Path) -> None:
-    """Test listing model versions from the registry."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-list",
-        run_name="registry-list-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
-
-    registered_model_name = "test_list_model"
-
-    # Initially, no versions
-    versions = persister.list_model_versions(registered_model_name)
-    assert len(versions) == 0
-
-    # Save first version
-    model_v1 = get_pytorch_model(0)
-    persister.save_model_to_registry(model_v1, registered_model_name)
-
-    versions = persister.list_model_versions(registered_model_name)
-    assert len(versions) == 1
-    assert versions[0]["version"] == "1"
-    assert "creation_timestamp" in versions[0]
-    assert "last_updated_timestamp" in versions[0]
-
-    # Save second version
-    persister2 = MLFlowPersister(
-        experiment_name="registry-list",
-        run_name="registry-list-run-2",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
-    model_v2 = get_pytorch_model(1)
-    persister2.save_model_to_registry(model_v2, registered_model_name)
-
-    versions = persister.list_model_versions(registered_model_name)
-    assert len(versions) == 2
-    version_numbers = {v["version"] for v in versions}
-    assert version_numbers == {"1", "2"}
-
-    persister.cleanup()
-    persister2.cleanup()
-
-
 def test_load_model_from_registry_invalid_version(tmp_path: Path) -> None:
     """Test that loading a non-existent version raises an error."""
     artifact_dir = tmp_path / "mlruns"
@@ -593,3 +546,39 @@ def test_load_model_from_registry_both_version_and_stage(tmp_path: Path) -> None
         persister.load_model_from_registry(registered_model_name, version="1", stage="Production")
 
     persister.cleanup()
+
+
+def test_list_model_versions(tmp_path: Path) -> None:
+    """Test listing model versions from the registry."""
+    artifact_dir = tmp_path / "mlruns"
+    artifact_dir.mkdir()
+
+    registered_model_name = "test_list_model"
+
+    persister = MLFlowPersister(
+        experiment_name="registry-list",
+        run_name="registry-list-run",
+        tracking_uri=artifact_dir.as_uri(),
+        registry_uri=artifact_dir.as_uri(),
+    )
+
+    versions = persister.list_model_versions(registered_model_name)
+    assert len(versions) == 0
+
+    for version_number in range(1, 4):
+        persister = MLFlowPersister(
+            experiment_name="registry-list",
+            run_name=f"registry-list-run-{version_number}",
+            tracking_uri=artifact_dir.as_uri(),
+            registry_uri=artifact_dir.as_uri(),
+        )
+
+        model = get_pytorch_model(version_number)
+        persister.save_model_to_registry(model, registered_model_name)
+
+        versions = persister.list_model_versions(registered_model_name)
+        assert len(versions) == version_number
+        version_numbers = {v["version"] for v in versions}
+        assert version_numbers == {v + 1 for v in range(version_number)}
+
+        persister.cleanup()
