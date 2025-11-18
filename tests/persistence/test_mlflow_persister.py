@@ -261,7 +261,54 @@ def mock_create_requirements_file(tmp_path: Path) -> Generator[str, None, None]:
         yield mock_create
 
 
+@pytest.mark.usefixtures("mock_create_requirements_file")
 def test_mlflow_persister_save_model_to_registry(tmp_path: Path) -> None:
+    """Test saving a PyTorch model to the MLflow model registry."""
+    artifact_dir = tmp_path / "mlruns"
+    artifact_dir.mkdir()
+
+    tracking_uri = artifact_dir.as_uri()
+    registry_uri = artifact_dir.as_uri()
+
+    persister = MLFlowPersister(
+        experiment_name="registry-save",
+        run_name="registry-save-run",
+        tracking_uri=tracking_uri,
+        registry_uri=registry_uri,
+    )
+
+    model = get_pytorch_model(0)
+    registered_model_name = "test_model"
+
+    persister.save_model_to_registry(model, registered_model_name)
+
+    client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
+    model_versions = client.search_model_versions(filter_string=f"name='{registered_model_name}'", max_results=10)
+    assert len(model_versions) == 1
+    assert model_versions[0].run_id == persister.run_id
+    assert model_versions[0].version == 1
+
+    models_meta_path = artifact_dir / persister.artifact_path / registered_model_name / "version-1" / "meta.yaml"
+    assert models_meta_path.exists()
+    with open(models_meta_path, encoding="utf-8") as f:
+        models_meta = yaml.load(f, Loader=yaml.FullLoader)
+    assert models_meta["name"] == registered_model_name
+    assert models_meta["run_id"] == persister.run_id
+    artifact_uri = models_meta["storage_location"]
+    artifact_path = Path(artifact_uri.replace("file://", ""))
+    assert artifact_path.exists()
+    assert artifact_path.is_dir()
+    requirements_path = artifact_path / "requirements.txt"
+    assert requirements_path.exists()
+    assert requirements_path.is_file()
+    with open(requirements_path, encoding="utf-8") as f:
+        requirements_content = f.read()
+    assert requirements_content == REQUIREMENTS_CONTENT.rstrip()
+
+    persister.cleanup()
+
+
+def test_mlflow_persister_save_model_to_registry_with_no_requirements(tmp_path: Path) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -289,90 +336,6 @@ def test_mlflow_persister_save_model_to_registry(tmp_path: Path) -> None:
     assert len(model_versions) == 1
     assert model_versions[0].version == 1
     assert model_versions[0].current_stage == "None"
-
-    persister.cleanup()
-
-
-@pytest.mark.usefixtures("mock_create_requirements_file")
-def test_mlflow_persister_save_model_to_registry_with_requirements(tmp_path: Path) -> None:
-    """Test saving a PyTorch model to the MLflow model registry."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    tracking_uri = artifact_dir.as_uri()
-    registry_uri = artifact_dir.as_uri()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-save",
-        run_name="registry-save-run",
-        tracking_uri=tracking_uri,
-        registry_uri=registry_uri,
-    )
-
-    model = get_pytorch_model(0)
-    registered_model_name = "test_model"
-
-    persister.save_model_to_registry(model, registered_model_name)
-
-    # Verify the model was registered using an independent MLflow client
-    client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
-    model_versions = client.search_model_versions(filter_string=f"name='{registered_model_name}'", max_results=10)
-    assert len(model_versions) == 1
-    assert model_versions[0].version == 1
-    assert model_versions[0].current_stage == "None"
-
-    # Verify that requirements are automatically saved
-    # The model version's source points to where the model artifacts are stored
-    model_version = model_versions[0]
-    run_id = model_version.run_id
-    assert run_id is not None, "Model version must have a run_id"
-
-    # Get the run to find the experiment ID
-    run = client.get_run(run_id)
-    experiment_id = run.info.experiment_id
-
-    # The source attribute contains the URI to the model artifacts
-    # For file-based tracking, it should be something like "runs:/run_id/model" or "models:/model_name/version"
-    # But we can also access it directly from the filesystem
-    # MLflow stores models logged via log_model in the run's artifacts/model directory
-    artifacts_base_dir = artifact_dir / experiment_id / run_id / "artifacts"
-
-    # Check if artifacts directory exists and list what's in it
-    if artifacts_base_dir.exists():
-        # List all subdirectories/files in artifacts
-        artifact_items = list(artifacts_base_dir.iterdir())
-        # Look for model directory
-        model_artifact_dir = None
-        for item in artifact_items:
-            if item.is_dir() and (item.name == "model" or "model" in item.name.lower()):
-                model_artifact_dir = item
-                break
-
-        # If not found, try the standard "model" path
-        if model_artifact_dir is None:
-            model_artifact_dir = artifacts_base_dir / "model"
-    else:
-        # If artifacts directory doesn't exist, try the standard path anyway
-        model_artifact_dir = artifacts_base_dir / "model"
-
-    # Verify the model directory exists
-    assert model_artifact_dir.exists(), (
-        f"Model artifact directory should exist at {model_artifact_dir}. "
-        f"Artifacts base dir exists: {artifacts_base_dir.exists()}, "
-        f"Items in artifacts dir: {list(artifacts_base_dir.iterdir()) if artifacts_base_dir.exists() else 'N/A'}, "
-        f"Model version source: {model_version.source if hasattr(model_version, 'source') else 'N/A'}"
-    )
-    assert model_artifact_dir.is_dir()
-
-    # Check for requirements.txt in the model directory
-    requirements_path = model_artifact_dir / "requirements.txt"
-    assert requirements_path.exists(), (
-        f"Requirements file should be automatically saved at {requirements_path}. "
-        f"Files in model directory: {list(model_artifact_dir.iterdir()) if model_artifact_dir.exists() else 'N/A'}"
-    )
-    assert requirements_path.is_file()
-    downloaded_content = requirements_path.read_text()
-    assert downloaded_content == REQUIREMENTS_CONTENT
 
     persister.cleanup()
 

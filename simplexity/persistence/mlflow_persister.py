@@ -111,6 +111,11 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         """Return the model registry URI associated with this persister."""
         return self.client._registry_uri  # pylint: disable=protected-access
 
+    @property
+    def artifact_path(self) -> str:
+        """Return the artifact path associated with this persister."""
+        return self._artifact_path
+
     def save_weights(self, model: Any, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
         local_persister = self.get_local_persister(model)
