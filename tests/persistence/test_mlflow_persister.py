@@ -178,6 +178,10 @@ def test_cleanup(tmp_path: Path, framework: ModelFramework) -> None:
     assert not local_persister.directory.exists()
 
 
+# ===============================
+# Save model to registry tests
+# ===============================
+
 REQUIREMENTS_CONTENT = "torch==2.0.0\nmlflow==2.0.0\nnumpy==1.20.0\n"
 
 
@@ -262,7 +266,6 @@ def test_save_model_to_registry_with_no_requirements(tmp_path: Path) -> None:
         mock_create.side_effect = FileNotFoundError(f"pyproject.toml not found at {tmp_path / 'pyproject.toml'}")
         persister.save_model_to_registry(model, registered_model_name)
 
-    # Verify the model was registered using an independent MLflow client
     client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
     model_versions = client.search_model_versions(filter_string=f"name='{registered_model_name}'", max_results=10)
     assert len(model_versions) == 1
@@ -288,13 +291,11 @@ def test_save_model_to_registry_with_model_inputs(tmp_path: Path) -> None:
     model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model_inputs"
 
-    # Create sample input - signature should be inferred automatically
     sample_input = torch.randn(2, 4)
 
     persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
 
     # Verify that the registered model has a signature
-    # Set tracking and registry URIs so get_model_info uses the same URIs as the persister
     tracking_uri = artifact_dir.as_uri()
     registry_uri = artifact_dir.as_uri()
     mlflow.set_tracking_uri(tracking_uri)
@@ -355,7 +356,6 @@ def test_save_model_to_registry_with_signature(tmp_path: Path) -> None:
         mock_warning.assert_called_once_with("Signature provided in kwargs, ignoring inferred signature")
 
     # Verify that the registered model has a signature
-    # Set tracking and registry URIs so get_model_info uses the same URIs as the persister
     tracking_uri = artifact_dir.as_uri()
     registry_uri = artifact_dir.as_uri()
     mlflow.set_tracking_uri(tracking_uri)
@@ -366,33 +366,19 @@ def test_save_model_to_registry_with_signature(tmp_path: Path) -> None:
     persister.cleanup()
 
 
-def test_load_model_from_registry(tmp_path: Path) -> None:
+def test_model_registry_round_trip(persister: MLFlowPersister) -> None:
     """Test loading a PyTorch model from the MLflow model registry."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-load",
-        run_name="registry-load-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
 
     original = Linear(in_features=4, out_features=2)
     registered_model_name = "test_load_model"
 
-    # Save model to registry
     persister.save_model_to_registry(original, registered_model_name)
 
-    # Load model from registry by version
     loaded = persister.load_model_from_registry(registered_model_name, version="1")
     assert _pytorch_models_equal(loaded, original)
 
-    # Load latest version (should be the same)
     loaded_latest = persister.load_model_from_registry(registered_model_name)
     assert _pytorch_models_equal(loaded_latest, original)
-
-    persister.cleanup()
 
 
 def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
@@ -463,24 +449,11 @@ def test_load_model_from_registry_invalid_version(tmp_path: Path) -> None:
     persister.cleanup()
 
 
-def test_load_model_from_registry_both_version_and_stage(tmp_path: Path) -> None:
+def test_load_model_from_registry_both_version_and_stage(persister: MLFlowPersister) -> None:
     """Test that specifying both version and stage raises an error."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-load-error-2",
-        run_name="registry-load-error-2-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
-
-    registered_model_name = "test_both_params"
 
     with pytest.raises(ValueError, match="Cannot specify both version and stage. Use one or the other."):
-        persister.load_model_from_registry(registered_model_name, version="1", stage="Production")
-
-    persister.cleanup()
+        persister.load_model_from_registry(registered_model_name="model_name", version="1", stage="Production")
 
 
 def test_list_model_versions(tmp_path: Path) -> None:
