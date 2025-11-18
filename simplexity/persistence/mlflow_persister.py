@@ -242,6 +242,33 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
             mlflow.set_tracking_uri(original_tracking_uri)
             mlflow.set_registry_uri(original_registry_uri)
 
+    def registered_model_uri(
+        self, registered_model_name: str, version: str | None = None, stage: str | None = None
+    ) -> str:
+        """Get the URI for a registered model.
+
+        Args:
+            registered_model_name: The name of the registered model.
+            version: Optional specific version to load (e.g., "1", "2"). If None, loads the latest version.
+            stage: Optional stage to load from (e.g., "Production", "Staging", "Archived").
+            If provided, takes precedence over version.
+        """
+        prefix = "models:"
+        if version is not None and stage is not None:
+            raise ValueError("Cannot specify both version and stage. Use one or the other.")
+        if stage is not None:
+            return f"{prefix}/{registered_model_name}/{stage}"
+        if version is not None:
+            return f"{prefix}/{registered_model_name}/{version}"
+
+        model_versions = self.client.search_model_versions(
+            filter_string=f"name='{registered_model_name}'", max_results=1, order_by=["version_number DESC"]
+        )
+        if not model_versions:
+            raise RuntimeError(f"No versions found for registered model '{registered_model_name}'")
+        latest_version = model_versions[0].version
+        return f"{prefix}/{registered_model_name}/{latest_version}"
+
     def load_model_from_registry(
         self,
         registered_model_name: str,
@@ -263,22 +290,7 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
             ValueError: If both version and stage are provided.
             RuntimeError: If the model cannot be found or loaded.
         """
-        if version is not None and stage is not None:
-            raise ValueError("Cannot specify both version and stage. Use one or the other.")
-
-        if version is None and stage is None:
-            model_versions = self.client.search_model_versions(
-                filter_string=f"name='{registered_model_name}'", max_results=1, order_by=["version_number DESC"]
-            )
-            if not model_versions:
-                raise RuntimeError(f"No versions found for registered model '{registered_model_name}'")
-            latest_version = model_versions[0].version
-            model_uri = f"models:/{registered_model_name}/{latest_version}"
-        elif stage is not None:
-            model_uri = f"models:/{registered_model_name}/{stage}"
-        else:
-            model_uri = f"models:/{registered_model_name}/{version}"
-
+        model_uri = self.registered_model_uri(registered_model_name, version, stage)
         return mlflow_pytorch.load_model(model_uri)
 
     def list_model_versions(
