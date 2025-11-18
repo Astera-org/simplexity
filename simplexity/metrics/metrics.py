@@ -151,18 +151,18 @@ class GradientWeightedTokensMetric:
 class CurrentLossMetric:
     """Logs the instantaneous training loss."""
 
-    def __init__(self, ma_window_size: int = 100, ema_gamma: float = 0.9, **_kwargs: Any) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         self.min_loss = float("inf")
-        self.ma_window_size = ma_window_size
-        self.ma_losses = [float("inf")] * ma_window_size
-        self.ema_gamma = ema_gamma
-        self.ema_loss: float | None = None
+        self.ma_window_size = kwargs.get("ma_window_size", 100)
+        self.ma_losses = [float("inf")] * self.ma_window_size
+        self.ema_gamma = kwargs.get("ema_gamma", 0.9)
+        self.ema_loss = float("inf")
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the current loss metric."""
         self.min_loss = min(self.min_loss, context.loss)
         self.ma_losses[context.step % self.ma_window_size] = context.loss
-        if self.ema_loss is None:
+        if self.ema_loss == float("inf"):
             self.ema_loss = context.loss
         self.ema_loss = self.ema_gamma * self.ema_loss + (1 - self.ema_gamma) * context.loss
         return {
@@ -267,16 +267,13 @@ class FisherInformationMetric:
 class LossProgressMetric:
     """Tracks the progress towards the optimal loss."""
 
-    requires_initial_loss = True
-    requires_optimal_loss = True
-
-    def __init__(self, optimal_loss: float, initial_loss: float | None = None, **_kwargs: Any) -> None:
-        self.initial_loss = initial_loss
-        self.optimal_loss = optimal_loss
+    def __init__(self, **kwargs: Any) -> None:
+        self.initial_loss = kwargs.get("initial_loss", float("inf"))
+        self.optimal_loss = kwargs.get("optimal_loss", 0)
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the loss progress metric."""
-        if self.initial_loss is None:
+        if self.initial_loss == float("inf"):
             self.initial_loss = context.loss
         progress = (self.initial_loss - context.loss) / (self.initial_loss - self.optimal_loss)
         return {"loss/progress_to_optimal": progress}

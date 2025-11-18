@@ -26,11 +26,12 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         self,
         metric_names: dict[str, Sequence[str]] | Sequence[str] | None = None,
         *,
-        initial_loss: float,
         model: torch.nn.Module | None = None,
         optimizer: torch.optim.Optimizer | None = None,
-        optimal_loss: float | None = None,
+        metric_kwargs: dict[str, Any] | None = None,
     ) -> None:
+        if metric_kwargs is None:
+            metric_kwargs = {}
         self._set_requirement_flags(metric_names)
 
         self.model = model
@@ -38,10 +39,11 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         initial_named_parameters: Mapping[str, torch.Tensor] | None = None
         if self._needs_named_parameters:
             initial_named_parameters = self._snapshot_named_parameters()
+            metric_kwargs["initial_named_parameters"] = initial_named_parameters
 
         self.optimizer = optimizer
-        self._context = self._initialize_context(initial_loss, initial_named_parameters)
-        self._metrics = self._initialize_metrics(metric_names, initial_loss, optimal_loss, initial_named_parameters)
+        self._context = self._initialize_context(initial_named_parameters)
+        self._metrics = self._initialize_metrics(metric_names, metric_kwargs)
         self._metric_groups = self._initialize_metric_groups(metric_names)
 
     def metrics(self, group: str = "all") -> dict[str, float]:
@@ -119,9 +121,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         assert self.model is not None, "Model is required for metrics that require named parameters"
         return {name: param.detach().clone().cpu() for name, param in self.model.named_parameters()}
 
-    def _initialize_context(
-        self, initial_loss: float, initial_named_parameters: Mapping[str, torch.Tensor] | None = None
-    ) -> MetricContext:
+    def _initialize_context(self, initial_named_parameters: Mapping[str, torch.Tensor] | None = None) -> MetricContext:
         learning_rates: Mapping[str, float] = {}
         if self._needs_learning_rates:
             learning_rates = self._extract_learning_rates()
@@ -138,7 +138,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             step=0,
             batch_tokens=0,
             total_tokens=0,
-            loss=initial_loss,
+            loss=float("inf"),
             learning_rates=learning_rates,
             gradients=gradients,
             current_named_parameters=current_named_parameters,
@@ -148,27 +148,8 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
     def _initialize_metrics(
         self,
         metric_names: dict[str, Sequence[str]] | Sequence[str] | None,
-        initial_loss: float | None,
-        optimal_loss: float | None,
-        initial_named_parameters: Mapping[str, torch.Tensor] | None,
+        metric_kwargs: dict[str, Any],
     ) -> dict[str, TrainingMetric]:
-        def requires(metric: TrainingMetric, attribute: str) -> bool:
-            return bool(getattr(metric, attribute, False))
-
-        def initialize_metric(metric_name: str) -> TrainingMetric:
-            kwargs: dict[str, Any] = {}
-            metric = ALL_METRICS[metric_name]
-            if requires(metric, "requires_initial_named_parameters"):
-                assert initial_named_parameters is not None, f"Initial named parameters are required for {metric_name}"
-                kwargs["initial_named_parameters"] = initial_named_parameters
-            if requires(metric, "requires_initial_loss"):
-                assert initial_loss is not None, f"Initial loss is required for {metric_name}"
-                kwargs["initial_loss"] = initial_loss
-            if requires(metric, "requires_optimal_loss"):
-                assert optimal_loss is not None, f"Optimal loss is required for {metric_name}"
-                kwargs["optimal_loss"] = optimal_loss
-            return metric(**kwargs)
-
         flat_metric_names: list[str] = []
         if metric_names is None:
             flat_metric_names = list(ALL_METRICS.keys())
@@ -176,7 +157,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             flat_metric_names = list(set([metric_name for group in metric_names.values() for metric_name in group]))
         elif isinstance(metric_names, Sequence):
             flat_metric_names = list(metric_names)
-        return {metric_name: initialize_metric(metric_name) for metric_name in flat_metric_names}
+        return {metric_name: ALL_METRICS[metric_name](**metric_kwargs) for metric_name in flat_metric_names}
 
     def _initialize_metric_groups(
         self, metrics: dict[str, Sequence[str]] | Sequence[str] | None
