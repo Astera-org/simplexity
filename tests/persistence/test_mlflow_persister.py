@@ -374,11 +374,8 @@ def test_model_registry_round_trip(persister: MLFlowPersister) -> None:
 
     persister.save_model_to_registry(original, registered_model_name)
 
-    loaded = persister.load_model_from_registry(registered_model_name, version="1")
+    loaded = persister.load_model_from_registry(registered_model_name)
     assert _pytorch_models_equal(loaded, original)
-
-    loaded_latest = persister.load_model_from_registry(registered_model_name)
-    assert _pytorch_models_equal(loaded_latest, original)
 
 
 def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
