@@ -57,15 +57,7 @@ def _tensor_collection_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
 
 
 def _tensor_collection_l2_norms(tensors: Iterable[Iterable[torch.Tensor]]) -> list[float]:
-    """Compute an L2 norm across an iterable of iterables of tensors without stacking.
-
-    We detach and cast to float to avoid autograd interactions and dtype
-    mismatches, skip empty tensors, and accumulate sums on CPU. This mirrors
-    concatenating the tensors and calling ``torch.linalg.norm`` but without the
-    intermediate allocation, which keeps metric computations lightweight even
-    when parameters/gradients live on different devices or have differing
-    shapes.
-    """
+    """Compute an L2 norm across an iterable of iterables of tensors without stacking."""
     return [_tensor_collection_l2_norm(t) for t in tensors]
 
 
@@ -86,7 +78,7 @@ def _named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mappi
         ref_tensor = reference.get(name)
         if ref_tensor is None or tensor.numel() == 0:
             continue
-        curr_cpu = tensor.detach().float().cpu()
+        curr_cpu = tensor.detach().float()
         diff = curr_cpu - ref_tensor.float()
         total += float(torch.sum(torch.square(diff)))
     return total**0.5
