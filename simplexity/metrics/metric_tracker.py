@@ -50,7 +50,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         """Get the metrics for the given group."""
         collected = {}
         for metric_name in self._metric_groups[group]:
-            computed = self._metrics[metric_name].compute(self._context)
+            computed = self._metrics[metric_name].compute()
             collected.update(computed)
         return collected
 
@@ -71,6 +71,8 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             self._context.gradients = self._snapshot_gradients()
         if self._needs_named_parameters:
             self._context.named_parameters = self._snapshot_named_parameters()
+        for metric in self._metrics.values():
+            metric.update(self._context)
 
     def _set_requirement_flags(self, metric_names: dict[str, Sequence[str]] | Sequence[str] | None) -> None:
         metrics_list: list[str] = []
