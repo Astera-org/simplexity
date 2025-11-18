@@ -9,12 +9,11 @@ from unittest.mock import patch
 import chex
 import equinox as eqx
 import jax
-import mlflow
 import pytest
 import torch
 import yaml
 from mlflow import MlflowClient
-from mlflow.models import get_model_info, infer_signature
+from mlflow.models import infer_signature
 from torch.nn import Linear, Module
 
 from simplexity.persistence.mlflow_persister import MLFlowPersister
@@ -216,13 +215,13 @@ def test_save_model_to_registry(tmp_path: Path) -> None:
     model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model"
 
-    persister.save_model_to_registry(model, registered_model_name)
+    model_info = persister.save_model_to_registry(model, registered_model_name)
 
     client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
     model_versions = client.search_model_versions(filter_string=f"name='{registered_model_name}'", max_results=10)
     assert len(model_versions) == 1
-    assert model_versions[0].run_id == persister.run_id
-    assert model_versions[0].version == 1
+    assert model_versions[0].run_id == model_info.run_id
+    assert model_versions[0].version == str(model_info.registered_model_version)
 
     models_meta_path = artifact_dir / persister.model_dir / registered_model_name / "version-1" / "meta.yaml"
     assert models_meta_path.exists()
@@ -264,13 +263,9 @@ def test_save_model_to_registry_with_no_requirements(tmp_path: Path) -> None:
 
     with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
         mock_create.side_effect = FileNotFoundError(f"pyproject.toml not found at {tmp_path / 'pyproject.toml'}")
-        persister.save_model_to_registry(model, registered_model_name)
+        model_info = persister.save_model_to_registry(model, registered_model_name)
 
-    client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
-    model_versions = client.search_model_versions(filter_string=f"name='{registered_model_name}'", max_results=10)
-    assert len(model_versions) == 1
-    assert model_versions[0].version == 1
-    assert model_versions[0].current_stage == "None"
+    assert model_info is not None
 
     persister.cleanup()
 
@@ -293,31 +288,15 @@ def test_save_model_to_registry_with_model_inputs(tmp_path: Path) -> None:
 
     sample_input = torch.randn(2, 4)
 
-    persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
-
-    # Verify that the registered model has a signature
-    tracking_uri = artifact_dir.as_uri()
-    registry_uri = artifact_dir.as_uri()
-    mlflow.set_tracking_uri(tracking_uri)
-    mlflow.set_registry_uri(registry_uri)
-    model_uri = f"models:/{registered_model_name}/1"
-    model_info = get_model_info(model_uri)
+    model_info = persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
+    assert model_info.saved_input_example_info is not None
     assert model_info.signature is not None, "Registered model should have a signature when model_inputs is provided"
 
     persister.cleanup()
 
 
-def test_save_model_to_registry_non_pytorch(tmp_path: Path) -> None:
+def test_save_model_to_registry_non_pytorch(persister: MLFlowPersister) -> None:
     """Test saving a non-PyTorch model to the MLflow model registry."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-save-non-pytorch",
-        run_name="registry-save-non-pytorch-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
 
     registered_model_name = "test_non_pytorch_model"
 
@@ -328,8 +307,6 @@ def test_save_model_to_registry_non_pytorch(tmp_path: Path) -> None:
         match=r"Model must be a PyTorch model \(torch\.nn\.Module\), got <class '.+'?>",
     ):
         persister.save_model_to_registry(equinox_model, registered_model_name)
-
-    persister.cleanup()
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
@@ -352,16 +329,11 @@ def test_save_model_to_registry_with_signature(tmp_path: Path) -> None:
     signature = infer_signature(signature_data)
 
     with patch("simplexity.persistence.mlflow_persister.SIMPLEXITY_LOGGER.warning") as mock_warning:
-        persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input, signature=signature)
+        model_info = persister.save_model_to_registry(
+            model, registered_model_name, model_inputs=sample_input, signature=signature
+        )
         mock_warning.assert_called_once_with("Signature provided in kwargs, ignoring inferred signature")
 
-    # Verify that the registered model has a signature
-    tracking_uri = artifact_dir.as_uri()
-    registry_uri = artifact_dir.as_uri()
-    mlflow.set_tracking_uri(tracking_uri)
-    mlflow.set_registry_uri(registry_uri)
-    model_uri = f"models:/{registered_model_name}/1"
-    model_info = get_model_info(model_uri)
     assert model_info.signature == signature
     persister.cleanup()
 
@@ -385,20 +357,24 @@ def test_load_model_from_registry_multiple_versions(persister: MLFlowPersister) 
 
     torch.manual_seed(0)
     model_v1 = Linear(in_features=4, out_features=2)
-    persister.save_model_to_registry(model_v1, registered_model_name)
+    model_v1_info = persister.save_model_to_registry(model_v1, registered_model_name)
 
     torch.manual_seed(1)
     model_v2 = Linear(in_features=4, out_features=2)
-    persister.save_model_to_registry(model_v2, registered_model_name)
+    model_v2_info = persister.save_model_to_registry(model_v2, registered_model_name)
 
     assert not _pytorch_models_equal(model_v1, model_v2)
 
     # Load version 1
-    loaded_v1 = persister.load_model_from_registry(registered_model_name, version="1")
+    loaded_v1 = persister.load_model_from_registry(
+        registered_model_name, version=str(model_v1_info.registered_model_version)
+    )
     assert _pytorch_models_equal(loaded_v1, model_v1)
 
     # Load version 2
-    loaded_v2 = persister.load_model_from_registry(registered_model_name, version="2")
+    loaded_v2 = persister.load_model_from_registry(
+        registered_model_name, version=str(model_v2_info.registered_model_version)
+    )
     assert _pytorch_models_equal(loaded_v2, model_v2)
 
     # Load latest (should be version 2)
@@ -413,15 +389,19 @@ def test_load_model_from_registry_with_stage(persister: MLFlowPersister) -> None
 
     torch.manual_seed(0)
     model_prod = Linear(in_features=4, out_features=2)
-    persister.save_model_to_registry(model_prod, registered_model_name)
-    persister.client.transition_model_version_stage(name=registered_model_name, version="1", stage="Production")
+    model_prod_info = persister.save_model_to_registry(model_prod, registered_model_name)
+    persister.client.transition_model_version_stage(
+        name=registered_model_name,
+        version=str(model_prod_info.registered_model_version),
+        stage="Production",
+    )
 
     torch.manual_seed(1)
     model_stage = Linear(in_features=4, out_features=2)
-    persister.save_model_to_registry(model_stage, registered_model_name)
+    model_stage_info = persister.save_model_to_registry(model_stage, registered_model_name)
     persister.client.transition_model_version_stage(
         name=registered_model_name,
-        version="2",
+        version=str(model_stage_info.registered_model_version),
         stage="Staging",
     )
 

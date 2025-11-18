@@ -11,6 +11,7 @@ from typing import Any
 import mlflow
 import mlflow.pytorch as mlflow_pytorch
 import torch
+from mlflow.models.model import ModelInfo
 from mlflow.models.signature import infer_signature
 from omegaconf import DictConfig, OmegaConf
 
@@ -182,7 +183,7 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         registered_model_name: str,
         model_inputs: torch.Tensor | None = None,
         **kwargs: Any,
-    ) -> None:
+    ) -> ModelInfo:
         """Save a PyTorch model to the MLflow model registry.
 
         Args:
@@ -230,11 +231,14 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
 
         log_kwargs.update(kwargs)
 
+        model_info: ModelInfo | None = None
         with (
             set_mlflow_uris(tracking_uri=self.tracking_uri, registry_uri=self.registry_uri),
             mlflow.start_run(run_id=self.run_id),
         ):
-            mlflow_pytorch.log_model(**log_kwargs)
+            model_info = mlflow_pytorch.log_model(**log_kwargs)
+        assert model_info is not None
+        return model_info
 
     def registered_model_uri(
         self, registered_model_name: str, version: str | None = None, stage: str | None = None
