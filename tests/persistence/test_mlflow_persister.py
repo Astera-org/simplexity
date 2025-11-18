@@ -18,6 +18,7 @@ from mlflow.models import get_model_info, infer_signature
 from torch.nn import Linear, Module
 
 from simplexity.persistence.mlflow_persister import MLFlowPersister
+from simplexity.predictive_models.types import ModelFramework
 
 
 def _get_artifacts_root(persister: MLFlowPersister) -> Path:
@@ -40,6 +41,19 @@ def _pytorch_models_equal(model1: Module, model2: Module) -> bool:
     return all(torch.allclose(params1[name], params2[name]) for name in params1)
 
 
+def _models_equal(model1: Module | eqx.Module, model2: Module | eqx.Module) -> bool:
+    """Check if two models have identical parameters."""
+    if isinstance(model1, Linear) and isinstance(model2, Linear):
+        return _pytorch_models_equal(model1, model2)
+    if isinstance(model1, eqx.Module) and isinstance(model2, eqx.Module):
+        try:
+            chex.assert_trees_all_equal(model1, model2)
+            return True
+        except AssertionError:
+            return False
+    return False
+
+
 @pytest.fixture
 def persister(tmp_path: Path) -> Generator[MLFlowPersister, None, None]:
     """Get a MLFlowPersister instance."""
@@ -56,118 +70,83 @@ def persister(tmp_path: Path) -> Generator[MLFlowPersister, None, None]:
     persister.cleanup()
 
 
-def test_round_trip(persister: MLFlowPersister) -> None:
-    """Model weights saved via MLflow can be restored back into a new instance."""
-
-    original = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
-    persister.save_weights(original, step=0)
-
-    remote_model_path = _get_artifacts_root(persister) / persister.model_dir / "0" / "model.eqx"
-    assert remote_model_path.exists()
-
-    updated = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(1))
-    loaded = persister.load_weights(updated, step=0)
-
-    chex.assert_trees_all_equal(loaded, original)
-
-
-def test_round_trip_from_config(persister: MLFlowPersister) -> None:
-    """Model weights saved via MLflow can be restored back into a new instance via the config."""
-
-    original = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
-    persister.save_weights(original, step=0)
-
-    remote_model_path = _get_artifacts_root(persister) / persister.model_dir / "0" / "model.eqx"
-    assert remote_model_path.exists()
-
-    config = {
-        "predictive_model": {
-            "instance": {
-                "_target_": "equinox.nn.Linear",
-                "in_features": 4,
-                "out_features": 2,
-                "key": {"_target_": "jax.random.key", "seed": 0},
-            }
-        }
-    }
-    config_path = _get_artifacts_root(persister) / "config.yaml"
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f)
-
-    loaded = persister.load_model(step=0)
-    chex.assert_trees_all_equal(loaded, original)
-
-
-def test_cleanup(tmp_path: Path) -> None:
-    """Test MLflow persister cleanup."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(experiment_name="test", tracking_uri=artifact_dir.as_uri())
-
-    def run_status() -> str:
-        """Get the status of the run."""
-        client = persister.client
-        run_id = persister.run_id
-        run = client.get_run(run_id)
-        return run.info.status
-
-    assert run_status() == "RUNNING"
-
-    model = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
-    persister.save_weights(model, step=0)
-    local_persister = persister.get_local_persister(model)
-    assert local_persister.directory.exists()
-
-    persister.cleanup()
-    assert run_status() == "FINISHED"
-    assert not local_persister.directory.exists()
-
-
-def test_pytorch_round_trip(persister: MLFlowPersister) -> None:
+@pytest.mark.parametrize("framework", [ModelFramework.PYTORCH, ModelFramework.EQUINOX])
+def test_round_trip(persister: MLFlowPersister, framework: ModelFramework) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance."""
 
-    torch.manual_seed(0)
-    original = Linear(in_features=4, out_features=2)
+    if framework == ModelFramework.PYTORCH:
+        torch.manual_seed(0)
+        original = Linear(in_features=4, out_features=2)
+        torch.manual_seed(1)
+        updated = Linear(in_features=4, out_features=2)
+        model_filename = "model.pt"
+    elif framework == ModelFramework.EQUINOX:
+        original = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
+        updated = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(1))
+        model_filename = "model.eqx"
+    else:
+        raise ValueError(f"Unsupported model framework: {framework}")
+
     persister.save_weights(original, step=0)
 
-    remote_model_path = _get_artifacts_root(persister) / persister.model_dir / "0" / "model.pt"
+    remote_model_path = _get_artifacts_root(persister) / persister.model_dir / "0" / model_filename
     assert remote_model_path.exists()
 
-    torch.manual_seed(1)
-    updated = Linear(in_features=4, out_features=2)
+    assert not _models_equal(original, updated)
     loaded = persister.load_weights(updated, step=0)
+    assert _models_equal(loaded, original)
 
-    assert _pytorch_models_equal(loaded, original)
 
-
-def test_pytorch_round_trip_from_config(persister: MLFlowPersister) -> None:
+@pytest.mark.parametrize("framework", [ModelFramework.PYTORCH, ModelFramework.EQUINOX])
+def test_round_trip_from_config(persister: MLFlowPersister, framework: ModelFramework) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance via the config."""
 
-    original = Linear(in_features=4, out_features=2)
-    persister.save_weights(original, step=0)
-
-    remote_model_path = _get_artifacts_root(persister) / persister.model_dir / "0" / "model.pt"
-    assert remote_model_path.exists()
-
-    config = {
-        "predictive_model": {
-            "instance": {
-                "_target_": "torch.nn.Linear",
-                "in_features": 4,
-                "out_features": 2,
+    if framework == ModelFramework.PYTORCH:
+        original = Linear(in_features=4, out_features=2)
+        config = {
+            "predictive_model": {
+                "instance": {
+                    "_target_": "torch.nn.Linear",
+                    "in_features": 4,
+                    "out_features": 2,
+                }
             }
         }
-    }
+        model_filename = "model.pt"
+    elif framework == ModelFramework.EQUINOX:
+        original = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
+        config = {
+            "predictive_model": {
+                "instance": {
+                    "_target_": "equinox.nn.Linear",
+                    "in_features": 4,
+                    "out_features": 2,
+                    "key": {"_target_": "jax.random.key", "seed": 0},
+                }
+            }
+        }
+        model_filename = "model.eqx"
+    else:
+        raise ValueError(f"Unsupported model framework: {framework}")
+
+    persister.save_weights(original, step=0)
+
+    remote_model_path = _get_artifacts_root(persister) / persister.model_dir / "0" / model_filename
+    assert remote_model_path.exists()
+
     config_path = _get_artifacts_root(persister) / "config.yaml"
     with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f)
 
     loaded = persister.load_model(step=0)
-    assert _pytorch_models_equal(loaded, original)
+    assert _models_equal(loaded, original)
 
 
-def test_pytorch_cleanup(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "framework",
+    [ModelFramework.PYTORCH, ModelFramework.EQUINOX],
+)
+def test_cleanup(tmp_path: Path, framework: ModelFramework) -> None:
     """Test PyTorch model cleanup with MLflow persister."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
@@ -183,7 +162,13 @@ def test_pytorch_cleanup(tmp_path: Path) -> None:
 
     assert run_status() == "RUNNING"
 
-    model = Linear(in_features=4, out_features=2)
+    if framework == "pytorch":
+        model = Linear(in_features=4, out_features=2)
+    elif framework == "equinox":
+        model = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
+    else:
+        raise ValueError(f"Unsupported model framework: {framework}")
+
     persister.save_weights(model, step=0)
     local_persister = persister.get_local_persister(model)
     assert local_persister.directory.exists()
