@@ -66,6 +66,7 @@ class AnalysisTracker:
     layer_names: list[str] | None = None
     variance_thresholds: list[float] = field(default_factory=lambda: [0.80, 0.90, 0.95, 0.99])
     use_simple_regression: bool = False  # If True, use sklearn OLS; if False, use k-fold CV
+    plots_dir: str | None = None  # Directory for saving incremental plots (defaults to tempdir)
 
     # Plot styling configurations (can be loaded from YAML via Hydra)
     pca_2d_style: PCA2DStyleConfig | None = None
@@ -77,6 +78,7 @@ class AnalysisTracker:
     _pca_results: dict[int, dict[str, dict[str, Any]]] = field(default_factory=dict, init=False)
     _regression_results: dict[int, dict[str, RegressionResult]] = field(default_factory=dict, init=False)
     _variance_threshold_results: dict[int, dict[str, dict[float, int]]] = field(default_factory=dict, init=False)
+    _logged_steps: list[int] = field(default_factory=list, init=False)
 
     def add_step(
         self,
@@ -130,6 +132,10 @@ class AnalysisTracker:
         prefix_dataset = None
         if regression_scope == "per_token" or compute_pca:
             prefix_dataset = build_prefix_dataset(inputs, beliefs, probs, activations_by_layer)
+
+        # Track this step
+        if step not in self._logged_steps:
+            self._logged_steps.append(step)
 
         self._pca_results[step] = {}
         self._regression_results[step] = {}
@@ -638,7 +644,81 @@ class AnalysisTracker:
         return saved_plots
 
     def clear(self) -> None:
-        """Clear all stored results."""
+        """Clear all stored results but keep step history."""
         self._pca_results.clear()
         self._regression_results.clear()
         self._variance_threshold_results.clear()
+        # NOTE: We keep _logged_steps so incremental plots can track progress
+
+    def save_incremental_figures(
+        self,
+        visualization_configs: dict,
+    ) -> dict[str, str]:
+        """Save incremental figures for the current step and return paths.
+
+        Args:
+            visualization_configs: Dict of visualization configs (from cfg.validation_visualization)
+
+        Returns:
+            Dict mapping viz_name to HTML file path
+        """
+        import tempfile
+        from pathlib import Path
+
+        from simplexity.visualization.config_expander import expand_plot_config
+        from simplexity.visualization.incremental_plotter import (
+            append_step_to_figure,
+            load_or_create_figure,
+            save_figure,
+            save_figure_html,
+        )
+
+        # Build data registry from current tracker state
+        # Use the visualization configs to determine which analyses to include
+        analysis_configs = {}
+        for _viz_name, viz_cfg in visualization_configs.items():
+            if isinstance(viz_cfg, dict) and "data" in viz_cfg and "source" in viz_cfg["data"]:
+                source = viz_cfg["data"]["source"]
+                # Map source names to analysis configs
+                if source not in analysis_configs:
+                    analysis_configs[source] = {"type": source}
+
+        data_registry = self.build_data_registry(analysis_configs)
+
+        # Use configured plots_dir or create tempdir
+        if self.plots_dir is not None:
+            output_path = Path(self.plots_dir)
+            output_path.mkdir(exist_ok=True, parents=True)
+        else:
+            # Create tempdir that persists for the lifetime of this process
+            if not hasattr(self, "_temp_plots_dir"):
+                self._temp_plots_dir = tempfile.mkdtemp(prefix="simplexity_plots_")
+            output_path = Path(self._temp_plots_dir)
+
+        saved_paths = {}
+
+        # Early return if no steps logged yet
+        if not self._logged_steps:
+            return saved_paths
+
+        # Generate/update each visualization incrementally
+        for viz_name, viz_cfg in visualization_configs.items():
+            fig_json_path = output_path / f"{viz_name}_cumulative.json"
+            fig_html_path = output_path / f"{viz_name}_cumulative.html"
+
+            # Load existing figure or create new
+            cumulative_fig = load_or_create_figure(fig_json_path)
+
+            # Build plot config and append current step (automatically updates controls)
+            plot_config = expand_plot_config(viz_cfg, data_registry)
+            cumulative_fig = append_step_to_figure(
+                cumulative_fig, plot_config, data_registry, self._logged_steps
+            )
+
+            # Save updated figure (JSON for incremental updates, HTML for viewing)
+            save_figure(cumulative_fig, fig_json_path)
+            save_figure_html(cumulative_fig, fig_html_path)
+
+            saved_paths[viz_name] = str(fig_html_path)
+
+        return saved_paths

@@ -39,23 +39,31 @@ def append_step_to_figure(
     cumulative_fig: go.Figure,
     step_plot_config: PlotConfig,
     data_registry: dict[str, Any],
-    current_step: int,
+    logged_steps: list[int],
 ) -> go.Figure:
-    """Append a new step's data to an existing cumulative figure.
+    """Append a new step's data to an existing cumulative figure and update controls.
 
     Args:
         cumulative_fig: Existing figure to append to
         step_plot_config: Plot configuration for the current step
         data_registry: Data registry containing current step's data
-        current_step: Current training step number
+        logged_steps: List of all step numbers that have been added (including current)
 
     Returns:
-        Updated figure with new step's traces added
+        Updated figure with new step's traces and controls added
     """
     # Build figure for current step only
     step_fig = build_plotly_figure(step_plot_config, data_registry)
 
-    # If this is the first step, copy layout
+    # Clear any controls from the step figure (they're designed for single-step plots)
+    # We'll add appropriate controls for the cumulative view later
+    if hasattr(step_fig, "layout"):
+        if hasattr(step_fig.layout, "sliders"):
+            step_fig.layout.sliders = []
+        if hasattr(step_fig.layout, "updatemenus"):
+            step_fig.layout.updatemenus = []
+
+    # If this is the first step, copy layout (minus controls)
     if len(cumulative_fig.data) == 0:  # type: ignore[arg-type]
         cumulative_fig.update_layout(step_fig.layout)
 
@@ -66,7 +74,43 @@ def append_step_to_figure(
             trace.name = f"{trace.name}"
         cumulative_fig.add_trace(trace)
 
+    # Update controls for cumulative view based on config
+    cumulative_fig = _update_controls(cumulative_fig, logged_steps, step_plot_config.controls)
+
     return cumulative_fig
+
+
+def _update_controls(
+    fig: go.Figure, steps: list[int], controls: PlotControlsConfig | None
+) -> go.Figure:
+    """Update interactive controls (slider/dropdown) based on controls config.
+
+    Args:
+        fig: Figure to update controls for
+        steps: List of all step numbers that have been added
+        controls: Controls configuration specifying which dimension gets slider/dropdown
+
+    Returns:
+        Figure with appropriate controls added
+    """
+    if not steps or len(fig.data) == 0:  # type: ignore[arg-type]
+        return fig
+
+    # Clear any existing controls
+    fig.update_layout(sliders=[], updatemenus=[])
+
+    # If no controls config provided, default to step slider
+    if controls is None:
+        return _create_step_slider_for_spatial_view(fig, steps)
+
+    # Apply controls based on config
+    if controls.slider and controls.slider.dimension == "step":
+        fig = _create_step_slider_for_spatial_view(fig, steps)
+
+    if controls.dropdown and controls.dropdown.dimension == "layer":
+        fig = _create_layer_dropdown_for_temporal_view(fig, steps)
+
+    return fig
 
 
 def create_step_slider(
