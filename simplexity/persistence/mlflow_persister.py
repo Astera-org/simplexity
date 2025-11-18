@@ -17,7 +17,13 @@ from omegaconf import DictConfig, OmegaConf
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
 from simplexity.utils.config_utils import typed_instantiate
-from simplexity.utils.mlflow_utils import get_experiment_id, get_run_id, maybe_terminate_run, resolve_registry_uri
+from simplexity.utils.mlflow_utils import (
+    get_experiment_id,
+    get_run_id,
+    maybe_terminate_run,
+    resolve_registry_uri,
+    set_mlflow_uris,
+)
 from simplexity.utils.pip_utils import create_requirements_file
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
@@ -224,23 +230,11 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
 
         log_kwargs.update(kwargs)
 
-        # Save current global tracking and registry URIs
-        original_tracking_uri = mlflow.get_tracking_uri()
-        original_registry_uri = mlflow.get_registry_uri()
-
-        try:
-            # Set tracking and registry URIs before starting the run
-            if self.tracking_uri:
-                mlflow.set_tracking_uri(self.tracking_uri)
-            if self.registry_uri:
-                mlflow.set_registry_uri(self.registry_uri)
-
-            with mlflow.start_run(run_id=self.run_id):
-                mlflow_pytorch.log_model(**log_kwargs)
-        finally:
-            # Restore original global tracking and registry URIs
-            mlflow.set_tracking_uri(original_tracking_uri)
-            mlflow.set_registry_uri(original_registry_uri)
+        with (
+            set_mlflow_uris(tracking_uri=self.tracking_uri, registry_uri=self.registry_uri),
+            mlflow.start_run(run_id=self.run_id),
+        ):
+            mlflow_pytorch.log_model(**log_kwargs)
 
     def registered_model_uri(
         self, registered_model_name: str, version: str | None = None, stage: str | None = None
@@ -291,7 +285,8 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
             RuntimeError: If the model cannot be found or loaded.
         """
         model_uri = self.registered_model_uri(registered_model_name, version, stage)
-        return mlflow_pytorch.load_model(model_uri)
+        with set_mlflow_uris(tracking_uri=self.tracking_uri, registry_uri=self.registry_uri):
+            return mlflow_pytorch.load_model(model_uri)
 
     def list_model_versions(
         self,
