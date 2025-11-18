@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, MutableMapping
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 import torch
 
@@ -28,7 +28,9 @@ class MetricContext:
 class TrainingMetric(Protocol):
     """Protocol for metrics that can be plugged into the tracker."""
 
-    def compute(self, context: MetricContext) -> Mapping[str, float]:  # pragma: no cover - Protocol
+    def __init__(self, **kwargs: Any) -> None: ...
+
+    def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Update the metric state and return the latest scalar(s)."""
         ...  # pylint: disable=unnecessary-ellipsis  # Protocol methods require ellipsis body
 
@@ -77,6 +79,8 @@ def _named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mappi
 class TokensMetric:
     """Tracks instantaneous and cumulative token counts."""
 
+    def __init__(self, **_kwargs: Any) -> None: ...
+
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the token count metric."""
         return {
@@ -89,6 +93,8 @@ class LearningRateMetric:
     """Reports learning rates for each optimizer param group."""
 
     requires_learning_rates = True
+
+    def __init__(self, **_kwargs: Any) -> None: ...
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the learning rate metric."""
@@ -105,11 +111,14 @@ class LearningRateWeightedTokensMetric:
     """Tracks the learning rate weighted tokens."""
 
     requires_learning_rates = True
-    cumulative: float = 0.0
+
+    def __init__(self, **_kwargs: Any) -> None:
+        self.cumulative = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the learning rate weighted tokens metric."""
-        weighted_tokens = context.learning_rates["lr"] * float(context.batch_tokens)
+        lr = list(context.learning_rates.values())[0]
+        weighted_tokens = lr * float(context.batch_tokens)
         self.cumulative += weighted_tokens
         return {
             "tokens/lr_weighted": weighted_tokens,
@@ -122,13 +131,16 @@ class GradientWeightedTokensMetric:
 
     requires_learning_rates = True
     requires_gradients = True
-    cumulative: float = 0.0
+
+    def __init__(self, **_kwargs: Any) -> None:
+        self.cumulative = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the gradient weighted tokens metric."""
         assert context.gradients is not None, "Gradients are required for this metric"
         gradient_norm = _tensor_collection_l2_norm(context.gradients.values())
-        weighted_tokens = context.learning_rates["lr"] * gradient_norm * float(context.batch_tokens)
+        lr = list(context.learning_rates.values())[0]
+        weighted_tokens = lr * gradient_norm * float(context.batch_tokens)
         self.cumulative += weighted_tokens
         return {
             "tokens/gradient_weighted": weighted_tokens,
@@ -139,7 +151,7 @@ class GradientWeightedTokensMetric:
 class CurrentLossMetric:
     """Logs the instantaneous training loss."""
 
-    def __init__(self, ma_window_size: int = 100, ema_gamma: float = 0.9) -> None:
+    def __init__(self, ma_window_size: int = 100, ema_gamma: float = 0.9, **_kwargs: Any) -> None:
         self.min_loss = float("inf")
         self.ma_window_size = ma_window_size
         self.ma_losses = [float("inf")] * ma_window_size
@@ -165,6 +177,8 @@ class ParameterNormMetric:
 
     requires_named_parameters = True
 
+    def __init__(self, **_kwargs: Any) -> None: ...
+
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the parameter norm metric."""
         assert context.current_named_parameters is not None, "Current named parameters are required for this metric"
@@ -175,6 +189,8 @@ class WeightNormMetric:
     """Computes the L2 norm over parameters whose name ends with 'weight'."""
 
     requires_named_parameters = True
+
+    def __init__(self, **_kwargs: Any) -> None: ...
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the weight norm metric."""
@@ -188,10 +204,12 @@ class WeightNormMetric:
 class DistanceFromInitializationMetric:
     """Reports the parameter space distance from the initial model state."""
 
-    initial_named_parameters: Mapping[str, torch.Tensor]
     requires_named_parameters = True
     requires_initial_named_parameters = True
-    max_distance: float = 0.0
+
+    def __init__(self, initial_named_parameters: Mapping[str, torch.Tensor], **_kwargs: Any) -> None:
+        self.initial_named_parameters = initial_named_parameters
+        self.max_distance = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the distance from initialization metric."""
@@ -209,7 +227,9 @@ class CumulativeParameterUpdateMetric:
 
     requires_current_named_parameters = True
     requires_previous_named_parameters = True
-    cumulative: float = 0.0
+
+    def __init__(self, **_kwargs: Any) -> None:
+        self.cumulative = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the update norm metric."""
@@ -227,7 +247,9 @@ class FisherInformationMetric:
     """Tracks the Fisher information."""
 
     requires_gradients = True
-    cumulative: float = 0.0
+
+    def __init__(self, **_kwargs: Any) -> None:
+        self.cumulative = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the Fisher information metric."""
@@ -244,28 +266,31 @@ class FisherInformationMetric:
 class LossProgressMetric:
     """Tracks the progress towards the optimal loss."""
 
-    initial_loss: float
-    optimal_loss: float
     requires_initial_loss = True
     requires_optimal_loss = True
 
+    def __init__(self, optimal_loss: float, initial_loss: float | None = None, **_kwargs: Any) -> None:
+        self.initial_loss = initial_loss
+        self.optimal_loss = optimal_loss
+
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the loss progress metric."""
+        if self.initial_loss is None:
+            self.initial_loss = context.loss
         progress = (self.initial_loss - context.loss) / (self.initial_loss - self.optimal_loss)
         return {"loss/progress_to_optimal": progress}
 
 
 ALL_METRICS = {
-    "tokens/batch": TokensMetric(),
-    "tokens/total": TokensMetric(),
-    "lr": LearningRateMetric(),
-    "loss": CurrentLossMetric(),
-    "params/distance_from_init": DistanceFromInitializationMetric(),
-    "params/update_l2_norm": CumulativeParameterUpdateMetric(),
-    "params/fisher_information": FisherInformationMetric(),
-    "loss/progress_to_optimal": LossProgressMetric(),
-    "params/l2_norm": ParameterNormMetric(),
-    "params/weights_l2_norm": WeightNormMetric(),
-    "tokens/lr_weighted": LearningRateWeightedTokensMetric(),
-    "tokens/gradient_weighted": GradientWeightedTokensMetric(),
+    "tokens": TokensMetric,
+    "lr": LearningRateMetric,
+    "learning_rate_weighted_tokens": LearningRateWeightedTokensMetric,
+    "gradient_weighted_tokens": GradientWeightedTokensMetric,
+    "loss": CurrentLossMetric,
+    "parameter_norm": ParameterNormMetric,
+    "weight_norm": WeightNormMetric,
+    "distance_from_initialization": DistanceFromInitializationMetric,
+    "cumulative_parameter_update": CumulativeParameterUpdateMetric,
+    "fisher_information": FisherInformationMetric,
+    "loss_progress_to_optimal": LossProgressMetric,
 }
