@@ -428,25 +428,11 @@ def test_load_model_from_registry_multiple_versions(tmp_path: Path) -> None:
     persister2.cleanup()
 
 
-def test_load_model_from_registry_invalid_version(tmp_path: Path) -> None:
+def test_load_model_from_registry_no_registered_model(persister: MLFlowPersister) -> None:
     """Test that loading a non-existent version raises an error."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
 
-    persister = MLFlowPersister(
-        experiment_name="registry-load-error",
-        run_name="registry-load-error-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
-
-    registered_model_name = "test_invalid_version"
-
-    # Try to load a model that doesn't exist
-    with pytest.raises(RuntimeError):
-        persister.load_model_from_registry(registered_model_name, version="999")
-
-    persister.cleanup()
+    with pytest.raises(RuntimeError, match="No versions found for registered model 'model_name'"):
+        persister.load_model_from_registry(registered_model_name="model_name")
 
 
 def test_load_model_from_registry_both_version_and_stage(persister: MLFlowPersister) -> None:
