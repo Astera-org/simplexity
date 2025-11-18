@@ -22,7 +22,7 @@ def pca_results_to_dataframe(
 
     Returns:
         DataFrame with columns: step, layer, point_id, pc1, pc2, [pc3], [belief_0, belief_1, belief_2],
-            [sequence, next_token, seq_length] (if prefixes available)
+            [sequence, seq_length] (if prefixes available)
     """
     rows = []
     for step, layer_dict in pca_results_by_step_and_layer.items():
@@ -49,7 +49,6 @@ def pca_results_to_dataframe(
                 if prefixes is not None:
                     prefix = prefixes[i]
                     row["sequence"] = " ".join(str(t) for t in prefix)
-                    row["next_token"] = prefix[-1] if prefix else None
                     row["seq_length"] = len(prefix)
 
                 rows.append(row)
@@ -102,7 +101,7 @@ def regression_results_to_dataframe(
 
     Returns:
         DataFrame with columns: step, layer, point_id, x, y, belief_type, [belief_0, belief_1, belief_2],
-            [sequence, next_token, seq_length] (if prefixes available)
+            [sequence, seq_length] (if prefixes available)
             where belief_type is either 'true' or 'predicted'
     """
     from simplexity.analysis.regression import project_to_simplex
@@ -133,7 +132,6 @@ def regression_results_to_dataframe(
                 if reg_result.prefixes is not None:
                     prefix = reg_result.prefixes[i]
                     row["sequence"] = " ".join(str(t) for t in prefix)
-                    row["next_token"] = prefix[-1] if prefix else None
                     row["seq_length"] = len(prefix)
 
                 rows.append(row)
@@ -161,7 +159,6 @@ def regression_results_to_dataframe(
                 if reg_result.prefixes is not None:
                     prefix = reg_result.prefixes[i]
                     row["sequence"] = " ".join(str(t) for t in prefix)
-                    row["next_token"] = prefix[-1] if prefix else None
                     row["seq_length"] = len(prefix)
 
                 rows.append(row)

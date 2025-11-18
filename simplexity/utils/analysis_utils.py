@@ -1,14 +1,12 @@
-import jax.numpy as jnp
-import numpy as np
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
 
 import jax
+import jax.numpy as jnp
+import numpy as np
 
 
-def make_prefix_groups(inputs: jax.Array) -> Dict[Tuple[int, ...], List[Tuple[int, int]]]:
-    """
-    Group positions by prefix of tokens.
+def make_prefix_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[tuple[int, int]]]:
+    """Group positions by prefix of tokens.
 
     Args:
         inputs: (batch, seq_len) integer token ids
@@ -17,7 +15,7 @@ def make_prefix_groups(inputs: jax.Array) -> Dict[Tuple[int, ...], List[Tuple[in
         dict: prefix_tuple -> list of (seq_idx, pos) positions
     """
     batch_size, seq_len = inputs.shape
-    prefix_to_indices: Dict[Tuple[int, ...], List[Tuple[int, int]]] = {}
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]] = {}
 
     inputs_np = np.asarray(inputs)
 
@@ -32,17 +30,16 @@ def make_prefix_groups(inputs: jax.Array) -> Dict[Tuple[int, ...], List[Tuple[in
 
 def dedup_tensor_first(
     tensor: jax.Array,
-    prefix_to_indices: Dict[Tuple[int, ...], List[Tuple[int, int]]],
-) -> Tuple[jax.Array, List[Tuple[int, ...]]]:
-    """
-    Deduplicate a (batch, seq_len, ...) tensor by prefixes, taking the first occurrence.
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
+) -> tuple[jax.Array, list[tuple[int, ...]]]:
+    """Deduplicate a (batch, seq_len, ...) tensor by prefixes, taking the first occurrence.
 
     Returns:
         dedup_values: (num_prefixes, ...) tensor
         prefixes: list of prefix tuples in the same order
     """
     values = []
-    prefixes: List[Tuple[int, ...]] = []
+    prefixes: list[tuple[int, ...]] = []
 
     for prefix, idxs in prefix_to_indices.items():
         seq_idx, pos = idxs[0]
@@ -54,13 +51,11 @@ def dedup_tensor_first(
 
 def dedup_probs_sum(
     probs: jax.Array,
-    prefix_to_indices: Dict[Tuple[int, ...], List[Tuple[int, int]]],
-) -> Tuple[jax.Array, List[Tuple[int, ...]]]:
-    """
-    Deduplicate (batch, seq_len) probabilities by summing over all occurrences of each prefix.
-    """
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
+) -> tuple[jax.Array, list[tuple[int, ...]]]:
+    """Deduplicate (batch, seq_len) probabilities by summing over all occurrences of each prefix."""
     dedup_values = []
-    prefixes: List[Tuple[int, ...]] = []
+    prefixes: list[tuple[int, ...]] = []
 
     probs_np = np.asarray(probs)
 
@@ -82,25 +77,25 @@ def dedup_probs_sum(
 
 @dataclass
 class PrefixDataset:
-    """
-    A clean container for prefix-level data.
+    """A clean container for prefix-level data.
+
     All tensors are shape (N, ...), where N = #unique prefixes.
     """
 
-    prefixes: List[Tuple[int, ...]]
+    prefixes: list[tuple[int, ...]]
     beliefs: jax.Array  # (N, B)
     probs: jax.Array  # (N,)
-    activations_by_layer: Dict[str, jax.Array]  # layer_name -> (N, d)
+    activations_by_layer: dict[str, jax.Array]  # layer_name -> (N, d)
 
 
 def build_prefix_dataset(
     inputs: jax.Array,  # (batch, seq_len)
     beliefs: jax.Array,  # (batch, seq_len, B)
     probs: jax.Array,  # (batch, seq_len)
-    activations_by_layer: Dict[str, jax.Array],  # layer -> (batch, seq_len, d_layer)
+    activations_by_layer: dict[str, jax.Array],  # layer -> (batch, seq_len, d_layer)
 ) -> PrefixDataset:
-    """
-    Deduplicate everything by prefix:
+    """Deduplicate everything by prefix.
+
     - group positions with the same prefix
     - sum probs per prefix
     - take first beliefs & activations per prefix
