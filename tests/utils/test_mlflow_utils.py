@@ -131,7 +131,7 @@ class TestResolveRegistryUri:
         assert "Unity Catalog URI" in str(warning.message)
 
 
-class TestSetMlflowUris:
+class TestSetMlflowUris:  # pylint: disable=too-few-public-methods
     """Test class for set_mlflow_uris function."""
 
     def test_set_mlflow_uris(self) -> None:
