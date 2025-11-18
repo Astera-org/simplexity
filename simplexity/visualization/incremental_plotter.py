@@ -161,12 +161,30 @@ def _create_step_slider_for_spatial_view(fig: go.Figure, steps: list[int]) -> go
 
     traces_per_step = total_traces // num_steps
 
-    # Create slider steps
+    # Clean up trace names - remove step prefix for spatial view
+    for _i, trace in enumerate(fig.data):
+        if hasattr(trace, "name") and trace.name and "step_" in trace.name:  # type: ignore[attr-defined]
+            # Remove "step_X__" prefix, keep only layer name
+            parts = trace.name.split("__")  # type: ignore[attr-defined]
+            layer_parts = [p for p in parts if not p.startswith("step_")]
+            if layer_parts:
+                # Extract just the layer name (e.g., "layer_X" → "X")
+                if layer_parts[0].startswith("layer_"):
+                    layer_name = layer_parts[0].replace("layer_", "")
+                else:
+                    layer_name = layer_parts[0]
+                trace.name = layer_name  # type: ignore[attr-defined]
+
+    # Create slider steps with showlegend control
     slider_steps = []
     for i, step_num in enumerate(steps):
+        visible = [(j >= i * traces_per_step and j < (i + 1) * traces_per_step) for j in range(total_traces)]
         step_dict = {
             "args": [
-                {"visible": [(j >= i * traces_per_step and j < (i + 1) * traces_per_step) for j in range(total_traces)]}
+                {
+                    "visible": visible,
+                    "showlegend": visible,  # Only show legend for visible traces
+                }
             ],
             "label": f"Step {step_num}",
             "method": "update",
@@ -194,9 +212,11 @@ def _create_step_slider_for_spatial_view(fig: go.Figure, steps: list[int]) -> go
 
     fig.update_layout(sliders=sliders)
 
-    # Set initial visibility (show only last step)
+    # Set initial visibility and legend (show only last step)
     for i, trace in enumerate(fig.data):
-        trace.visible = i >= total_traces - traces_per_step  # type: ignore[attr-defined]
+        is_visible = i >= total_traces - traces_per_step
+        trace.visible = is_visible  # type: ignore[attr-defined]
+        trace.showlegend = is_visible  # type: ignore[attr-defined]
 
     return fig
 
