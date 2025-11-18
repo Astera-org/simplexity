@@ -100,6 +100,8 @@ def _named_tensor_distances(tensors: Iterable[Mapping[str, torch.Tensor]]) -> It
 class TokensMetric:
     """Tracks instantaneous and cumulative token counts."""
 
+    update_every_step = True
+
     def __init__(self, **_kwargs: Any) -> None:
         self.num_tokens = 0.0
         self.cumulative = 0.0
@@ -144,6 +146,7 @@ class LearningRateWeightedTokensMetric:
     """Tracks the learning rate weighted tokens."""
 
     requires_learning_rates = True
+    update_every_step = True
 
     def __init__(self, **_kwargs: Any) -> None:
         self.weighted_tokens = 0.0
@@ -168,6 +171,7 @@ class GradientWeightedTokensMetric:
 
     requires_learning_rates = True
     requires_gradients = True
+    update_every_step = True
 
     def __init__(self, **_kwargs: Any) -> None:
         self.gradients: list[Iterable[torch.Tensor]] = []
@@ -201,6 +205,8 @@ class GradientWeightedTokensMetric:
 
 class CurrentLossMetric:
     """Logs the instantaneous training loss."""
+
+    update_every_step = True
 
     def __init__(self, **kwargs: Any) -> None:
         self.loss = float("inf")
@@ -299,6 +305,7 @@ class CumulativeParameterUpdateMetric:
     """Tracks the cumulative parameter update."""
 
     requires_named_parameters = True
+    update_every_step = True
 
     def __init__(self, **kwargs: Any) -> None:
         named_parameters = kwargs.get("named_parameters")
@@ -326,6 +333,7 @@ class FisherInformationMetric:
     """Tracks the Fisher information."""
 
     requires_gradients = True
+    update_every_step = True
 
     def __init__(self, **_kwargs: Any) -> None:
         self.gradients: list[Iterable[torch.Tensor]] = []

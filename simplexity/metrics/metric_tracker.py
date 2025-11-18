@@ -32,7 +32,10 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
     ) -> None:
         if metric_kwargs is None:
             metric_kwargs = {}
-        self._set_requirement_flags(metric_names)
+        self._metric_groups = self._initialize_metric_groups(metric_names)
+        self._needs_learning_rates = self._set_requirement_flag("requires_learning_rates")
+        self._needs_gradients = self._set_requirement_flag("requires_gradients")
+        self._needs_named_parameters = self._set_requirement_flag("requires_named_parameters")
 
         self.model = model
 
@@ -43,8 +46,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
         self.optimizer = optimizer
         self._context = self._initialize_context(named_parameters)
-        self._metrics = self._initialize_metrics(metric_names, metric_kwargs)
-        self._metric_groups = self._initialize_metric_groups(metric_names)
+        self._metrics = self._initialize_metrics(metric_kwargs)
 
     def metrics(self, group: str = "all") -> dict[str, float]:
         """Get the metrics for the given group."""
@@ -56,6 +58,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
     def update(
         self,
+        group: str = "all",
         *,
         tokens: int | torch.Tensor,
         loss: float | torch.Tensor,
@@ -65,30 +68,35 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         num_tokens = tokens.numel() if isinstance(tokens, torch.Tensor) else tokens
         self._context.num_tokens = num_tokens
         self._context.loss = float(loss) if isinstance(loss, torch.Tensor) else loss
-        if self._needs_learning_rates:
+        if self._needs_learning_rates[group]:
             self._context.learning_rates = self._extract_learning_rates()
-        if self._needs_gradients:
+        if self._needs_gradients[group]:
             self._context.gradients = self._snapshot_gradients()
-        if self._needs_named_parameters:
+        if self._needs_named_parameters[group]:
             self._context.named_parameters = self._snapshot_named_parameters()
-        for metric in self._metrics.values():
+        for metric_name in self._metric_groups[group]:
+            metric = self._metrics[metric_name]
             metric.update(self._context)
 
-    def _set_requirement_flags(self, metric_names: dict[str, Sequence[str]] | Sequence[str] | None) -> None:
-        metrics_list: list[str] = []
-        if metric_names is None:
-            metrics_list = list(ALL_METRICS.keys())
-        elif isinstance(metric_names, dict):
-            metrics_list = [metric for group in metric_names.values() for metric in group]
-        elif isinstance(metric_names, Sequence):
-            metrics_list = list(metric_names)
+    def _initialize_metric_groups(
+        self, metrics: dict[str, Sequence[str]] | Sequence[str] | None
+    ) -> dict[str, list[str]]:
+        if isinstance(metrics, dict):
+            metric_groups = {group: list(metrics_list) for group, metrics_list in metrics.items()}
+            all_metric_names = list(
+                set([metric_name for metrics_list in metric_groups.values() for metric_name in metrics_list])
+            )
+            metric_groups["all"] = all_metric_names
+            return metric_groups
+        if isinstance(metrics, Sequence):
+            return {"all": list(metrics)}
+        return {"all": list(ALL_METRICS.keys())}
 
-        def requires(attribute: str) -> bool:
+    def _set_requirement_flag(self, attribute: str) -> dict[str, bool]:
+        def requires(metrics_list: list[str]) -> bool:
             return any(bool(getattr(ALL_METRICS[metric], attribute, False)) for metric in metrics_list)
 
-        self._needs_learning_rates = requires("requires_learning_rates")
-        self._needs_gradients = requires("requires_gradients")
-        self._needs_named_parameters = requires("requires_named_parameters")
+        return {group: requires(metrics_list) for group, metrics_list in self._metric_groups.items()}
 
     def _extract_learning_rates(self) -> Mapping[str, float]:
         assert self.optimizer is not None, "Optimizer is required for metrics that require learning rates"
@@ -130,28 +138,6 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             named_parameters=named_parameters,
         )
 
-    def _initialize_metrics(
-        self,
-        metric_names: dict[str, Sequence[str]] | Sequence[str] | None,
-        metric_kwargs: dict[str, Any],
-    ) -> dict[str, TrainingMetric]:
-        flat_metric_names: list[str] = []
-        if metric_names is None:
-            flat_metric_names = list(ALL_METRICS.keys())
-        elif isinstance(metric_names, dict):
-            flat_metric_names = list(set([metric_name for group in metric_names.values() for metric_name in group]))
-        elif isinstance(metric_names, Sequence):
-            flat_metric_names = list(metric_names)
+    def _initialize_metrics(self, metric_kwargs: dict[str, Any]) -> dict[str, TrainingMetric]:
+        flat_metric_names = list(set([metric_name for group in self._metric_groups.values() for metric_name in group]))
         return {metric_name: ALL_METRICS[metric_name](**metric_kwargs) for metric_name in flat_metric_names}
-
-    def _initialize_metric_groups(
-        self, metrics: dict[str, Sequence[str]] | Sequence[str] | None
-    ) -> dict[str, list[str]]:
-        if isinstance(metrics, dict):
-            metric_groups = {name: list(group) for name, group in metrics.items()}
-            all_metric_names = list(set([metric_name for group in metric_groups.values() for metric_name in group]))
-            metric_groups["all"] = all_metric_names
-            return metric_groups
-        if isinstance(metrics, Sequence):
-            return {"all": list(metrics)}
-        return {"all": list(ALL_METRICS.keys())}
