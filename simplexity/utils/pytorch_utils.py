@@ -6,6 +6,7 @@ going through CPU memory.
 """
 
 import warnings
+from collections.abc import Iterable, Mapping
 
 import jax
 import jax.numpy as jnp
@@ -96,3 +97,44 @@ def resolve_device(device_spec: str | None = "auto") -> str:
         return "cpu"
 
     raise DeviceResolutionError(f"Unknown device specification: {device_spec}")
+
+
+def tensor_collection_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
+    """Compute an L2 norm across an iterable of tensors without stacking.
+
+    We detach and cast to float to avoid autograd interactions and dtype
+    mismatches, skip empty tensors, and accumulate sums on CPU. This mirrors
+    concatenating the tensors and calling ``torch.linalg.norm`` but without the
+    intermediate allocation, which keeps metric computations lightweight even
+    when parameters/gradients live on different devices or have differing
+    shapes.
+    """
+    total = 0.0
+    for tensor in tensors:
+        if tensor.numel() == 0:
+            continue
+        total += float(torch.sum(torch.square(tensor.detach().float())))
+    return total**0.5
+
+
+def named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mapping[str, torch.Tensor]) -> float:
+    """Compute an L2 distance between two named tensor collections.
+
+    Parameters are compared by name without stacking tensors into a single
+    structure, which keeps the computation memory-efficient. Tensors are
+    detached, moved to CPU, and cast to float so that distance metrics stay off
+    the autograd graph and remain robust even if current and reference tensors
+    live on different devices or use different dtypes. Using built-in norms
+    would require materializing aligned tensors (or concatenations) per
+    parameter pair on the same device/dtype, which is both more memory hungry
+    and brittle when models evolve.
+    """
+    total = 0.0
+    for name, tensor in current.items():
+        ref_tensor = reference.get(name)
+        if ref_tensor is None or tensor.numel() == 0:
+            continue
+        curr_cpu = tensor.detach().float()
+        diff = curr_cpu - ref_tensor.float()
+        total += float(torch.sum(torch.square(diff)))
+    return total**0.5
