@@ -16,8 +16,7 @@ class MetricContext:
     """Immutable view of the information required by a metric for one step."""
 
     step: int
-    batch_tokens: int
-    total_tokens: int
+    num_tokens: int
     loss: float
     learning_rates: Mapping[str, float] = field(default_factory=dict)
     gradients: Mapping[str, torch.Tensor] | None = None
@@ -78,13 +77,15 @@ def _named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mappi
 class TokensMetric:
     """Tracks instantaneous and cumulative token counts."""
 
-    def __init__(self, **_kwargs: Any) -> None: ...
+    def __init__(self, **_kwargs: Any) -> None:
+        self.cumulative = 0.0
 
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the token count metric."""
+        self.cumulative += float(context.num_tokens)
         return {
-            "tokens/batch": float(context.batch_tokens),
-            "tokens/total": float(context.total_tokens),
+            "tokens/batch": float(context.num_tokens),
+            "tokens/total": self.cumulative,
         }
 
 
@@ -117,7 +118,7 @@ class LearningRateWeightedTokensMetric:
     def compute(self, context: MetricContext) -> Mapping[str, float]:
         """Compute the learning rate weighted tokens metric."""
         lr = list(context.learning_rates.values())[0]
-        weighted_tokens = lr * float(context.batch_tokens)
+        weighted_tokens = lr * float(context.num_tokens)
         self.cumulative += weighted_tokens
         return {
             "tokens/lr_weighted": weighted_tokens,
@@ -139,7 +140,7 @@ class GradientWeightedTokensMetric:
         assert context.gradients is not None, "Gradients are required for this metric"
         gradient_norm = _tensor_collection_l2_norm(context.gradients.values())
         lr = list(context.learning_rates.values())[0]
-        weighted_tokens = lr * gradient_norm * float(context.batch_tokens)
+        weighted_tokens = lr * gradient_norm * float(context.num_tokens)
         self.cumulative += weighted_tokens
         return {
             "tokens/gradient_weighted": weighted_tokens,

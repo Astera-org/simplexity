@@ -57,14 +57,13 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
     def update(
         self,
         *,
-        batch_tokens: int | torch.Tensor,
+        tokens: int | torch.Tensor,
         loss: float | torch.Tensor,
     ) -> None:
         """Update the metric tracker with the given context."""
         self._context.step += 1
-        num_batch_tokens = batch_tokens.numel() if isinstance(batch_tokens, torch.Tensor) else batch_tokens
-        self._context.batch_tokens = num_batch_tokens
-        self._context.total_tokens += num_batch_tokens
+        num_tokens = tokens.numel() if isinstance(tokens, torch.Tensor) else tokens
+        self._context.num_tokens = num_tokens
         self._context.loss = float(loss) if isinstance(loss, torch.Tensor) else loss
         if self._needs_learning_rates:
             self._context.learning_rates = self._extract_learning_rates()
@@ -122,8 +121,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
         return MetricContext(
             step=0,
-            batch_tokens=0,
-            total_tokens=0,
+            num_tokens=0,
             loss=float("inf"),
             learning_rates=learning_rates,
             gradients=gradients,
