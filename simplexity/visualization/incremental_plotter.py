@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 from simplexity.visualization.plotly_renderer import build_plotly_figure
-from simplexity.visualization.structured_configs import PlotConfig
+from simplexity.visualization.structured_configs import PlotConfig, PlotControlsConfig
 
 
 def load_or_create_figure(figure_path: str | Path) -> go.Figure:
@@ -69,21 +69,46 @@ def append_step_to_figure(
     return cumulative_fig
 
 
-def create_step_slider(fig: go.Figure, steps: list[int], layer_names: list[str] | None = None) -> go.Figure:
-    """Add or update a step slider to a figure.
+def create_step_slider(
+    fig: go.Figure, steps: list[int], controls: PlotControlsConfig | None = None
+) -> go.Figure:
+    """Add interactive controls (slider/dropdown) based on controls config.
+
+    Args:
+        fig: Figure to add controls to
+        steps: List of step numbers that have been added
+        controls: Controls configuration specifying which dimension gets slider/dropdown
+
+    Returns:
+        Figure with appropriate controls added
+    """
+    if not steps or len(fig.data) == 0:  # type: ignore[arg-type]
+        return fig
+
+    # If no controls config provided, default to step slider
+    if controls is None:
+        return _create_step_slider_for_spatial_view(fig, steps)
+
+    # Apply controls based on config
+    if controls.slider and controls.slider.dimension == "step":
+        fig = _create_step_slider_for_spatial_view(fig, steps)
+
+    if controls.dropdown and controls.dropdown.dimension == "layer":
+        fig = _create_layer_dropdown_for_temporal_view(fig, steps)
+
+    return fig
+
+
+def _create_step_slider_for_spatial_view(fig: go.Figure, steps: list[int]) -> go.Figure:
+    """Create step slider for spatial view (shows all layers at selected step).
 
     Args:
         fig: Figure to add slider to
-        steps: List of step numbers that have been added
-        layer_names: Optional list of layer names for filtering
+        steps: List of step numbers
 
     Returns:
-        Figure with slider added/updated
+        Figure with step slider added
     """
-    if not steps:
-        return fig
-
-    # Determine traces per step (assumes uniform structure)
     total_traces = len(fig.data)  # type: ignore[arg-type]
     num_steps = len(steps)
 
@@ -128,6 +153,73 @@ def create_step_slider(fig: go.Figure, steps: list[int], layer_names: list[str] 
     # Set initial visibility (show only last step)
     for i, trace in enumerate(fig.data):
         trace.visible = i >= total_traces - traces_per_step  # type: ignore[attr-defined]
+
+    return fig
+
+
+def _create_layer_dropdown_for_temporal_view(fig: go.Figure, steps: list[int]) -> go.Figure:
+    """Create layer dropdown for temporal view (shows all steps for selected layer).
+
+    Args:
+        fig: Figure to add dropdown to
+        steps: List of step numbers (used to identify which traces belong to which layer)
+
+    Returns:
+        Figure with layer dropdown added
+    """
+    # Parse trace names to extract layer information
+    layer_to_traces: dict[str, list[int]] = {}
+
+    for trace_idx, trace in enumerate(fig.data):
+        if hasattr(trace, "name") and trace.name and "__" in trace.name:  # type: ignore[attr-defined]
+            # Extract layer name from "layer_{name}__step_{n}"
+            parts = trace.name.split("__")  # type: ignore[attr-defined]
+            for part in parts:
+                if part.startswith("layer_"):
+                    layer_name = part.replace("layer_", "")
+                    if layer_name not in layer_to_traces:
+                        layer_to_traces[layer_name] = []
+                    layer_to_traces[layer_name].append(trace_idx)
+                    break
+
+    if not layer_to_traces:
+        return fig
+
+    # Create dropdown buttons for each layer
+    buttons = []
+    layers_sorted = sorted(layer_to_traces.keys())
+
+    for layer_name in layers_sorted:
+        # Create visibility array: show all traces for this layer
+        visible = [i in layer_to_traces[layer_name] for i in range(len(fig.data))]  # type: ignore[arg-type]
+
+        button = {
+            "method": "update",
+            "args": [{"visible": visible}],
+            "label": layer_name,
+        }
+        buttons.append(button)
+
+    # Add dropdown to layout
+    fig.update_layout(
+        updatemenus=[
+            {
+                "buttons": buttons,
+                "direction": "down",
+                "showactive": True,
+                "x": 0.02,
+                "xanchor": "left",
+                "y": 1.15,
+                "yanchor": "top",
+            }
+        ]
+    )
+
+    # Set initial visibility (first layer)
+    if layers_sorted:
+        first_layer_traces = layer_to_traces[layers_sorted[0]]
+        for i, trace in enumerate(fig.data):
+            trace.visible = i in first_layer_traces  # type: ignore[attr-defined]
 
     return fig
 

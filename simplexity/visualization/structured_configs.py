@@ -190,6 +190,21 @@ class PlotLevelGuideConfig:
 
 
 @dataclass
+class ControlConfig:
+    """Configuration for a single interactive control (slider or dropdown)."""
+
+    dimension: str  # Which dimension from expands.by this control operates on (e.g., "step", "layer")
+
+
+@dataclass
+class PlotControlsConfig:
+    """Interactive controls configuration for incremental plotting."""
+
+    slider: ControlConfig | None = None
+    dropdown: ControlConfig | None = None
+
+
+@dataclass
 class FacetConfig:
     """High-level faceting instructions."""
 
@@ -223,6 +238,7 @@ class PlotConfig:  # pylint: disable=too-many-instance-attributes
     guides: PlotLevelGuideConfig = field(default_factory=PlotLevelGuideConfig)
     background: str | None = None
     selections: list[SelectionConfig] = field(default_factory=list)
+    controls: PlotControlsConfig | None = None
 
     def __post_init__(self) -> None:
         _ensure(self.layers is not None, "PlotConfig.layers must be a list (can be empty)")
