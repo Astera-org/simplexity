@@ -190,6 +190,9 @@ class GradientWeightedTokensMetric:
             for lr, gradient_norm, num_tokens in zip(self.lrs, gradient_norms, self.num_tokens, strict=True)
         )
         self.cumulative += weighted_tokens
+        self.gradients.clear()
+        self.lrs.clear()
+        self.num_tokens.clear()
         return {
             "tokens/gradient_weighted": weighted_tokens,
             "tokens/gradient_weighted/cumulative": self.cumulative,
@@ -338,6 +341,7 @@ class FisherInformationMetric:
         gradient_norms = _tensor_collection_l2_norms(self.gradients)
         fisher_information = sum(gradient_norm**2 for gradient_norm in gradient_norms)
         self.cumulative += fisher_information
+        self.gradients.clear()
         return {
             "params/fisher_information": fisher_information,
             "params/fisher_information/cumulative": self.cumulative,
