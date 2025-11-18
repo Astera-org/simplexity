@@ -7,6 +7,7 @@ losses, and snapshots of the model parameters.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -17,6 +18,8 @@ from simplexity.metrics.metrics import (
     MetricContext,
     TrainingMetric,
 )
+
+SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 class MetricTracker:  # pylint: disable=too-many-instance-attributes
@@ -33,6 +36,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         if metric_kwargs is None:
             metric_kwargs = {}
         self._metric_groups = self._initialize_metric_groups(metric_names)
+        self._missing_update_keys = self._set_missing_update_keys()
         self._needs_learning_rates = self._set_requirement_flag("requires_learning_rates")
         self._needs_gradients = self._set_requirement_flag("requires_gradients")
         self._needs_named_parameters = self._set_requirement_flag("requires_named_parameters")
@@ -64,6 +68,8 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         loss: float | torch.Tensor,
     ) -> None:
         """Update the metric tracker with the given context."""
+        if group in self._missing_update_keys:
+            SIMPLEXITY_LOGGER.warning("Update of metric group %s misses metrics that require updates every step", group)
         self._context.step += 1
         num_tokens = tokens.numel() if isinstance(tokens, torch.Tensor) else tokens
         self._context.num_tokens = num_tokens
@@ -90,7 +96,31 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             return metric_groups
         if isinstance(metrics, Sequence):
             return {"all": list(metrics)}
-        return {"all": list(ALL_METRICS.keys())}
+        metric_groups = {"all": list(ALL_METRICS.keys())}
+
+        def requires_update_every_step(metric_name: str) -> bool:
+            return bool(getattr(ALL_METRICS[metric_name], "update_every_step", False))
+
+        flat_metric_names = list(
+            set(
+                [
+                    metric_name
+                    for group in metric_groups.values()
+                    for metric_name in group
+                    if requires_update_every_step(metric_name)
+                ]
+            )
+        )
+        metric_groups["update_every_step"] = flat_metric_names
+        return metric_groups
+
+    def _set_missing_update_keys(self) -> set[str]:
+        missing_update_keys = set()
+        required_metric_names = set(self._metric_groups["update_every_step"])
+        for group, metrics_list in self._metric_groups.items():
+            if required_metric_names.difference(set(metrics_list)):
+                missing_update_keys.add(group)
+        return missing_update_keys
 
     def _set_requirement_flag(self, attribute: str) -> dict[str, bool]:
         def requires(metrics_list: list[str]) -> bool:
