@@ -40,7 +40,7 @@ def configure_logging() -> None:
 
 
 @hydra.main(config_path=str(DEMO_DIR / "configs"), config_name="demo_config.yaml", version_base="1.2")
-@simplexity.managed_run(strict=False, verbose=True)
+@simplexity.managed_run(strict=True, verbose=True)
 def main(cfg: Config, components: simplexity.Components) -> None:
     """Test the managed run decorator."""
     assert components.loggers is not None
