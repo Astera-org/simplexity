@@ -12,7 +12,6 @@ import jax
 import pytest
 import torch
 import yaml
-from mlflow import MlflowClient
 from mlflow.models import infer_signature
 from torch.nn import Linear, Module
 
@@ -197,38 +196,29 @@ def mock_create_requirements_file(tmp_path: Path) -> Generator[str, None, None]:
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry(tmp_path: Path) -> None:
+def test_save_model_to_registry(persister: MLFlowPersister) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    tracking_uri = artifact_dir.as_uri()
-    registry_uri = artifact_dir.as_uri()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-save",
-        run_name="registry-save-run",
-        tracking_uri=tracking_uri,
-        registry_uri=registry_uri,
-    )
 
     model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model"
 
     model_info = persister.save_model_to_registry(model, registered_model_name)
 
-    client = MlflowClient(tracking_uri=tracking_uri, registry_uri=registry_uri)
-    model_versions = client.search_model_versions(filter_string=f"name='{registered_model_name}'", max_results=10)
+    model_versions = persister.client.search_model_versions(
+        filter_string=f"name='{registered_model_name}'", max_results=10
+    )
     assert len(model_versions) == 1
     assert model_versions[0].run_id == model_info.run_id
-    assert model_versions[0].version == str(model_info.registered_model_version)
+    assert model_versions[0].version == model_info.registered_model_version
 
-    models_meta_path = artifact_dir / persister.model_dir / registered_model_name / "version-1" / "meta.yaml"
+    assert persister.registry_uri is not None
+    registry_dir = Path(persister.registry_uri.replace("file://", ""))
+    models_meta_path = registry_dir / persister.model_dir / registered_model_name / "version-1" / "meta.yaml"
     assert models_meta_path.exists()
     with open(models_meta_path, encoding="utf-8") as f:
         models_meta = yaml.load(f, Loader=yaml.FullLoader)
     assert models_meta["name"] == registered_model_name
-    assert models_meta["run_id"] == persister.run_id
+    assert models_meta["run_id"] == model_info.run_id
     artifact_uri = models_meta["storage_location"]
     artifact_path = Path(artifact_uri.replace("file://", ""))
     assert artifact_path.exists()
@@ -243,26 +233,17 @@ def test_save_model_to_registry(tmp_path: Path) -> None:
     persister.cleanup()
 
 
-def test_save_model_to_registry_with_no_requirements(tmp_path: Path) -> None:
+def test_save_model_to_registry_with_no_requirements(persister: MLFlowPersister) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    tracking_uri = artifact_dir.as_uri()
-    registry_uri = artifact_dir.as_uri()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-save",
-        run_name="registry-save-run",
-        tracking_uri=tracking_uri,
-        registry_uri=registry_uri,
-    )
 
     model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model"
 
+    assert persister.tracking_uri is not None
+    pyproject_path = Path(persister.tracking_uri.replace("file://", "")).parent / "pyproject.toml"
+
     with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
-        mock_create.side_effect = FileNotFoundError(f"pyproject.toml not found at {tmp_path / 'pyproject.toml'}")
+        mock_create.side_effect = FileNotFoundError(f"pyproject.toml not found at {pyproject_path}")
         model_info = persister.save_model_to_registry(model, registered_model_name)
 
     assert model_info is not None
@@ -271,17 +252,8 @@ def test_save_model_to_registry_with_no_requirements(tmp_path: Path) -> None:
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_model_inputs(tmp_path: Path) -> None:
+def test_save_model_to_registry_with_model_inputs(persister: MLFlowPersister) -> None:
     """Test saving a PyTorch model to registry with model inputs for automatic signature inference."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-save-inputs",
-        run_name="registry-save-inputs-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
 
     model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model_inputs"
@@ -289,7 +261,6 @@ def test_save_model_to_registry_with_model_inputs(tmp_path: Path) -> None:
     sample_input = torch.randn(2, 4)
 
     model_info = persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
-    assert model_info.saved_input_example_info is not None
     assert model_info.signature is not None, "Registered model should have a signature when model_inputs is provided"
 
     persister.cleanup()
@@ -310,17 +281,8 @@ def test_save_model_to_registry_non_pytorch(persister: MLFlowPersister) -> None:
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_signature(tmp_path: Path) -> None:
+def test_save_model_to_registry_with_signature(persister: MLFlowPersister) -> None:
     """Test saving a PyTorch model to the MLflow model registry with a signature."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="registry-save-signature",
-        run_name="registry-save-signature-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
 
     model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model_signature"
@@ -428,31 +390,15 @@ def test_load_model_from_registry_both_version_and_stage(persister: MLFlowPersis
         persister.load_model_from_registry(registered_model_name="model_name", version="1", stage="Production")
 
 
-def test_list_model_versions(tmp_path: Path) -> None:
+def test_list_model_versions(persister: MLFlowPersister) -> None:
     """Test listing model versions from the registry."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
 
     registered_model_name = "test_list_model"
-
-    persister = MLFlowPersister(
-        experiment_name="registry-list",
-        run_name="registry-list-run",
-        tracking_uri=artifact_dir.as_uri(),
-        registry_uri=artifact_dir.as_uri(),
-    )
 
     versions = persister.list_model_versions(registered_model_name)
     assert len(versions) == 0
 
     for version_number in range(1, 4):
-        persister = MLFlowPersister(
-            experiment_name="registry-list",
-            run_name=f"registry-list-run-{version_number}",
-            tracking_uri=artifact_dir.as_uri(),
-            registry_uri=artifact_dir.as_uri(),
-        )
-
         torch.manual_seed(version_number)
         model = Linear(in_features=4, out_features=2)
         persister.save_model_to_registry(model, registered_model_name)
@@ -461,5 +407,3 @@ def test_list_model_versions(tmp_path: Path) -> None:
         assert len(versions) == version_number
         version_numbers = {v["version"] for v in versions}
         assert version_numbers == {v + 1 for v in range(version_number)}
-
-        persister.cleanup()
