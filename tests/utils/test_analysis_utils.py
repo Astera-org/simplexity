@@ -180,10 +180,12 @@ class TestDedupTensorFirst:
         groups = make_prefix_groups(inputs)
 
         # Create tensor with distinct values (batch, seq_len, features)
-        tensor = jnp.array([
-            [[10.0, 11.0], [12.0, 13.0]],  # sequence 0
-            [[20.0, 21.0], [22.0, 23.0]],  # sequence 1
-        ])
+        tensor = jnp.array(
+            [
+                [[10.0, 11.0], [12.0, 13.0]],  # sequence 0
+                [[20.0, 21.0], [22.0, 23.0]],  # sequence 1
+            ]
+        )
 
         dedup_values, prefixes = dedup_tensor_first(tensor, groups)
 
@@ -197,42 +199,54 @@ class TestDedupProbsSum:
     """Test dedup_probs_sum function."""
 
     def test_sums_probabilities(self):
-        """Test that probabilities are summed correctly."""
-        inputs = jnp.array([[1, 2], [1, 2], [3, 4]])
+        """Test that probabilities for duplicate prefixes are summed."""
+        inputs = jnp.array([[1, 2, 3], [1, 3, 2]])
         groups = make_prefix_groups(inputs)
 
-        probs = jnp.array([0.2, 0.3, 0.5])
-
+        probs = jnp.array(
+            [
+                [0.2, 0.6, 0.2],  # sequence 0
+                [0.2, 0.5, 0.3],  # sequence 1
+            ]
+        )
         dedup_probs, prefixes = dedup_probs_sum(probs, groups)
-
-        # Find prefix [1, 2] which appears in sequences 0 and 1
-        prefix_idx = prefixes.index((1, 2))
-        # Should sum 0.2 + 0.3 before normalization
-        # After normalization to sum to 1: (0.2 + 0.3) / 1.0 = 0.5
+        prefix_idx = prefixes.index((1,))
+        assert jnp.allclose(dedup_probs[prefix_idx], 0.2)
 
     def test_normalization(self):
         """Test that output probabilities sum to 1."""
-        inputs = jnp.array([[1, 2], [3, 4], [5, 6]])
-        groups = make_prefix_groups(inputs)
-
-        probs = jnp.array([0.2, 0.3, 0.5])
-
-        dedup_probs, _ = dedup_probs_sum(probs, groups)
-
-        # Should sum to 1 after normalization
-        assert jnp.allclose(dedup_probs.sum(), 1.0)
-
-    def test_preserves_order(self):
-        """Test that prefix order is preserved."""
         inputs = jnp.array([[1, 2], [3, 4]])
         groups = make_prefix_groups(inputs)
 
-        probs = jnp.array([0.6, 0.4])
+        probs = jnp.array(
+            [
+                [0.5, 0.5],  # sequence 0
+                [0.2, 0.8],  # sequence 1
+            ]
+        )
 
-        dedup_probs, prefixes = dedup_probs_sum(probs, groups)
+        dedup_probs, _ = dedup_probs_sum(probs, groups)
 
-        # Should have same number of unique prefixes
-        assert len(dedup_probs) == len(prefixes)
+        assert jnp.allclose(dedup_probs.sum(), 1.0)
+
+    def test_preserves_order(self):
+        """Test that the order of prefixes is preserved."""
+        inputs = jnp.array([[1, 2], [1, 3], [1, 2]])
+        groups = make_prefix_groups(inputs)
+
+        probs = jnp.array(
+            [
+                [0.2, 0.8],  # sequence 0
+                [0.5, 0.5],  # sequence 1
+                [0.3, 0.7],  # sequence 2
+            ]
+        )
+
+        _, prefixes = dedup_probs_sum(probs, groups)
+
+        # Prefixes should be in the order they first appear
+        expected_order = [(1,), (1, 2), (1, 3)]
+        assert prefixes == expected_order
 
 
 class TestDedupLastTokenTensorFirst:
