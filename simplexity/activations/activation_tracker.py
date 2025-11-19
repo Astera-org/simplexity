@@ -3,7 +3,8 @@
 from collections.abc import Mapping
 from typing import Protocol, TypedDict
 
-import jax
+from jax import Array as JaxArray
+from jax.numpy import ones as jnp_ones, concatenate as jnp_concatenate, dtype as jnp_dtype
 
 from simplexity.utils.analysis_utils import build_last_token_dataset, build_prefix_dataset
 
@@ -11,21 +12,30 @@ from simplexity.utils.analysis_utils import build_last_token_dataset, build_pref
 class PreparedActivations(TypedDict):
     """Prepared activations with belief states and sample weights."""
 
-    activations: Mapping[str, jax.Array]
-    belief_states: jax.Array | None
-    weights: jax.Array
+    activations: Mapping[str, JaxArray]
+    belief_states: JaxArray | None
+    weights: JaxArray
+
+
+def _get_uniform_weights(n_samples: int, dtype: jnp_dtype) -> JaxArray:
+    """Get uniform weights that sum to 1."""
+    weights = jnp_ones(n_samples, dtype=dtype)
+    weights = weights / weights.sum()
+    return weights
 
 
 def prepare_activations(
-    inputs: jax.Array,
-    beliefs: jax.Array,
-    probs: jax.Array,
-    activations: Mapping[str, jax.Array],
+    inputs: JaxArray,
+    beliefs: JaxArray,
+    probs: JaxArray,
+    activations: Mapping[str, JaxArray],
     token_selection: str,
     layer_selection: str,
     use_probs_as_weights: bool = True,
 ) -> PreparedActivations:
     """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
+
+    weights = None
     if token_selection == "all":
         prefix_dataset = build_prefix_dataset(inputs, beliefs, probs, dict(activations))
         belief_states = prefix_dataset.beliefs
@@ -33,11 +43,6 @@ def prepare_activations(
 
         if use_probs_as_weights:
             weights = prefix_dataset.probs
-        else:
-            import jax.numpy as jnp
-
-            weights = jnp.ones(belief_states.shape[0], dtype=beliefs.dtype)
-            weights = weights / weights.sum()
 
     elif token_selection == "last":
         last_beliefs = beliefs[:, -1, :]
@@ -50,19 +55,15 @@ def prepare_activations(
 
         if use_probs_as_weights:
             weights = last_token_dataset.probs
-        else:
-            import jax.numpy as jnp
-
-            weights = jnp.ones(belief_states.shape[0], dtype=beliefs.dtype)
-            weights = weights / weights.sum()
 
     else:
         raise ValueError(f"Invalid token_selection: {token_selection}. Must be 'all' or 'last'.")
 
-    if layer_selection == "concatenated":
-        import jax.numpy as jnp
+    if weights is None:
+        weights = _get_uniform_weights(belief_states.shape[0], dtype=beliefs.dtype)
 
-        concatenated = jnp.concatenate(list(layer_acts.values()), axis=-1)
+    if layer_selection == "concatenated":
+        concatenated = jnp_concatenate(list(layer_acts.values()), axis=-1)
         layer_acts = {"concatenated": concatenated}
     elif layer_selection != "individual":
         raise ValueError(f"Invalid layer_selection: {layer_selection}. Must be 'individual' or 'concatenated'.")
@@ -84,10 +85,10 @@ class ActivationAnalysis(Protocol):
 
     def analyze(
         self,
-        activations: Mapping[str, jax.Array],
-        weights: jax.Array,
-        belief_states: jax.Array | None = None,
-    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+        activations: Mapping[str, JaxArray],
+        weights: JaxArray,
+        belief_states: JaxArray | None = None,
+    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
         """Analyze activations and return scalar metrics and projections."""
         ...
 
@@ -101,11 +102,11 @@ class ActivationTracker:
 
     def analyze(
         self,
-        inputs: jax.Array,
-        beliefs: jax.Array,
-        probs: jax.Array,
-        activations: Mapping[str, jax.Array],
-    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+        inputs: JaxArray,
+        beliefs: JaxArray,
+        probs: JaxArray,
+        activations: Mapping[str, JaxArray],
+    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
         """Run all analyses and return namespaced results."""
         preprocessing_cache: dict[tuple[str, str, bool], PreparedActivations] = {}
 
@@ -139,7 +140,7 @@ class ActivationTracker:
             )
             prepared = preprocessing_cache[config_key]
 
-            prepared_activations: Mapping[str, jax.Array] = prepared["activations"]  # type: ignore[assignment]
+            prepared_activations: Mapping[str, JaxArray] = prepared["activations"]  # type: ignore[assignment]
             prepared_beliefs = prepared["belief_states"]
             prepared_weights = prepared["weights"]
 

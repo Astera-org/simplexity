@@ -6,13 +6,6 @@ import jax
 import numpy as np
 
 
-def _to_numpy(x: jax.Array | np.ndarray) -> np.ndarray:
-    """Convert JAX or NumPy array to NumPy."""
-    if isinstance(x, jax.Array):
-        return np.asarray(x)
-    return np.asarray(x)
-
-
 def _compute_pca(
     X: np.ndarray,
     n_components: int | None = None,
@@ -20,7 +13,7 @@ def _compute_pca(
     center: bool = True,
 ) -> dict[str, np.ndarray]:
     """Compute weighted PCA via eigendecomposition of covariance matrix."""
-    X = _to_numpy(X)
+    X = np.asarray(X)
     N, D = X.shape
 
     if n_components is None:
@@ -31,7 +24,7 @@ def _compute_pca(
         w = None
         mean = X.mean(axis=0) if center else np.zeros(D, dtype=X.dtype)
     else:
-        w = _to_numpy(weights).astype(float)
+        w = np.asarray(weights).astype(float)
         if w.ndim != 1 or w.shape[0] != N:
             raise ValueError(f"Weights must be shape (N,), got {w.shape} for N={N}")
         total = w.sum()
