@@ -6,14 +6,7 @@ import numpy as np
 
 
 def make_prefix_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[tuple[int, int]]]:
-    """Group positions by prefix of tokens.
-
-    Args:
-        inputs: (batch, seq_len) integer token ids
-
-    Returns:
-        dict: prefix_tuple -> list of (seq_idx, pos) positions
-    """
+    """Group positions by prefix of tokens."""
     batch_size, seq_len = inputs.shape
     prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]] = {}
 
@@ -32,12 +25,7 @@ def dedup_tensor_first(
     tensor: jax.Array,
     prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
 ) -> tuple[jax.Array, list[tuple[int, ...]]]:
-    """Deduplicate a (batch, seq_len, ...) tensor by prefixes, taking the first occurrence.
-
-    Returns:
-        dedup_values: (num_prefixes, ...) tensor
-        prefixes: list of prefix tuples in the same order
-    """
+    """Deduplicate a (batch, seq_len, ...) tensor by prefixes, taking the first occurrence."""
     values = []
     prefixes: list[tuple[int, ...]] = []
 
@@ -84,7 +72,7 @@ def make_sequence_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[int]]:
     Returns:
         dict: sequence_tuple -> list of seq_idx indices with that sequence
     """
-    batch_size, seq_len = inputs.shape
+    batch_size, _ = inputs.shape
     sequence_to_indices: dict[tuple[int, ...], list[int]] = {}
 
     inputs_np = np.asarray(inputs)
@@ -100,16 +88,7 @@ def dedup_last_token_tensor_first(
     tensor: jax.Array,
     sequence_to_indices: dict[tuple[int, ...], list[int]],
 ) -> tuple[jax.Array, list[tuple[int, ...]]]:
-    """Deduplicate a (batch, ...) tensor by full sequences, taking the first occurrence.
-
-    Args:
-        tensor: (batch, ...) tensor
-        sequence_to_indices: dict mapping sequence tuples to list of batch indices
-
-    Returns:
-        dedup_values: (num_sequences, ...) tensor
-        sequences: list of sequence tuples in the same order
-    """
+    """Deduplicate a (batch, ...) tensor by full sequences, taking the first occurrence."""
     values = []
     sequences: list[tuple[int, ...]] = []
 
@@ -125,16 +104,7 @@ def dedup_last_token_probs_sum(
     probs: jax.Array,
     sequence_to_indices: dict[tuple[int, ...], list[int]],
 ) -> tuple[jax.Array, list[tuple[int, ...]]]:
-    """Deduplicate (batch,) probabilities by summing over all occurrences of each sequence.
-
-    Args:
-        probs: (batch,) probabilities
-        sequence_to_indices: dict mapping sequence tuples to list of batch indices
-
-    Returns:
-        dedup_probs: (num_sequences,) normalized probabilities
-        sequences: list of sequence tuples in the same order
-    """
+    """Deduplicate (batch,) probabilities by summing over all occurrences of each sequence."""
     dedup_values = []
     sequences: list[tuple[int, ...]] = []
 
@@ -156,10 +126,7 @@ def dedup_last_token_probs_sum(
 
 @dataclass
 class PrefixDataset:
-    """A clean container for prefix-level data.
-
-    All tensors are shape (N, ...), where N = #unique prefixes.
-    """
+    """A clean container for prefix-level data."""
 
     prefixes: list[tuple[int, ...]]
     beliefs: jax.Array
@@ -169,10 +136,7 @@ class PrefixDataset:
 
 @dataclass
 class LastTokenDataset:
-    """A clean container for last-token-only data.
-
-    All tensors are shape (N, ...), where N = #unique sequences.
-    """
+    """A clean container for last-token-only data."""
 
     sequences: list[tuple[int, ...]]
     beliefs: jax.Array
@@ -186,12 +150,7 @@ def build_prefix_dataset(
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
 ) -> PrefixDataset:
-    """Deduplicate everything by prefix.
-
-    - group positions with the same prefix
-    - sum probs per prefix
-    - take first beliefs & activations per prefix
-    """
+    """Deduplicate everything by prefix."""
     prefix_to_indices = make_prefix_groups(inputs)
 
     dedup_beliefs, prefixes = dedup_tensor_first(beliefs, prefix_to_indices)
@@ -221,12 +180,7 @@ def build_last_token_dataset(
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
 ) -> LastTokenDataset:
-    """Deduplicate everything by full sequence.
-
-    - group sequences with identical token sequences
-    - sum probs per unique sequence
-    - take first beliefs & activations per unique sequence
-    """
+    """Deduplicate everything by full sequence."""
     sequence_to_indices = make_sequence_groups(inputs)
 
     # Dedup beliefs & probs
