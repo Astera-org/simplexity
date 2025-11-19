@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import itertools
-from collections.abc import Iterable, Mapping, MutableMapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import torch
 
-from simplexity.utils.pytorch_utils import named_tensor_distance, tensor_collection_l2_norm
+from simplexity.utils.pytorch_utils import named_tensor_distance, tensor_stack_l2_norm
 
 # pylint: disable=too-few-public-methods
 
@@ -38,19 +37,6 @@ class Metric(Protocol):
     def compute(self) -> Mapping[str, float]:
         """Return the latest scalar(s)."""
         ...  # pylint: disable=unnecessary-ellipsis  # Protocol methods require ellipsis body
-
-
-def _tensor_collection_l2_norms(tensors: Iterable[Iterable[torch.Tensor]]) -> list[float]:
-    """Compute an L2 norm across an iterable of iterables of tensors without stacking."""
-    return [
-        float(torch.linalg.vector_norm(torch.cat([t.detach().float().view(-1) for t in tensor]), ord=2))  # pylint: disable=not-callable
-        for tensor in tensors
-    ]
-
-
-def _named_tensor_distances(tensors: Iterable[Mapping[str, torch.Tensor]]) -> Iterable[float]:
-    """Compute an L2 distance between two named tensor collections."""
-    return itertools.starmap(named_tensor_distance, itertools.pairwise(tensors))
 
 
 class TokensMetric:
@@ -130,31 +116,22 @@ class GradientWeightedTokensMetric:
     update_every_step = True
 
     def __init__(self, **_kwargs: Any) -> None:
-        self.gradients: list[Iterable[torch.Tensor]] = []
-        self.lrs: list[float] = []
-        self.num_tokens: list[float] = []
+        self.weighted_tokens = 0.0
         self.cumulative = 0.0
 
     def update(self, context: MetricContext) -> None:
         """Update the gradient weighted tokens metric."""
         assert context.gradients is not None, "Gradients are required for this metric"
-        self.gradients.append(context.gradients.values())
-        self.lrs.append(list(context.learning_rates.values())[0])
-        self.num_tokens.append(float(context.num_tokens))
+        assert context.learning_rates is not None, "Learning rates are required for this metric"
+        lr = list(context.learning_rates.values())[0]
+        gradient_norm = tensor_stack_l2_norm(context.gradients.values())
+        self.weighted_tokens = lr * gradient_norm * float(context.num_tokens)
+        self.cumulative += self.weighted_tokens
 
     def compute(self) -> Mapping[str, float]:
         """Compute the gradient weighted tokens metric."""
-        gradient_norms = _tensor_collection_l2_norms(self.gradients)
-        weighted_tokens = sum(
-            lr * gradient_norm * num_tokens
-            for lr, gradient_norm, num_tokens in zip(self.lrs, gradient_norms, self.num_tokens, strict=True)
-        )
-        self.cumulative += weighted_tokens
-        self.gradients.clear()
-        self.lrs.clear()
-        self.num_tokens.clear()
         return {
-            "tokens/gradient_weighted": weighted_tokens,
+            "tokens/gradient_weighted": self.weighted_tokens,
             "tokens/gradient_weighted/cumulative": self.cumulative,
         }
 
@@ -206,7 +183,7 @@ class ParameterNormMetric:
 
     def compute(self) -> Mapping[str, float]:
         """Compute the parameter norm metric."""
-        norm = tensor_collection_l2_norm(self.named_parameters.values())
+        norm = tensor_stack_l2_norm(self.named_parameters.values())
         return {"params/l2_norm": norm}
 
 
@@ -226,7 +203,7 @@ class WeightNormMetric:
     def compute(self) -> Mapping[str, float]:
         """Compute the weight norm metric."""
         weight_tensors = [tensor for name, tensor in self.named_parameters.items() if name.endswith("weight")]
-        norm = tensor_collection_l2_norm(weight_tensors)
+        norm = tensor_stack_l2_norm(weight_tensors)
         return {"params/weights_l2_norm": norm}
 
 
@@ -266,21 +243,21 @@ class CumulativeParameterUpdateMetric:
     def __init__(self, **kwargs: Any) -> None:
         named_parameters = kwargs.get("named_parameters")
         assert named_parameters is not None, "Named parameters are required for this metric"
-        self.named_parameters: list[Mapping[str, torch.Tensor]] = [named_parameters]
+        self.previous_named_parameters: Mapping[str, torch.Tensor] = named_parameters
+        self.step_norm = 0.0
         self.cumulative = 0.0
 
     def update(self, context: MetricContext) -> None:
         """Update the cumulative parameter update metric."""
         assert context.named_parameters is not None, "Named parameters are required for this metric"
-        self.named_parameters.append(context.named_parameters)
+        self.step_norm = named_tensor_distance(context.named_parameters, self.previous_named_parameters)
+        self.cumulative += self.step_norm
+        self.previous_named_parameters = context.named_parameters
 
     def compute(self) -> Mapping[str, float]:
         """Compute the update norm metric."""
-        step_norm = sum(_named_tensor_distances(self.named_parameters))
-        self.cumulative += step_norm
-        self.named_parameters = self.named_parameters[-1:]
         return {
-            "params/update_l2_norm": step_norm,
+            "params/update_l2_norm": self.step_norm,
             "params/update_l2_norm/cumulative": self.cumulative,
         }
 
@@ -292,22 +269,20 @@ class FisherInformationMetric:
     update_every_step = True
 
     def __init__(self, **_kwargs: Any) -> None:
-        self.gradients: list[Iterable[torch.Tensor]] = []
+        self.fisher_information = 0.0
         self.cumulative = 0.0
 
     def update(self, context: MetricContext) -> None:
         """Update the Fisher information metric."""
         assert context.gradients is not None, "Gradients are required for this metric"
-        self.gradients.append(context.gradients.values())
+        gradient_norm = tensor_stack_l2_norm(context.gradients.values())
+        self.fisher_information = gradient_norm**2
+        self.cumulative += self.fisher_information
 
     def compute(self) -> Mapping[str, float]:
         """Compute the Fisher information metric."""
-        gradient_norms = _tensor_collection_l2_norms(self.gradients)
-        fisher_information = sum(gradient_norm**2 for gradient_norm in gradient_norms)
-        self.cumulative += fisher_information
-        self.gradients.clear()
         return {
-            "params/fisher_information": fisher_information,
+            "params/fisher_information": self.fisher_information,
             "params/fisher_information/cumulative": self.cumulative,
         }
 

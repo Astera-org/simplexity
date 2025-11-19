@@ -117,6 +117,11 @@ def tensor_collection_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
     return total**0.5
 
 
+def tensor_stack_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
+    """Compute an L2 norm across an iterables of tensors with stacking."""
+    return float(torch.linalg.vector_norm(torch.cat([t.detach().float().view(-1) for t in tensors]), ord=2))  # pylint: disable=not-callable
+
+
 def named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mapping[str, torch.Tensor]) -> float:
     """Compute an L2 distance between two named tensor collections.
 
