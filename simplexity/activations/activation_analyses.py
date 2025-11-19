@@ -280,7 +280,6 @@ class LinearRegressionSVDAnalysis(ActivationAnalysis):
             X_weighted = X_bias * sqrt_w
             Y_weighted = Y * sqrt_w
 
-            # Compute SVD once for all rcond values
             U, S, Vh = jnp.linalg.svd(X_weighted, full_matrices=False)
             max_singular_value = S[0]
 

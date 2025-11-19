@@ -5,6 +5,7 @@ from typing import TypedDict
 
 import jax.numpy as jnp
 from jax import Array as JaxArray
+from jax.typing import DTypeLike
 
 from simplexity.activations.activation_analyses import ActivationAnalysis
 from simplexity.utils.analysis_utils import build_last_token_dataset, build_prefix_dataset
@@ -18,7 +19,7 @@ class PreparedActivations(TypedDict):
     weights: JaxArray
 
 
-def _get_uniform_weights(n_samples: int, dtype: jnp.dtype) -> JaxArray:
+def _get_uniform_weights(n_samples: int, dtype: DTypeLike) -> JaxArray:
     """Get uniform weights that sum to 1."""
     weights = jnp.ones(n_samples, dtype=dtype)
     weights = weights / weights.sum()
