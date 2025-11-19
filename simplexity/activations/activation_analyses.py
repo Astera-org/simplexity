@@ -30,8 +30,6 @@ def _compute_pca(
         mean = X.mean(axis=0) if center else jnp.zeros(D, dtype=X.dtype)
     else:
         w = weights.astype(float)
-        if w.sum() <= 0:
-            raise ValueError("Sum of weights must be positive")
         if w.ndim != 1 or w.shape[0] != N:
             raise ValueError(f"Weights must be shape (N,), got {w.shape} for N={N}")
         total = w.sum()
@@ -283,7 +281,7 @@ class LinearRegressionSVDAnalysis:
         for layer_name, layer_acts in activations.items():
             X = layer_acts
             Y = belief_states
-            N, D = X.shape
+            N, _ = X.shape
 
             X_bias = jnp.concatenate([jnp.ones((N, 1)), X], axis=1)
 
@@ -301,7 +299,6 @@ class LinearRegressionSVDAnalysis:
             for rcond in self._rcond_values:
                 threshold = rcond * max_singular_value
 
-                S_pinv = jnp.zeros_like(S)
                 S_pinv = jnp.where(S > threshold, 1.0 / S, 0.0)
 
                 pinv_matrix = Vh.T @ jnp.diag(S_pinv) @ U.T
@@ -346,7 +343,7 @@ class LinearRegressionSVDAnalysis:
         return scalars, projections
 
 
-ALL_ANALYSES = {
+ALL_ANALYSES: dict[str, type[ActivationAnalysis]] = {
     "pca": PCAAnalysis,
     "linear_regression": LinearRegressionAnalysis,
     "linear_regression_svd": LinearRegressionSVDAnalysis,

@@ -89,12 +89,12 @@ class ActivationTracker:
         activations: Mapping[str, JaxArray],
     ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
         """Run all analyses and return namespaced results."""
-        preprocessing_cache: dict[tuple[str, str, bool], PreparedActivations] = {}
+        preprocessing_cache: dict[tuple[str, bool, bool], PreparedActivations] = {}
 
         for analysis in self._analyses.values():
             config_key = (
                 analysis._token_selection,
-                str(analysis._concat_layers),
+                analysis._concat_layers,
                 analysis._use_probs_as_weights,
             )
 
@@ -116,7 +116,7 @@ class ActivationTracker:
         for analysis_name, analysis in self._analyses.items():
             config_key = (
                 analysis._token_selection,
-                str(analysis._concat_layers),
+                analysis._concat_layers,
                 analysis._use_probs_as_weights,
             )
             prepared = preprocessing_cache[config_key]
@@ -127,7 +127,7 @@ class ActivationTracker:
 
             if analysis._requires_belief_states and prepared_beliefs is None:
                 raise ValueError(
-                    f"Analysis '{analysis_name}' requires belief_states but none available after preprocessing. "
+                    f"Analysis '{analysis_name}' requires belief_states but none available after preprocessing."
                 )
 
             scalars, projections = analysis.analyze(
