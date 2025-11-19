@@ -324,7 +324,7 @@ class TestBuildPrefixDataset:
         assert dataset.activations_by_layer is not None
 
         # Check probabilities sum to 1
-        assert jnp.allclose(dataset.probs.sum(), 1.0)
+        assert jnp.allclose(jnp.sum(dataset.probs), 1.0)
 
         # Check shapes are consistent
         n_prefixes = dataset.beliefs.shape[0]
@@ -368,7 +368,7 @@ class TestBuildLastTokenDataset:
         assert dataset.activations_by_layer is not None
 
         # Check probabilities sum to 1
-        assert jnp.allclose(dataset.probs.sum(), 1.0)
+        assert jnp.allclose(jnp.sum(dataset.probs), 1.0)
 
     def test_deduplication(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
         """Test that duplicate sequences are properly deduplicated."""
