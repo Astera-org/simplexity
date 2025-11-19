@@ -30,6 +30,8 @@ def _compute_pca(
         mean = X.mean(axis=0) if center else jnp.zeros(D, dtype=X.dtype)
     else:
         w = weights.astype(float)
+        if w.sum() <= 0:
+            raise ValueError("Sum of weights must be positive")
         if w.ndim != 1 or w.shape[0] != N:
             raise ValueError(f"Weights must be shape (N,), got {w.shape} for N={N}")
         total = w.sum()
@@ -300,8 +302,7 @@ class LinearRegressionSVDAnalysis:
                 threshold = rcond * max_singular_value
 
                 S_pinv = jnp.zeros_like(S)
-                above_threshold = threshold < S
-                S_pinv = S_pinv.at[above_threshold].set(1.0 / S[above_threshold])
+                S_pinv = jnp.where(S > threshold, 1.0 / S, 0.0)
 
                 pinv_matrix = Vh.T @ jnp.diag(S_pinv) @ U.T
                 beta = pinv_matrix @ Y_weighted
