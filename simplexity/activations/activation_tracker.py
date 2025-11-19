@@ -4,9 +4,7 @@ from collections.abc import Mapping
 from typing import Protocol, TypedDict
 
 from jax import Array as JaxArray
-from jax.numpy import concatenate as jnp_concatenate
-from jax.numpy import dtype as jnp_dtype
-from jax.numpy import ones as jnp_ones
+import jax.numpy as jnp
 
 from simplexity.utils.analysis_utils import build_last_token_dataset, build_prefix_dataset
 
@@ -19,9 +17,9 @@ class PreparedActivations(TypedDict):
     weights: JaxArray
 
 
-def _get_uniform_weights(n_samples: int, dtype: jnp_dtype) -> JaxArray:
+def _get_uniform_weights(n_samples: int, dtype: jnp.dtype) -> JaxArray:
     """Get uniform weights that sum to 1."""
-    weights = jnp_ones(n_samples, dtype=dtype)
+    weights = jnp.ones(n_samples, dtype=dtype)
     weights = weights / weights.sum()
     return weights
 
@@ -64,7 +62,7 @@ def prepare_activations(
         weights = _get_uniform_weights(belief_states.shape[0], dtype=beliefs.dtype)
 
     if layer_selection == "concatenated":
-        concatenated = jnp_concatenate(list(layer_acts.values()), axis=-1)
+        concatenated = jnp.concatenate(list(layer_acts.values()), axis=-1)
         layer_acts = {"concatenated": concatenated}
     elif layer_selection != "individual":
         raise ValueError(f"Invalid layer_selection: {layer_selection}. Must be 'individual' or 'concatenated'.")
