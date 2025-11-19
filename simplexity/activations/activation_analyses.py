@@ -6,7 +6,6 @@ from typing import Protocol
 import jax.numpy as jnp
 import numpy as np
 from jax import Array as JaxArray
-from jax.numpy import asarray
 from sklearn.linear_model import LinearRegression
 
 
@@ -234,7 +233,7 @@ class LinearRegressionAnalysis(ActivationAnalysis):
             scalars[f"{layer_name}_mae"] = float(mae.mean())
             scalars[f"{layer_name}_dist"] = dist
 
-            projections[f"{layer_name}_projected"] = asarray(Y_pred)
+            projections[f"{layer_name}_projected"] = jnp.asarray(Y_pred)
 
         return scalars, projections
 
@@ -267,20 +266,17 @@ class LinearRegressionSVDAnalysis(ActivationAnalysis):
         if belief_states is None:
             raise ValueError("LinearRegressionSVDAnalysis requires belief_states")
 
-        belief_states_np = np.asarray(belief_states)
-        weights_np = np.asarray(weights)
-
         scalars = {}
         projections = {}
 
         for layer_name, layer_acts in activations.items():
-            X = np.asarray(layer_acts)
-            Y = belief_states_np
+            X = layer_acts
+            Y = belief_states
             N, D = X.shape
 
-            X_bias = np.concatenate([np.ones((N, 1)), X], axis=1)
+            X_bias = jnp.concatenate([jnp.ones((N, 1)), X], axis=1)
 
-            sqrt_w = np.sqrt(weights_np).reshape(-1, 1)
+            sqrt_w = jnp.sqrt(weights).reshape(-1, 1)
             X_weighted = X_bias * sqrt_w
             Y_weighted = Y * sqrt_w
 
@@ -295,17 +291,17 @@ class LinearRegressionSVDAnalysis(ActivationAnalysis):
             for rcond in self._rcond_values:
                 threshold = rcond * max_singular_value
 
-                S_pinv = np.zeros_like(S)
+                S_pinv = jnp.zeros_like(S)
                 above_threshold = threshold < S
-                S_pinv[above_threshold] = 1.0 / S[above_threshold]
+                S_pinv = S_pinv.at[above_threshold].set(1.0 / S[above_threshold])
 
-                pinv_matrix = Vh.T @ np.diag(S_pinv) @ U.T
+                pinv_matrix = Vh.T @ jnp.diag(S_pinv) @ U.T
                 beta = pinv_matrix @ Y_weighted
 
                 Y_pred = X_bias @ beta
                 residuals = Y_pred - Y
-                dists = np.sqrt(np.sum(residuals**2, axis=1))
-                error = (dists * weights_np).sum()
+                dists = jnp.sqrt(jnp.sum(residuals**2, axis=1))
+                error = (dists * weights).sum()
 
                 if error < best_error:
                     best_error = error
@@ -317,18 +313,18 @@ class LinearRegressionSVDAnalysis(ActivationAnalysis):
             Y_pred = X_bias @ best_beta
             residuals = Y_pred - Y
 
-            weighted_sq_residuals = (residuals**2) * weights_np[:, np.newaxis]
+            weighted_sq_residuals = (residuals**2) * weights[:, jnp.newaxis]
             mse = weighted_sq_residuals.mean(axis=0)
-            mae = (np.abs(residuals) * weights_np[:, np.newaxis]).mean(axis=0)
-            rmse = np.sqrt(mse)
+            mae = (jnp.abs(residuals) * weights[:, jnp.newaxis]).mean(axis=0)
+            rmse = jnp.sqrt(mse)
 
             weighted_ss_res = weighted_sq_residuals.sum()
-            y_mean = np.average(Y, axis=0, weights=weights_np)
-            weighted_ss_tot = ((Y - y_mean) ** 2 * weights_np[:, np.newaxis]).sum()
+            y_mean = jnp.average(Y, axis=0, weights=weights)
+            weighted_ss_tot = ((Y - y_mean) ** 2 * weights[:, jnp.newaxis]).sum()
             r2 = 1 - (weighted_ss_res / weighted_ss_tot) if weighted_ss_tot > 0 else 0.0
 
-            dists = np.sqrt(np.sum(residuals**2, axis=1))
-            dist = float((dists * weights_np).sum())
+            dists = jnp.sqrt(jnp.sum(residuals**2, axis=1))
+            dist = float((dists * weights).sum())
 
             scalars[f"{layer_name}_r2"] = float(r2)
             scalars[f"{layer_name}_rmse"] = float(rmse.mean())
@@ -336,7 +332,7 @@ class LinearRegressionSVDAnalysis(ActivationAnalysis):
             scalars[f"{layer_name}_dist"] = dist
             scalars[f"{layer_name}_best_rcond"] = float(best_rcond)
 
-            projections[f"{layer_name}_projected"] = asarray(Y_pred)
+            projections[f"{layer_name}_projected"] = Y_pred
 
         return scalars, projections
 
