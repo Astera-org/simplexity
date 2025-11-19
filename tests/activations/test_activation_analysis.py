@@ -311,7 +311,7 @@ class TestPCAAnalysis:
             layer_selection="individual",
         )
 
-        scalars, projections = analysis.analyze(**prepared)
+        _, projections = analysis.analyze(**prepared)
 
         batch_size = prepared["activations"]["layer_0"].shape[0]
         d_layer0 = synthetic_data["d_layer0"]
@@ -387,7 +387,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, projections = tracker.analyze(
+        scalars, _ = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -438,7 +438,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, projections = tracker.analyze(
+        scalars, _ = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
