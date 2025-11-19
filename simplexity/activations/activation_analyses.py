@@ -115,7 +115,7 @@ class ActivationAnalysis(Protocol):
         ...
 
 
-class PCAAnalysis(ActivationAnalysis):
+class PCAAnalysis:
     """Weighted principal component analysis of layer activations."""
 
     _requires_belief_states = False
@@ -173,7 +173,7 @@ class PCAAnalysis(ActivationAnalysis):
         return scalars, projections
 
 
-class LinearRegressionAnalysis(ActivationAnalysis):
+class LinearRegressionAnalysis:
     """Weighted linear regression from activations to belief states using sklearn."""
 
     _requires_belief_states = True
@@ -238,7 +238,7 @@ class LinearRegressionAnalysis(ActivationAnalysis):
         return scalars, projections
 
 
-class LinearRegressionSVDAnalysis(ActivationAnalysis):
+class LinearRegressionSVDAnalysis:
     """Weighted linear regression from activations to belief states with SVD and rcond tuning."""
 
     _requires_belief_states = True
