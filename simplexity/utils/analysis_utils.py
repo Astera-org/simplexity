@@ -1,0 +1,252 @@
+from dataclasses import dataclass
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+
+
+def make_prefix_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[tuple[int, int]]]:
+    """Group positions by prefix of tokens.
+
+    Args:
+        inputs: (batch, seq_len) integer token ids
+
+    Returns:
+        dict: prefix_tuple -> list of (seq_idx, pos) positions
+    """
+    batch_size, seq_len = inputs.shape
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]] = {}
+
+    inputs_np = np.asarray(inputs)
+
+    for seq_idx in range(batch_size):
+        seq = inputs_np[seq_idx]
+        for pos in range(seq_len):
+            prefix = tuple(seq[: pos + 1])
+            prefix_to_indices.setdefault(prefix, []).append((seq_idx, pos))
+
+    return prefix_to_indices
+
+
+def dedup_tensor_first(
+    tensor: jax.Array,
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
+) -> tuple[jax.Array, list[tuple[int, ...]]]:
+    """Deduplicate a (batch, seq_len, ...) tensor by prefixes, taking the first occurrence.
+
+    Returns:
+        dedup_values: (num_prefixes, ...) tensor
+        prefixes: list of prefix tuples in the same order
+    """
+    values = []
+    prefixes: list[tuple[int, ...]] = []
+
+    for prefix, idxs in prefix_to_indices.items():
+        seq_idx, pos = idxs[0]
+        values.append(tensor[seq_idx, pos])
+        prefixes.append(prefix)
+
+    return jnp.stack(values, axis=0), prefixes
+
+
+def dedup_probs_sum(
+    probs: jax.Array,
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
+) -> tuple[jax.Array, list[tuple[int, ...]]]:
+    """Deduplicate (batch, seq_len) probabilities by summing over all occurrences of each prefix."""
+    dedup_values = []
+    prefixes: list[tuple[int, ...]] = []
+
+    probs_np = np.asarray(probs)
+
+    for prefix, idxs in prefix_to_indices.items():
+        total = 0.0
+        for seq_idx, pos in idxs:
+            total += float(probs_np[seq_idx, pos])
+        dedup_values.append(total)
+        prefixes.append(prefix)
+
+    dedup_probs = jnp.array(dedup_values, dtype=probs.dtype)
+    # normalize to sum to 1
+    total_mass = dedup_probs.sum()
+    if total_mass > 0:
+        dedup_probs = dedup_probs / total_mass
+
+    return dedup_probs, prefixes
+
+
+def make_sequence_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[int]]:
+    """Group sequences by full sequence.
+
+    Args:
+        inputs: (batch, seq_len) integer token ids
+
+    Returns:
+        dict: sequence_tuple -> list of seq_idx indices with that sequence
+    """
+    batch_size, seq_len = inputs.shape
+    sequence_to_indices: dict[tuple[int, ...], list[int]] = {}
+
+    inputs_np = np.asarray(inputs)
+
+    for seq_idx in range(batch_size):
+        seq = tuple(inputs_np[seq_idx])
+        sequence_to_indices.setdefault(seq, []).append(seq_idx)
+
+    return sequence_to_indices
+
+
+def dedup_last_token_tensor_first(
+    tensor: jax.Array,
+    sequence_to_indices: dict[tuple[int, ...], list[int]],
+) -> tuple[jax.Array, list[tuple[int, ...]]]:
+    """Deduplicate a (batch, ...) tensor by full sequences, taking the first occurrence.
+
+    Args:
+        tensor: (batch, ...) tensor
+        sequence_to_indices: dict mapping sequence tuples to list of batch indices
+
+    Returns:
+        dedup_values: (num_sequences, ...) tensor
+        sequences: list of sequence tuples in the same order
+    """
+    values = []
+    sequences: list[tuple[int, ...]] = []
+
+    for seq, idxs in sequence_to_indices.items():
+        seq_idx = idxs[0]
+        values.append(tensor[seq_idx])
+        sequences.append(seq)
+
+    return jnp.stack(values, axis=0), sequences
+
+
+def dedup_last_token_probs_sum(
+    probs: jax.Array,
+    sequence_to_indices: dict[tuple[int, ...], list[int]],
+) -> tuple[jax.Array, list[tuple[int, ...]]]:
+    """Deduplicate (batch,) probabilities by summing over all occurrences of each sequence.
+
+    Args:
+        probs: (batch,) probabilities
+        sequence_to_indices: dict mapping sequence tuples to list of batch indices
+
+    Returns:
+        dedup_probs: (num_sequences,) normalized probabilities
+        sequences: list of sequence tuples in the same order
+    """
+    dedup_values = []
+    sequences: list[tuple[int, ...]] = []
+
+    probs_np = np.asarray(probs)
+
+    for seq, idxs in sequence_to_indices.items():
+        total = sum(float(probs_np[idx]) for idx in idxs)
+        dedup_values.append(total)
+        sequences.append(seq)
+
+    dedup_probs = jnp.array(dedup_values, dtype=probs.dtype)
+    # normalize to sum to 1
+    total_mass = dedup_probs.sum()
+    if total_mass > 0:
+        dedup_probs = dedup_probs / total_mass
+
+    return dedup_probs, sequences
+
+
+@dataclass
+class PrefixDataset:
+    """A clean container for prefix-level data.
+
+    All tensors are shape (N, ...), where N = #unique prefixes.
+    """
+
+    prefixes: list[tuple[int, ...]]
+    beliefs: jax.Array
+    probs: jax.Array
+    activations_by_layer: dict[str, jax.Array]
+
+
+@dataclass
+class LastTokenDataset:
+    """A clean container for last-token-only data.
+
+    All tensors are shape (N, ...), where N = #unique sequences.
+    """
+
+    sequences: list[tuple[int, ...]]
+    beliefs: jax.Array
+    probs: jax.Array
+    activations_by_layer: dict[str, jax.Array]
+
+
+def build_prefix_dataset(
+    inputs: jax.Array,
+    beliefs: jax.Array,
+    probs: jax.Array,
+    activations_by_layer: dict[str, jax.Array],
+) -> PrefixDataset:
+    """Deduplicate everything by prefix.
+
+    - group positions with the same prefix
+    - sum probs per prefix
+    - take first beliefs & activations per prefix
+    """
+    prefix_to_indices = make_prefix_groups(inputs)
+
+    # Dedup beliefs & probs
+    dedup_beliefs, prefixes = dedup_tensor_first(beliefs, prefix_to_indices)
+    dedup_probs, prefixes2 = dedup_probs_sum(probs, prefix_to_indices)
+
+    # Sanity check: order should match
+    assert prefixes == prefixes2, "Internal prefix ordering mismatch"
+
+    # Dedup activations per layer
+    dedup_acts_by_layer = {}
+    for name, acts in activations_by_layer.items():
+        dedup_acts, prefixes3 = dedup_tensor_first(acts, prefix_to_indices)
+        assert prefixes3 == prefixes, f"Prefix mismatch for layer {name}"
+        dedup_acts_by_layer[name] = dedup_acts
+
+    return PrefixDataset(
+        prefixes=prefixes,
+        beliefs=dedup_beliefs,
+        probs=dedup_probs,
+        activations_by_layer=dedup_acts_by_layer,
+    )
+
+
+def build_last_token_dataset(
+    inputs: jax.Array,
+    beliefs: jax.Array,
+    probs: jax.Array,
+    activations_by_layer: dict[str, jax.Array],
+) -> LastTokenDataset:
+    """Deduplicate everything by full sequence.
+
+    - group sequences with identical token sequences
+    - sum probs per unique sequence
+    - take first beliefs & activations per unique sequence
+    """
+    sequence_to_indices = make_sequence_groups(inputs)
+
+    # Dedup beliefs & probs
+    dedup_beliefs, sequences = dedup_last_token_tensor_first(beliefs, sequence_to_indices)
+    dedup_probs, sequences2 = dedup_last_token_probs_sum(probs, sequence_to_indices)
+
+    # Sanity check: order should match
+    assert sequences == sequences2, "Internal sequence ordering mismatch"
+
+    # Dedup activations per layer
+    dedup_acts_by_layer = {}
+    for name, acts in activations_by_layer.items():
+        dedup_acts, sequences3 = dedup_last_token_tensor_first(acts, sequence_to_indices)
+        assert sequences3 == sequences, f"Sequence mismatch for layer {name}"
+        dedup_acts_by_layer[name] = dedup_acts
+
+    return LastTokenDataset(
+        sequences=sequences,
+        beliefs=dedup_beliefs,
+        probs=dedup_probs,
+        activations_by_layer=dedup_acts_by_layer,
+    )
