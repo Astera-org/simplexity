@@ -3,8 +3,8 @@
 from collections.abc import Mapping
 from typing import Protocol, TypedDict
 
-from jax import Array as JaxArray
 import jax.numpy as jnp
+from jax import Array as JaxArray
 
 from simplexity.utils.analysis_utils import build_last_token_dataset, build_prefix_dataset
 
@@ -139,7 +139,7 @@ class ActivationTracker:
             )
             prepared = preprocessing_cache[config_key]
 
-            prepared_activations: Mapping[str, JaxArray] = prepared["activations"]  # type: ignore[assignment]
+            prepared_activations: Mapping[str, JaxArray] = prepared["activations"]
             prepared_beliefs = prepared["belief_states"]
             prepared_weights = prepared["weights"]
 
@@ -151,7 +151,7 @@ class ActivationTracker:
 
             scalars, projections = analysis.analyze(
                 activations=prepared_activations,
-                weights=prepared_weights,  # type: ignore[arg-type]
+                weights=prepared_weights,
                 belief_states=prepared_beliefs,
             )
 
