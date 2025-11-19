@@ -66,7 +66,7 @@ def prepare_activations(
     if concat_layers:
         concatenated = jnp.concatenate(list(layer_acts.values()), axis=-1)
         layer_acts = {"concatenated": concatenated}
-    
+
     return {
         "activations": layer_acts,
         "belief_states": belief_states,

@@ -61,7 +61,7 @@ class TestPrepareActivations:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="all",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         assert "activations" in result
@@ -86,7 +86,7 @@ class TestPrepareActivations:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="all",
-            layer_selection="concatenated",
+            concat_layers=True,
         )
 
         assert "concatenated" in result["activations"]
@@ -106,7 +106,7 @@ class TestPrepareActivations:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         assert "layer_0" in result["activations"]
@@ -127,7 +127,7 @@ class TestPrepareActivations:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="concatenated",
+            concat_layers=True,
         )
 
         assert "concatenated" in result["activations"]
@@ -144,7 +144,7 @@ class TestPrepareActivations:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
             use_probs_as_weights=False,
         )
 
@@ -162,19 +162,7 @@ class TestPrepareActivations:
                 synthetic_data["probs"],
                 synthetic_data["activations"],
                 token_selection="invalid",  # type: ignore[arg-type]
-                layer_selection="individual",
-            )
-
-    def test_invalid_layer_selection(self, synthetic_data):
-        """Test invalid layer_selection raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid layer_selection"):
-            prepare_activations(
-                synthetic_data["inputs"],
-                synthetic_data["beliefs"],
-                synthetic_data["probs"],
-                synthetic_data["activations"],
-                token_selection="last",
-                layer_selection="invalid",  # type: ignore[arg-type]
+                concat_layers=False,
             )
 
 
@@ -191,7 +179,7 @@ class TestLinearRegressionAnalysis:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         scalars, projections = analysis.analyze(**prepared)
@@ -219,7 +207,7 @@ class TestLinearRegressionAnalysis:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         prepared["belief_states"] = None
@@ -237,7 +225,7 @@ class TestLinearRegressionAnalysis:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
             use_probs_as_weights=False,
         )
 
@@ -260,7 +248,7 @@ class TestLinearRegressionSVDAnalysis:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         scalars, projections = analysis.analyze(**prepared)
@@ -293,7 +281,7 @@ class TestLinearRegressionSVDAnalysis:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         prepared["belief_states"] = None
@@ -315,7 +303,7 @@ class TestPCAAnalysis:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         scalars, projections = analysis.analyze(**prepared)
@@ -346,7 +334,7 @@ class TestPCAAnalysis:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         prepared["belief_states"] = None
@@ -367,7 +355,7 @@ class TestPCAAnalysis:
             synthetic_data["probs"],
             synthetic_data["activations"],
             token_selection="last",
-            layer_selection="individual",
+            concat_layers=False,
         )
 
         _, projections = analysis.analyze(**prepared)
@@ -386,12 +374,12 @@ class TestActivationTracker:
             {
                 "regression": LinearRegressionAnalysis(
                     token_selection="last",
-                    layer_selection="individual",
+                    concat_layers=False,
                 ),
                 "pca": PCAAnalysis(
                     n_components=2,
                     token_selection="last",
-                    layer_selection="individual",
+                    concat_layers=False,
                 ),
             }
         )
@@ -415,7 +403,7 @@ class TestActivationTracker:
             {
                 "regression": LinearRegressionAnalysis(
                     token_selection="all",
-                    layer_selection="individual",
+                    concat_layers=False,
                 ),
             }
         )
@@ -436,12 +424,12 @@ class TestActivationTracker:
             {
                 "regression": LinearRegressionAnalysis(
                     token_selection="last",
-                    layer_selection="individual",
+                    concat_layers=False,
                 ),
                 "pca": PCAAnalysis(
                     n_components=2,
                     token_selection="last",
-                    layer_selection="individual",
+                    concat_layers=False,
                 ),
             }
         )
@@ -462,12 +450,12 @@ class TestActivationTracker:
             {
                 "regression": LinearRegressionAnalysis(
                     token_selection="last",
-                    layer_selection="concatenated",
+                    concat_layers=True,
                 ),
                 "pca": PCAAnalysis(
                     n_components=2,
                     token_selection="last",
-                    layer_selection="concatenated",
+                    concat_layers=True,
                 ),
             }
         )
@@ -491,7 +479,7 @@ class TestActivationTracker:
             {
                 "regression": LinearRegressionAnalysis(
                     token_selection="last",
-                    layer_selection="individual",
+                    concat_layers=False,
                     use_probs_as_weights=False,
                 ),
             }
@@ -513,16 +501,16 @@ class TestActivationTracker:
                 "pca_all_tokens": PCAAnalysis(
                     n_components=2,
                     token_selection="all",
-                    layer_selection="individual",
+                    concat_layers=False,
                 ),
                 "pca_last_token": PCAAnalysis(
                     n_components=3,
                     token_selection="last",
-                    layer_selection="individual",
+                    concat_layers=False,
                 ),
                 "regression_concat": LinearRegressionAnalysis(
                     token_selection="all",
-                    layer_selection="concatenated",
+                    concat_layers=True,
                 ),
             }
         )
