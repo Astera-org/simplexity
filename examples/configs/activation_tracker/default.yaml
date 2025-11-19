@@ -1,0 +1,18 @@
+name: default_tracker
+instance:
+  _target_: simplexity.activations.activation_tracker.ActivationTracker
+  analyses:
+    pca_all_tokens:
+      _target_: simplexity.activations.activation_analyses.PCAAnalysis
+      n_components: 20
+      token_selection: all
+      layer_selection: individual
+      use_probs_as_weights: true
+      variance_thresholds: [0.80, 0.90, 0.95, 0.99]
+
+    regression:
+      _target_: simplexity.activations.activation_analyses.LinearRegressionSVDAnalysis
+      token_selection: all
+      layer_selection: concatenated
+      use_probs_as_weights: true
+      rcond_values: [1e-15, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]
