@@ -4,7 +4,9 @@ from collections.abc import Mapping
 from typing import Protocol, TypedDict
 
 from jax import Array as JaxArray
-from jax.numpy import ones as jnp_ones, concatenate as jnp_concatenate, dtype as jnp_dtype
+from jax.numpy import concatenate as jnp_concatenate
+from jax.numpy import dtype as jnp_dtype
+from jax.numpy import ones as jnp_ones
 
 from simplexity.utils.analysis_utils import build_last_token_dataset, build_prefix_dataset
 
@@ -34,7 +36,6 @@ def prepare_activations(
     use_probs_as_weights: bool = True,
 ) -> PreparedActivations:
     """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
-
     weights = None
     if token_selection == "all":
         prefix_dataset = build_prefix_dataset(inputs, beliefs, probs, dict(activations))

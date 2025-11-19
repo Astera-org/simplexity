@@ -3,7 +3,11 @@
 import jax.numpy as jnp
 import pytest
 
-from simplexity.activations.activation_analyses import LinearRegressionAnalysis, PCAAnalysis
+from simplexity.activations.activation_analyses import (
+    LinearRegressionAnalysis,
+    LinearRegressionSVDAnalysis,
+    PCAAnalysis,
+)
 from simplexity.activations.activation_tracker import ActivationTracker, prepare_activations
 
 
@@ -241,6 +245,61 @@ class TestLinearRegressionAnalysis:
 
         assert "layer_0_r2" in scalars
         assert "layer_0_projected" in projections
+
+
+class TestLinearRegressionSVDAnalysis:
+    """Test LinearRegressionSVDAnalysis."""
+
+    def test_basic_regression_svd(self, synthetic_data):
+        """Test SVD regression analysis with rcond tuning."""
+        analysis = LinearRegressionSVDAnalysis(rcond_values=[1e-15, 1e-10, 1e-8])
+
+        prepared = prepare_activations(
+            synthetic_data["inputs"],
+            synthetic_data["beliefs"],
+            synthetic_data["probs"],
+            synthetic_data["activations"],
+            token_selection="last",
+            layer_selection="individual",
+        )
+
+        scalars, projections = analysis.analyze(**prepared)
+
+        assert "layer_0_r2" in scalars
+        assert "layer_0_rmse" in scalars
+        assert "layer_0_mae" in scalars
+        assert "layer_0_dist" in scalars
+        assert "layer_0_best_rcond" in scalars
+        assert "layer_1_r2" in scalars
+        assert "layer_1_best_rcond" in scalars
+
+        assert "layer_0_projected" in projections
+        assert "layer_1_projected" in projections
+
+        assert prepared["belief_states"] is not None
+        assert projections["layer_0_projected"].shape == prepared["belief_states"].shape
+        assert projections["layer_1_projected"].shape == prepared["belief_states"].shape
+
+        # Check that best_rcond is one of the provided values
+        assert scalars["layer_0_best_rcond"] in [1e-15, 1e-10, 1e-8]
+
+    def test_requires_belief_states(self, synthetic_data):
+        """Test that SVD analysis raises error without belief_states."""
+        analysis = LinearRegressionSVDAnalysis()
+
+        prepared = prepare_activations(
+            synthetic_data["inputs"],
+            synthetic_data["beliefs"],
+            synthetic_data["probs"],
+            synthetic_data["activations"],
+            token_selection="last",
+            layer_selection="individual",
+        )
+
+        prepared["belief_states"] = None
+
+        with pytest.raises(ValueError, match="requires belief_states"):
+            analysis.analyze(**prepared)
 
 
 class TestPCAAnalysis:

@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 
 import jax
 import numpy as np
+from sklearn.linear_model import LinearRegression
 
 
 def _compute_pca(
@@ -15,6 +16,9 @@ def _compute_pca(
     """Compute weighted PCA via eigendecomposition of covariance matrix."""
     X = np.asarray(X)
     N, D = X.shape
+
+    if N == 0 or D == 0:
+        raise ValueError("Cannot compute PCA on empty data")
 
     if n_components is None:
         n_components = min(N, D)
@@ -155,7 +159,72 @@ class PCAAnalysis:
 
 
 class LinearRegressionAnalysis:
-    """Weighted linear regression from activations to belief states with rcond tuning."""
+    """Weighted linear regression from activations to belief states using sklearn."""
+
+    _requires_belief_states = True
+
+    def __init__(
+        self,
+        token_selection: str = "all",
+        layer_selection: str = "individual",
+        use_probs_as_weights: bool = True,
+    ):
+        """Initialize linear regression analysis."""
+        self._token_selection = token_selection
+        self._layer_selection = layer_selection
+        self._use_probs_as_weights = use_probs_as_weights
+
+    def analyze(
+        self,
+        activations: Mapping[str, jax.Array],
+        weights: jax.Array,
+        belief_states: jax.Array | None = None,
+    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+        """Fit weighted linear regression and return metrics."""
+        if belief_states is None:
+            raise ValueError("LinearRegressionAnalysis requires belief_states")
+
+        belief_states_np = np.asarray(belief_states)
+        weights_np = np.asarray(weights)
+
+        scalars = {}
+        projections = {}
+
+        for layer_name, layer_acts in activations.items():
+            X = np.asarray(layer_acts)
+            Y = belief_states_np
+
+            model = LinearRegression()
+            model.fit(X, Y, sample_weight=weights_np)
+
+            Y_pred = model.predict(X)
+            residuals = Y_pred - Y
+
+            weighted_sq_residuals = (residuals**2) * weights_np[:, np.newaxis]
+            mse = weighted_sq_residuals.mean(axis=0)
+            mae = (np.abs(residuals) * weights_np[:, np.newaxis]).mean(axis=0)
+            rmse = np.sqrt(mse)
+
+            weighted_ss_res = weighted_sq_residuals.sum()
+            y_mean = np.average(Y, axis=0, weights=weights_np)
+            weighted_ss_tot = ((Y - y_mean) ** 2 * weights_np[:, np.newaxis]).sum()
+            r2 = 1 - (weighted_ss_res / weighted_ss_tot) if weighted_ss_tot > 0 else 0.0
+
+            dists = np.sqrt(np.sum(residuals**2, axis=1))
+            dist = float((dists * weights_np).sum())
+
+            scalars[f"{layer_name}_r2"] = float(r2)
+            scalars[f"{layer_name}_rmse"] = float(rmse.mean())
+            scalars[f"{layer_name}_mae"] = float(mae.mean())
+            scalars[f"{layer_name}_dist"] = dist
+
+            projections[f"{layer_name}_projected"] = jax.numpy.asarray(Y_pred)
+
+        return scalars, projections
+
+
+class LinearRegressionSVDAnalysis:
+    """Weighted linear regression from activations to belief states with SVD and rcond tuning."""
 
     _requires_belief_states = True
 
@@ -166,11 +235,11 @@ class LinearRegressionAnalysis:
         use_probs_as_weights: bool = True,
         rcond_values: Sequence[float] | None = None,
     ):
-        """Initialize linear regression analysis."""
+        """Initialize SVD linear regression analysis."""
         self._token_selection = token_selection
         self._layer_selection = layer_selection
         self._use_probs_as_weights = use_probs_as_weights
-        self._rcond_values = rcond_values if rcond_values is not None else [1e-15]
+        self._rcond_values = rcond_values if rcond_values else [1e-15]
 
     def analyze(
         self,
@@ -180,7 +249,7 @@ class LinearRegressionAnalysis:
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Fit weighted linear regression with SVD-based rcond tuning."""
         if belief_states is None:
-            raise ValueError("LinearRegressionAnalysis requires belief_states")
+            raise ValueError("LinearRegressionSVDAnalysis requires belief_states")
 
         belief_states_np = np.asarray(belief_states)
         weights_np = np.asarray(weights)
@@ -273,4 +342,5 @@ class LinearRegressionAnalysis:
 ALL_ANALYSES = {
     "pca": PCAAnalysis,
     "linear_regression": LinearRegressionAnalysis,
+    "linear_regression_svd": LinearRegressionSVDAnalysis,
 }
