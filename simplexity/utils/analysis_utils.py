@@ -194,18 +194,17 @@ def build_prefix_dataset(
     """
     prefix_to_indices = make_prefix_groups(inputs)
 
-    # Dedup beliefs & probs
     dedup_beliefs, prefixes = dedup_tensor_first(beliefs, prefix_to_indices)
     dedup_probs, prefixes2 = dedup_probs_sum(probs, prefix_to_indices)
 
-    # Sanity check: order should match
-    assert prefixes == prefixes2, "Internal prefix ordering mismatch"
+    if prefixes != prefixes2:
+        raise ValueError("Internal prefix ordering mismatch")
 
-    # Dedup activations per layer
     dedup_acts_by_layer = {}
     for name, acts in activations_by_layer.items():
         dedup_acts, prefixes3 = dedup_tensor_first(acts, prefix_to_indices)
-        assert prefixes3 == prefixes, f"Prefix mismatch for layer {name}"
+        if prefixes3 != prefixes:
+            raise ValueError(f"Prefix mismatch for layer {name}")
         dedup_acts_by_layer[name] = dedup_acts
 
     return PrefixDataset(
@@ -234,14 +233,15 @@ def build_last_token_dataset(
     dedup_beliefs, sequences = dedup_last_token_tensor_first(beliefs, sequence_to_indices)
     dedup_probs, sequences2 = dedup_last_token_probs_sum(probs, sequence_to_indices)
 
-    # Sanity check: order should match
-    assert sequences == sequences2, "Internal sequence ordering mismatch"
+    if sequences != sequences2:
+        raise ValueError("Internal sequence ordering mismatch")
 
     # Dedup activations per layer
     dedup_acts_by_layer = {}
     for name, acts in activations_by_layer.items():
         dedup_acts, sequences3 = dedup_last_token_tensor_first(acts, sequence_to_indices)
-        assert sequences3 == sequences, f"Sequence mismatch for layer {name}"
+        if sequences3 != sequences:
+            raise ValueError(f"Sequence mismatch for layer {name}")
         dedup_acts_by_layer[name] = dedup_acts
 
     return LastTokenDataset(

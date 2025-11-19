@@ -128,7 +128,6 @@ class ActivationTracker:
             if analysis._requires_belief_states and prepared_beliefs is None:
                 raise ValueError(
                     f"Analysis '{analysis_name}' requires belief_states but none available after preprocessing. "
-                    f"This should not happen - please report this as a bug."
                 )
 
             scalars, projections = analysis.analyze(
