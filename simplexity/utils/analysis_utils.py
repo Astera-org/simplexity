@@ -162,9 +162,9 @@ class PrefixDataset:
     """
 
     prefixes: list[tuple[int, ...]]
-    beliefs: jax.Array  # (N, B)
-    probs: jax.Array  # (N,)
-    activations_by_layer: dict[str, jax.Array]  # layer_name -> (N, d)
+    beliefs: jax.Array
+    probs: jax.Array
+    activations_by_layer: dict[str, jax.Array]
 
 
 @dataclass
@@ -175,16 +175,16 @@ class LastTokenDataset:
     """
 
     sequences: list[tuple[int, ...]]
-    beliefs: jax.Array  # (N, B)
-    probs: jax.Array  # (N,)
-    activations_by_layer: dict[str, jax.Array]  # layer_name -> (N, d)
+    beliefs: jax.Array
+    probs: jax.Array
+    activations_by_layer: dict[str, jax.Array]
 
 
 def build_prefix_dataset(
-    inputs: jax.Array,  # (batch, seq_len)
-    beliefs: jax.Array,  # (batch, seq_len, B)
-    probs: jax.Array,  # (batch, seq_len)
-    activations_by_layer: dict[str, jax.Array],  # layer -> (batch, seq_len, d_layer)
+    inputs: jax.Array,
+    beliefs: jax.Array,
+    probs: jax.Array,
+    activations_by_layer: dict[str, jax.Array],
 ) -> PrefixDataset:
     """Deduplicate everything by prefix.
 
@@ -217,10 +217,10 @@ def build_prefix_dataset(
 
 
 def build_last_token_dataset(
-    inputs: jax.Array,  # (batch, seq_len)
-    beliefs: jax.Array,  # (batch, B) - already sliced to last token
-    probs: jax.Array,  # (batch,) - already sliced to last token
-    activations_by_layer: dict[str, jax.Array],  # layer -> (batch, d_layer) - already sliced
+    inputs: jax.Array,
+    beliefs: jax.Array,
+    probs: jax.Array,
+    activations_by_layer: dict[str, jax.Array],
 ) -> LastTokenDataset:
     """Deduplicate everything by full sequence.
 

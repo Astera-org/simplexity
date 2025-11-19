@@ -258,44 +258,35 @@ class LinearRegressionSVDAnalysis:
         projections = {}
 
         for layer_name, layer_acts in activations.items():
-            X = np.asarray(layer_acts)  # (N, D)
-            Y = belief_states_np  # (N, B)
+            X = np.asarray(layer_acts)
+            Y = belief_states_np
             N, D = X.shape
 
-            # Add bias column
-            X_bias = np.concatenate([np.ones((N, 1)), X], axis=1)  # (N, D+1)
+            X_bias = np.concatenate([np.ones((N, 1)), X], axis=1)
 
-            # Weighted design matrices (using sqrt of weights)
-            sqrt_w = np.sqrt(weights_np).reshape(-1, 1)  # (N, 1)
-            X_weighted = X_bias * sqrt_w  # (N, D+1)
-            Y_weighted = Y * sqrt_w  # (N, B)
+            sqrt_w = np.sqrt(weights_np).reshape(-1, 1)
+            X_weighted = X_bias * sqrt_w
+            Y_weighted = Y * sqrt_w
 
             # Compute SVD once for all rcond values
             U, S, Vh = np.linalg.svd(X_weighted, full_matrices=False)
             max_singular_value = S[0]
 
-            # Sweep over rcond values to find best regularization
             best_error = float("inf")
             best_rcond = self._rcond_values[0]
             best_beta = None
 
             for rcond in self._rcond_values:
-                # Compute threshold for this rcond value
                 threshold = rcond * max_singular_value
 
-                # Create reciprocal of singular values with thresholding
                 S_pinv = np.zeros_like(S)
                 above_threshold = threshold < S
                 S_pinv[above_threshold] = 1.0 / S[above_threshold]
 
-                # Compute pseudoinverse
-                pinv_matrix = Vh.T @ np.diag(S_pinv) @ U.T  # (D+1, N)
+                pinv_matrix = Vh.T @ np.diag(S_pinv) @ U.T
+                beta = pinv_matrix @ Y_weighted
 
-                # Solve: beta = pinv(X_weighted) @ Y_weighted
-                beta = pinv_matrix @ Y_weighted  # (D+1, B)
-
-                # Compute predictions and error
-                Y_pred = X_bias @ beta  # (N, B)
+                Y_pred = X_bias @ beta
                 residuals = Y_pred - Y
                 dists = np.sqrt(np.sum(residuals**2, axis=1))
                 error = (dists * weights_np).sum()
@@ -305,13 +296,11 @@ class LinearRegressionSVDAnalysis:
                     best_rcond = rcond
                     best_beta = beta
 
-            # Compute final predictions with best beta
             if best_beta is None:
                 raise RuntimeError("Failed to find valid regression solution")
-            Y_pred = X_bias @ best_beta  # (N, B)
+            Y_pred = X_bias @ best_beta
             residuals = Y_pred - Y
 
-            # Compute metrics
             weighted_sq_residuals = (residuals**2) * weights_np[:, np.newaxis]
             mse = weighted_sq_residuals.mean(axis=0)
             mae = (np.abs(residuals) * weights_np[:, np.newaxis]).mean(axis=0)
