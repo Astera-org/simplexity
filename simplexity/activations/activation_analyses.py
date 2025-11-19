@@ -3,6 +3,7 @@
 from collections.abc import Mapping, Sequence
 from typing import Protocol
 
+import jax.numpy as jnp
 import numpy as np
 from jax import Array as JaxArray
 from jax.numpy import asarray
@@ -10,13 +11,12 @@ from sklearn.linear_model import LinearRegression
 
 
 def _compute_pca(
-    X: np.ndarray,
+    X: JaxArray,
     n_components: int | None = None,
-    weights: np.ndarray | None = None,
+    weights: JaxArray | None = None,
     center: bool = True,
-) -> dict[str, np.ndarray]:
+) -> dict[str, JaxArray]:
     """Compute weighted PCA via eigendecomposition of covariance matrix."""
-    X = np.asarray(X)
     N, D = X.shape
 
     if N == 0 or D == 0:
@@ -28,9 +28,9 @@ def _compute_pca(
 
     if weights is None:
         w = None
-        mean = X.mean(axis=0) if center else np.zeros(D, dtype=X.dtype)
+        mean = X.mean(axis=0) if center else jnp.zeros(D, dtype=X.dtype)
     else:
-        w = np.asarray(weights).astype(float)
+        w = weights.astype(float)
         if w.ndim != 1 or w.shape[0] != N:
             raise ValueError(f"Weights must be shape (N,), got {w.shape} for N={N}")
         total = w.sum()
@@ -39,9 +39,9 @@ def _compute_pca(
         w = w / total
 
         if center:
-            mean = np.average(X, axis=0, weights=w)
+            mean = jnp.average(X, axis=0, weights=w)
         else:
-            mean = np.zeros(D, dtype=X.dtype)
+            mean = jnp.zeros(D, dtype=X.dtype)
 
     Xc = X - mean
 
@@ -50,9 +50,9 @@ def _compute_pca(
     else:
         cov = (Xc * w[:, None]).T @ Xc
 
-    eigvals, eigvecs = np.linalg.eigh(cov)
+    eigvals, eigvecs = jnp.linalg.eigh(cov)
 
-    idx = np.argsort(eigvals)[::-1]
+    idx = jnp.argsort(eigvals)[::-1]
     eigvals = eigvals[idx]
     eigvecs = eigvecs[:, idx]
 
@@ -61,8 +61,8 @@ def _compute_pca(
 
     total_var = eigvals.sum()
     if total_var <= 0:
-        explained_ratio = np.zeros_like(eigvals_sel)
-        all_explained_ratio = np.zeros_like(eigvals)
+        explained_ratio = jnp.zeros_like(eigvals_sel)
+        all_explained_ratio = jnp.zeros_like(eigvals)
     else:
         explained_ratio = eigvals_sel / total_var
         all_explained_ratio = eigvals / total_var
@@ -81,15 +81,15 @@ def _compute_pca(
 
 
 def _compute_variance_thresholds(
-    all_explained_variance_ratio: np.ndarray,
+    all_explained_variance_ratio: JaxArray,
     thresholds: Sequence[float],
 ) -> dict[float, int]:
     """Compute number of components needed to reach variance thresholds."""
-    cum_var = np.cumsum(all_explained_variance_ratio)
+    cum_var = jnp.cumsum(all_explained_variance_ratio)
     result = {}
 
     for threshold in thresholds:
-        indices = np.where(cum_var >= threshold)[0]
+        indices = jnp.where(cum_var >= threshold)[0]
         if len(indices) > 0:
             result[threshold] = int(indices[0]) + 1
         else:
@@ -143,22 +143,18 @@ class PCAAnalysis(ActivationAnalysis):
         belief_states: JaxArray | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
         """Perform weighted PCA and return variance metrics and projections."""
-        weights_np = np.asarray(weights)
-
         scalars = {}
         projections = {}
 
         for layer_name, layer_acts in activations.items():
-            X = np.asarray(layer_acts)
-
             pca_result = _compute_pca(
-                X,
+                layer_acts,
                 n_components=self._n_components,
-                weights=weights_np,
+                weights=weights,
                 center=True,
             )
 
-            cumulative_variance = np.cumsum(pca_result["explained_variance_ratio"])
+            cumulative_variance = jnp.cumsum(pca_result["explained_variance_ratio"])
             for i, cumvar in enumerate(cumulative_variance, start=1):
                 scalars[f"{layer_name}_cumvar_{i}"] = float(cumvar)
 
@@ -173,7 +169,7 @@ class PCAAnalysis(ActivationAnalysis):
                 threshold_pct = int(threshold * 100)
                 scalars[f"{layer_name}_n_components_{threshold_pct}pct"] = float(n_comps)
 
-            projections[f"{layer_name}_pca"] = asarray(pca_result["X_proj"])
+            projections[f"{layer_name}_pca"] = pca_result["X_proj"]
 
         return scalars, projections
 
@@ -289,7 +285,7 @@ class LinearRegressionSVDAnalysis(ActivationAnalysis):
             Y_weighted = Y * sqrt_w
 
             # Compute SVD once for all rcond values
-            U, S, Vh = np.linalg.svd(X_weighted, full_matrices=False)
+            U, S, Vh = jnp.linalg.svd(X_weighted, full_matrices=False)
             max_singular_value = S[0]
 
             best_error = float("inf")
