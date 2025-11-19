@@ -1,7 +1,7 @@
 """Activation analysis for Transformer layers."""
 
 from collections.abc import Mapping
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 import jax.numpy as jnp
 from jax import Array as JaxArray
@@ -31,8 +31,8 @@ def prepare_activations(
     beliefs: JaxArray,
     probs: JaxArray,
     activations: Mapping[str, JaxArray],
-    token_selection: str,
-    layer_selection: str,
+    token_selection: Literal["all", "last"],
+    concat_layers: bool = False,
     use_probs_as_weights: bool = True,
 ) -> PreparedActivations:
     """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
@@ -63,12 +63,10 @@ def prepare_activations(
     if weights is None:
         weights = _get_uniform_weights(belief_states.shape[0], dtype=beliefs.dtype)
 
-    if layer_selection == "concatenated":
+    if concat_layers:
         concatenated = jnp.concatenate(list(layer_acts.values()), axis=-1)
         layer_acts = {"concatenated": concatenated}
-    elif layer_selection != "individual":
-        raise ValueError(f"Invalid layer_selection: {layer_selection}. Must be 'individual' or 'concatenated'.")
-
+    
     return {
         "activations": layer_acts,
         "belief_states": belief_states,
@@ -96,7 +94,7 @@ class ActivationTracker:
         for analysis in self._analyses.values():
             config_key = (
                 analysis._token_selection,
-                analysis._layer_selection,
+                str(analysis._concat_layers),
                 analysis._use_probs_as_weights,
             )
 
@@ -107,7 +105,7 @@ class ActivationTracker:
                     probs=probs,
                     activations=activations,
                     token_selection=analysis._token_selection,
-                    layer_selection=analysis._layer_selection,
+                    concat_layers=analysis._concat_layers,
                     use_probs_as_weights=analysis._use_probs_as_weights,
                 )
                 preprocessing_cache[config_key] = prepared
@@ -118,7 +116,7 @@ class ActivationTracker:
         for analysis_name, analysis in self._analyses.items():
             config_key = (
                 analysis._token_selection,
-                analysis._layer_selection,
+                str(analysis._concat_layers),
                 analysis._use_probs_as_weights,
             )
             prepared = preprocessing_cache[config_key]

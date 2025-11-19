@@ -1,7 +1,7 @@
 """Analysis implementations for Transformer layer activations."""
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import Literal, Protocol
 
 import jax.numpy as jnp
 import numpy as np
@@ -101,8 +101,8 @@ class ActivationAnalysis(Protocol):
     """Protocol for activation analysis implementations."""
 
     _requires_belief_states: bool
-    _token_selection: str
-    _layer_selection: str
+    _token_selection: Literal["all", "last"]
+    _concat_layers: bool
     _use_probs_as_weights: bool
 
     def analyze(
@@ -124,15 +124,15 @@ class PCAAnalysis(ActivationAnalysis):
         self,
         n_components: int | None = None,
         variance_thresholds: Sequence[float] = (0.80, 0.90, 0.95, 0.99),
-        token_selection: str = "all",
-        layer_selection: str = "individual",
+        token_selection: Literal["all", "last"] = "all",
+        concat_layers: bool = False,
         use_probs_as_weights: bool = True,
     ):
         """Initialize PCA analysis."""
         self._n_components = n_components
         self._variance_thresholds = variance_thresholds
-        self._token_selection: str = token_selection
-        self._layer_selection: str = layer_selection
+        self._token_selection = token_selection
+        self._concat_layers = concat_layers
         self._use_probs_as_weights = use_probs_as_weights
 
     def analyze(
@@ -180,13 +180,13 @@ class LinearRegressionAnalysis(ActivationAnalysis):
 
     def __init__(
         self,
-        token_selection: str = "all",
-        layer_selection: str = "individual",
+        token_selection: Literal["all", "last"] = "all",
+        concat_layers: bool = False,
         use_probs_as_weights: bool = True,
     ):
         """Initialize linear regression analysis."""
         self._token_selection = token_selection
-        self._layer_selection = layer_selection
+        self._concat_layers = concat_layers
         self._use_probs_as_weights = use_probs_as_weights
 
     def analyze(
@@ -245,14 +245,14 @@ class LinearRegressionSVDAnalysis(ActivationAnalysis):
 
     def __init__(
         self,
-        token_selection: str = "all",
-        layer_selection: str = "individual",
+        token_selection: Literal["all", "last"] = "all",
+        concat_layers: bool = False,
         use_probs_as_weights: bool = True,
         rcond_values: Sequence[float] | None = None,
     ):
         """Initialize SVD linear regression analysis."""
         self._token_selection = token_selection
-        self._layer_selection = layer_selection
+        self._concat_layers = concat_layers
         self._use_probs_as_weights = use_probs_as_weights
         self._rcond_values = rcond_values if rcond_values else [1e-15]
 
