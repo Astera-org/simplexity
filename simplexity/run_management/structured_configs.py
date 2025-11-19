@@ -730,7 +730,8 @@ def validate_activation_tracker_config(cfg: DictConfig) -> None:
         target = analysis_config.get("_target_", None)
         if not is_activation_analysis_target(target):
             raise ConfigValidationError(
-                f"ActivationTrackerConfig.instance.analyses[{key}]._target_ must be an activation analysis, got {target}"  # noqa: E501
+                f"ActivationTrackerConfig.instance.analyses[{key}]._target_"
+                f" must be an activation analysis, got {target}"
             )
 
     _validate_nonempty_str(cfg.get("name"), "ActivationTrackerConfig.name", is_none_allowed=True)

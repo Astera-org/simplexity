@@ -254,9 +254,6 @@ class LinearRegressionSVDAnalysis:
         belief_states_np = np.asarray(belief_states)
         weights_np = np.asarray(weights)
 
-        # Normalize weights to sum to 1
-        weights_np = weights_np / weights_np.sum()
-
         scalars = {}
         projections = {}
 
