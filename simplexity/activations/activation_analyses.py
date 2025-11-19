@@ -4,7 +4,6 @@ from collections.abc import Mapping, Sequence
 
 import jax
 import numpy as np
-from sklearn.linear_model import LinearRegression
 
 
 def _to_numpy(x: jax.Array | np.ndarray) -> np.ndarray:
@@ -227,7 +226,7 @@ class LinearRegressionAnalysis:
 
                 # Create reciprocal of singular values with thresholding
                 S_pinv = np.zeros_like(S)
-                above_threshold = S > threshold
+                above_threshold = threshold < S
                 S_pinv[above_threshold] = 1.0 / S[above_threshold]
 
                 # Compute pseudoinverse

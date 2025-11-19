@@ -474,9 +474,7 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
         tracker = hydra.utils.instantiate(instance_config)
-        SIMPLEXITY_LOGGER.info(
-            "[activation tracker] instantiated activation tracker: %s", tracker.__class__.__name__
-        )
+        SIMPLEXITY_LOGGER.info("[activation tracker] instantiated activation tracker: %s", tracker.__class__.__name__)
         return tracker
     raise KeyError
 

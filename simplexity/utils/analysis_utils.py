@@ -22,7 +22,7 @@ def make_prefix_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[tuple[in
     for seq_idx in range(batch_size):
         seq = inputs_np[seq_idx]
         for pos in range(seq_len):
-            prefix = tuple(seq[:pos + 1])
+            prefix = tuple(seq[: pos + 1])
             prefix_to_indices.setdefault(prefix, []).append((seq_idx, pos))
 
     return prefix_to_indices

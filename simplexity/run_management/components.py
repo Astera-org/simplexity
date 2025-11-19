@@ -157,9 +157,7 @@ class Components:
             raise KeyError("No key provided and multiple activation trackers found")
         if key in self.activation_trackers:
             return self.activation_trackers[key]
-        ending_matches = [
-            instance_key for instance_key in self.activation_trackers if instance_key.endswith(key)
-        ]
+        ending_matches = [instance_key for instance_key in self.activation_trackers if instance_key.endswith(key)]
         if len(ending_matches) == 1:
             return self.activation_trackers[ending_matches[0]]
         if len(ending_matches) > 1:
