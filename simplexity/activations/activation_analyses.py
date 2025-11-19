@@ -118,7 +118,10 @@ class ActivationAnalysis(Protocol):
 class PCAAnalysis:
     """Weighted principal component analysis of layer activations."""
 
-    _requires_belief_states = False
+    _requires_belief_states: bool = False
+    _token_selection: Literal["all", "last"]
+    _concat_layers: bool
+    _use_probs_as_weights: bool
 
     def __init__(
         self,
@@ -176,7 +179,10 @@ class PCAAnalysis:
 class LinearRegressionAnalysis:
     """Weighted linear regression from activations to belief states using sklearn."""
 
-    _requires_belief_states = True
+    _requires_belief_states: bool = True
+    _token_selection: Literal["all", "last"]
+    _concat_layers: bool
+    _use_probs_as_weights: bool
 
     def __init__(
         self,
@@ -241,7 +247,10 @@ class LinearRegressionAnalysis:
 class LinearRegressionSVDAnalysis:
     """Weighted linear regression from activations to belief states with SVD and rcond tuning."""
 
-    _requires_belief_states = True
+    _requires_belief_states: bool = True
+    _token_selection: Literal["all", "last"]
+    _concat_layers: bool
+    _use_probs_as_weights: bool
 
     def __init__(
         self,
