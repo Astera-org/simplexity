@@ -1,11 +1,12 @@
 """Activation analysis for Transformer layers."""
 
 from collections.abc import Mapping
-from typing import Protocol, TypedDict
+from typing import TypedDict
 
 import jax.numpy as jnp
 from jax import Array as JaxArray
 
+from simplexity.activations.activation_analyses import ActivationAnalysis
 from simplexity.utils.analysis_utils import build_last_token_dataset, build_prefix_dataset
 
 
@@ -72,24 +73,6 @@ def prepare_activations(
         "belief_states": belief_states,
         "weights": weights,
     }
-
-
-class ActivationAnalysis(Protocol):
-    """Protocol for activation analysis implementations."""
-
-    _requires_belief_states: bool
-    _token_selection: str
-    _layer_selection: str
-    _use_probs_as_weights: bool
-
-    def analyze(
-        self,
-        activations: Mapping[str, JaxArray],
-        weights: JaxArray,
-        belief_states: JaxArray | None = None,
-    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
-        """Analyze activations and return scalar metrics and projections."""
-        ...
 
 
 class ActivationTracker:

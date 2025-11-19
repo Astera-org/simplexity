@@ -1,9 +1,11 @@
 """Analysis implementations for Transformer layer activations."""
 
 from collections.abc import Mapping, Sequence
+from typing import Protocol
 
-import jax
 import numpy as np
+from jax import Array as JaxArray
+from jax.numpy import asarray
 from sklearn.linear_model import LinearRegression
 
 
@@ -96,7 +98,25 @@ def _compute_variance_thresholds(
     return result
 
 
-class PCAAnalysis:
+class ActivationAnalysis(Protocol):
+    """Protocol for activation analysis implementations."""
+
+    _requires_belief_states: bool
+    _token_selection: str
+    _layer_selection: str
+    _use_probs_as_weights: bool
+
+    def analyze(
+        self,
+        activations: Mapping[str, JaxArray],
+        weights: JaxArray,
+        belief_states: JaxArray | None = None,
+    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+        """Analyze activations and return scalar metrics and projections."""
+        ...
+
+
+class PCAAnalysis(ActivationAnalysis):
     """Weighted principal component analysis of layer activations."""
 
     _requires_belief_states = False
@@ -118,10 +138,10 @@ class PCAAnalysis:
 
     def analyze(
         self,
-        activations: Mapping[str, jax.Array],
-        weights: jax.Array,
-        belief_states: jax.Array | None = None,
-    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+        activations: Mapping[str, JaxArray],
+        weights: JaxArray,
+        belief_states: JaxArray | None = None,
+    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
         """Perform weighted PCA and return variance metrics and projections."""
         weights_np = np.asarray(weights)
 
@@ -153,12 +173,12 @@ class PCAAnalysis:
                 threshold_pct = int(threshold * 100)
                 scalars[f"{layer_name}_n_components_{threshold_pct}pct"] = float(n_comps)
 
-            projections[f"{layer_name}_pca"] = jax.numpy.asarray(pca_result["X_proj"])
+            projections[f"{layer_name}_pca"] = asarray(pca_result["X_proj"])
 
         return scalars, projections
 
 
-class LinearRegressionAnalysis:
+class LinearRegressionAnalysis(ActivationAnalysis):
     """Weighted linear regression from activations to belief states using sklearn."""
 
     _requires_belief_states = True
@@ -176,10 +196,10 @@ class LinearRegressionAnalysis:
 
     def analyze(
         self,
-        activations: Mapping[str, jax.Array],
-        weights: jax.Array,
-        belief_states: jax.Array | None = None,
-    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+        activations: Mapping[str, JaxArray],
+        weights: JaxArray,
+        belief_states: JaxArray | None = None,
+    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
         """Fit weighted linear regression and return metrics."""
         if belief_states is None:
             raise ValueError("LinearRegressionAnalysis requires belief_states")
@@ -218,12 +238,12 @@ class LinearRegressionAnalysis:
             scalars[f"{layer_name}_mae"] = float(mae.mean())
             scalars[f"{layer_name}_dist"] = dist
 
-            projections[f"{layer_name}_projected"] = jax.numpy.asarray(Y_pred)
+            projections[f"{layer_name}_projected"] = asarray(Y_pred)
 
         return scalars, projections
 
 
-class LinearRegressionSVDAnalysis:
+class LinearRegressionSVDAnalysis(ActivationAnalysis):
     """Weighted linear regression from activations to belief states with SVD and rcond tuning."""
 
     _requires_belief_states = True
@@ -243,10 +263,10 @@ class LinearRegressionSVDAnalysis:
 
     def analyze(
         self,
-        activations: Mapping[str, jax.Array],
-        weights: jax.Array,
-        belief_states: jax.Array | None = None,
-    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+        activations: Mapping[str, JaxArray],
+        weights: JaxArray,
+        belief_states: JaxArray | None = None,
+    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
         """Fit weighted linear regression with SVD-based rcond tuning."""
         if belief_states is None:
             raise ValueError("LinearRegressionSVDAnalysis requires belief_states")
@@ -320,7 +340,7 @@ class LinearRegressionSVDAnalysis:
             scalars[f"{layer_name}_dist"] = dist
             scalars[f"{layer_name}_best_rcond"] = float(best_rcond)
 
-            projections[f"{layer_name}_projected"] = jax.numpy.asarray(Y_pred)
+            projections[f"{layer_name}_projected"] = asarray(Y_pred)
 
         return scalars, projections
 

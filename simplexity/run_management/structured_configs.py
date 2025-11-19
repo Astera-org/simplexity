@@ -685,6 +685,7 @@ def is_activation_tracker_target(target: str) -> bool:
 
 def validate_activation_analysis_config(cfg: DictConfig) -> None:
     """Validate an ActivationAnalysisConfig.
+
     Args:
         cfg: A DictConfig with instance and optional name fields (from Hydra).
     """
@@ -702,6 +703,7 @@ def validate_activation_analysis_config(cfg: DictConfig) -> None:
 
 def validate_activation_tracker_config(cfg: DictConfig) -> None:
     """Validate an ActivationTrackerConfig.
+
     Args:
         cfg: A DictConfig with instance and optional name fields (from Hydra).
     """
