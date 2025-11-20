@@ -703,7 +703,7 @@ def validate_metric_tracker_instance_config(cfg: DictConfig) -> None:
         cfg: A DictConfig with _target_, metric_names, and metric_kwargs fields (from Hydra).
     """
     _validate_instance_config(cfg)
-    
+
     # Validate metric_names if provided
     metric_names = cfg.get("metric_names")
     if metric_names is not None:
@@ -736,7 +736,7 @@ def validate_metric_tracker_instance_config(cfg: DictConfig) -> None:
             raise ConfigValidationError(
                 f"MetricTrackerInstanceConfig.metric_names must be a dict or list, got {type(metric_names)}"
             )
-    
+
     # Validate metric_kwargs if provided
     metric_kwargs = cfg.get("metric_kwargs")
     if metric_kwargs is not None and not isinstance(metric_kwargs, DictConfig):
@@ -754,17 +754,102 @@ def validate_metric_tracker_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("MetricTrackerConfig.instance is required")
-    
+
     target = instance.get("_target_", None)
     if not is_metric_tracker_target(target):
         raise ConfigValidationError(
             f"MetricTrackerConfig.instance._target_ must be a metric tracker target, got {target}"
         )
-    
+
     # Validate the instance config
     validate_metric_tracker_instance_config(instance)
-    
+
     _validate_nonempty_str(cfg.get("name"), "MetricTrackerConfig.name", is_none_allowed=True)
+
+
+# ============================================================================
+# Activation Analysis Config
+# ============================================================================
+
+
+@dataclass
+class ActivationAnalysisConfig:
+    """Base configuration for activation analyses."""
+
+    instance: InstanceConfig
+    name: str | None = None
+
+
+@dataclass
+class ActivationTrackerConfig:
+    """Configuration for activation tracker."""
+
+    analyses: dict[str, ActivationAnalysisConfig]
+    name: str | None = None
+
+
+def is_activation_analysis_target(target: str) -> bool:
+    """Check if the target is an activation analysis target."""
+    return target.startswith("simplexity.activations.")
+
+
+def is_activation_tracker_target(target: str) -> bool:
+    """Check if the target is an activation tracker target."""
+    return target == "simplexity.activations.activation_tracker.ActivationTracker"
+
+
+def validate_activation_analysis_config(cfg: DictConfig) -> None:
+    """Validate an ActivationAnalysisConfig.
+
+    Args:
+        cfg: A DictConfig with instance and optional name fields (from Hydra).
+    """
+    instance = cfg.get("instance")
+    if instance is None:
+        raise ConfigValidationError("ActivationAnalysisConfig.instance is required")
+    _validate_instance_config(instance)
+    target = instance.get("_target_", None)
+    if not is_activation_analysis_target(target):
+        raise ConfigValidationError(
+            f"ActivationAnalysisConfig.instance._target_ must be an activation analysis target, got {target}"
+        )
+    _validate_nonempty_str(cfg.get("name"), "ActivationAnalysisConfig.name", is_none_allowed=True)
+
+
+def validate_activation_tracker_config(cfg: DictConfig) -> None:
+    """Validate an ActivationTrackerConfig.
+
+    Args:
+        cfg: A DictConfig with instance and optional name fields (from Hydra).
+    """
+    instance = cfg.get("instance")
+    if instance is None:
+        raise ConfigValidationError("ActivationTrackerConfig.instance is required")
+    _validate_instance_config(instance)
+    target = instance.get("_target_", None)
+    if not is_activation_tracker_target(target):
+        raise ConfigValidationError(
+            f"ActivationTrackerConfig.instance._target_ must be ActivationTracker, got {target}"
+        )
+
+    analyses = instance.get("analyses")
+    if analyses is None:
+        raise ConfigValidationError("ActivationTrackerConfig.instance.analyses is required")
+
+    if not isinstance(analyses, DictConfig):
+        raise ConfigValidationError("ActivationTrackerConfig.instance.analyses must be a dictionary")
+
+    for key, analysis_config in analyses.items():
+        if not isinstance(analysis_config, DictConfig):
+            raise ConfigValidationError(f"ActivationTrackerConfig.instance.analyses[{key}] must be a config dict")
+        target = analysis_config.get("_target_", None)
+        if not is_activation_analysis_target(target):
+            raise ConfigValidationError(
+                f"ActivationTrackerConfig.instance.analyses[{key}]._target_"
+                f" must be an activation analysis, got {target}"
+            )
+
+    _validate_nonempty_str(cfg.get("name"), "ActivationTrackerConfig.name", is_none_allowed=True)
 
 
 # ============================================================================

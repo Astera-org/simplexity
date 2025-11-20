@@ -21,6 +21,7 @@ dependencies = [
     "matplotlib",
     "mlflow>=3.0.0",
     "plotly",
+    "scikit-learn>=1.7.2",
     "torch>=2.9.0",
     "transformer-lens>=2.15.4",
     "treescope",
