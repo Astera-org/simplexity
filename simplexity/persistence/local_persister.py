@@ -10,18 +10,8 @@
 # the problematic imports checker that would crash during AST traversal.
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-from simplexity.run_management.structured_configs import InstanceConfig
-
-
-@dataclass
-class LocalPersisterInstanceConfig(InstanceConfig):
-    """Configuration for the local persister."""
-
-    directory: str
 
 
 class LocalPersister(ABC):

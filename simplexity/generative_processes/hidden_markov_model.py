@@ -9,7 +9,6 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-from dataclasses import dataclass
 from typing import cast
 
 import chex
@@ -19,15 +18,6 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel, State
 from simplexity.generative_processes.transition_matrices import get_stationary_state
-from simplexity.run_management.structured_configs import InstanceConfig
-
-
-@dataclass
-class HiddenMarkovModelInstanceConfig(InstanceConfig):
-    """Configuration for the hidden markov model."""
-
-    transition_matrices: jax.Array
-    initial_state: jax.Array | None = None
 
 
 class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):

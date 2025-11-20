@@ -14,26 +14,15 @@ scattered across various config.py files in the configs directory.
 # the problematic imports checker that would crash during AST traversal.
 
 import logging
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+import jax
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError, DeviceResolutionError
-from simplexity.generative_processes.builder import (
-    GeneralizedHiddenMarkovModelBuilderInstanceConfig,
-    HiddenMarkovModelBuilderInstanceConfig,
-    NonergodicHiddenMarkovModelBuilderInstanceConfig,
-)
-from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModelInstanceConfig
-from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModelInstanceConfig
-from simplexity.logging.file_logger import FileLoggerInstanceConfig
-from simplexity.logging.mlflow_logger import MLFlowLoggerInstanceConfig
-from simplexity.persistence.local_equinox_persister import LocalEquinoxPersisterInstanceConfig
-from simplexity.persistence.local_penzai_persister import LocalPenzaiPersisterInstanceConfig
-from simplexity.persistence.local_pytorch_persister import LocalPytorchPersisterInstanceConfig
-from simplexity.persistence.mlflow_persister import MLFlowPersisterInstanceConfig
 from simplexity.utils.config_utils import dynamic_resolve
 from simplexity.utils.pytorch_utils import resolve_device
 
@@ -184,6 +173,27 @@ def update_mlflow_config(cfg: DictConfig, updated_cfg: DictConfig) -> None:
 # Logging Config
 # ============================================================================
 
+
+@dataclass
+class FileLoggerInstanceConfig(InstanceConfig):
+    """Configuration for FileLogger."""
+
+    file_path: str
+
+
+@dataclass
+class MLFlowLoggerInstanceConfig(InstanceConfig):
+    """Configuration for MLFlowLogger."""
+
+    experiment_id: str | None = None
+    experiment_name: str | None = None
+    run_id: str | None = None
+    run_name: str | None = None
+    tracking_uri: str | None = None
+    registry_uri: str | None = None
+    downgrade_unity_catalog: bool = True
+
+
 LoggingInstanceConfig = InstanceConfig | FileLoggerInstanceConfig | MLFlowLoggerInstanceConfig
 
 
@@ -241,6 +251,52 @@ def update_logging_instance_config(cfg: DictConfig, updated_cfg: DictConfig) -> 
 # ============================================================================
 # Generative Process Config
 # ============================================================================
+
+
+@dataclass
+class HiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
+    """Configuration for the hidden markov model builder."""
+
+    process_name: str
+    process_params: Mapping[str, Any] | None = None
+    initial_state: jax.Array | Sequence[float] | None = None
+
+
+@dataclass
+class GeneralizedHiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
+    """Configuration for the generalized hidden markov model builder."""
+
+    process_name: str
+    process_params: Mapping[str, Any] | None = None
+    initial_state: jax.Array | Sequence[float] | None = None
+
+
+@dataclass
+class NonergodicHiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
+    """Configuration for the nonergodic hidden markov model builder."""
+
+    process_names: list[str]
+    process_params: Sequence[Mapping[str, Any]]
+    process_weights: Sequence[float]
+    vocab_maps: Sequence[Sequence[int]] | None = None
+    add_bos_token: bool = False
+
+
+@dataclass
+class GeneralizedHiddenMarkovModelInstanceConfig(InstanceConfig):
+    """Configuration for the generalized hidden markov model."""
+
+    transition_matrices: jax.Array
+    initial_state: jax.Array | None = None
+
+
+@dataclass
+class HiddenMarkovModelInstanceConfig(InstanceConfig):
+    """Configuration for the hidden markov model."""
+
+    transition_matrices: jax.Array
+    initial_state: jax.Array | None = None
+
 
 GenerativeProcessInstanceConfig = (
     InstanceConfig
@@ -407,6 +463,48 @@ def resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) -> 
 # ============================================================================
 # Persistence Config
 # ============================================================================
+
+
+@dataclass
+class LocalPersisterInstanceConfig(InstanceConfig):
+    """Configuration for the local persister."""
+
+    directory: str
+
+
+@dataclass
+class LocalEquinoxPersisterInstanceConfig(LocalPersisterInstanceConfig):
+    """Configuration for the local equinox persister."""
+
+    filename: str = "model.eqx"
+
+
+@dataclass
+class LocalPenzaiPersisterInstanceConfig(LocalPersisterInstanceConfig):
+    """Configuration for the local penzai persister."""
+
+
+@dataclass
+class LocalPytorchPersisterInstanceConfig(LocalPersisterInstanceConfig):
+    """Configuration for the local pytorch persister."""
+
+    filename: str = "model.pt"
+
+
+@dataclass
+class MLFlowPersisterInstanceConfig(InstanceConfig):
+    """Configuration for the MLflow persister."""
+
+    experiment_id: str | None = None
+    experiment_name: str | None = None
+    run_id: str | None = None
+    run_name: str | None = None
+    tracking_uri: str | None = None
+    registry_uri: str | None = None
+    downgrade_unity_catalog: bool = True
+    artifact_path: str = "models"
+    config_path: str = "config.yaml"
+
 
 PersistenceInstanceConfig = (
     InstanceConfig

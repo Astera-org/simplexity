@@ -15,7 +15,6 @@ import logging
 import shutil
 import tempfile
 from contextlib import nullcontext
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +27,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
-from simplexity.run_management.structured_configs import InstanceConfig
+from simplexity.run_management.structured_configs import MLFlowPersisterInstanceConfig
 from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.mlflow_utils import (
     get_experiment,
@@ -72,21 +71,6 @@ def _clear_subdirectory(subdirectory: Path) -> None:
     if subdirectory.exists():
         shutil.rmtree(subdirectory)
     subdirectory.parent.mkdir(parents=True, exist_ok=True)
-
-
-@dataclass
-class MLFlowPersisterInstanceConfig(InstanceConfig):
-    """Configuration for the MLflow persister."""
-
-    experiment_id: str | None = None
-    experiment_name: str | None = None
-    run_id: str | None = None
-    run_name: str | None = None
-    tracking_uri: str | None = None
-    registry_uri: str | None = None
-    downgrade_unity_catalog: bool = True
-    artifact_path: str = "models"
-    config_path: str = "config.yaml"
 
 
 class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
