@@ -31,7 +31,7 @@ class TestMLFlowConfig:
         assert cfg.get("run_name") == "some_run"
         assert cfg.get("tracking_uri") is None
         assert cfg.get("registry_uri") is None
-        assert cfg.get("downgrade_unity_catalog") is None
+        assert cfg.get("downgrade_unity_catalog") == True
 
     def test_validate_mlflow_config_valid(self) -> None:
         """Test validate_mlflow_config with valid configs."""
