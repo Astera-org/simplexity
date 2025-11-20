@@ -222,7 +222,7 @@ def get_run(
     *,
     create_if_missing: bool = True,
 ) -> Run | None:
-    """Get the run id of an MLflow run."""
+    """Get an MLflow run."""
     if run_id:
         run = get_run_by_id(run_id, client)
         if run_name is not None and run.info.run_name != run_name:
