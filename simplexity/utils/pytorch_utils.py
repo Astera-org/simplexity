@@ -6,6 +6,7 @@ going through CPU memory.
 """
 
 import warnings
+from collections.abc import Iterable, Mapping
 
 import jax
 import jax.numpy as jnp
@@ -96,3 +97,51 @@ def resolve_device(device_spec: str | None = "auto") -> str:
         return "cpu"
 
     raise DeviceResolutionError(f"Unknown device specification: {device_spec}")
+
+
+def tensor_collection_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
+    """Compute an L2 norm across an iterable of tensors without stacking.
+
+    We detach and cast to float to avoid autograd interactions and dtype
+    mismatches, skip empty tensors, and accumulate sums on CPU. This mirrors
+    concatenating the tensors and calling ``torch.linalg.norm`` but without the
+    intermediate allocation, which keeps metric computations lightweight even
+    when parameters/gradients live on different devices or have differing
+    shapes.
+    """
+    total = 0.0
+    for tensor in tensors:
+        if tensor.numel() == 0:
+            continue
+        total += float(torch.sum(torch.square(tensor.detach().float())))
+    return total**0.5
+
+
+def tensor_stack_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
+    """Compute an L2 norm across an iterables of tensors with stacking."""
+    return float(torch.linalg.vector_norm(torch.cat([t.detach().float().view(-1) for t in tensors]), ord=2))  # pylint: disable=not-callable
+
+
+def named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mapping[str, torch.Tensor]) -> float:
+    """Compute an L2 distance between two named tensor collections.
+
+    Parameters are compared by name. Tensors are flattened and concatenated
+    to compute the norm in a vectorized way on the device, which is more
+    efficient for GPU execution.
+    """
+    diffs = []
+    for name, tensor in current.items():
+        ref_tensor = reference.get(name)
+        if ref_tensor is None or tensor.numel() == 0:
+            continue
+        
+        # Ensure tensors are on the same device and dtype before subtraction
+        # We move reference to current device as current is likely the active model state
+        ref_tensor = ref_tensor.to(device=tensor.device, dtype=tensor.dtype)
+        
+        diffs.append((tensor - ref_tensor).view(-1))
+    
+    if not diffs:
+        return 0.0
+        
+    return float(torch.linalg.vector_norm(torch.cat(diffs), ord=2))
