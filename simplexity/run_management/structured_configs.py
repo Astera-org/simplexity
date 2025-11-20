@@ -262,8 +262,6 @@ class GenerativeProcessConfig:
     bos_token: int | None = MISSING
     eos_token: int | None = MISSING
     vocab_size: int = MISSING
-    sequence_len: int | None = MISSING
-    batch_size: int | None = None
 
 
 def is_generative_process_target(target: str) -> bool:
@@ -356,18 +354,6 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
                     f"+ use_eos_token ({use_eos_token}) "
                     f"= {expected_vocab_size}"
                 )
-
-    sequence_len = cfg.get("sequence_len")
-    if OmegaConf.is_missing(cfg, "sequence_len"):
-        SIMPLEXITY_LOGGER.debug("[generative process] sequence_len is missing, will be resolved dynamically")
-    else:
-        _validate_positive_int(sequence_len, "GenerativeProcessConfig.sequence_len", is_none_allowed=True)
-
-    batch_size = cfg.get("batch_size")
-    if OmegaConf.is_missing(cfg, "batch_size"):
-        SIMPLEXITY_LOGGER.debug("[generative process] batch_size is missing, will be resolved dynamically")
-    else:
-        _validate_positive_int(batch_size, "GenerativeProcessConfig.batch_size", is_none_allowed=True)
 
 
 @dynamic_resolve
@@ -496,7 +482,7 @@ class HookedTransformerConfigConfig:
     n_layers: int
     d_model: int
     d_head: int
-    n_ctx: int = MISSING
+    n_ctx: int
     n_heads: int = -1
     d_mlp: int | None = None
     act_fn: str | None = None
@@ -577,14 +563,7 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
 
 
 @dynamic_resolve
-def resolve_hooked_transformer_config(
-    cfg: DictConfig,
-    *,
-    vocab_size: int | None = None,
-    bos_token: int | None = None,
-    eos_token: int | None = None,
-    sequence_len: int | None = None,
-) -> None:
+def resolve_hooked_transformer_config(cfg: DictConfig, *, vocab_size: int | None = None) -> None:
     """Resolve the HookedTransformerConfig."""
     # Resolve d_vocab
     if vocab_size is None:
@@ -599,20 +578,6 @@ def resolve_hooked_transformer_config(
             )
         else:
             SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab defined as: %s", cfg.get("d_vocab"))
-    # Resolve n_ctx
-    if sequence_len is None:
-        SIMPLEXITY_LOGGER.debug("[predictive model] no sequence_len set")
-    else:
-        use_bos = bos_token is not None
-        use_eos = eos_token is not None
-        n_ctx = sequence_len + int(use_bos) + int(use_eos) - 1
-        if OmegaConf.is_missing(cfg, "n_ctx"):
-            cfg.n_ctx = n_ctx
-            SIMPLEXITY_LOGGER.info("[predictive model] n_ctx resolved to: %s", n_ctx)
-        elif cfg.get("n_ctx") != n_ctx:
-            raise ConfigValidationError(f"HookedTransformerConfig.n_ctx ({cfg.get('n_ctx')}) must be equal to {n_ctx}")
-        else:
-            SIMPLEXITY_LOGGER.debug("[predictive model] n_ctx defined as: %s", cfg.get("n_ctx"))
     # Resolve device
     device: str | None = cfg.get("device", None)
     try:

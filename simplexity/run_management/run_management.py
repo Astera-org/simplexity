@@ -24,8 +24,6 @@ from contextlib import contextmanager, nullcontext
 from typing import Any
 
 import hydra
-import jax
-import jax.numpy as jnp
 import mlflow
 from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
@@ -278,23 +276,17 @@ def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> Gener
         SIMPLEXITY_LOGGER.info(
             "[generative process] instantiated generative process: %s", generative_process.__class__.__name__
         )
+        config_key = instance_key.rsplit(".", 1)[0]
+        generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key)
+        if generative_process_config is None:
+            raise RuntimeError("Error selecting generative process config")
+        base_vocab_size = generative_process.vocab_size
+        resolve_generative_process_config(generative_process_config, base_vocab_size)
         return generative_process
     raise KeyError
 
 
-def _create_initial_state(generative_process: GenerativeProcess, batch_size: int | None) -> jax.Array:
-    """Setup the initial state."""
-    if batch_size is None:
-        initial_state = generative_process.initial_state
-    else:
-        initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
-    SIMPLEXITY_LOGGER.info("[generative process] instantiated initial state with shape: %s", initial_state.shape)
-    return initial_state
-
-
-def _setup_generative_processes(
-    cfg: DictConfig, instance_keys: list[str]
-) -> tuple[dict[str, GenerativeProcess] | None, dict[str, jax.Array] | None]:
+def _setup_generative_processes(cfg: DictConfig, instance_keys: list[str]) -> dict[str, GenerativeProcess] | None:
     instance_keys = filter_instance_keys(
         cfg,
         instance_keys,
@@ -304,7 +296,6 @@ def _setup_generative_processes(
     )
     if instance_keys:
         generative_processes = {}
-        initial_states = {}
         for instance_key in instance_keys:
             generative_process = _instantiate_generative_process(cfg, instance_key)
             config_key = instance_key.rsplit(".", 1)[0]
@@ -314,11 +305,9 @@ def _setup_generative_processes(
             base_vocab_size = generative_process.vocab_size
             resolve_generative_process_config(generative_process_config, base_vocab_size)
             generative_processes[instance_key] = generative_process
-            batch_size = generative_process_config.get("batch_size", None)
-            initial_states[instance_key] = _create_initial_state(generative_process, batch_size)
-        return generative_processes, initial_states
+        return generative_processes
     SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
-    return None, None
+    return None
 
 
 def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister:
@@ -422,16 +411,7 @@ def _setup_predictive_models(
             if instance_config_config is None:
                 raise RuntimeError("Error selecting predictive model config")
             vocab_size = _get_attribute_value(cfg, instance_keys, "vocab_size")
-            bos_token = _get_attribute_value(cfg, instance_keys, "bos_token")
-            eos_token = _get_attribute_value(cfg, instance_keys, "eos_token")
-            sequence_len = _get_attribute_value(cfg, instance_keys, "sequence_len")
-            resolve_hooked_transformer_config(
-                instance_config_config,
-                vocab_size=vocab_size,
-                bos_token=bos_token,
-                eos_token=eos_token,
-                sequence_len=sequence_len,
-            )
+            resolve_hooked_transformer_config(instance_config_config, vocab_size=vocab_size)
         model = _instantiate_predictive_model(cfg, instance_key)
         step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
         load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
@@ -517,9 +497,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components = Components()
     instance_keys = get_instance_keys(cfg)
     components.loggers = _setup_logging(cfg, instance_keys, strict=strict)
-    generative_processes, initial_states = _setup_generative_processes(cfg, instance_keys)
-    components.generative_processes = generative_processes
-    components.initial_states = initial_states
+    components.generative_processes = _setup_generative_processes(cfg, instance_keys)
     components.persisters = _setup_persisters(cfg, instance_keys)
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
