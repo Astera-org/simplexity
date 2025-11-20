@@ -74,7 +74,7 @@ class TestGenerativeProcessConfig:
             {
                 "_target_": "simplexity.generative_processes.builder.build_hidden_markov_model",
                 "process_name": "mess3",
-                "process_kwargs": DictConfig({"x": 0.15, "a": 0.6}),
+                "process_params": DictConfig({"x": 0.15, "a": 0.6}),
             }
         )
         assert is_generative_process_config(cfg)
@@ -86,7 +86,7 @@ class TestGenerativeProcessConfig:
         assert not is_generative_process_config(cfg)
 
         # Missing _target_
-        cfg = DictConfig({"process_name": "mess3", "process_kwargs": DictConfig({"x": 0.15, "a": 0.6})})
+        cfg = DictConfig({"process_name": "mess3", "process_params": DictConfig({"x": 0.15, "a": 0.6})})
         assert not is_generative_process_config(cfg)
 
         # _target_ is not a omegaconf target
@@ -113,7 +113,7 @@ class TestGenerativeProcessConfig:
                     {
                         "_target_": "simplexity.generative_processes.builder.build_hidden_markov_model",
                         "process_name": "mess3",
-                        "process_kwargs": DictConfig({"x": 0.15, "a": 0.6}),
+                        "process_params": DictConfig({"x": 0.15, "a": 0.6}),
                     }
                 ),
                 "base_vocab_size": MISSING,
@@ -128,7 +128,7 @@ class TestGenerativeProcessConfig:
                     {
                         "_target_": "simplexity.generative_processes.builder.build_hidden_markov_model",
                         "process_name": "mess3",
-                        "process_kwargs": DictConfig({"x": 0.15, "a": 0.6}),
+                        "process_params": DictConfig({"x": 0.15, "a": 0.6}),
                     }
                 ),
                 "name": "mess3",
@@ -152,7 +152,7 @@ class TestGenerativeProcessConfig:
             {
                 "_target_": "simplexity.generative_processes.builder.build_hidden_markov_model",
                 "process_name": "mess3",
-                "process_kwargs": DictConfig({"x": 0.15, "a": 0.6}),
+                "process_params": DictConfig({"x": 0.15, "a": 0.6}),
                 "base_vocab_size": MISSING,
                 "vocab_size": MISSING,
             }
@@ -165,7 +165,7 @@ class TestGenerativeProcessConfig:
         # Instance without _target_
         cfg = DictConfig(
             {
-                "instance": DictConfig({"process_name": "mess3", "process_kwargs": DictConfig({"x": 0.15, "a": 0.6})}),
+                "instance": DictConfig({"process_name": "mess3", "process_params": DictConfig({"x": 0.15, "a": 0.6})}),
                 "base_vocab_size": MISSING,
                 "vocab_size": MISSING,
             }

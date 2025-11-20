@@ -29,7 +29,7 @@ from tests.generative_processes.test_transition_matrices import validate_hmm_tra
 def test_build_transition_matrices():
     """Test the build_transition_matrices function."""
     transition_matrices = build_transition_matrices(
-        HMM_MATRIX_FUNCTIONS, process_name="coin", process_kwargs={"p": 0.6}
+        HMM_MATRIX_FUNCTIONS, process_name="coin", process_params={"p": 0.6}
     )
     assert transition_matrices.shape == (2, 1, 1)
     expected = jnp.array([[[0.6]], [[0.4]]])
@@ -77,22 +77,22 @@ def test_add_begin_of_sequence_token():
 
 def test_build_hidden_markov_model():
     """Test the build_hidden_markov_model function."""
-    hmm = build_hidden_markov_model(process_name="even_ones", process_kwargs={"p": 0.5})
+    hmm = build_hidden_markov_model(process_name="even_ones", process_params={"p": 0.5})
     assert hmm.vocab_size == 2
 
     with pytest.raises(KeyError):  # noqa: PT011
-        build_hidden_markov_model(process_name="fanizza", process_kwargs={"alpha": 2000, "lamb": 0.49})
+        build_hidden_markov_model(process_name="fanizza", process_params={"alpha": 2000, "lamb": 0.49})
 
     with pytest.raises(TypeError):
-        build_hidden_markov_model(process_name="even_ones", process_kwargs={"bogus": 0.5})
+        build_hidden_markov_model(process_name="even_ones", process_params={"bogus": 0.5})
 
 
 def test_build_generalized_hidden_markov_model():
     """Test the build_generalized_hidden_markov_model function."""
-    ghmm = build_generalized_hidden_markov_model(process_name="even_ones", process_kwargs={"p": 0.5})
+    ghmm = build_generalized_hidden_markov_model(process_name="even_ones", process_params={"p": 0.5})
     assert ghmm.vocab_size == 2
 
-    ghmm = build_generalized_hidden_markov_model(process_name="fanizza", process_kwargs={"alpha": 2000, "lamb": 0.49})
+    ghmm = build_generalized_hidden_markov_model(process_name="fanizza", process_params={"alpha": 2000, "lamb": 0.49})
     assert ghmm.vocab_size == 2
 
     with pytest.raises(KeyError):  # noqa: PT011
@@ -101,8 +101,8 @@ def test_build_generalized_hidden_markov_model():
 
 def test_build_nonergodic_transition_matrices():
     """Test the build_nonergodic_transition_matrices function."""
-    coin_1 = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name="coin", process_kwargs={"p": 0.6})
-    coin_2 = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name="coin", process_kwargs={"p": 0.3})
+    coin_1 = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name="coin", process_params={"p": 0.6})
+    coin_2 = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name="coin", process_params={"p": 0.3})
     transition_matrices = build_nonergodic_transition_matrices([coin_1, coin_2], [[0, 1], [0, 2]])
     assert transition_matrices.shape == (3, 2, 2)
     expected = jnp.array(
@@ -138,7 +138,7 @@ def test_build_nonergodic_hidden_markov_model():
     """Test the build_nonergodic_hidden_markov_model function."""
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["coin", "coin"],  # noqa: B904
-        process_kwargs=[{"p": 0.6}, {"p": 0.3}],
+        process_params=[{"p": 0.6}, {"p": 0.3}],
         process_weights=[0.8, 0.2],
         vocab_maps=[[0, 1], [0, 2]],
         add_bos_token=False,
@@ -171,7 +171,7 @@ def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
     kwargs = {"p": 0.4, "q": 0.25}
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["mr_name", "mr_name"],
-        process_kwargs=[kwargs, kwargs],
+        process_params=[kwargs, kwargs],
         process_weights=[0.8, 0.2],
         vocab_maps=[[0, 1, 2, 3], [0, 1, 2, 4]],
         add_bos_token=False,
@@ -186,7 +186,7 @@ def test_build_nonergodic_hidden_markov_model_bos():
     """Test the build_nonergodic_hidden_markov_model function with a BOS token."""
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["coin", "coin"],
-        process_kwargs=[{"p": 0.6}, {"p": 0.3}],
+        process_params=[{"p": 0.6}, {"p": 0.3}],
         process_weights=[0.8, 0.2],
         vocab_maps=[[0, 1], [0, 2]],
         add_bos_token=True,
