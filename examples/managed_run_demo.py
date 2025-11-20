@@ -71,8 +71,11 @@ def main(cfg: Config, components: simplexity.Components) -> None:
     if is_mlflow_persister:
         persister = components.get_persister()
         assert isinstance(persister, MLFlowPersister)
+        persister = components.get_persister()
+        assert isinstance(persister, MLFlowPersister)
         for model in components.predictive_models.values():
             if isinstance(model, PytorchModel):
+                inputs = None
                 inputs = None
                 if components.generative_processes and components.initial_states is not None:
                     first_key = next(iter(components.generative_processes.keys()))
@@ -91,6 +94,9 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                         bos_token=cfg.generative_process.bos_token,
                         eos_token=cfg.generative_process.eos_token,
                     )
+                persister.save_model_to_registry(model, "test_model", model_inputs=inputs)
+            else:
+                persister.save_weights(model, 0)
                 persister.save_model_to_registry(model, "test_model", model_inputs=inputs)
             else:
                 persister.save_weights(model, 0)
