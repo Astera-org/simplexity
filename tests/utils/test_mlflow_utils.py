@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import call, create_autospec
 
+import mlflow
 import pytest
 from mlflow.client import MlflowClient
 from pytest_mock import MockerFixture
@@ -23,6 +24,7 @@ from simplexity.utils.mlflow_utils import (
     get_run_by_name,
     maybe_terminate_run,
     resolve_registry_uri,
+    set_mlflow_uris,
 )
 
 FILE_URI = "file:///example"
@@ -133,6 +135,22 @@ class TestResolveRegistryUri:
         assert resolve_registry_uri(tracking_uri=tracking_uri) == resolved_uri
         warning = recwarn.pop(UserWarning)
         assert "Unity Catalog URI" in str(warning.message)
+
+
+class TestSetMlflowUris:  # pylint: disable=too-few-public-methods
+    """Test class for set_mlflow_uris function."""
+
+    def test_set_mlflow_uris(self) -> None:
+        """Set MLflow URIs."""
+        mlflow.set_tracking_uri("original_tracking_uri")
+        mlflow.set_registry_uri("original_registry_uri")
+        assert mlflow.get_tracking_uri() == "original_tracking_uri"
+        assert mlflow.get_registry_uri() == "original_registry_uri"
+        with set_mlflow_uris(tracking_uri="test_tracking_uri", registry_uri="test_registry_uri"):
+            assert mlflow.get_tracking_uri() == "test_tracking_uri"
+            assert mlflow.get_registry_uri() == "test_registry_uri"
+        assert mlflow.get_tracking_uri() == "original_tracking_uri"
+        assert mlflow.get_registry_uri() == "original_registry_uri"
 
 
 class TestGetExperiment:

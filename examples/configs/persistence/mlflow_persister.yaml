@@ -6,5 +6,5 @@ instance:
   run_name:
   tracking_uri:
   registry_uri:
-  artifact_path: models
+  model_dir: models
   downgrade_unity_catalog: true
