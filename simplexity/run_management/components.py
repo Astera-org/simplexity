@@ -29,6 +29,8 @@ class Components:
     persisters: dict[str, ModelPersister] | None = None
     predictive_models: dict[str, Any] | None = None  # TODO: improve typing
     optimizers: dict[str, Any] | None = None  # TODO: improve typing
+    metric_trackers: dict[str, Any] | None = None  # TODO: improve typing
+
 
     def get_logger(self, key: str | None = None) -> Logger | None:
         """Get the logger."""
@@ -143,3 +145,23 @@ class Components:
         if len(ending_matches) > 1:
             raise KeyError(f"Multiple optimizers with key '{key}' found: {ending_matches}")
         raise KeyError(f"Optimizer with key '{key}' not found")
+
+    def get_metric_tracker(self, key: str | None = None) -> Any | None:
+        """Get the metric tracker."""
+        if self.metric_trackers is None:
+            if key is None:
+                return None
+            raise KeyError("No metric trackers found")
+        if key is None:
+            if len(self.metric_trackers) == 1:
+                return next(iter(self.metric_trackers.values()))
+            raise KeyError("No key provided and multiple metric trackers found")
+        if key in self.metric_trackers:
+            return self.metric_trackers[key]
+        ending_matches = [instance_key for instance_key in self.metric_trackers if instance_key.endswith(key)]
+        if len(ending_matches) == 1:
+            return self.metric_trackers[ending_matches[0]]
+        if len(ending_matches) > 1:
+            raise KeyError(f"Multiple metric trackers with key '{key}' found: {ending_matches}")
+        raise KeyError(f"Metric tracker with key '{key}' not found")
+
