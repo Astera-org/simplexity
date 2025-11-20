@@ -5,6 +5,8 @@ from __future__ import annotations
 import configparser
 import logging
 import warnings
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -90,6 +92,20 @@ def resolve_registry_uri(
 
     SIMPLEXITY_LOGGER.info("[mlflow] no registry uri or tracking uri found")
     return None
+
+
+@contextmanager
+def set_mlflow_uris(tracking_uri: str | None, registry_uri: str | None) -> Generator[None, None, None]:
+    """Set the tracking and registry URIs for the current context."""
+    original_tracking_uri = mlflow.get_tracking_uri()
+    original_registry_uri = mlflow.get_registry_uri()
+    if tracking_uri:
+        mlflow.set_tracking_uri(tracking_uri)
+    if registry_uri:
+        mlflow.set_registry_uri(registry_uri)
+    yield
+    mlflow.set_tracking_uri(original_tracking_uri)
+    mlflow.set_registry_uri(original_registry_uri)
 
 
 def get_experiment_id(
