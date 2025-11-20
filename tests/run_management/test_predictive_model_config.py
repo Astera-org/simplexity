@@ -80,7 +80,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": -1,
                 "d_vocab": MISSING,
             }
@@ -117,7 +117,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 130,  # Not divisible by d_head (130 % 32 == 2)
                 "d_head": 32,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": -1,
                 "d_mlp": 512,
                 "act_fn": None,
@@ -133,7 +133,7 @@ class TestHookedTransformerConfig:
     @pytest.mark.parametrize(
         ("field", "value"),
         [
-            ("d_model", 130),
+            ("d_model", 128),
             ("d_head", 32),
             ("n_heads", -1),
             ("n_layers", 2),
@@ -150,7 +150,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": 4,
                 "d_mlp": 512,
                 "act_fn": "relu",
@@ -183,7 +183,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 130,
                 "d_head": 32,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": 4,
                 "d_mlp": 512,
                 "act_fn": "relu",
@@ -204,7 +204,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 30,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": 4,
                 "d_mlp": 512,
                 "act_fn": "relu",
@@ -228,7 +228,7 @@ class TestHookedTransformerConfig:
                         "n_layers": 2,
                         "d_model": 128,
                         "d_head": 32,
-                        "n_ctx": MISSING,
+                        "n_ctx": 256,
                         "n_heads": 4,
                         "d_mlp": 512,
                         "act_fn": "relu",
@@ -252,7 +252,7 @@ class TestHookedTransformerConfig:
                         "n_layers": 2,
                         "d_model": 128,
                         "d_head": 32,
-                        "n_ctx": MISSING,
+                        "n_ctx": 256,
                         "n_heads": 4,
                         "d_mlp": 512,
                         "act_fn": "relu",
@@ -281,7 +281,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": -1,
                 "d_vocab": MISSING,
             }
@@ -291,10 +291,8 @@ class TestHookedTransformerConfig:
             mock_debug.assert_has_calls(
                 [
                     call("[predictive model] no vocab_size set"),
-                    call("[predictive model] no sequence_len set"),
                 ]
             )
-        assert OmegaConf.is_missing(cfg, "n_ctx")
         assert OmegaConf.is_missing(cfg, "d_vocab")
 
     def test_resolve_hooked_transformer_config_with_complete_values(self) -> None:
@@ -304,7 +302,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_ctx": 16,
+                "n_ctx": 256,
                 "n_heads": -1,
                 "d_vocab": 4,
                 "device": "cuda",
@@ -315,15 +313,13 @@ class TestHookedTransformerConfig:
             patch("torch.cuda.is_available") as mock_is_cuda_available,
         ):
             mock_is_cuda_available.return_value = True
-            resolve_hooked_transformer_config(cfg, vocab_size=4, bos_token=3, eos_token=None, sequence_len=16)
+            resolve_hooked_transformer_config(cfg, vocab_size=4)
             mock_debug.assert_has_calls(
                 [
                     call("[predictive model] d_vocab defined as: %s", 4),
-                    call("[predictive model] n_ctx defined as: %s", 16),
                     call("[predictive model] device defined as: %s", "cuda"),
                 ]
             )
-        assert cfg.get("n_ctx") == 16
         assert cfg.get("d_vocab") == 4
         assert cfg.get("device") == "cuda"
 
@@ -334,7 +330,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": -1,
                 "d_vocab": MISSING,
                 "device": None,
@@ -345,15 +341,13 @@ class TestHookedTransformerConfig:
             patch("torch.cuda.is_available") as mock_is_cuda_available,
         ):
             mock_is_cuda_available.return_value = True
-            resolve_hooked_transformer_config(cfg, vocab_size=4, bos_token=3, eos_token=None, sequence_len=16)
+            resolve_hooked_transformer_config(cfg, vocab_size=4)
             mock_info.assert_has_calls(
                 [
                     call("[predictive model] d_vocab resolved to: %s", 4),
-                    call("[predictive model] n_ctx resolved to: %s", 16),
                     call("[predictive model] device resolved to: %s", "cuda"),
                 ]
             )
-        assert cfg.get("n_ctx") == 16
         assert cfg.get("d_vocab") == 4
         assert cfg.get("device") == "cuda"
 
@@ -364,7 +358,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": -1,
                 "d_vocab": 3,
             }
@@ -374,22 +368,6 @@ class TestHookedTransformerConfig:
         ):
             resolve_hooked_transformer_config(cfg, vocab_size=4)
 
-        cfg = DictConfig(
-            {
-                "_target_": "transformer_lens.HookedTransformerConfig",
-                "n_layers": 2,
-                "d_model": 128,
-                "d_head": 32,
-                "n_ctx": 8,
-                "n_heads": -1,
-                "d_vocab": MISSING,
-            }
-        )
-        with pytest.raises(
-            ConfigValidationError, match=re.escape("HookedTransformerConfig.n_ctx (8) must be equal to 16")
-        ):
-            resolve_hooked_transformer_config(cfg, bos_token=3, sequence_len=16)
-
     def test_resolve_hooked_transformer_config_with_conflicting_device(self) -> None:
         cfg = DictConfig(
             {
@@ -397,7 +375,7 @@ class TestHookedTransformerConfig:
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-                "n_ctx": MISSING,
+                "n_ctx": 256,
                 "n_heads": -1,
                 "d_vocab": MISSING,
                 "device": "cuda",
