@@ -60,6 +60,34 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             collected.update(computed)
         return collected
 
+    def step(
+        self,
+        *,
+        tokens: int | torch.Tensor,
+        loss: float | torch.Tensor,
+    ) -> None:
+        """Advance the global step and update running counters."""
+        self._context.step += 1
+        num_tokens = tokens.numel() if isinstance(tokens, torch.Tensor) else tokens
+        self._context.num_tokens = num_tokens
+        self._context.loss = float(loss) if isinstance(loss, torch.Tensor) else loss
+
+    def update_metrics(self, group: str = "all") -> None:
+        """Update the metrics for the given group."""
+        if group in self._missing_update_keys:
+            SIMPLEXITY_LOGGER.warning("Update of metric group %s misses metrics that require updates every step", group)
+        
+        if self._needs_learning_rates[group]:
+            self._context.learning_rates = self._extract_learning_rates()
+        if self._needs_gradients[group]:
+            self._context.gradients = self._snapshot_gradients()
+        if self._needs_named_parameters[group]:
+            self._context.named_parameters = self._snapshot_named_parameters()
+            
+        for metric_name in self._metric_groups[group]:
+            metric = self._metrics[metric_name]
+            metric.update(self._context)
+
     def update(
         self,
         group: str = "all",
@@ -67,22 +95,12 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         tokens: int | torch.Tensor,
         loss: float | torch.Tensor,
     ) -> None:
-        """Update the metric tracker with the given context."""
-        if group in self._missing_update_keys:
-            SIMPLEXITY_LOGGER.warning("Update of metric group %s misses metrics that require updates every step", group)
-        self._context.step += 1
-        num_tokens = tokens.numel() if isinstance(tokens, torch.Tensor) else tokens
-        self._context.num_tokens = num_tokens
-        self._context.loss = float(loss) if isinstance(loss, torch.Tensor) else loss
-        if self._needs_learning_rates[group]:
-            self._context.learning_rates = self._extract_learning_rates()
-        if self._needs_gradients[group]:
-            self._context.gradients = self._snapshot_gradients()
-        if self._needs_named_parameters[group]:
-            self._context.named_parameters = self._snapshot_named_parameters()
-        for metric_name in self._metric_groups[group]:
-            metric = self._metrics[metric_name]
-            metric.update(self._context)
+        """Update the metric tracker with the given context (Deprecated).
+        
+        This method combines step() and update_metrics() for backward compatibility.
+        """
+        self.step(tokens=tokens, loss=loss)
+        self.update_metrics(group=group)
 
     def _initialize_metric_groups(
         self, metrics: dict[str, Sequence[str]] | Sequence[str] | None
@@ -142,12 +160,12 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         gradients: dict[str, torch.Tensor] = {}
         for name, param in self.model.named_parameters():
             if param.grad is not None:
-                gradients[name] = param.grad.detach().clone().cpu()
+                gradients[name] = param.grad.detach().clone()
         return gradients
 
     def _snapshot_named_parameters(self) -> Mapping[str, torch.Tensor]:
         assert self.model is not None, "Model is required for metrics that require named parameters"
-        return {name: param.detach().clone().cpu() for name, param in self.model.named_parameters()}
+        return {name: param.detach().clone() for name, param in self.model.named_parameters()}
 
     def _initialize_context(self, named_parameters: Mapping[str, torch.Tensor] | None = None) -> MetricContext:
         learning_rates: Mapping[str, float] = {}

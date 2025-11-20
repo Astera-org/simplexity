@@ -125,21 +125,23 @@ def tensor_stack_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
 def named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mapping[str, torch.Tensor]) -> float:
     """Compute an L2 distance between two named tensor collections.
 
-    Parameters are compared by name without stacking tensors into a single
-    structure, which keeps the computation memory-efficient. Tensors are
-    detached, moved to CPU, and cast to float so that distance metrics stay off
-    the autograd graph and remain robust even if current and reference tensors
-    live on different devices or use different dtypes. Using built-in norms
-    would require materializing aligned tensors (or concatenations) per
-    parameter pair on the same device/dtype, which is both more memory hungry
-    and brittle when models evolve.
+    Parameters are compared by name. Tensors are flattened and concatenated
+    to compute the norm in a vectorized way on the device, which is more
+    efficient for GPU execution.
     """
-    total = 0.0
+    diffs = []
     for name, tensor in current.items():
         ref_tensor = reference.get(name)
         if ref_tensor is None or tensor.numel() == 0:
             continue
-        curr_cpu = tensor.detach().float()
-        diff = curr_cpu - ref_tensor.float()
-        total += float(torch.sum(torch.square(diff)))
-    return total**0.5
+        
+        # Ensure tensors are on the same device and dtype before subtraction
+        # We move reference to current device as current is likely the active model state
+        ref_tensor = ref_tensor.to(device=tensor.device, dtype=tensor.dtype)
+        
+        diffs.append((tensor - ref_tensor).view(-1))
+    
+    if not diffs:
+        return 0.0
+        
+    return float(torch.linalg.vector_norm(torch.cat(diffs), ord=2))
