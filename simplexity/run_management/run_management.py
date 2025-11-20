@@ -224,7 +224,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
             "downgrade_unity_catalog": downgrade_unity_catalog,
         }
     )
-    update_mlflow_config(cfg, updated_cfg=updated_cfg)
+    update_mlflow_config(mlflow_config, updated_cfg=updated_cfg)
 
     return mlflow.start_run(
         run_id=run.info.run_id,
@@ -236,13 +236,13 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
 
 def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     """Setup the logging."""
-    logging_instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
-    if logging_instance_config:
-        logger = typed_instantiate(logging_instance_config, Logger)
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        logger = typed_instantiate(instance_config, Logger)
         SIMPLEXITY_LOGGER.info("[logging] instantiated logger: %s", logger.__class__.__name__)
         if isinstance(logger, MLFlowLogger):
             updated_cfg = OmegaConf.structured(logger.cfg)
-            update_logging_instance_config(cfg, updated_cfg=updated_cfg)
+            update_logging_instance_config(instance_config, updated_cfg=updated_cfg)
         return logger
     raise KeyError
 
@@ -329,7 +329,7 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
         SIMPLEXITY_LOGGER.info("[persister] instantiated persister: %s", persister.__class__.__name__)
         if isinstance(persister, MLFlowPersister):
             updated_cfg = OmegaConf.structured(persister.cfg)
-            update_persister_instance_config(cfg, updated_cfg=updated_cfg)
+            update_persister_instance_config(instance_config, updated_cfg=updated_cfg)
         return persister
     raise KeyError
 
