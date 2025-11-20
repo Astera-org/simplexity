@@ -27,7 +27,9 @@ from simplexity.generative_processes.transition_matrices import (
 from simplexity.run_management.structured_configs import InstanceConfig
 
 
-def build_transition_matrices(matrix_functions: dict[str, Callable], process_name: str, **kwargs) -> jax.Array:
+def build_transition_matrices(
+    matrix_functions: dict[str, Callable], process_name: str, process_kwargs: Mapping[str, Any] | None = None
+) -> jax.Array:
     """Build transition matrices for a generative process."""
     if process_name not in matrix_functions:
         raise KeyError(
@@ -35,10 +37,11 @@ def build_transition_matrices(matrix_functions: dict[str, Callable], process_nam
             f"Available HMM processes are: {', '.join(matrix_functions.keys())}"
         )
     matrix_function = matrix_functions[process_name]
+    process_kwargs = process_kwargs or {}
     sig = inspect.signature(matrix_function)
     try:
-        sig.bind_partial(**kwargs)
-        transition_matrices = matrix_function(**kwargs)
+        sig.bind_partial(**process_kwargs)
+        transition_matrices = matrix_function(**process_kwargs)
     except TypeError as e:
         params = ", ".join(f"{k}: {v.annotation}" for k, v in sig.parameters.items())
         raise TypeError(f"Invalid arguments for {process_name}: {e}.  Signature is: {params}") from e
@@ -60,15 +63,19 @@ class HiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
     """Configuration for the hidden markov model builder."""
 
     process_name: str
+    process_kwargs: Mapping[str, Any] | None = None
     initial_state: jax.Array | Sequence[float] | None = None
 
 
 def build_hidden_markov_model(
-    process_name: str, initial_state: jax.Array | Sequence[float] | None = None, **kwargs
+    process_name: str,
+    process_kwargs: Mapping[str, Any] | None = None,
+    initial_state: jax.Array | Sequence[float] | None = None,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model."""
+    process_kwargs = process_kwargs or {}
     initial_state = jnp.array(initial_state) if initial_state is not None else None
-    transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, **kwargs)
+    transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_kwargs)
     return HiddenMarkovModel(transition_matrices, initial_state)
 
 
@@ -77,15 +84,19 @@ class GeneralizedHiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
     """Configuration for the generalized hidden markov model builder."""
 
     process_name: str
+    process_kwargs: Mapping[str, Any] | None = None
     initial_state: jax.Array | Sequence[float] | None = None
 
 
 def build_generalized_hidden_markov_model(
-    process_name: str, initial_state: jax.Array | Sequence[float] | None = None, **kwargs
+    process_name: str,
+    process_kwargs: Mapping[str, Any] | None = None,
+    initial_state: jax.Array | Sequence[float] | None = None,
 ) -> GeneralizedHiddenMarkovModel:
     """Build a generalized hidden Markov model."""
     initial_state = jnp.array(initial_state) if initial_state is not None else None
-    transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, **kwargs)
+    process_kwargs = process_kwargs or {}
+    transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, process_kwargs)
     return GeneralizedHiddenMarkovModel(transition_matrices, initial_state)
 
 
