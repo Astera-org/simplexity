@@ -4,6 +4,15 @@ This module centralizes all structured config definitions that were previously
 scattered across various config.py files in the configs directory.
 """
 
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -12,6 +21,19 @@ from urllib.parse import urlparse
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError, DeviceResolutionError
+from simplexity.generative_processes.builder import (
+    GeneralizedHiddenMarkovModelBuilderInstanceConfig,
+    HiddenMarkovModelBuilderInstanceConfig,
+    NonergodicHiddenMarkovModelBuilderInstanceConfig,
+)
+from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModelInstanceConfig
+from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModelInstanceConfig
+from simplexity.logging.file_logger import FileLoggerInstanceConfig
+from simplexity.logging.mlflow_logger import MLFlowLoggerInstanceConfig
+from simplexity.persistence.local_equinox_persister import LocalEquinoxPersisterInstanceConfig
+from simplexity.persistence.local_penzai_persister import LocalPenzaiPersisterInstanceConfig
+from simplexity.persistence.local_pytorch_persister import LocalPytorchPersisterInstanceConfig
+from simplexity.persistence.mlflow_persister import MLFlowPersisterInstanceConfig
 from simplexity.utils.config_utils import dynamic_resolve
 from simplexity.utils.pytorch_utils import resolve_device
 
@@ -162,12 +184,14 @@ def update_mlflow_config(cfg: DictConfig, updated_cfg: DictConfig) -> None:
 # Logging Config
 # ============================================================================
 
+LoggingInstanceConfig = InstanceConfig | FileLoggerInstanceConfig | MLFlowLoggerInstanceConfig
+
 
 @dataclass
 class LoggingConfig:
     """Base configuration for logging."""
 
-    instance: InstanceConfig
+    instance: LoggingInstanceConfig
     name: str | None = None
 
 
@@ -218,12 +242,21 @@ def update_logging_instance_config(cfg: DictConfig, updated_cfg: DictConfig) -> 
 # Generative Process Config
 # ============================================================================
 
+GenerativeProcessInstanceConfig = (
+    InstanceConfig
+    | GeneralizedHiddenMarkovModelBuilderInstanceConfig
+    | GeneralizedHiddenMarkovModelInstanceConfig
+    | HiddenMarkovModelBuilderInstanceConfig
+    | HiddenMarkovModelInstanceConfig
+    | NonergodicHiddenMarkovModelBuilderInstanceConfig
+)
+
 
 @dataclass
 class GenerativeProcessConfig:
     """Base configuration for generative processes."""
 
-    instance: InstanceConfig
+    instance: GenerativeProcessInstanceConfig
     name: str | None = None
     base_vocab_size: int = MISSING
     bos_token: int | None = MISSING
@@ -389,12 +422,20 @@ def resolve_generative_process_config(cfg: DictConfig, base_vocab_size: int) -> 
 # Persistence Config
 # ============================================================================
 
+PersistenceInstanceConfig = (
+    InstanceConfig
+    | LocalEquinoxPersisterInstanceConfig
+    | LocalPenzaiPersisterInstanceConfig
+    | LocalPytorchPersisterInstanceConfig
+    | MLFlowPersisterInstanceConfig
+)
+
 
 @dataclass
 class PersistenceConfig:
     """Base configuration for persistence."""
 
-    instance: InstanceConfig
+    instance: PersistenceInstanceConfig
     name: str | None = None
 
 
@@ -512,7 +553,7 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
 
 
 @dataclass
-class HookedTransformerConfig(InstanceConfig):
+class HookedTransformerInstancecConfig(InstanceConfig):
     """Configuration for Transformer model."""
 
     cfg: HookedTransformerConfigConfig
@@ -523,7 +564,7 @@ class HookedTransformerConfig(InstanceConfig):
 
 
 def validate_hooked_transformer_config(cfg: DictConfig) -> None:
-    """Validate a HookedTransformerConfig.
+    """Validate a HookedTransformerInstancecConfig.
 
     Args:
         cfg: A DictConfig with _target_ and cfg fields (from Hydra).
@@ -589,11 +630,14 @@ def resolve_hooked_transformer_config(
         SIMPLEXITY_LOGGER.debug("[predictive model] device defined as: %s", device)
 
 
+PredictiveModelInstanceConfig = InstanceConfig | HookedTransformerInstancecConfig
+
+
 @dataclass
 class PredictiveModelConfig:
     """Base configuration for predictive models."""
 
-    instance: InstanceConfig
+    instance: PredictiveModelInstanceConfig
     name: str | None = None
     load_checkpoint_step: int | None = None
 
@@ -663,11 +707,14 @@ class AdamInstanceConfig(InstanceConfig):
     amsgrad: bool = False
 
 
+OptimizerInstanceConfig = InstanceConfig | AdamInstanceConfig
+
+
 @dataclass
 class OptimizerConfig:
     """Base configuration for optimizers."""
 
-    instance: InstanceConfig
+    instance: OptimizerInstanceConfig
     name: str | None = None
 
 

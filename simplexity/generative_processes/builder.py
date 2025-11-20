@@ -56,7 +56,7 @@ def add_begin_of_sequence_token(transition_matrix: jax.Array, initial_state: jax
 
 
 @dataclass
-class HMMBuilderInstanceConfig(InstanceConfig):
+class HiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
     """Configuration for the hidden markov model builder."""
 
     process_name: str
@@ -73,7 +73,7 @@ def build_hidden_markov_model(
 
 
 @dataclass
-class GHMMBuilderInstanceConfig(InstanceConfig):
+class GeneralizedHiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
     """Configuration for the generalized hidden markov model builder."""
 
     process_name: str
@@ -123,7 +123,7 @@ def build_nonergodic_initial_state(
 
 
 @dataclass
-class NonergodicHMMBuilderInstanceConfig(InstanceConfig):
+class NonergodicHiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
     """Configuration for the nonergodic hidden markov model builder."""
 
     process_names: list[str]

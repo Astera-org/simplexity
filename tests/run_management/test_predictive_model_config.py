@@ -22,8 +22,8 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.run_management.structured_configs import (
-    HookedTransformerConfig,
     HookedTransformerConfigConfig,
+    HookedTransformerInstancecConfig,
     PredictiveModelConfig,
     is_hooked_transformer_config,
     is_predictive_model_config,
@@ -44,7 +44,7 @@ class TestHookedTransformerConfig:
         """Test creating hooked transformer config from dataclass."""
         cfg: DictConfig = OmegaConf.structured(
             PredictiveModelConfig(
-                instance=HookedTransformerConfig(
+                instance=HookedTransformerInstancecConfig(
                     cfg=HookedTransformerConfigConfig(
                         n_layers=2,
                         d_model=128,
