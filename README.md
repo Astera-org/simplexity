@@ -66,6 +66,32 @@ uv run python simplexity/run_experiment.py --multirun
 
 The `ModelPersister` class is responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket.
 
+### Reusing Config Sections from MLflow Runs
+
+`managed_run` can bootstrap a new configuration by pulling pieces of previous MLflow runs before Hydra instantiates anything. Add a `load_configs` block to your config (see `examples/configs/demo_config.yaml`):
+
+```yaml
+load_configs:
+  - tracking_uri: databricks              # optional; defaults to current URI
+    experiment_name: /Shared/previous_exp # or provide experiment_id
+    experiment_id: "123456"               # optional safeguard when both are set
+    run_name: best_model_run              # or provide run_id
+    run_id: "0123456789abcdef"
+    artifact_path: config.yaml            # optional; defaults to config.yaml
+    configs:
+      predictive_model: historical.predictive_model
+      generative_process.instance: reused.generative_process
+```
+
+For each entry we:
+
+- Create a dedicated `MlflowClient` using the supplied tracking URI.
+- Download the specified artifact (`config.yaml` by default) from the referenced run.
+- Copy the listed source keys into the current config using the provided destination paths, merging with any existing values so local overrides still apply.
+- Optionally accept `experiment_id`/`run_id` pairs instead of names. When both the name and id are supplied we verify they reference the same MLflow objects to avoid accidental mixups.
+
+This makes it easy to pin specific components (models, generative processes, etc.) from a prior run while still editing other sections locally.
+
 #### Using S3 Storage
 
 The `S3Persister`, can be configured using an `.ini` file, which should have the following structure:
