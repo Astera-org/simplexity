@@ -162,9 +162,9 @@ def test_cleanup(tmp_path: Path, framework: ModelFramework) -> None:
 
     assert run_status() == "RUNNING"
 
-    if framework == "pytorch":
+    if framework == ModelFramework.PYTORCH:
         model = Linear(in_features=4, out_features=2)
-    elif framework == "equinox":
+    elif framework == ModelFramework.EQUINOX:
         model = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
     else:
         raise ValueError(f"Unsupported model framework: {framework}")
