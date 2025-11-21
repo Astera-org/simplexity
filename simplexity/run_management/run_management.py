@@ -41,24 +41,32 @@ from simplexity.run_management.run_logging import (
     log_source_script,
     log_system_info,
 )
-from simplexity.run_management.structured_configs import (
+from simplexity.structured_configs.base import validate_base_config
+from simplexity.structured_configs.generative_process import (
     is_generative_process_target,
-    is_hooked_transformer_config,
-    is_logger_target,
-    is_model_persister_target,
-    is_optimizer_target,
-    is_predictive_model_target,
-    is_pytorch_optimizer_config,
     resolve_generative_process_config,
-    resolve_hooked_transformer_config,
-    update_logging_instance_config,
-    update_mlflow_config,
-    update_persister_instance_config,
-    validate_base_config,
     validate_generative_process_config,
+)
+from simplexity.structured_configs.logging import (
+    is_logger_target,
+    update_logging_instance_config,
     validate_logging_config,
+)
+from simplexity.structured_configs.mlflow import update_mlflow_config
+from simplexity.structured_configs.optimizer import (
+    is_optimizer_target,
+    is_pytorch_optimizer_config,
     validate_optimizer_config,
+)
+from simplexity.structured_configs.persistence import (
+    is_model_persister_target,
+    update_persister_instance_config,
     validate_persistence_config,
+)
+from simplexity.structured_configs.predictive_model import (
+    is_hooked_transformer_config,
+    is_predictive_model_target,
+    resolve_hooked_transformer_config,
 )
 from simplexity.utils.config_utils import (
     filter_instance_keys,

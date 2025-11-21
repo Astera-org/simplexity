@@ -26,7 +26,7 @@ from mlflow.entities import Metric, Param, RunTag
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.logger import Logger
-from simplexity.run_management.structured_configs import MLFlowLoggerInstanceConfig
+from simplexity.structured_configs.logging import MLFlowLoggerInstanceConfig
 from simplexity.utils.mlflow_utils import (
     get_experiment,
     get_run,

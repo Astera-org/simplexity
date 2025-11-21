@@ -27,7 +27,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
-from simplexity.run_management.structured_configs import MLFlowPersisterInstanceConfig
+from simplexity.structured_configs.persistence import MLFlowPersisterInstanceConfig
 from simplexity.utils.config_utils import typed_instantiate
 from simplexity.utils.mlflow_utils import (
     get_experiment,

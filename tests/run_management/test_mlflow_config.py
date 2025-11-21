@@ -18,7 +18,7 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.run_management.structured_configs import MLFlowConfig, validate_mlflow_config
+from simplexity.structured_configs.mlflow import MLFlowConfig, validate_mlflow_config
 
 
 class TestMLFlowConfig:

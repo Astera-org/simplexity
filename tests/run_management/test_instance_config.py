@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from omegaconf import DictConfig, OmegaConf
 
-from simplexity.run_management.structured_configs import InstanceConfig
+from simplexity.structured_configs.instance import InstanceConfig
 
 
 class TestInstanceConfig:

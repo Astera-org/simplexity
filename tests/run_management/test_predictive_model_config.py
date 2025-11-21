@@ -21,7 +21,7 @@ import pytest
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.run_management.structured_configs import (
+from simplexity.structured_configs.predictive_model import (
     HookedTransformerConfigConfig,
     HookedTransformerInstancecConfig,
     PredictiveModelConfig,
@@ -286,7 +286,7 @@ class TestHookedTransformerConfig:
                 "d_vocab": MISSING,
             }
         )
-        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+        with patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.debug") as mock_debug:
             resolve_hooked_transformer_config(cfg)
             mock_debug.assert_has_calls(
                 [
@@ -309,7 +309,7 @@ class TestHookedTransformerConfig:
             }
         )
         with (
-            patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug,
+            patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.debug") as mock_debug,
             patch("torch.cuda.is_available") as mock_is_cuda_available,
         ):
             mock_is_cuda_available.return_value = True
@@ -337,7 +337,7 @@ class TestHookedTransformerConfig:
             }
         )
         with (
-            patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.info") as mock_info,
+            patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.info") as mock_info,
             patch("torch.cuda.is_available") as mock_is_cuda_available,
         ):
             mock_is_cuda_available.return_value = True
@@ -382,7 +382,7 @@ class TestHookedTransformerConfig:
             }
         )
         with (
-            patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.warning") as mock_warning,
+            patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.warning") as mock_warning,
             patch("torch.cuda.is_available") as mock_is_cuda_available,
         ):
             mock_is_cuda_available.return_value = False
