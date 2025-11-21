@@ -150,9 +150,10 @@ class TestPrepareActivations:
         )
 
         # All weights should be equal (uniform)
-        assert jnp.allclose(result.weights, result.weights[0])
+        np_weights = np.asarray(result.weights)
+        assert np.allclose(np_weights, np_weights[0])
         # Weights should sum to 1
-        assert jnp.allclose(result.weights.sum(), 1.0)
+        assert np.allclose(np_weights.sum(), 1.0)
 
     def test_accepts_torch_inputs(self, synthetic_data):
         """prepare_activations should accept PyTorch tensors."""
