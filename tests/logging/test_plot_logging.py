@@ -286,7 +286,7 @@ class TestMLFlowLoggerPlotting:
         mock_run.info.run_id = "run_456"
         mock_client.create_run.return_value = mock_run
 
-        logger = MLFlowLogger("test_experiment", "test_run")
+        logger = MLFlowLogger(experiment_name="test_experiment", run_name="test_run")
 
         # Act
         logger.log_figure(simple_matplotlib_figure, "test.png", dpi=150)
@@ -308,7 +308,7 @@ class TestMLFlowLoggerPlotting:
         mock_run.info.run_id = "run_456"
         mock_client.create_run.return_value = mock_run
 
-        logger = MLFlowLogger("test_experiment")
+        logger = MLFlowLogger(experiment_name="test_experiment")
 
         # Act
         logger.log_image(tiny_numpy_image, artifact_file="image.png")
@@ -332,7 +332,7 @@ class TestMLFlowLoggerPlotting:
         mock_run.info.run_id = "run_456"
         mock_client.create_run.return_value = mock_run
 
-        logger = MLFlowLogger("test_experiment")
+        logger = MLFlowLogger(experiment_name="test_experiment")
 
         # Act
         logger.log_image(larger_pil_image, key="training", step=50, timestamp=1234567890)

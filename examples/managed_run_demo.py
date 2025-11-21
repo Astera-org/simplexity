@@ -15,12 +15,14 @@ from pathlib import Path
 
 import hydra
 import jax
+import jax.numpy as jnp
+import torch
 import yaml
 from torch.nn import Module as PytorchModel
 
 import simplexity
 from examples.configs.demo_config import Config
-from simplexity.generative_processes.torch_generator import generate_data_batch
+from simplexity.generative_processes.generator import generate_data_batch
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 
 DEMO_DIR = Path(__file__).parent
@@ -54,23 +56,22 @@ def main(cfg: Config, components: simplexity.Components) -> None:
         for model in components.predictive_models.values():
             if isinstance(model, PytorchModel):
                 inputs = None
-                if components.generative_processes and components.initial_states is not None:
-                    first_key = next(iter(components.generative_processes.keys()))
-                    batch_size = (
-                        cfg.generative_process.batch_size if cfg.generative_process.batch_size is not None else 1
-                    )
-                    sequence_len = (
-                        cfg.generative_process.sequence_len if cfg.generative_process.sequence_len is not None else 1
-                    )
+                if components.generative_processes:
+                    generative_process = next(iter(components.generative_processes.values()))
+                    batch_size = 1
+                    sequence_len = 1
+                    initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
                     _, inputs, _ = generate_data_batch(
-                        components.initial_states[first_key],
-                        components.generative_processes[first_key],
+                        initial_state,
+                        generative_process,
                         batch_size,
                         sequence_len,
                         jax.random.key(cfg.seed),
                         bos_token=cfg.generative_process.bos_token,
                         eos_token=cfg.generative_process.eos_token,
+                        to_torch=True,
                     )
+                    assert isinstance(inputs, torch.Tensor)
                 persister.save_model_to_registry(model, "test_model", model_inputs=inputs)
             else:
                 persister.save_weights(model, 0)

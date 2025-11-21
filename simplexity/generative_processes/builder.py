@@ -25,7 +25,9 @@ from simplexity.generative_processes.transition_matrices import (
 )
 
 
-def build_transition_matrices(matrix_functions: dict[str, Callable], process_name: str, **kwargs) -> jax.Array:
+def build_transition_matrices(
+    matrix_functions: dict[str, Callable], process_name: str, process_params: Mapping[str, Any] | None = None
+) -> jax.Array:
     """Build transition matrices for a generative process."""
     if process_name not in matrix_functions:
         raise KeyError(
@@ -33,10 +35,11 @@ def build_transition_matrices(matrix_functions: dict[str, Callable], process_nam
             f"Available HMM processes are: {', '.join(matrix_functions.keys())}"
         )
     matrix_function = matrix_functions[process_name]
+    process_params = process_params or {}
     sig = inspect.signature(matrix_function)
     try:
-        sig.bind_partial(**kwargs)
-        transition_matrices = matrix_function(**kwargs)
+        sig.bind_partial(**process_params)
+        transition_matrices = matrix_function(**process_params)
     except TypeError as e:
         params = ", ".join(f"{k}: {v.annotation}" for k, v in sig.parameters.items())
         raise TypeError(f"Invalid arguments for {process_name}: {e}.  Signature is: {params}") from e
@@ -54,18 +57,31 @@ def add_begin_of_sequence_token(transition_matrix: jax.Array, initial_state: jax
 
 
 def build_hidden_markov_model(
-    process_name: str, initial_state: jax.Array | Sequence[float] | None = None, **kwargs
+    process_name: str,
+    process_params: Mapping[str, Any] | None = None,
+    initial_state: jax.Array | Sequence[float] | None = None,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model."""
+    process_params = process_params or {}
     initial_state = jnp.array(initial_state) if initial_state is not None else None
-    transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, **kwargs)
+    transition_matrices = build_transition_matrices(
+        HMM_MATRIX_FUNCTIONS, process_name=process_name, process_params=process_params
+    )
     return HiddenMarkovModel(transition_matrices, initial_state)
 
 
-def build_generalized_hidden_markov_model(process_name: str, **kwargs) -> GeneralizedHiddenMarkovModel:
+def build_generalized_hidden_markov_model(
+    process_name: str,
+    process_params: Mapping[str, Any] | None = None,
+    initial_state: jax.Array | Sequence[float] | None = None,
+) -> GeneralizedHiddenMarkovModel:
     """Build a generalized hidden Markov model."""
-    transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, **kwargs)
-    return GeneralizedHiddenMarkovModel(transition_matrices)
+    initial_state = jnp.array(initial_state) if initial_state is not None else None
+    process_params = process_params or {}
+    transition_matrices = build_transition_matrices(
+        GHMM_MATRIX_FUNCTIONS, process_name=process_name, process_params=process_params
+    )
+    return GeneralizedHiddenMarkovModel(transition_matrices, initial_state)
 
 
 def build_nonergodic_transition_matrices(
@@ -103,15 +119,15 @@ def build_nonergodic_initial_state(
 
 def build_nonergodic_hidden_markov_model(
     process_names: list[str],
-    process_kwargs: Sequence[Mapping[str, Any]],
+    process_params: Sequence[Mapping[str, Any]],
     process_weights: Sequence[float],
     vocab_maps: Sequence[Sequence[int]] | None = None,
     add_bos_token: bool = False,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model from a list of process names and their corresponding keyword arguments."""
     component_transition_matrices = [
-        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, **kwargs)
-        for process_name, kwargs in zip(process_names, process_kwargs, strict=True)
+        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name=name, process_params=params)
+        for name, params in zip(process_names, process_params, strict=True)
     ]
     composite_transition_matrix = build_nonergodic_transition_matrices(component_transition_matrices, vocab_maps)
     component_initial_states = [
