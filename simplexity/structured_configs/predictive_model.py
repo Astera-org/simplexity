@@ -166,6 +166,7 @@ def resolve_hooked_transformer_config(cfg: DictConfig, *, vocab_size: int | None
             )
         else:
             SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab defined as: %s", cfg.get("d_vocab"))
+
     # Resolve device
     device: str | None = cfg.get("device", None)
     try:
@@ -220,16 +221,14 @@ def validate_predictive_model_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("PredictiveModelConfig.instance is required")
-    target = instance.get("_target_", None)
     name = cfg.get("name")
     load_checkpoint_step = cfg.get("load_checkpoint_step")
 
-    validate_instance_config(instance)
-    if not is_predictive_model_target(target):
-        raise ConfigValidationError(
-            f"PredictiveModelConfig.instance._target_ must be a predictive model target, got {target}"
-        )
     if is_hooked_transformer_config(instance):
         validate_hooked_transformer_config(instance)
+    else:
+        validate_instance_config(instance)
+        if not is_predictive_model_config(instance):
+            raise ConfigValidationError("PredictiveModelConfig.instance must be a predictive model target")
     _validate_nonempty_str(name, "PredictiveModelConfig.name", is_none_allowed=True)
     _validate_non_negative_int(load_checkpoint_step, "PredictiveModelConfig.load_checkpoint_step", is_none_allowed=True)
