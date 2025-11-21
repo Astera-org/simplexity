@@ -42,7 +42,7 @@ def is_pytorch_adam_optimizer_config(cfg: DictConfig) -> bool:
     return False
 
 
-def validate_adam_instance_config(cfg: DictConfig) -> None:
+def validate_pytorch_adam_instance_config(cfg: DictConfig) -> None:
     """Validate an AdamInstanceConfig.
 
     Args:
@@ -104,12 +104,12 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if not isinstance(instance, DictConfig):
         raise ConfigValidationError("OptimizerConfig.instance must be a DictConfig")
-    target = instance.get("_target_")
     name = cfg.get("name")
 
-    validate_instance_config(instance)
-    if not is_optimizer_target(target):
-        raise ConfigValidationError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
-    elif is_pytorch_adam_optimizer_config(instance):
-        validate_adam_instance_config(instance)
+    if is_pytorch_adam_optimizer_config(instance):
+        validate_pytorch_adam_instance_config(instance)
+    else:
+        validate_instance_config(instance)
+        if not is_optimizer_config(instance):
+            raise ConfigValidationError("OptimizerConfig.instance must be an optimizer target")
     _validate_nonempty_str(name, "OptimizerConfig.name", is_none_allowed=True)
