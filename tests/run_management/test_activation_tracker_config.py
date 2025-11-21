@@ -1,6 +1,7 @@
 """Tests for activation tracker structured config validation and instantiation."""
 
 import os
+
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 
 import jax.numpy as jnp
