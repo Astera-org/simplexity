@@ -12,8 +12,10 @@
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import torch
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.utils.pytorch_utils import jax_to_torch
 
 
 @eqx.filter_jit
@@ -25,7 +27,8 @@ def generate_data_batch(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
+    to_torch: bool = False,
+) -> tuple[jax.Array, jax.Array | torch.Tensor, jax.Array | torch.Tensor]:
     """Generate a batch of data."""
     batch_keys = jax.random.split(key, batch_size)
     gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, False)
@@ -35,4 +38,6 @@ def generate_data_batch(
         tokens = jnp.concatenate([tokens, jnp.full((batch_size, 1), eos_token)], axis=1)
     inputs = tokens[:, :-1]
     labels = tokens[:, 1:]
+    if to_torch:
+        return gen_states, jax_to_torch(inputs), jax_to_torch(labels)
     return gen_states, inputs, labels
