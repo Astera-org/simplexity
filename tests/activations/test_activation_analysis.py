@@ -136,7 +136,7 @@ class TestPrepareActivations:
         batch_size = synthetic_data["batch_size"]
         expected_d = synthetic_data["d_layer0"] + synthetic_data["d_layer1"]
         assert result.activations["concatenated"].shape == (batch_size, expected_d)
-        
+
     def test_uniform_weights(self, synthetic_data):
         """Test use_probs_as_weights=False produces uniform normalized weights."""
         result = prepare_activations(
