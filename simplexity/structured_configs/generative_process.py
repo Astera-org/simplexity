@@ -18,7 +18,7 @@ import jax
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.structured_configs.instance import InstanceConfig, _validate_instance_config
+from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import (
     _validate_bool,
     _validate_initial_state,
@@ -79,7 +79,7 @@ def validate_hidden_markov_model_builder_instance_config(cfg: DictConfig) -> Non
     process_params = cfg.get("process_params")
     initial_state = cfg.get("initial_state")
 
-    _validate_instance_config(cfg, expected_target="simplexity.generative_processes.builder.build_hidden_markov_model")
+    validate_instance_config(cfg, expected_target="simplexity.generative_processes.builder.build_hidden_markov_model")
     _validate_nonempty_str(process_name, "HiddenMarkovModelBuilderInstanceConfig.process_name")
     _validate_mapping(
         process_params, "HiddenMarkovModelBuilderInstanceConfig.process_params", key_type=str, is_none_allowed=True
@@ -133,7 +133,7 @@ def validate_generalized_hidden_markov_model_builder_instance_config(cfg: DictCo
     process_params = cfg.get("process_params")
     initial_state = cfg.get("initial_state")
 
-    _validate_instance_config(
+    validate_instance_config(
         cfg, expected_target="simplexity.generative_processes.builder.build_generalized_hidden_markov_model"
     )
     _validate_nonempty_str(process_name, "GeneralizedHiddenMarkovModelBuilderInstanceConfig.process_name")
@@ -203,7 +203,7 @@ def validate_nonergodic_hidden_markov_model_builder_instance_config(cfg: DictCon
     vocab_maps = cfg.get("vocab_maps")
     add_bos_token = cfg.get("add_bos_token")
 
-    _validate_instance_config(
+    validate_instance_config(
         cfg, expected_target="simplexity.generative_processes.builder.build_nonergodic_hidden_markov_model"
     )
     if not isinstance(process_names, Sequence):
@@ -302,7 +302,7 @@ def validate_generalized_hidden_markov_model_instance_config(cfg: DictConfig) ->
     transition_matrices = cfg.get("transition_matrices")
     initial_state = cfg.get("initial_state")
 
-    _validate_instance_config(
+    validate_instance_config(
         cfg,
         expected_target="simplexity.generative_processes.generalized_hidden_markov_model.GeneralizedHiddenMarkovModel",
     )
@@ -353,7 +353,7 @@ def validate_hidden_markov_model_instance_config(cfg: DictConfig) -> None:
     transition_matrices = cfg.get("transition_matrices")
     initial_state = cfg.get("initial_state")
 
-    _validate_instance_config(
+    validate_instance_config(
         cfg, expected_target="simplexity.generative_processes.hidden_markov_model.HiddenMarkovModel"
     )
     _validate_transition_matrices(transition_matrices, "HiddenMarkovModelInstanceConfig.transition_matrices")
@@ -412,7 +412,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     elif is_hidden_markov_model_config(instance):
         validate_hidden_markov_model_instance_config(instance)
     else:
-        _validate_instance_config(instance)
+        validate_instance_config(instance)
     _validate_nonempty_str(name, "GenerativeProcessConfig.name", is_none_allowed=True)
 
     _base_vocab_size: int | None = None

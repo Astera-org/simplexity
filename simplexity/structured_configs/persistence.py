@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.structured_configs.instance import InstanceConfig, _validate_instance_config
+from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import _validate_bool, _validate_nonempty_str, _validate_uri
 from simplexity.utils.config_utils import dynamic_resolve
 
@@ -55,7 +55,7 @@ def validate_local_persister_instance_config(cfg: DictConfig, framework: str | N
     target = cfg.get("_target_")
     directory = cfg.get("directory")
 
-    _validate_instance_config(cfg)
+    validate_instance_config(cfg)
     if not is_local_persister_config(cfg, framework=framework):
         class_name = f"Local{framework.capitalize()}Persister" if framework is not None else "LocalPersister"
         raise ConfigValidationError(f"{class_name}InstanceConfig must be a local persister, got {target}")
@@ -206,7 +206,7 @@ def validate_mlflow_persister_instance_config(cfg: DictConfig) -> None:
     Args:
         cfg: A DictConfig with MLFlowPersisterInstanceConfig fields (from Hydra).
     """
-    _validate_instance_config(cfg, expected_target="simplexity.persistence.mlflow_persister.MLFlowPersister")
+    validate_instance_config(cfg, expected_target="simplexity.persistence.mlflow_persister.MLFlowPersister")
     experiment_id = cfg.get("experiment_id")
     experiment_name = cfg.get("experiment_name")
     run_id = cfg.get("run_id")
@@ -285,6 +285,5 @@ def validate_persistence_config(cfg: DictConfig) -> None:
     elif is_mlflow_persister_config(instance):
         validate_mlflow_persister_instance_config(instance)
     else:
-        _validate_instance_config(instance)
+        validate_instance_config(instance)
     _validate_nonempty_str(cfg.get("name"), "PersistenceConfig.name", is_none_allowed=True)
-

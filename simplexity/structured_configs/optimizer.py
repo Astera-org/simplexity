@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.structured_configs.instance import InstanceConfig, _validate_instance_config
+from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import (
     _validate_bool,
     _validate_non_negative_float,
@@ -48,7 +48,7 @@ def validate_adam_instance_config(cfg: DictConfig) -> None:
     Args:
         cfg: A DictConfig with AdamInstanceConfig fields (from Hydra).
     """
-    _validate_instance_config(cfg)
+    validate_instance_config(cfg)
     lr = cfg.get("lr")
     betas = cfg.get("betas")
     eps = cfg.get("eps")
@@ -107,10 +107,9 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
     target = instance.get("_target_")
     name = cfg.get("name")
 
-    _validate_instance_config(instance)
+    validate_instance_config(instance)
     if not is_optimizer_target(target):
         raise ConfigValidationError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
     elif is_pytorch_adam_optimizer_config(instance):
         validate_adam_instance_config(instance)
     _validate_nonempty_str(name, "OptimizerConfig.name", is_none_allowed=True)
-

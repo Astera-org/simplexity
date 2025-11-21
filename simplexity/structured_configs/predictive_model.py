@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError, DeviceResolutionError
-from simplexity.structured_configs.instance import InstanceConfig, _validate_instance_config
+from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import (
     _validate_non_negative_int,
     _validate_nonempty_str,
@@ -89,7 +89,7 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
     device = cfg.get("device")
     seed = cfg.get("seed")
 
-    _validate_instance_config(cfg, expected_target="transformer_lens.HookedTransformerConfig")
+    validate_instance_config(cfg, expected_target="transformer_lens.HookedTransformerConfig")
     _validate_positive_int(n_layers, "HookedTransformerConfigConfig.n_layers")
     _validate_positive_int(d_model, "HookedTransformerConfigConfig.d_model")
     _validate_positive_int(d_head, "HookedTransformerConfigConfig.d_head")
@@ -143,7 +143,7 @@ def validate_hooked_transformer_config(cfg: DictConfig) -> None:
     Args:
         cfg: A DictConfig with _target_ and cfg fields (from Hydra).
     """
-    _validate_instance_config(cfg)
+    validate_instance_config(cfg)
     nested_cfg = cfg.get("cfg")
     if nested_cfg is None:
         raise ConfigValidationError("HookedTransformerConfig.cfg is required")
@@ -224,7 +224,7 @@ def validate_predictive_model_config(cfg: DictConfig) -> None:
     name = cfg.get("name")
     load_checkpoint_step = cfg.get("load_checkpoint_step")
 
-    _validate_instance_config(instance)
+    validate_instance_config(instance)
     if not is_predictive_model_target(target):
         raise ConfigValidationError(
             f"PredictiveModelConfig.instance._target_ must be a predictive model target, got {target}"
@@ -233,4 +233,3 @@ def validate_predictive_model_config(cfg: DictConfig) -> None:
         validate_hooked_transformer_config(instance)
     _validate_nonempty_str(name, "PredictiveModelConfig.name", is_none_allowed=True)
     _validate_non_negative_int(load_checkpoint_step, "PredictiveModelConfig.load_checkpoint_step", is_none_allowed=True)
-

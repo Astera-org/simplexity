@@ -24,7 +24,7 @@ class InstanceConfig:
     _target_: str
 
 
-def _validate_instance_config(cfg: DictConfig, expected_target: str | None = None) -> None:
+def validate_instance_config(cfg: DictConfig, expected_target: str | None = None) -> None:
     """Validate an InstanceConfig.
 
     Args:
@@ -36,4 +36,3 @@ def _validate_instance_config(cfg: DictConfig, expected_target: str | None = Non
     _validate_nonempty_str(target, "InstanceConfig._target_")
     if expected_target is not None and target != expected_target:
         raise ConfigValidationError(f"InstanceConfig._target_ must be {expected_target}, got {target}")
-

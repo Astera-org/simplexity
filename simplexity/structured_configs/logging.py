@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.structured_configs.instance import InstanceConfig, _validate_instance_config
+from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import _validate_bool, _validate_nonempty_str, _validate_uri
 from simplexity.utils.config_utils import dynamic_resolve
 
@@ -51,7 +51,7 @@ def validate_file_logger_instance_config(cfg: DictConfig) -> None:
     """
     file_path = cfg.get("file_path")
 
-    _validate_instance_config(cfg, expected_target="simplexity.logging.file_logger.FileLogger")
+    validate_instance_config(cfg, expected_target="simplexity.logging.file_logger.FileLogger")
     _validate_nonempty_str(file_path, "FileLoggerInstanceConfig.file_path")
 
 
@@ -95,7 +95,7 @@ def validate_mlflow_logger_instance_config(cfg: DictConfig) -> None:
     registry_uri = cfg.get("registry_uri")
     downgrade_unity_catalog = cfg.get("downgrade_unity_catalog")
 
-    _validate_instance_config(cfg, expected_target="simplexity.logging.mlflow_logger.MLFlowLogger")
+    validate_instance_config(cfg, expected_target="simplexity.logging.mlflow_logger.MLFlowLogger")
     _validate_nonempty_str(experiment_id, "MLFlowLoggerInstanceConfig.experiment_id", is_none_allowed=True)
     _validate_nonempty_str(experiment_name, "MLFlowLoggerInstanceConfig.experiment_name", is_none_allowed=True)
     _validate_nonempty_str(run_id, "MLFlowLoggerInstanceConfig.run_id", is_none_allowed=True)
@@ -159,6 +159,5 @@ def validate_logging_config(cfg: DictConfig) -> None:
     elif is_mlflow_logger_config(instance):
         validate_mlflow_logger_instance_config(instance)
     else:
-        _validate_instance_config(instance)
+        validate_instance_config(instance)
     _validate_nonempty_str(name, "LoggingConfig.name", is_none_allowed=True)
-
