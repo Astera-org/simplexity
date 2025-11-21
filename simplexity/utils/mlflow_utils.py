@@ -59,7 +59,7 @@ def resolve_registry_uri(
     registry_uri: str | None = None,
     *,
     tracking_uri: str | None = None,
-    downgrade_unity_catalog: bool = True,
+    downgrade_unity_catalog: bool | None = None,
 ) -> str | None:
     """Determine a workspace model registry URI for MLflow operations."""
 

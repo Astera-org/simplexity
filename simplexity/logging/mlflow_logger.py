@@ -49,10 +49,10 @@ class MLFlowLogger(Logger):
         run_name: str | None = None,
         tracking_uri: str | None = None,
         registry_uri: str | None = None,
-        downgrade_unity_catalog: bool = True,
+        downgrade_unity_catalog: bool | None = None,
     ):
         """Initialize MLflow logger."""
-        self._downgrade_unity_catalog = downgrade_unity_catalog
+        self._downgrade_unity_catalog = downgrade_unity_catalog if downgrade_unity_catalog is not None else True
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
             tracking_uri=tracking_uri,
