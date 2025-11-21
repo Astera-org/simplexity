@@ -1,0 +1,171 @@
+"""Composable layer-wise analysis orchestration."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+from jax import Array as JaxArray
+
+from simplexity.analysis.linear_regression import (
+    layer_linear_regression,
+    layer_linear_regression_svd,
+)
+from simplexity.analysis.pca import (
+    DEFAULT_VARIANCE_THRESHOLDS,
+    layer_pca_analysis,
+)
+
+AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, JaxArray]]]
+
+
+ValidatorFn = Callable[[Mapping[str, Any] | None], dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class AnalysisRegistration:
+    """Registry entry describing a supported layer analysis."""
+
+    fn: AnalysisFn
+    requires_belief_states: bool
+    validator: ValidatorFn
+
+
+def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    provided = dict(kwargs or {})
+    allowed = {"fit_intercept"}
+    unexpected = set(provided) - allowed
+    if unexpected:
+        raise ValueError(f"Unexpected linear_regression kwargs: {sorted(unexpected)}")
+    fit_intercept = bool(provided.get("fit_intercept", True))
+    return {"fit_intercept": fit_intercept}
+
+
+def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    provided = dict(kwargs or {})
+    allowed = {"fit_intercept", "rcond_values"}
+    unexpected = set(provided) - allowed
+    if unexpected:
+        raise ValueError(f"Unexpected linear_regression_svd kwargs: {sorted(unexpected)}")
+    fit_intercept = bool(provided.get("fit_intercept", True))
+    rcond_values = provided.get("rcond_values")
+    if rcond_values is not None:
+        if not isinstance(rcond_values, (list, tuple)):
+            raise TypeError("rcond_values must be a sequence of floats")
+        if len(rcond_values) == 0:
+            raise ValueError("rcond_values must not be empty")
+        rcond_values = tuple(float(v) for v in rcond_values)
+    return {
+        "fit_intercept": fit_intercept,
+        "rcond_values": rcond_values,
+    }
+
+
+def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    provided = dict(kwargs or {})
+    allowed = {"n_components", "variance_thresholds"}
+    unexpected = set(provided) - allowed
+    if unexpected:
+        raise ValueError(f"Unexpected pca kwargs: {sorted(unexpected)}")
+    n_components = provided.get("n_components")
+    if n_components is not None:
+        if not isinstance(n_components, int):
+            raise TypeError("n_components must be an int or None")
+        if n_components <= 0:
+            raise ValueError("n_components must be positive")
+    thresholds = provided.get("variance_thresholds", DEFAULT_VARIANCE_THRESHOLDS)
+    if not isinstance(thresholds, Sequence):
+        raise TypeError("variance_thresholds must be a sequence of floats")
+    thresholds_tuple = tuple(float(t) for t in thresholds)
+    for threshold in thresholds_tuple:
+        if threshold <= 0 or threshold > 1:
+            raise ValueError("variance thresholds must be within (0, 1]")
+    return {
+        "n_components": n_components,
+        "variance_thresholds": thresholds_tuple,
+    }
+
+
+ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
+    "linear_regression": AnalysisRegistration(
+        fn=layer_linear_regression,
+        requires_belief_states=True,
+        validator=_validate_linear_regression_kwargs,
+    ),
+    "linear_regression_svd": AnalysisRegistration(
+        fn=layer_linear_regression_svd,
+        requires_belief_states=True,
+        validator=_validate_linear_regression_svd_kwargs,
+    ),
+    "pca": AnalysisRegistration(
+        fn=layer_pca_analysis,
+        requires_belief_states=False,
+        validator=_validate_pca_kwargs,
+    ),
+}
+
+
+class LayerwiseAnalysis:
+    """Applies a registered single-layer analysis across an entire network."""
+
+    def __init__(
+        self,
+        analysis_type: str,
+        *,
+        last_token_only: bool = False,
+        concat_layers: bool = False,
+        use_probs_as_weights: bool = True,
+        analysis_kwargs: Mapping[str, Any] | None = None,
+    ) -> None:
+        if analysis_type not in ANALYSIS_REGISTRY:
+            raise ValueError(f"Unknown analysis_type '{analysis_type}'")
+        registration = ANALYSIS_REGISTRY[analysis_type]
+        self._analysis_fn = registration.fn
+        self._analysis_kwargs = registration.validator(analysis_kwargs)
+        self._requires_belief_states = registration.requires_belief_states
+        self._last_token_only = last_token_only
+        self._concat_layers = concat_layers
+        self._use_probs_as_weights = use_probs_as_weights
+
+    @property
+    def last_token_only(self) -> bool:
+        return self._last_token_only
+
+    @property
+    def concat_layers(self) -> bool:
+        return self._concat_layers
+
+    @property
+    def use_probs_as_weights(self) -> bool:
+        return self._use_probs_as_weights
+
+    @property
+    def requires_belief_states(self) -> bool:
+        return self._requires_belief_states
+
+    def analyze(
+        self,
+        activations: Mapping[str, JaxArray],
+        weights: JaxArray,
+        belief_states: JaxArray | None = None,
+    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+        if self._requires_belief_states and belief_states is None:
+            raise ValueError("This analysis requires belief_states")
+        scalars: dict[str, float] = {}
+        projections: dict[str, JaxArray] = {}
+        for layer_name in sorted(activations):
+            layer_scalars, layer_projections = self._analysis_fn(
+                activations[layer_name],
+                weights,
+                belief_states,
+                **self._analysis_kwargs,
+            )
+            for key, value in layer_scalars.items():
+                scalars[f"{layer_name}_{key}"] = value
+            for key, value in layer_projections.items():
+                projections[f"{layer_name}_{key}"] = value
+        return scalars, projections
+
+
+__all__ = ["LayerwiseAnalysis", "ANALYSIS_REGISTRY"]
