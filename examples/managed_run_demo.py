@@ -11,21 +11,17 @@
 
 import logging
 import logging.config
-import time
 from pathlib import Path
 
 import hydra
 import jax
-import mlflow.pytorch as mlflow_pytorch
-import torch
 import yaml
-from mlflow.models.signature import infer_signature
 from torch.nn import Module as PytorchModel
 
 import simplexity
 from examples.configs.demo_config import Config
 from simplexity.generative_processes.torch_generator import generate_data_batch
-from simplexity.utils.pip_utils import create_requirements_file
+from simplexity.persistence.mlflow_persister import MLFlowPersister
 
 DEMO_DIR = Path(__file__).parent
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
@@ -53,20 +49,12 @@ def main(cfg: Config, components: simplexity.Components) -> None:
     assert components.optimizers is not None
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
+        persister = components.get_persister()
+        assert isinstance(persister, MLFlowPersister)
         for model in components.predictive_models.values():
-            persister = components.get_persister()
-            if persister:
-                persister.save_weights(model, 0)
             if isinstance(model, PytorchModel):
-                timestamp = int(time.time())
-                kwargs = {
-                    "pytorch_model": model,
-                    "name": f"demo_{timestamp}",
-                    "registered_model_name": f"demo_model_{timestamp}",
-                    "pip_requirements": create_requirements_file(),
-                }
+                inputs = None
                 if components.generative_processes and components.initial_states is not None:
-                    # Get the first generative process and corresponding initial state (keys match)
                     first_key = next(iter(components.generative_processes.keys()))
                     batch_size = (
                         cfg.generative_process.batch_size if cfg.generative_process.batch_size is not None else 1
@@ -83,13 +71,9 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                         bos_token=cfg.generative_process.bos_token,
                         eos_token=cfg.generative_process.eos_token,
                     )
-                    outputs: torch.Tensor = model(inputs)
-                    signature = infer_signature(
-                        model_input=inputs.detach().cpu().numpy(),
-                        model_output=outputs.detach().cpu().numpy(),
-                    )
-                    kwargs["signature"] = signature
-                mlflow_pytorch.log_model(**kwargs)
+                persister.save_model_to_registry(model, "test_model", model_inputs=inputs)
+            else:
+                persister.save_weights(model, 0)
 
 
 if __name__ == "__main__":
