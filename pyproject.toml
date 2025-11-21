@@ -24,6 +24,7 @@ dependencies = [
     "torch>=2.9.0",
     "transformer-lens>=2.15.4",
     "treescope",
+    "pydantic>=2.12.0",
 ]
 
 [project.optional-dependencies]
