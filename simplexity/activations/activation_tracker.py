@@ -1,67 +1,77 @@
 """Activation analysis for Transformer layers."""
 
 from collections.abc import Mapping
-from typing import Literal, TypedDict
+from dataclasses import dataclass
+from typing import Any
 
+import jax
 import jax.numpy as jnp
-from jax import Array as JaxArray
+import torch
 from jax.typing import DTypeLike
 
 from simplexity.activations.activation_analyses import ActivationAnalysis
-from simplexity.utils.analysis_utils import build_last_token_dataset, build_prefix_dataset
+from simplexity.utils.analysis_utils import build_deduplicated_dataset
+from simplexity.utils.pytorch_utils import torch_to_jax
 
 
-class PreparedActivations(TypedDict):
+@dataclass
+class PreparedActivations:
     """Prepared activations with belief states and sample weights."""
 
-    activations: Mapping[str, JaxArray]
-    belief_states: JaxArray | None
-    weights: JaxArray
+    activations: Mapping[str, jax.Array]
+    belief_states: jax.Array | None
+    weights: jax.Array
 
 
-def _get_uniform_weights(n_samples: int, dtype: DTypeLike) -> JaxArray:
+def _get_uniform_weights(n_samples: int, dtype: DTypeLike) -> jax.Array:
     """Get uniform weights that sum to 1."""
     weights = jnp.ones(n_samples, dtype=dtype)
     weights = weights / weights.sum()
     return weights
 
 
+def _to_jax_array(value: Any) -> jax.Array:
+    """Convert supported tensor types to JAX arrays."""
+    if isinstance(value, jax.Array):
+        return value
+    if isinstance(value, torch.Tensor):
+        return torch_to_jax(value)
+    return jnp.asarray(value)
+
+
 def prepare_activations(
-    inputs: JaxArray,
-    beliefs: JaxArray,
-    probs: JaxArray,
-    activations: Mapping[str, JaxArray],
-    token_selection: Literal["all", "last"],
+    inputs: jax.Array,
+    beliefs: jax.Array,
+    probs: jax.Array,
+    activations: Mapping[str, jax.Array],
+    last_token_only: bool = False,
     concat_layers: bool = False,
     use_probs_as_weights: bool = True,
 ) -> PreparedActivations:
     """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
-    weights = None
-    if token_selection == "all":
-        prefix_dataset = build_prefix_dataset(inputs, beliefs, probs, dict(activations))
-        belief_states = prefix_dataset.beliefs
-        layer_acts = prefix_dataset.activations_by_layer
+    inputs = _to_jax_array(inputs)
+    beliefs = _to_jax_array(beliefs)
+    probs = _to_jax_array(probs)
+    activations = {name: _to_jax_array(layer) for name, layer in activations.items()}
 
-        if use_probs_as_weights:
-            weights = prefix_dataset.probs
+    if last_token_only:
+        beliefs = beliefs[:, -1, :]
+        probs = probs[:, -1]
+        activations = {name: acts[:, -1, :] for name, acts in activations.items()}
 
-    elif token_selection == "last":
-        last_beliefs = beliefs[:, -1, :]
-        last_probs = probs[:, -1]
-        last_layer_acts = {name: acts[:, -1, :] for name, acts in activations.items()}
+    dataset = build_deduplicated_dataset(
+        inputs=inputs,
+        beliefs=beliefs,
+        probs=probs,
+        activations_by_layer=activations,
+        select_last_token=last_token_only,
+    )
 
-        last_token_dataset = build_last_token_dataset(inputs, last_beliefs, last_probs, last_layer_acts)
-        belief_states = last_token_dataset.beliefs
-        layer_acts = last_token_dataset.activations_by_layer
-
-        if use_probs_as_weights:
-            weights = last_token_dataset.probs
-
-    else:
-        raise ValueError(f"Invalid token_selection: {token_selection}. Must be 'all' or 'last'.")
-
-    if weights is None:
-        weights = _get_uniform_weights(belief_states.shape[0], dtype=beliefs.dtype)
+    layer_acts = dataset.activations_by_layer
+    belief_states = dataset.beliefs
+    weights = (
+        dataset.probs if use_probs_as_weights else _get_uniform_weights(belief_states.shape[0], belief_states.dtype)
+    )
 
     if concat_layers:
         concatenated = jnp.concatenate(list(layer_acts.values()), axis=-1)
@@ -83,19 +93,19 @@ class ActivationTracker:
 
     def analyze(
         self,
-        inputs: JaxArray,
-        beliefs: JaxArray,
-        probs: JaxArray,
-        activations: Mapping[str, JaxArray],
-    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+        inputs: jax.Array,
+        beliefs: jax.Array,
+        probs: jax.Array,
+        activations: Mapping[str, jax.Array],
+    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Run all analyses and return namespaced results."""
-        preprocessing_cache: dict[tuple[str, bool, bool], PreparedActivations] = {}
+        preprocessing_cache: dict[tuple[bool, bool, bool], PreparedActivations] = {}
 
         for analysis in self._analyses.values():
             config_key = (
-                analysis._token_selection,
-                analysis._concat_layers,
-                analysis._use_probs_as_weights,
+                analysis.last_token_only,
+                analysis.concat_layers,
+                analysis.use_probs_as_weights,
             )
 
             if config_key not in preprocessing_cache:
@@ -104,9 +114,9 @@ class ActivationTracker:
                     beliefs=beliefs,
                     probs=probs,
                     activations=activations,
-                    token_selection=analysis._token_selection,
-                    concat_layers=analysis._concat_layers,
-                    use_probs_as_weights=analysis._use_probs_as_weights,
+                    last_token_only=analysis.last_token_only,
+                    concat_layers=analysis.concat_layers,
+                    use_probs_as_weights=analysis.use_probs_as_weights,
                 )
                 preprocessing_cache[config_key] = prepared
 
@@ -115,17 +125,17 @@ class ActivationTracker:
 
         for analysis_name, analysis in self._analyses.items():
             config_key = (
-                analysis._token_selection,
-                analysis._concat_layers,
-                analysis._use_probs_as_weights,
+                analysis.last_token_only,
+                analysis.concat_layers,
+                analysis.use_probs_as_weights,
             )
             prepared = preprocessing_cache[config_key]
 
-            prepared_activations: Mapping[str, JaxArray] = prepared["activations"]
+            prepared_activations: Mapping[str, jax.Array] = prepared["activations"]
             prepared_beliefs = prepared["belief_states"]
             prepared_weights = prepared["weights"]
 
-            if analysis._requires_belief_states and prepared_beliefs is None:
+            if analysis.requires_belief_states and prepared_beliefs is None:
                 raise ValueError(
                     f"Analysis '{analysis_name}' requires belief_states but none available after preprocessing."
                 )

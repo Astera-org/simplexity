@@ -1,6 +1,7 @@
 """Tests for activation analysis system."""
 
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from simplexity.activations.activation_analyses import (
@@ -60,7 +61,7 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="all",
+            last_token_only=False,
             concat_layers=False,
         )
 
@@ -85,7 +86,7 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="all",
+            last_token_only=False,
             concat_layers=True,
         )
 
@@ -105,7 +106,7 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
         )
 
@@ -126,7 +127,7 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=True,
         )
 
@@ -143,7 +144,7 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
             use_probs_as_weights=False,
         )
@@ -153,17 +154,25 @@ class TestPrepareActivations:
         # Weights should sum to 1
         assert jnp.allclose(result["weights"].sum(), 1.0)
 
-    def test_invalid_token_selection(self, synthetic_data):
-        """Test invalid token_selection raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid token_selection"):
-            prepare_activations(
-                synthetic_data["inputs"],
-                synthetic_data["beliefs"],
-                synthetic_data["probs"],
-                synthetic_data["activations"],
-                token_selection="invalid",  # type: ignore[arg-type]
-                concat_layers=False,
-            )
+    def test_accepts_torch_inputs(self, synthetic_data):
+        """prepare_activations should accept PyTorch tensors."""
+        torch = pytest.importorskip("torch")
+        inputs = torch.tensor(np.asarray(synthetic_data["inputs"]))
+        beliefs = torch.tensor(np.asarray(synthetic_data["beliefs"]))
+        probs = torch.tensor(np.asarray(synthetic_data["probs"]))
+        activations = {name: torch.tensor(np.asarray(layer)) for name, layer in synthetic_data["activations"].items()}
+
+        result = prepare_activations(
+            inputs,
+            beliefs,
+            probs,
+            activations,
+            last_token_only=True,
+            concat_layers=False,
+        )
+
+        assert "layer_0" in result["activations"]
+        assert result["activations"]["layer_0"].shape[0] == synthetic_data["batch_size"]
 
 
 class TestLinearRegressionAnalysis:
@@ -178,7 +187,7 @@ class TestLinearRegressionAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
         )
 
@@ -206,7 +215,7 @@ class TestLinearRegressionAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
         )
 
@@ -224,7 +233,7 @@ class TestLinearRegressionAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
             use_probs_as_weights=False,
         )
@@ -247,7 +256,7 @@ class TestLinearRegressionSVDAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
         )
 
@@ -280,7 +289,7 @@ class TestLinearRegressionSVDAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
         )
 
@@ -302,7 +311,7 @@ class TestPCAAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
         )
 
@@ -333,7 +342,7 @@ class TestPCAAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
         )
 
@@ -354,7 +363,7 @@ class TestPCAAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            token_selection="last",
+            last_token_only=True,
             concat_layers=False,
         )
 
@@ -373,12 +382,12 @@ class TestActivationTracker:
         tracker = ActivationTracker(
             {
                 "regression": LinearRegressionAnalysis(
-                    token_selection="last",
+                    last_token_only=True,
                     concat_layers=False,
                 ),
                 "pca": PCAAnalysis(
                     n_components=2,
-                    token_selection="last",
+                    last_token_only=True,
                     concat_layers=False,
                 ),
             }
@@ -402,7 +411,7 @@ class TestActivationTracker:
         tracker = ActivationTracker(
             {
                 "regression": LinearRegressionAnalysis(
-                    token_selection="all",
+                    last_token_only=False,
                     concat_layers=False,
                 ),
             }
@@ -423,12 +432,12 @@ class TestActivationTracker:
         tracker = ActivationTracker(
             {
                 "regression": LinearRegressionAnalysis(
-                    token_selection="last",
+                    last_token_only=True,
                     concat_layers=False,
                 ),
                 "pca": PCAAnalysis(
                     n_components=2,
-                    token_selection="last",
+                    last_token_only=True,
                     concat_layers=False,
                 ),
             }
@@ -449,12 +458,12 @@ class TestActivationTracker:
         tracker = ActivationTracker(
             {
                 "regression": LinearRegressionAnalysis(
-                    token_selection="last",
+                    last_token_only=True,
                     concat_layers=True,
                 ),
                 "pca": PCAAnalysis(
                     n_components=2,
-                    token_selection="last",
+                    last_token_only=True,
                     concat_layers=True,
                 ),
             }
@@ -478,7 +487,7 @@ class TestActivationTracker:
         tracker = ActivationTracker(
             {
                 "regression": LinearRegressionAnalysis(
-                    token_selection="last",
+                    last_token_only=True,
                     concat_layers=False,
                     use_probs_as_weights=False,
                 ),
@@ -500,16 +509,16 @@ class TestActivationTracker:
             {
                 "pca_all_tokens": PCAAnalysis(
                     n_components=2,
-                    token_selection="all",
+                    last_token_only=False,
                     concat_layers=False,
                 ),
                 "pca_last_token": PCAAnalysis(
                     n_components=3,
-                    token_selection="last",
+                    last_token_only=True,
                     concat_layers=False,
                 ),
                 "regression_concat": LinearRegressionAnalysis(
-                    token_selection="all",
+                    last_token_only=False,
                     concat_layers=True,
                 ),
             }
@@ -529,3 +538,37 @@ class TestActivationTracker:
         assert "pca_all_tokens/layer_0_pca" in projections
         assert "pca_last_token/layer_0_pca" in projections
         assert "regression_concat/concatenated_projected" in projections
+
+    def test_tracker_accepts_torch_inputs(self, synthetic_data):
+        """ActivationTracker should handle PyTorch tensors via conversion."""
+        torch = pytest.importorskip("torch")
+        tracker = ActivationTracker(
+            {
+                "regression": LinearRegressionAnalysis(
+                    last_token_only=True,
+                    concat_layers=False,
+                ),
+                "pca": PCAAnalysis(
+                    n_components=2,
+                    last_token_only=True,
+                    concat_layers=False,
+                ),
+            }
+        )
+
+        torch_inputs = torch.tensor(np.asarray(synthetic_data["inputs"]))
+        torch_beliefs = torch.tensor(np.asarray(synthetic_data["beliefs"]))
+        torch_probs = torch.tensor(np.asarray(synthetic_data["probs"]))
+        torch_activations = {
+            name: torch.tensor(np.asarray(layer)) for name, layer in synthetic_data["activations"].items()
+        }
+
+        scalars, projections = tracker.analyze(
+            inputs=torch_inputs,
+            beliefs=torch_beliefs,
+            probs=torch_probs,
+            activations=torch_activations,
+        )
+
+        assert "regression/layer_0_r2" in scalars
+        assert "pca/layer_0_pca" in projections

@@ -43,6 +43,8 @@ from simplexity.run_management.run_logging import (
     log_system_info,
 )
 from simplexity.run_management.structured_configs import (
+    ConfigValidationError,
+    is_activation_analysis_target,
     is_activation_tracker_target,
     is_generative_process_target,
     is_hooked_transformer_config,
@@ -473,7 +475,24 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
     """Instantiate an activation tracker."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
-        tracker = hydra.utils.instantiate(instance_config)
+        analyses_cfg = instance_config.get("analyses")
+        if analyses_cfg is None:
+            raise ConfigValidationError("ActivationTracker requires an analyses mapping")
+        analyses_objects: dict[str, Any] = {}
+        for key, analysis_cfg in analyses_cfg.items():
+            if not isinstance(analysis_cfg, DictConfig) or "instance" not in analysis_cfg:
+                raise ConfigValidationError(
+                    f"ActivationTracker analysis '{key}' must provide an InstanceConfig via 'instance'"
+                )
+            name_override = analysis_cfg.get("name")
+            cfg_to_instantiate = analysis_cfg.instance
+            target = cfg_to_instantiate.get("_target_", None)
+            if not is_activation_analysis_target(target):
+                raise ConfigValidationError(f"ActivationTracker analysis '{key}' has invalid target: {target}")
+            analysis_obj = hydra.utils.instantiate(cfg_to_instantiate)
+            analyses_objects[name_override or key] = analysis_obj
+
+        tracker = hydra.utils.instantiate(instance_config, analyses=analyses_objects)
         SIMPLEXITY_LOGGER.info("[activation tracker] instantiated activation tracker: %s", tracker.__class__.__name__)
         return tracker
     raise KeyError

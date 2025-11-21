@@ -669,7 +669,7 @@ class ActivationAnalysisConfig:
 class ActivationTrackerConfig:
     """Configuration for activation tracker."""
 
-    analyses: dict[str, ActivationAnalysisConfig]
+    instance: InstanceConfig
     name: str | None = None
 
 
@@ -727,11 +727,15 @@ def validate_activation_tracker_config(cfg: DictConfig) -> None:
     for key, analysis_config in analyses.items():
         if not isinstance(analysis_config, DictConfig):
             raise ConfigValidationError(f"ActivationTrackerConfig.instance.analyses[{key}] must be a config dict")
-        target = analysis_config.get("_target_", None)
+        instance_cfg = analysis_config.get("instance")
+        if not isinstance(instance_cfg, DictConfig):
+            raise ConfigValidationError(
+                f"ActivationTrackerConfig.instance.analyses[{key}] must specify an InstanceConfig"
+            )
+        target = instance_cfg.get("_target_", None)
         if not is_activation_analysis_target(target):
             raise ConfigValidationError(
-                f"ActivationTrackerConfig.instance.analyses[{key}]._target_"
-                f" must be an activation analysis, got {target}"
+                f"ActivationTrackerConfig.instance.analyses[{key}] must target an activation analysis, got {target}"
             )
 
     _validate_nonempty_str(cfg.get("name"), "ActivationTrackerConfig.name", is_none_allowed=True)

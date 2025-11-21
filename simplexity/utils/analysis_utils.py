@@ -1,3 +1,4 @@
+from collections import defaultdict
 from dataclasses import dataclass
 
 import jax
@@ -8,7 +9,7 @@ import numpy as np
 def make_prefix_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[tuple[int, int]]]:
     """Group positions by prefix of tokens."""
     batch_size, seq_len = inputs.shape
-    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]] = {}
+    prefix_to_indices = defaultdict(list)
 
     inputs_np = np.asarray(inputs)
 
@@ -16,7 +17,7 @@ def make_prefix_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[tuple[in
         seq = inputs_np[seq_idx]
         for pos in range(seq_len):
             prefix = tuple(seq[: pos + 1])
-            prefix_to_indices.setdefault(prefix, []).append((seq_idx, pos))
+            prefix_to_indices[prefix].append((seq_idx, pos))
 
     return prefix_to_indices
 
@@ -125,17 +126,7 @@ def dedup_last_token_probs_sum(
 
 
 @dataclass
-class PrefixDataset:
-    """A clean container for prefix-level data."""
-
-    prefixes: list[tuple[int, ...]]
-    beliefs: jax.Array
-    probs: jax.Array
-    activations_by_layer: dict[str, jax.Array]
-
-
-@dataclass
-class LastTokenDataset:
+class DeduplicatedDataset:
     """A clean container for last-token-only data."""
 
     sequences: list[tuple[int, ...]]
@@ -144,12 +135,37 @@ class LastTokenDataset:
     activations_by_layer: dict[str, jax.Array]
 
 
+def build_deduplicated_dataset(
+    inputs: jax.Array,
+    beliefs: jax.Array,
+    probs: jax.Array,
+    activations_by_layer: dict[str, jax.Array],
+    select_last_token: bool = False,
+) -> DeduplicatedDataset:
+    """Deduplicate everything by prefix."""
+    if select_last_token:
+        return build_last_token_dataset(
+            inputs,
+            beliefs,
+            probs,
+            activations_by_layer,
+        )
+    else:
+        return build_prefix_dataset(
+            inputs,
+            beliefs,
+            probs,
+            activations_by_layer,
+        )
+
+
 def build_prefix_dataset(
     inputs: jax.Array,
     beliefs: jax.Array,
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
-) -> PrefixDataset:
+    select_last_token: bool = False,
+) -> DeduplicatedDataset:
     """Deduplicate everything by prefix."""
     prefix_to_indices = make_prefix_groups(inputs)
 
@@ -166,8 +182,8 @@ def build_prefix_dataset(
             raise ValueError(f"Prefix mismatch for layer {name}")
         dedup_acts_by_layer[name] = dedup_acts
 
-    return PrefixDataset(
-        prefixes=prefixes,
+    return DeduplicatedDataset(
+        sequences=prefixes,
         beliefs=dedup_beliefs,
         probs=dedup_probs,
         activations_by_layer=dedup_acts_by_layer,
@@ -179,7 +195,7 @@ def build_last_token_dataset(
     beliefs: jax.Array,
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
-) -> LastTokenDataset:
+) -> DeduplicatedDataset:
     """Deduplicate everything by full sequence."""
     sequence_to_indices = make_sequence_groups(inputs)
 
@@ -198,7 +214,7 @@ def build_last_token_dataset(
             raise ValueError(f"Sequence mismatch for layer {name}")
         dedup_acts_by_layer[name] = dedup_acts
 
-    return LastTokenDataset(
+    return DeduplicatedDataset(
         sequences=sequences,
         beliefs=dedup_beliefs,
         probs=dedup_probs,

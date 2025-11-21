@@ -25,14 +25,55 @@ def generate_data_batch(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Generate a batch of data."""
+    return_all_states: bool = False,
+    return_prefix_probabilities: bool = False,
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Generate a batch of sequences along with state and probability summaries."""
     batch_keys = jax.random.split(key, batch_size)
-    gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, False)
+    initial_states = gen_states
+    store_states = return_all_states or return_prefix_probabilities
+    generated_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, store_states)
+
+    if store_states:
+        belief_states = generated_states
+        final_states = belief_states[:, -1, :]
+    else:
+        final_states = generated_states
+        belief_states = None
+
+    raw_prefix_probs = _compute_prefix_probabilities(data_generator, initial_states, tokens)
+    sequence_probs = raw_prefix_probs[:, -1]
+    prefix_probs = raw_prefix_probs
+
     if bos_token is not None:
         tokens = jnp.concatenate([jnp.full((batch_size, 1), bos_token), tokens], axis=1)
+        prefix_probs = jnp.concatenate([jnp.ones((batch_size, 1), dtype=prefix_probs.dtype), prefix_probs], axis=1)
     if eos_token is not None:
         tokens = jnp.concatenate([tokens, jnp.full((batch_size, 1), eos_token)], axis=1)
+        prefix_probs = jnp.concatenate([prefix_probs, prefix_probs[:, -1:, ...]], axis=1)
     inputs = tokens[:, :-1]
     labels = tokens[:, 1:]
-    return gen_states, inputs, labels
+    prefix_probs = prefix_probs[:, : inputs.shape[1]]
+
+    states_output = belief_states if return_all_states else final_states
+    probs_output = prefix_probs if return_prefix_probabilities else sequence_probs
+
+    return states_output, probs_output, inputs, labels
+
+
+def _compute_prefix_probabilities(
+    data_generator: GenerativeProcess,
+    initial_states: jax.Array,
+    tokens: jax.Array,
+) -> jax.Array:
+    def run_sequence(state: jax.Array, seq: jax.Array) -> jax.Array:
+        def step(carry_state: jax.Array, token: jax.Array) -> tuple[jax.Array, jax.Array]:
+            obs_probs = data_generator.observation_probability_distribution(carry_state)
+            token_prob = obs_probs[token]
+            new_state = data_generator.transition_states(carry_state, token)
+            return new_state, token_prob
+
+        _, token_probs = jax.lax.scan(step, state, seq)
+        return jnp.cumprod(token_probs, axis=0)
+
+    return jax.vmap(run_sequence)(initial_states, tokens)
