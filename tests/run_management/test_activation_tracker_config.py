@@ -20,11 +20,18 @@ def _build_valid_tracker_cfg() -> DictConfig:
                             "instance": {
                                 "_target_": "simplexity.activations.activation_analyses.PCAAnalysis",
                                 "n_components": 1,
+                                "last_token_only": True,
+                                "concat_layers": False,
+                                "use_probs_as_weights": True,
                             },
                         },
                         "linear": {
                             "instance": {
                                 "_target_": "simplexity.activations.activation_analyses.LinearRegressionAnalysis",
+                                "fit_intercept": True,
+                                "last_token_only": False,
+                                "concat_layers": True,
+                                "use_probs_as_weights": False,
                             }
                         },
                     },
