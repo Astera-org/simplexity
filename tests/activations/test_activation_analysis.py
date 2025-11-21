@@ -65,9 +65,9 @@ class TestPrepareActivations:
             concat_layers=False,
         )
 
-        assert "activations" in result
-        assert "belief_states" in result
-        assert "weights" in result
+        assert hasattr(result, "activations")
+        assert hasattr(result, "belief_states")
+        assert hasattr(result, "weights")
 
         assert "layer_0" in result.activations
         assert "layer_1" in result.activations
@@ -191,7 +191,11 @@ class TestLinearRegressionAnalysis:
             concat_layers=False,
         )
 
-        scalars, projections = analysis.analyze(**prepared)
+        scalars, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
 
         assert "layer_0_r2" in scalars
         assert "layer_0_rmse" in scalars
@@ -202,9 +206,9 @@ class TestLinearRegressionAnalysis:
         assert "layer_0_projected" in projections
         assert "layer_1_projected" in projections
 
-        assert prepared["belief_states"] is not None
-        assert projections["layer_0_projected"].shape == prepared["belief_states"].shape
-        assert projections["layer_1_projected"].shape == prepared["belief_states"].shape
+        assert prepared.belief_states is not None
+        assert projections["layer_0_projected"].shape == prepared.belief_states.shape
+        assert projections["layer_1_projected"].shape == prepared.belief_states.shape
 
     def test_requires_belief_states(self, synthetic_data):
         """Test that analysis raises error without belief_states."""
@@ -219,10 +223,14 @@ class TestLinearRegressionAnalysis:
             concat_layers=False,
         )
 
-        prepared["belief_states"] = None
+        prepared.belief_states = None
 
         with pytest.raises(ValueError, match="requires belief_states"):
-            analysis.analyze(**prepared)
+            analysis.analyze(
+                activations=prepared.activations,
+                belief_states=prepared.belief_states,
+                weights=prepared.weights,
+            )
 
     def test_uniform_weights(self, synthetic_data):
         """Test regression with uniform weights via use_probs_as_weights=False."""
@@ -238,7 +246,11 @@ class TestLinearRegressionAnalysis:
             use_probs_as_weights=False,
         )
 
-        scalars, projections = analysis.analyze(**prepared)
+        scalars, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
 
         assert "layer_0_r2" in scalars
         assert "layer_0_projected" in projections
@@ -260,7 +272,11 @@ class TestLinearRegressionSVDAnalysis:
             concat_layers=False,
         )
 
-        scalars, projections = analysis.analyze(**prepared)
+        scalars, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
 
         assert "layer_0_r2" in scalars
         assert "layer_0_rmse" in scalars
@@ -273,9 +289,9 @@ class TestLinearRegressionSVDAnalysis:
         assert "layer_0_projected" in projections
         assert "layer_1_projected" in projections
 
-        assert prepared["belief_states"] is not None
-        assert projections["layer_0_projected"].shape == prepared["belief_states"].shape
-        assert projections["layer_1_projected"].shape == prepared["belief_states"].shape
+        assert prepared.belief_states is not None
+        assert projections["layer_0_projected"].shape == prepared.belief_states.shape
+        assert projections["layer_1_projected"].shape == prepared.belief_states.shape
 
         # Check that best_rcond is one of the provided values
         assert scalars["layer_0_best_rcond"] in [1e-15, 1e-10, 1e-8]
@@ -293,10 +309,14 @@ class TestLinearRegressionSVDAnalysis:
             concat_layers=False,
         )
 
-        prepared["belief_states"] = None
+        prepared.belief_states = None
 
         with pytest.raises(ValueError, match="requires belief_states"):
-            analysis.analyze(**prepared)
+            analysis.analyze(
+                activations=prepared.activations,
+                belief_states=prepared.belief_states,
+                weights=prepared.weights,
+            )
 
 
 class TestPCAAnalysis:
@@ -315,7 +335,11 @@ class TestPCAAnalysis:
             concat_layers=False,
         )
 
-        scalars, projections = analysis.analyze(**prepared)
+        scalars, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
 
         assert "layer_0_cumvar_1" in scalars
         assert "layer_0_cumvar_2" in scalars
@@ -329,7 +353,7 @@ class TestPCAAnalysis:
         assert "layer_0_pca" in projections
         assert "layer_1_pca" in projections
 
-        batch_size = prepared["activations"]["layer_0"].shape[0]
+        batch_size = prepared.activations["layer_0"].shape[0]
         assert projections["layer_0_pca"].shape == (batch_size, 3)
         assert projections["layer_1_pca"].shape == (batch_size, 3)
 
@@ -346,9 +370,13 @@ class TestPCAAnalysis:
             concat_layers=False,
         )
 
-        prepared["belief_states"] = None
+        prepared.belief_states = None
 
-        scalars, projections = analysis.analyze(**prepared)
+        scalars, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
 
         assert "layer_0_cumvar_1" in scalars
         assert "layer_0_cumvar_2" in scalars
@@ -367,9 +395,13 @@ class TestPCAAnalysis:
             concat_layers=False,
         )
 
-        _, projections = analysis.analyze(**prepared)
+        _, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
 
-        batch_size = prepared["activations"]["layer_0"].shape[0]
+        batch_size = prepared.activations["layer_0"].shape[0]
         d_layer0 = synthetic_data["d_layer0"]
         assert projections["layer_0_pca"].shape == (batch_size, min(batch_size, d_layer0))
 
