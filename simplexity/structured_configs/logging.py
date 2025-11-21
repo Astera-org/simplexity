@@ -15,7 +15,7 @@ from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
-from simplexity.structured_configs.validation import _validate_bool, _validate_nonempty_str, _validate_uri
+from simplexity.structured_configs.validation import validate_bool, validate_nonempty_str, validate_uri
 from simplexity.utils.config_utils import dynamic_resolve
 
 
@@ -52,7 +52,7 @@ def validate_file_logger_instance_config(cfg: DictConfig) -> None:
     file_path = cfg.get("file_path")
 
     validate_instance_config(cfg, expected_target="simplexity.logging.file_logger.FileLogger")
-    _validate_nonempty_str(file_path, "FileLoggerInstanceConfig.file_path")
+    validate_nonempty_str(file_path, "FileLoggerInstanceConfig.file_path")
 
 
 @dataclass
@@ -96,13 +96,13 @@ def validate_mlflow_logger_instance_config(cfg: DictConfig) -> None:
     downgrade_unity_catalog = cfg.get("downgrade_unity_catalog")
 
     validate_instance_config(cfg, expected_target="simplexity.logging.mlflow_logger.MLFlowLogger")
-    _validate_nonempty_str(experiment_id, "MLFlowLoggerInstanceConfig.experiment_id", is_none_allowed=True)
-    _validate_nonempty_str(experiment_name, "MLFlowLoggerInstanceConfig.experiment_name", is_none_allowed=True)
-    _validate_nonempty_str(run_id, "MLFlowLoggerInstanceConfig.run_id", is_none_allowed=True)
-    _validate_nonempty_str(run_name, "MLFlowLoggerInstanceConfig.run_name", is_none_allowed=True)
-    _validate_uri(tracking_uri, "MLFlowLoggerInstanceConfig.tracking_uri", is_none_allowed=True)
-    _validate_uri(registry_uri, "MLFlowLoggerInstanceConfig.registry_uri", is_none_allowed=True)
-    _validate_bool(downgrade_unity_catalog, "MLFlowLoggerInstanceConfig.downgrade_unity_catalog", is_none_allowed=True)
+    validate_nonempty_str(experiment_id, "MLFlowLoggerInstanceConfig.experiment_id", is_none_allowed=True)
+    validate_nonempty_str(experiment_name, "MLFlowLoggerInstanceConfig.experiment_name", is_none_allowed=True)
+    validate_nonempty_str(run_id, "MLFlowLoggerInstanceConfig.run_id", is_none_allowed=True)
+    validate_nonempty_str(run_name, "MLFlowLoggerInstanceConfig.run_name", is_none_allowed=True)
+    validate_uri(tracking_uri, "MLFlowLoggerInstanceConfig.tracking_uri", is_none_allowed=True)
+    validate_uri(registry_uri, "MLFlowLoggerInstanceConfig.registry_uri", is_none_allowed=True)
+    validate_bool(downgrade_unity_catalog, "MLFlowLoggerInstanceConfig.downgrade_unity_catalog", is_none_allowed=True)
 
 
 @dynamic_resolve
@@ -160,4 +160,4 @@ def validate_logging_config(cfg: DictConfig) -> None:
         validate_instance_config(instance)
         if not is_logger_config(instance):
             raise ConfigValidationError("LoggingConfig.instance must be a logger target")
-    _validate_nonempty_str(name, "LoggingConfig.name", is_none_allowed=True)
+    validate_nonempty_str(name, "LoggingConfig.name", is_none_allowed=True)

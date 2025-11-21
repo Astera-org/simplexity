@@ -20,15 +20,15 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import (
-    _validate_bool,
-    _validate_initial_state,
-    _validate_mapping,
-    _validate_non_negative_float,
-    _validate_non_negative_int,
-    _validate_nonempty_str,
-    _validate_positive_int,
-    _validate_sequence,
-    _validate_transition_matrices,
+    validate_bool,
+    validate_initial_state,
+    validate_mapping,
+    validate_non_negative_float,
+    validate_non_negative_int,
+    validate_nonempty_str,
+    validate_positive_int,
+    validate_sequence,
+    validate_transition_matrices,
 )
 from simplexity.utils.config_utils import dynamic_resolve
 
@@ -80,11 +80,11 @@ def validate_hidden_markov_model_builder_instance_config(cfg: DictConfig) -> Non
     initial_state = cfg.get("initial_state")
 
     validate_instance_config(cfg, expected_target="simplexity.generative_processes.builder.build_hidden_markov_model")
-    _validate_nonempty_str(process_name, "HiddenMarkovModelBuilderInstanceConfig.process_name")
-    _validate_mapping(
+    validate_nonempty_str(process_name, "HiddenMarkovModelBuilderInstanceConfig.process_name")
+    validate_mapping(
         process_params, "HiddenMarkovModelBuilderInstanceConfig.process_params", key_type=str, is_none_allowed=True
     )
-    _validate_sequence(
+    validate_sequence(
         initial_state, "HiddenMarkovModelBuilderInstanceConfig.initial_state", element_type=float, is_none_allowed=True
     )
 
@@ -136,14 +136,14 @@ def validate_generalized_hidden_markov_model_builder_instance_config(cfg: DictCo
     validate_instance_config(
         cfg, expected_target="simplexity.generative_processes.builder.build_generalized_hidden_markov_model"
     )
-    _validate_nonempty_str(process_name, "GeneralizedHiddenMarkovModelBuilderInstanceConfig.process_name")
-    _validate_mapping(
+    validate_nonempty_str(process_name, "GeneralizedHiddenMarkovModelBuilderInstanceConfig.process_name")
+    validate_mapping(
         process_params,
         "GeneralizedHiddenMarkovModelBuilderInstanceConfig.process_params",
         key_type=str,
         is_none_allowed=True,
     )
-    _validate_sequence(
+    validate_sequence(
         initial_state,
         "GeneralizedHiddenMarkovModelBuilderInstanceConfig.initial_state",
         element_type=float,
@@ -233,17 +233,17 @@ def validate_nonergodic_hidden_markov_model_builder_instance_config(cfg: DictCon
         for i, (name, params, weight, vocab_map) in enumerate(
             zip(process_names, process_params, process_weights, _vocab_maps, strict=True)
         ):
-            _validate_nonempty_str(name, f"NonergodicHiddenMarkovModelBuilderInstanceConfig.process_names[{i}]")
-            _validate_mapping(
+            validate_nonempty_str(name, f"NonergodicHiddenMarkovModelBuilderInstanceConfig.process_names[{i}]")
+            validate_mapping(
                 params,
                 f"NonergodicHiddenMarkovModelBuilderInstanceConfig.process_params[{i}]",
                 key_type=str,
                 is_none_allowed=True,
             )
-            _validate_non_negative_float(
+            validate_non_negative_float(
                 weight, f"NonergodicHiddenMarkovModelBuilderInstanceConfig.process_weights[{i}]"
             )
-            _validate_sequence(
+            validate_sequence(
                 vocab_map,
                 f"NonergodicHiddenMarkovModelBuilderInstanceConfig.vocab_maps[{i}]",
                 element_type=int,
@@ -257,9 +257,7 @@ def validate_nonergodic_hidden_markov_model_builder_instance_config(cfg: DictCon
             f"must have the same length, "
             f"got {len(process_names)} != {len(process_params)} != {len(process_weights)}{vocab_len_str}"
         ) from e
-    _validate_bool(
-        add_bos_token, "NonergodicHiddenMarkovModelBuilderInstanceConfig.add_bos_token", is_none_allowed=True
-    )
+    validate_bool(add_bos_token, "NonergodicHiddenMarkovModelBuilderInstanceConfig.add_bos_token", is_none_allowed=True)
 
 
 @dataclass
@@ -306,9 +304,9 @@ def validate_generalized_hidden_markov_model_instance_config(cfg: DictConfig) ->
         cfg,
         expected_target="simplexity.generative_processes.generalized_hidden_markov_model.GeneralizedHiddenMarkovModel",
     )
-    _validate_transition_matrices(transition_matrices, "GeneralizedHiddenMarkovModelInstanceConfig.transition_matrices")
+    validate_transition_matrices(transition_matrices, "GeneralizedHiddenMarkovModelInstanceConfig.transition_matrices")
     assert isinstance(transition_matrices, jax.Array)
-    _validate_initial_state(
+    validate_initial_state(
         initial_state, transition_matrices.shape[1], "GeneralizedHiddenMarkovModelInstanceConfig.initial_state"
     )
 
@@ -356,11 +354,9 @@ def validate_hidden_markov_model_instance_config(cfg: DictConfig) -> None:
     validate_instance_config(
         cfg, expected_target="simplexity.generative_processes.hidden_markov_model.HiddenMarkovModel"
     )
-    _validate_transition_matrices(transition_matrices, "HiddenMarkovModelInstanceConfig.transition_matrices")
+    validate_transition_matrices(transition_matrices, "HiddenMarkovModelInstanceConfig.transition_matrices")
     assert isinstance(transition_matrices, jax.Array)
-    _validate_initial_state(
-        initial_state, transition_matrices.shape[1], "HiddenMarkovModelInstanceConfig.initial_state"
-    )
+    validate_initial_state(initial_state, transition_matrices.shape[1], "HiddenMarkovModelInstanceConfig.initial_state")
 
 
 @dataclass
@@ -415,26 +411,26 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         validate_instance_config(instance)
         if not is_generative_process_config(instance):
             raise ConfigValidationError("GenerativeProcessConfig.instance must be a generative process target")
-    _validate_nonempty_str(name, "GenerativeProcessConfig.name", is_none_allowed=True)
+    validate_nonempty_str(name, "GenerativeProcessConfig.name", is_none_allowed=True)
 
     _base_vocab_size: int | None = None
     if OmegaConf.is_missing(cfg, "base_vocab_size"):
         SIMPLEXITY_LOGGER.debug("[generative process] base_vocab_size is missing, will be resolved dynamically")
     else:
         _base_vocab_size = cfg.get("base_vocab_size")
-        _validate_positive_int(_base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
+        validate_positive_int(_base_vocab_size, "GenerativeProcessConfig.base_vocab_size")
 
     _vocab_size: int | None = None
     if not OmegaConf.is_missing(cfg, "vocab_size"):
         _vocab_size = cfg.get("vocab_size")
-        _validate_positive_int(_vocab_size, "GenerativeProcessConfig.vocab_size")
+        validate_positive_int(_vocab_size, "GenerativeProcessConfig.vocab_size")
 
     _bos_token: int | None = None
     if OmegaConf.is_missing(cfg, "bos_token"):
         SIMPLEXITY_LOGGER.debug("[generative process] bos_token is missing, will be resolved dynamically")
     else:
         _bos_token = cfg.get("bos_token")
-        _validate_non_negative_int(_bos_token, "GenerativeProcessConfig.bos_token", is_none_allowed=True)
+        validate_non_negative_int(_bos_token, "GenerativeProcessConfig.bos_token", is_none_allowed=True)
         assert _bos_token is not None
         if _vocab_size is not None and _bos_token >= _vocab_size:
             raise ConfigValidationError(
@@ -446,7 +442,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         SIMPLEXITY_LOGGER.debug("[generative process] eos_token is missing, will be resolved dynamically")
     else:
         _eos_token = cfg.get("eos_token")
-        _validate_non_negative_int(_eos_token, "GenerativeProcessConfig.eos_token", is_none_allowed=True)
+        validate_non_negative_int(_eos_token, "GenerativeProcessConfig.eos_token", is_none_allowed=True)
         assert _eos_token is not None
         if _vocab_size is not None and _eos_token >= _vocab_size:
             raise ConfigValidationError(

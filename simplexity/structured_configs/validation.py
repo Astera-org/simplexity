@@ -19,7 +19,7 @@ import jax.numpy as jnp
 from simplexity.exceptions import ConfigValidationError
 
 
-def _validate_nonempty_str(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
+def validate_nonempty_str(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a value is a non-empty string."""
     if is_none_allowed and value is None:
         return
@@ -30,7 +30,7 @@ def _validate_nonempty_str(value: Any, field_name: str, is_none_allowed: bool = 
         raise ConfigValidationError(f"{field_name} must be a non-empty string")
 
 
-def _validate_positive_int(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
+def validate_positive_int(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a value is a positive integer."""
     if is_none_allowed and value is None:
         return
@@ -41,7 +41,7 @@ def _validate_positive_int(value: Any, field_name: str, is_none_allowed: bool = 
         raise ConfigValidationError(f"{field_name} must be positive, got {value}")
 
 
-def _validate_non_negative_int(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
+def validate_non_negative_int(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a value is a non-negative integer."""
     if is_none_allowed and value is None:
         return
@@ -55,7 +55,7 @@ def _validate_non_negative_int(value: Any, field_name: str, is_none_allowed: boo
         raise ConfigValidationError(f"{field_name} must be non-negative, got {value}")
 
 
-def _validate_positive_float(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
+def validate_positive_float(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a value is a positive float."""
     if is_none_allowed and value is None:
         return
@@ -66,7 +66,7 @@ def _validate_positive_float(value: Any, field_name: str, is_none_allowed: bool 
         raise ConfigValidationError(f"{field_name} must be positive, got {value}")
 
 
-def _validate_non_negative_float(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
+def validate_non_negative_float(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a value is a non-negative float."""
     if is_none_allowed and value is None:
         return
@@ -77,7 +77,7 @@ def _validate_non_negative_float(value: Any, field_name: str, is_none_allowed: b
         raise ConfigValidationError(f"{field_name} must be non-negative, got {value}")
 
 
-def _validate_bool(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
+def validate_bool(value: Any, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a value is a boolean."""
     if is_none_allowed and value is None:
         return
@@ -86,7 +86,7 @@ def _validate_bool(value: Any, field_name: str, is_none_allowed: bool = False) -
         raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(value)}")
 
 
-def _validate_sequence(
+def validate_sequence(
     value: Any,
     field_name: str,
     element_type: type | None = None,
@@ -111,7 +111,7 @@ def _validate_sequence(
             raise ConfigValidationError(f"{field_name} items must be floats, got {type(item)}")
 
 
-def _validate_mapping(
+def validate_mapping(
     value: Any,
     field_name: str,
     key_type: type | None = None,
@@ -130,7 +130,7 @@ def _validate_mapping(
         raise ConfigValidationError(f"{field_name} values must be {value_type.__name__}s")
 
 
-def _validate_uri(uri: str, field_name: str, is_none_allowed: bool = False) -> None:
+def validate_uri(uri: str, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a string is a valid URI."""
     if is_none_allowed and uri is None:
         return
@@ -147,7 +147,7 @@ def _validate_uri(uri: str, field_name: str, is_none_allowed: bool = False) -> N
         raise ConfigValidationError(f"{field_name} is not a valid URI: {e}") from e
 
 
-def _validate_transition_matrices(transition_matrices: Any, field_name: str) -> None:
+def validate_transition_matrices(transition_matrices: Any, field_name: str) -> None:
     """Validate a transition matrices.
 
     Args:
@@ -167,7 +167,7 @@ def _validate_transition_matrices(transition_matrices: Any, field_name: str) -> 
         raise ConfigValidationError(f"{field_name} must be a float array, got {transition_matrices.dtype}")
 
 
-def _validate_initial_state(initial_state: Any, n_states: int, field_name: str) -> None:
+def validate_initial_state(initial_state: Any, n_states: int, field_name: str) -> None:
     """Validate an initial state.
 
     Args:
@@ -186,4 +186,3 @@ def _validate_initial_state(initial_state: Any, n_states: int, field_name: str) 
         )
     if initial_state.dtype not in [jnp.bfloat16, jnp.float16, jnp.float32, jnp.float64]:
         raise ConfigValidationError(f"{field_name} must be a float array, got {initial_state.dtype}")
-

@@ -16,7 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
-from simplexity.structured_configs.validation import _validate_bool, _validate_nonempty_str, _validate_uri
+from simplexity.structured_configs.validation import validate_bool, validate_nonempty_str, validate_uri
 from simplexity.utils.config_utils import dynamic_resolve
 
 
@@ -59,7 +59,7 @@ def validate_local_persister_instance_config(cfg: DictConfig, framework: str | N
     if not is_local_persister_config(cfg, framework=framework):
         class_name = f"Local{framework.capitalize()}Persister" if framework is not None else "LocalPersister"
         raise ConfigValidationError(f"{class_name}InstanceConfig must be a local persister, got {target}")
-    _validate_nonempty_str(directory, "LocalPersisterInstanceConfig.directory")
+    validate_nonempty_str(directory, "LocalPersisterInstanceConfig.directory")
 
 
 @dataclass
@@ -92,7 +92,7 @@ def validate_local_equinox_persister_instance_config(cfg: DictConfig) -> None:
     filename = cfg.get("filename")
 
     validate_local_persister_instance_config(cfg, framework="equinox")
-    _validate_nonempty_str(filename, "LocalEquinoxPersisterInstanceConfig.filename")
+    validate_nonempty_str(filename, "LocalEquinoxPersisterInstanceConfig.filename")
     assert isinstance(filename, str)
     if not filename.endswith(".eqx"):
         raise ConfigValidationError("LocalEquinoxPersisterInstanceConfig.filename must end with .eqx, got {filename}")
@@ -152,7 +152,7 @@ def validate_local_pytorch_persister_instance_config(cfg: DictConfig) -> None:
     filename = cfg.get("filename")
 
     validate_local_persister_instance_config(cfg, framework="pytorch")
-    _validate_nonempty_str(filename, "LocalPytorchPersisterInstanceConfig.filename")
+    validate_nonempty_str(filename, "LocalPytorchPersisterInstanceConfig.filename")
     assert isinstance(filename, str)
     if not filename.endswith(".pt"):
         raise ConfigValidationError("LocalPytorchPersisterInstanceConfig.filename must end with .pt, got {filename}")
@@ -219,17 +219,17 @@ def validate_mlflow_persister_instance_config(cfg: DictConfig) -> None:
     artifact_path = cfg.get("artifact_path")
     config_path = cfg.get("config_path")
 
-    _validate_nonempty_str(experiment_id, "MLFlowPersisterInstanceConfig.experiment_id", is_none_allowed=True)
-    _validate_nonempty_str(experiment_name, "MLFlowPersisterInstanceConfig.experiment_name", is_none_allowed=True)
-    _validate_nonempty_str(run_id, "MLFlowPersisterInstanceConfig.run_id", is_none_allowed=True)
-    _validate_nonempty_str(run_name, "MLFlowPersisterInstanceConfig.run_name", is_none_allowed=True)
-    _validate_uri(tracking_uri, "MLFlowPersisterInstanceConfig.tracking_uri", is_none_allowed=True)
-    _validate_uri(registry_uri, "MLFlowPersisterInstanceConfig.registry_uri", is_none_allowed=True)
-    _validate_bool(
+    validate_nonempty_str(experiment_id, "MLFlowPersisterInstanceConfig.experiment_id", is_none_allowed=True)
+    validate_nonempty_str(experiment_name, "MLFlowPersisterInstanceConfig.experiment_name", is_none_allowed=True)
+    validate_nonempty_str(run_id, "MLFlowPersisterInstanceConfig.run_id", is_none_allowed=True)
+    validate_nonempty_str(run_name, "MLFlowPersisterInstanceConfig.run_name", is_none_allowed=True)
+    validate_uri(tracking_uri, "MLFlowPersisterInstanceConfig.tracking_uri", is_none_allowed=True)
+    validate_uri(registry_uri, "MLFlowPersisterInstanceConfig.registry_uri", is_none_allowed=True)
+    validate_bool(
         downgrade_unity_catalog, "MLFlowPersisterInstanceConfig.downgrade_unity_catalog", is_none_allowed=True
     )
-    _validate_nonempty_str(artifact_path, "MLFlowPersisterInstanceConfig.artifact_path", is_none_allowed=True)
-    _validate_nonempty_str(config_path, "MLFlowPersisterInstanceConfig.config_path", is_none_allowed=True)
+    validate_nonempty_str(artifact_path, "MLFlowPersisterInstanceConfig.artifact_path", is_none_allowed=True)
+    validate_nonempty_str(config_path, "MLFlowPersisterInstanceConfig.config_path", is_none_allowed=True)
 
 
 @dynamic_resolve
@@ -290,4 +290,4 @@ def validate_persistence_config(cfg: DictConfig) -> None:
         validate_instance_config(instance)
         if not is_persister_config(instance):
             raise ConfigValidationError("PersistenceConfig.instance must be a persister target")
-    _validate_nonempty_str(cfg.get("name"), "PersistenceConfig.name", is_none_allowed=True)
+    validate_nonempty_str(cfg.get("name"), "PersistenceConfig.name", is_none_allowed=True)

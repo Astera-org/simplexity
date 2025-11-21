@@ -17,9 +17,9 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from simplexity.exceptions import ConfigValidationError, DeviceResolutionError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import (
-    _validate_non_negative_int,
-    _validate_nonempty_str,
-    _validate_positive_int,
+    validate_non_negative_int,
+    validate_nonempty_str,
+    validate_positive_int,
 )
 from simplexity.utils.config_utils import dynamic_resolve
 from simplexity.utils.pytorch_utils import resolve_device
@@ -90,12 +90,12 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
     seed = cfg.get("seed")
 
     validate_instance_config(cfg, expected_target="transformer_lens.HookedTransformerConfig")
-    _validate_positive_int(n_layers, "HookedTransformerConfigConfig.n_layers")
-    _validate_positive_int(d_model, "HookedTransformerConfigConfig.d_model")
-    _validate_positive_int(d_head, "HookedTransformerConfigConfig.d_head")
-    _validate_positive_int(n_ctx, "HookedTransformerConfigConfig.n_ctx")
+    validate_positive_int(n_layers, "HookedTransformerConfigConfig.n_layers")
+    validate_positive_int(d_model, "HookedTransformerConfigConfig.d_model")
+    validate_positive_int(d_head, "HookedTransformerConfigConfig.d_head")
+    validate_positive_int(n_ctx, "HookedTransformerConfigConfig.n_ctx")
     if n_heads != -1:
-        _validate_positive_int(n_heads, "HookedTransformerConfigConfig.n_heads")
+        validate_positive_int(n_heads, "HookedTransformerConfigConfig.n_heads")
         if d_model % n_heads != 0:
             raise ConfigValidationError(
                 f"HookedTransformerConfigConfig.d_model ({d_model}) must be divisible by n_heads ({n_heads})"
@@ -109,16 +109,16 @@ def validate_hooked_transformer_config_config(cfg: DictConfig) -> None:
             f"HookedTransformerConfigConfig.d_model ({d_model}) must be divisible by d_head ({d_head})"
         )
 
-    _validate_positive_int(d_mlp, "HookedTransformerConfigConfig.d_mlp", is_none_allowed=True)
-    _validate_nonempty_str(act_fn, "HookedTransformerConfigConfig.act_fn", is_none_allowed=True)
+    validate_positive_int(d_mlp, "HookedTransformerConfigConfig.d_mlp", is_none_allowed=True)
+    validate_nonempty_str(act_fn, "HookedTransformerConfigConfig.act_fn", is_none_allowed=True)
     if OmegaConf.is_missing(cfg, "d_vocab"):
         SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab is missing, will be resolved dynamically")
     else:
         d_vocab = cfg.get("d_vocab")
-        _validate_positive_int(d_vocab, "HookedTransformerConfigConfig.d_vocab")
-    _validate_nonempty_str(normalization_type, "HookedTransformerConfigConfig.normalization_type", is_none_allowed=True)
-    _validate_nonempty_str(device, "HookedTransformerConfigConfig.device", is_none_allowed=True)
-    _validate_non_negative_int(seed, "HookedTransformerConfigConfig.seed", is_none_allowed=True)
+        validate_positive_int(d_vocab, "HookedTransformerConfigConfig.d_vocab")
+    validate_nonempty_str(normalization_type, "HookedTransformerConfigConfig.normalization_type", is_none_allowed=True)
+    validate_nonempty_str(device, "HookedTransformerConfigConfig.device", is_none_allowed=True)
+    validate_non_negative_int(seed, "HookedTransformerConfigConfig.seed", is_none_allowed=True)
 
 
 @dataclass
@@ -230,5 +230,5 @@ def validate_predictive_model_config(cfg: DictConfig) -> None:
         validate_instance_config(instance)
         if not is_predictive_model_config(instance):
             raise ConfigValidationError("PredictiveModelConfig.instance must be a predictive model target")
-    _validate_nonempty_str(name, "PredictiveModelConfig.name", is_none_allowed=True)
-    _validate_non_negative_int(load_checkpoint_step, "PredictiveModelConfig.load_checkpoint_step", is_none_allowed=True)
+    validate_nonempty_str(name, "PredictiveModelConfig.name", is_none_allowed=True)
+    validate_non_negative_int(load_checkpoint_step, "PredictiveModelConfig.load_checkpoint_step", is_none_allowed=True)

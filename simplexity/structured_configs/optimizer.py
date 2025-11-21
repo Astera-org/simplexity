@@ -16,10 +16,10 @@ from omegaconf import DictConfig
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import (
-    _validate_bool,
-    _validate_non_negative_float,
-    _validate_nonempty_str,
-    _validate_positive_float,
+    validate_bool,
+    validate_non_negative_float,
+    validate_nonempty_str,
+    validate_positive_float,
 )
 
 
@@ -55,15 +55,15 @@ def validate_pytorch_adam_instance_config(cfg: DictConfig) -> None:
     weight_decay = cfg.get("weight_decay")
     amsgrad = cfg.get("amsgrad")
 
-    _validate_positive_float(lr, "AdamInstanceConfig.lr", is_none_allowed=True)
+    validate_positive_float(lr, "AdamInstanceConfig.lr", is_none_allowed=True)
     if betas is not None:
         if len(betas) != 2:
             raise ConfigValidationError(f"AdamInstanceConfig.betas must have length 2, got {len(betas)}")
-        _validate_non_negative_float(betas[0], "AdamInstanceConfig.betas[0]")
-        _validate_non_negative_float(betas[1], "AdamInstanceConfig.betas[1]")
-    _validate_non_negative_float(eps, "AdamInstanceConfig.eps", is_none_allowed=True)
-    _validate_non_negative_float(weight_decay, "AdamInstanceConfig.weight_decay", is_none_allowed=True)
-    _validate_bool(amsgrad, "AdamInstanceConfig.amsgrad", is_none_allowed=True)
+        validate_non_negative_float(betas[0], "AdamInstanceConfig.betas[0]")
+        validate_non_negative_float(betas[1], "AdamInstanceConfig.betas[1]")
+    validate_non_negative_float(eps, "AdamInstanceConfig.eps", is_none_allowed=True)
+    validate_non_negative_float(weight_decay, "AdamInstanceConfig.weight_decay", is_none_allowed=True)
+    validate_bool(amsgrad, "AdamInstanceConfig.amsgrad", is_none_allowed=True)
 
 
 @dataclass
@@ -112,4 +112,4 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
         validate_instance_config(instance)
         if not is_optimizer_config(instance):
             raise ConfigValidationError("OptimizerConfig.instance must be an optimizer target")
-    _validate_nonempty_str(name, "OptimizerConfig.name", is_none_allowed=True)
+    validate_nonempty_str(name, "OptimizerConfig.name", is_none_allowed=True)

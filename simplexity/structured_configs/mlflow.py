@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from omegaconf import DictConfig
 
-from simplexity.structured_configs.validation import _validate_bool, _validate_nonempty_str, _validate_uri
+from simplexity.structured_configs.validation import validate_bool, validate_nonempty_str, validate_uri
 from simplexity.utils.config_utils import dynamic_resolve
 
 
@@ -44,13 +44,13 @@ def validate_mlflow_config(cfg: DictConfig) -> None:
     registry_uri = cfg.get("registry_uri")
     downgrade_unity_catalog = cfg.get("downgrade_unity_catalog")
 
-    _validate_nonempty_str(experiment_id, "MLFlowConfig.experiment_id", is_none_allowed=True)
-    _validate_nonempty_str(experiment_name, "MLFlowConfig.experiment_name", is_none_allowed=True)
-    _validate_nonempty_str(run_id, "MLFlowConfig.run_id", is_none_allowed=True)
-    _validate_nonempty_str(run_name, "MLFlowConfig.run_name", is_none_allowed=True)
-    _validate_bool(downgrade_unity_catalog, "MLFlowConfig.downgrade_unity_catalog", is_none_allowed=True)
-    _validate_uri(tracking_uri, "MLFlowConfig.tracking_uri", is_none_allowed=True)
-    _validate_uri(registry_uri, "MLFlowConfig.registry_uri", is_none_allowed=True)
+    validate_nonempty_str(experiment_id, "MLFlowConfig.experiment_id", is_none_allowed=True)
+    validate_nonempty_str(experiment_name, "MLFlowConfig.experiment_name", is_none_allowed=True)
+    validate_nonempty_str(run_id, "MLFlowConfig.run_id", is_none_allowed=True)
+    validate_nonempty_str(run_name, "MLFlowConfig.run_name", is_none_allowed=True)
+    validate_bool(downgrade_unity_catalog, "MLFlowConfig.downgrade_unity_catalog", is_none_allowed=True)
+    validate_uri(tracking_uri, "MLFlowConfig.tracking_uri", is_none_allowed=True)
+    validate_uri(registry_uri, "MLFlowConfig.registry_uri", is_none_allowed=True)
 
 
 @dynamic_resolve

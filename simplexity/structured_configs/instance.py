@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.structured_configs.validation import _validate_nonempty_str
+from simplexity.structured_configs.validation import validate_nonempty_str
 
 
 @dataclass
@@ -33,6 +33,6 @@ def validate_instance_config(cfg: DictConfig, expected_target: str | None = None
     """
     target = cfg.get("_target_", None)
 
-    _validate_nonempty_str(target, "InstanceConfig._target_")
+    validate_nonempty_str(target, "InstanceConfig._target_")
     if expected_target is not None and target != expected_target:
         raise ConfigValidationError(f"InstanceConfig._target_ must be {expected_target}, got {target}")
