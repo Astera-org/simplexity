@@ -164,7 +164,6 @@ def build_prefix_dataset(
     beliefs: jax.Array,
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
-    select_last_token: bool = False,
 ) -> DeduplicatedDataset:
     """Deduplicate everything by prefix."""
     prefix_to_indices = make_prefix_groups(inputs)
