@@ -93,6 +93,7 @@ def validate_local_equinox_persister_instance_config(cfg: DictConfig) -> None:
 
     validate_local_persister_instance_config(cfg, framework="equinox")
     _validate_nonempty_str(filename, "LocalEquinoxPersisterInstanceConfig.filename")
+    assert isinstance(filename, str)
     if not filename.endswith(".eqx"):
         raise ConfigValidationError("LocalEquinoxPersisterInstanceConfig.filename must end with .eqx, got {filename}")
 
@@ -152,6 +153,7 @@ def validate_local_pytorch_persister_instance_config(cfg: DictConfig) -> None:
 
     validate_local_persister_instance_config(cfg, framework="pytorch")
     _validate_nonempty_str(filename, "LocalPytorchPersisterInstanceConfig.filename")
+    assert isinstance(filename, str)
     if not filename.endswith(".pt"):
         raise ConfigValidationError("LocalPytorchPersisterInstanceConfig.filename must end with .pt, got {filename}")
 
@@ -286,4 +288,6 @@ def validate_persistence_config(cfg: DictConfig) -> None:
         validate_mlflow_persister_instance_config(instance)
     else:
         validate_instance_config(instance)
+        if not is_persister_config(instance):
+            raise ConfigValidationError("PersistenceConfig.instance must be a persister target")
     _validate_nonempty_str(cfg.get("name"), "PersistenceConfig.name", is_none_allowed=True)
