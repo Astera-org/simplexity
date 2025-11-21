@@ -5,7 +5,10 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.builder import build_hidden_markov_model
-from simplexity.generative_processes.generator import generate_data_batch
+from simplexity.generative_processes.generator import (
+    generate_data_batch,
+    generate_data_batch_with_full_history,
+)
 
 
 def test_generate_data_batch():
@@ -16,7 +19,7 @@ def test_generate_data_batch():
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
-    gen_states, probs, inputs, labels = generate_data_batch(states, hmm, batch_size, sequence_len, key)
+    gen_states, inputs, labels = generate_data_batch(states, hmm, batch_size, sequence_len, key)
     assert inputs.shape == (batch_size, sequence_len - 1)
     assert labels.shape == (batch_size, sequence_len - 1)
     assert jnp.all(inputs >= 0)
@@ -25,8 +28,6 @@ def test_generate_data_batch():
     assert jnp.all(labels < hmm.vocab_size)
     chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
     assert gen_states.shape == (batch_size, *gen_state.shape)
-    assert probs.shape == (batch_size,)
-    assert jnp.all(probs > 0)
 
 
 def test_generate_data_batch_with_bos_token():
@@ -38,7 +39,7 @@ def test_generate_data_batch_with_bos_token():
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
     bos_token = hmm.vocab_size
-    gen_states, probs, inputs, labels = generate_data_batch(
+    gen_states, inputs, labels = generate_data_batch(
         states,
         hmm,
         batch_size,
@@ -55,7 +56,6 @@ def test_generate_data_batch_with_bos_token():
     assert jnp.all(labels < bos_token)
     chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
     assert gen_states.shape == (batch_size, *gen_state.shape)
-    assert probs.shape == (batch_size,)
 
 
 def test_generate_data_batch_with_eos_token():
@@ -67,7 +67,7 @@ def test_generate_data_batch_with_eos_token():
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
     eos_token = hmm.vocab_size
-    gen_states, probs, inputs, labels = generate_data_batch(
+    gen_states, inputs, labels = generate_data_batch(
         states,
         hmm,
         batch_size,
@@ -84,25 +84,24 @@ def test_generate_data_batch_with_eos_token():
     assert jnp.all(labels[:, -1] == eos_token)
     chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
     assert gen_states.shape == (batch_size, *gen_state.shape)
-    assert probs.shape == (batch_size,)
 
 
-def test_generate_data_batch_with_all_states():
-    """Ensure belief states can be returned."""
+def test_generate_data_batch_with_full_history():
+    """Ensure belief states and prefix probabilities can be returned."""
     hmm = build_hidden_markov_model("zero_one_random", p=0.5)
     batch_size = 4
     sequence_len = 6
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
-    belief_states, probs, inputs, _ = generate_data_batch(
+    next_states, belief_states, prefix_probs, inputs, labels = generate_data_batch_with_full_history(
         states,
         hmm,
         batch_size,
         sequence_len,
         key,
-        return_all_states=True,
-        return_prefix_probabilities=True,
     )
     assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
-    assert probs.shape == (batch_size, inputs.shape[1])
+    assert prefix_probs.shape == (batch_size, inputs.shape[1])
+    assert next_states.shape == (batch_size, gen_state.shape[0])
+    assert labels.shape == inputs.shape

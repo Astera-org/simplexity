@@ -13,7 +13,10 @@ import jax
 import torch
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.generative_processes.generator import generate_data_batch as generate_jax_data_batch
+from simplexity.generative_processes.generator import (
+    generate_data_batch as generate_jax_data_batch,
+    generate_data_batch_with_full_history as generate_jax_data_batch_with_full_history,
+)
 from simplexity.utils.pytorch_utils import jax_to_torch
 
 
@@ -25,11 +28,9 @@ def generate_data_batch(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-    return_all_states: bool = False,
-    return_prefix_probabilities: bool = False,
-) -> tuple[jax.Array, jax.Array, torch.Tensor, torch.Tensor]:
-    """Generate a batch of data with optional belief and probability outputs."""
-    states, probs, inputs, labels = generate_jax_data_batch(
+) -> tuple[jax.Array, torch.Tensor, torch.Tensor]:
+    """Generate a batch of data."""
+    gen_states, inputs, labels = generate_jax_data_batch(
         gen_states,
         data_generator,
         batch_size,
@@ -37,7 +38,27 @@ def generate_data_batch(
         key,
         bos_token,
         eos_token,
-        return_all_states,
-        return_prefix_probabilities,
     )
-    return states, probs, jax_to_torch(inputs), jax_to_torch(labels)
+    return gen_states, jax_to_torch(inputs), jax_to_torch(labels)
+
+
+def generate_data_batch_with_full_history(
+    gen_states: jax.Array,
+    data_generator: GenerativeProcess,
+    batch_size: int,
+    sequence_len: int,
+    key: jax.Array,
+    bos_token: int | None = None,
+    eos_token: int | None = None,
+) -> tuple[jax.Array, jax.Array, jax.Array, torch.Tensor, torch.Tensor]:
+    """Generate data plus full belief/prefix histories."""
+    next_states, belief_states, prefix_probs, inputs, labels = generate_jax_data_batch_with_full_history(
+        gen_states,
+        data_generator,
+        batch_size,
+        sequence_len,
+        key,
+        bos_token,
+        eos_token,
+    )
+    return next_states, belief_states, prefix_probs, jax_to_torch(inputs), jax_to_torch(labels)
