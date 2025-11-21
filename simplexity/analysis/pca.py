@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
+import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import Array as JaxArray
 
 DEFAULT_VARIANCE_THRESHOLDS: tuple[float, ...] = (0.80, 0.90, 0.95, 0.99)
 
 
-def _normalize_weights(weights: np.ndarray | JaxArray | None, n_samples: int) -> jnp.ndarray | None:
+def _normalize_weights(weights: np.ndarray | jax.Array | None, n_samples: int) -> jnp.ndarray | None:
     if weights is None:
         return None
     weights_np = np.asarray(weights, dtype=np.float64)
@@ -26,12 +26,12 @@ def _normalize_weights(weights: np.ndarray | JaxArray | None, n_samples: int) ->
 
 
 def compute_weighted_pca(
-    x: JaxArray | np.ndarray,
+    x: jax.Array | np.ndarray,
     *,
     n_components: int | None = None,
-    weights: JaxArray | np.ndarray | None = None,
+    weights: jax.Array | np.ndarray | None = None,
     center: bool = True,
-) -> Mapping[str, JaxArray]:
+) -> Mapping[str, jax.Array]:
     """Compute weighted PCA for a 2D feature matrix."""
     x_arr = jnp.asarray(x)
     if x_arr.ndim != 2:
@@ -92,7 +92,7 @@ def compute_weighted_pca(
 
 
 def variance_threshold_counts(
-    all_explained_variance_ratio: JaxArray,
+    all_explained_variance_ratio: jax.Array,
     thresholds: Sequence[float],
 ) -> Mapping[float, int]:
     """Return the smallest component count reaching each variance threshold."""
@@ -105,13 +105,13 @@ def variance_threshold_counts(
 
 
 def layer_pca_analysis(
-    layer_activations: JaxArray,
-    weights: JaxArray,
-    belief_states: JaxArray | None = None,
+    layer_activations: jax.Array,
+    weights: jax.Array,
+    belief_states: jax.Array | None = None,
     *,
     n_components: int | None = None,
     variance_thresholds: Sequence[float] = DEFAULT_VARIANCE_THRESHOLDS,
-) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Run PCA for a single layer's activations and return metrics plus projections."""
     _ = belief_states
     result = compute_weighted_pca(

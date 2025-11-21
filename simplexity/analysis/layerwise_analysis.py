@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from jax import Array as JaxArray
+import jax
 
 from simplexity.analysis.linear_regression import (
     layer_linear_regression,
@@ -17,7 +17,7 @@ from simplexity.analysis.pca import (
     layer_pca_analysis,
 )
 
-AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, JaxArray]]]
+AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]]
 
 
 ValidatorFn = Callable[[Mapping[str, Any] | None], dict[str, Any]]
@@ -146,14 +146,14 @@ class LayerwiseAnalysis:
 
     def analyze(
         self,
-        activations: Mapping[str, JaxArray],
-        weights: JaxArray,
-        belief_states: JaxArray | None = None,
-    ) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+        activations: Mapping[str, jax.Array],
+        weights: jax.Array,
+        belief_states: jax.Array | None = None,
+    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         if self._requires_belief_states and belief_states is None:
             raise ValueError("This analysis requires belief_states")
         scalars: dict[str, float] = {}
-        projections: dict[str, JaxArray] = {}
+        projections: dict[str, jax.Array] = {}
         for layer_name in sorted(activations):
             layer_scalars, layer_projections = self._analysis_fn(
                 activations[layer_name],

@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import Array as JaxArray
 
 
-def _standardize_features(x: Any) -> JaxArray:
+def _standardize_features(x: Any) -> jax.Array:
     x_arr = jnp.asarray(x, dtype=jnp.float32)
     if x_arr.ndim == 1:
         x_arr = x_arr[:, None]
@@ -19,7 +19,7 @@ def _standardize_features(x: Any) -> JaxArray:
     return x_arr
 
 
-def _standardize_targets(y: Any) -> JaxArray:
+def _standardize_targets(y: Any) -> jax.Array:
     y_arr = jnp.asarray(y, dtype=jnp.float32)
     if y_arr.ndim == 1:
         y_arr = y_arr[:, None]
@@ -28,7 +28,7 @@ def _standardize_targets(y: Any) -> JaxArray:
     return y_arr
 
 
-def _standardize_weights(weights: Any, n_samples: int) -> JaxArray:
+def _standardize_weights(weights: Any, n_samples: int) -> jax.Array:
     if n_samples <= 0:
         raise ValueError("At least one sample is required")
     if weights is None:
@@ -44,7 +44,7 @@ def _standardize_weights(weights: Any, n_samples: int) -> JaxArray:
     return w_arr / total
 
 
-def _design_matrix(x: JaxArray, fit_intercept: bool) -> JaxArray:
+def _design_matrix(x: jax.Array, fit_intercept: bool) -> jax.Array:
     if fit_intercept:
         ones = jnp.ones((x.shape[0], 1), dtype=x.dtype)
         return jnp.concatenate([ones, x], axis=1)
@@ -52,9 +52,9 @@ def _design_matrix(x: JaxArray, fit_intercept: bool) -> JaxArray:
 
 
 def _regression_metrics(
-    predictions: JaxArray,
-    targets: JaxArray,
-    weights: JaxArray,
+    predictions: jax.Array,
+    targets: jax.Array,
+    weights: jax.Array,
 ) -> Mapping[str, float]:
     residuals = predictions - targets
     weighted_sq_residuals = residuals**2 * weights[:, None]
@@ -78,10 +78,10 @@ def _regression_metrics(
 def linear_regression(
     x: Any,
     y: Any,
-    weights: JaxArray | np.ndarray | None,
+    weights: jax.Array | np.ndarray | None,
     *,
     fit_intercept: bool = True,
-) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Weighted linear regression using a closed-form least squares solution."""
     x_arr = _standardize_features(x)
     y_arr = _standardize_targets(y)
@@ -100,12 +100,12 @@ def linear_regression(
 
 
 def _compute_beta_from_svd(
-    u: JaxArray,
-    s: JaxArray,
-    vh: JaxArray,
-    weighted_targets: JaxArray,
+    u: jax.Array,
+    s: jax.Array,
+    vh: jax.Array,
+    weighted_targets: jax.Array,
     threshold: float,
-) -> JaxArray:
+) -> jax.Array:
     if s.size == 0:
         return jnp.zeros((vh.shape[1], weighted_targets.shape[1]), dtype=weighted_targets.dtype)
     s_inv = jnp.where(s > threshold, 1.0 / s, 0.0)
@@ -115,11 +115,11 @@ def _compute_beta_from_svd(
 def linear_regression_svd(
     x: Any,
     y: Any,
-    weights: JaxArray | np.ndarray | None,
+    weights: jax.Array | np.ndarray | None,
     *,
     rcond_values: Sequence[float] | None = None,
     fit_intercept: bool = True,
-) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Weighted linear regression solved via SVD with configurable rcond search."""
     x_arr = _standardize_features(x)
     y_arr = _standardize_targets(y)
@@ -133,7 +133,7 @@ def linear_regression_svd(
     u, s, vh = jnp.linalg.svd(weighted_design, full_matrices=False)
     max_singular = float(s[0]) if s.size else 0.0
     rconds = tuple(rcond_values) if rcond_values else (1e-15,)
-    best_pred: JaxArray | None = None
+    best_pred: jax.Array | None = None
     best_scalars: Mapping[str, float] | None = None
     best_rcond = rconds[0]
     best_error = float("inf")
@@ -159,11 +159,11 @@ def linear_regression_svd(
 
 
 def layer_linear_regression(
-    layer_activations: JaxArray,
-    weights: JaxArray,
-    belief_states: JaxArray | None,
+    layer_activations: jax.Array,
+    weights: jax.Array,
+    belief_states: jax.Array | None,
     **kwargs: Any,
-) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Layer-wise regression helper that wraps :func:`linear_regression`."""
     if belief_states is None:
         raise ValueError("linear_regression requires belief_states")
@@ -174,11 +174,11 @@ def layer_linear_regression(
 
 
 def layer_linear_regression_svd(
-    layer_activations: JaxArray,
-    weights: JaxArray,
-    belief_states: JaxArray | None,
+    layer_activations: jax.Array,
+    weights: jax.Array,
+    belief_states: jax.Array | None,
     **kwargs: Any,
-) -> tuple[Mapping[str, float], Mapping[str, JaxArray]]:
+) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Layer-wise regression helper that wraps :func:`linear_regression_svd`."""
     if belief_states is None:
         raise ValueError("linear_regression_svd requires belief_states")
