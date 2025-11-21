@@ -413,6 +413,8 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         validate_hidden_markov_model_instance_config(instance)
     else:
         validate_instance_config(instance)
+        if not is_generative_process_config(instance):
+            raise ConfigValidationError("GenerativeProcessConfig.instance must be a generative process target")
     _validate_nonempty_str(name, "GenerativeProcessConfig.name", is_none_allowed=True)
 
     _base_vocab_size: int | None = None

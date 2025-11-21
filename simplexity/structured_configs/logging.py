@@ -151,8 +151,6 @@ def validate_logging_config(cfg: DictConfig) -> None:
 
     if not isinstance(instance, DictConfig):
         raise ConfigValidationError("LoggingConfig.instance must be a DictConfig")
-    if not is_logger_config(instance):
-        raise ConfigValidationError("LoggingConfig.instance must be a logger target")
 
     if is_file_logger_config(instance):
         validate_file_logger_instance_config(instance)
@@ -160,4 +158,6 @@ def validate_logging_config(cfg: DictConfig) -> None:
         validate_mlflow_logger_instance_config(instance)
     else:
         validate_instance_config(instance)
+        if not is_logger_config(instance):
+            raise ConfigValidationError("LoggingConfig.instance must be a logger target")
     _validate_nonempty_str(name, "LoggingConfig.name", is_none_allowed=True)
