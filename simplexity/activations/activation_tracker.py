@@ -54,11 +54,6 @@ def prepare_activations(
     probs = _to_jax_array(probs)
     activations = {name: _to_jax_array(layer) for name, layer in activations.items()}
 
-    if last_token_only:
-        beliefs = beliefs[:, -1, :]
-        probs = probs[:, -1]
-        activations = {name: acts[:, -1, :] for name, acts in activations.items()}
-
     dataset = build_deduplicated_dataset(
         inputs=inputs,
         beliefs=beliefs,

@@ -196,6 +196,9 @@ def build_last_token_dataset(
     activations_by_layer: dict[str, jax.Array],
 ) -> DeduplicatedDataset:
     """Deduplicate everything by full sequence."""
+    beliefs = beliefs[:, -1, :]
+    probs = probs[:, -1]
+    activations_by_layer = {name: acts[:, -1, :] for name, acts in activations_by_layer.items()}
     sequence_to_indices = make_sequence_groups(inputs)
 
     # Dedup beliefs & probs
