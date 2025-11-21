@@ -62,7 +62,7 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                     sequence_len = (
                         cfg.generative_process.sequence_len if cfg.generative_process.sequence_len is not None else 1
                     )
-                    _, _, inputs, _ = generate_data_batch(
+                    _, inputs, _ = generate_data_batch(
                         components.initial_states[first_key],
                         components.generative_processes[first_key],
                         batch_size,
