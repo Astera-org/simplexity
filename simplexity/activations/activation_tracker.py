@@ -131,9 +131,9 @@ class ActivationTracker:
             )
             prepared = preprocessing_cache[config_key]
 
-            prepared_activations: Mapping[str, jax.Array] = prepared["activations"]
-            prepared_beliefs = prepared["belief_states"]
-            prepared_weights = prepared["weights"]
+            prepared_activations: Mapping[str, jax.Array] = prepared.activations
+            prepared_beliefs = prepared.belief_states
+            prepared_weights = prepared.weights
 
             if analysis.requires_belief_states and prepared_beliefs is None:
                 raise ValueError(

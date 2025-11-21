@@ -31,10 +31,6 @@ class ActivationAnalysis(Protocol):
         """Whether the analysis needs belief state targets."""
         ...
 
-    def __init__(self, **kwargs):
-        """Initialize analysis with configuration parameters."""
-        ...
-
     def analyze(
         self,
         activations: Mapping[str, jax.Array],

@@ -69,15 +69,15 @@ class TestPrepareActivations:
         assert "belief_states" in result
         assert "weights" in result
 
-        assert "layer_0" in result["activations"]
-        assert "layer_1" in result["activations"]
+        assert "layer_0" in result.activations
+        assert "layer_1" in result.activations
 
-        assert result["belief_states"] is not None
-        n_prefixes = result["belief_states"].shape[0]
-        assert result["activations"]["layer_0"].shape == (n_prefixes, synthetic_data["d_layer0"])
-        assert result["activations"]["layer_1"].shape == (n_prefixes, synthetic_data["d_layer1"])
-        assert result["belief_states"].shape == (n_prefixes, synthetic_data["belief_dim"])
-        assert result["weights"].shape == (n_prefixes,)
+        assert result.belief_states is not None
+        n_prefixes = result.belief_states.shape[0]
+        assert result.activations["layer_0"].shape == (n_prefixes, synthetic_data["d_layer0"])
+        assert result.activations["layer_1"].shape == (n_prefixes, synthetic_data["d_layer1"])
+        assert result.belief_states.shape == (n_prefixes, synthetic_data["belief_dim"])
+        assert result.weights.shape == (n_prefixes,)
 
     def test_all_tokens_concatenated(self, synthetic_data):
         """Test 'all' tokens with 'concatenated' layers."""
@@ -90,14 +90,14 @@ class TestPrepareActivations:
             concat_layers=True,
         )
 
-        assert "concatenated" in result["activations"]
-        assert "layer_0" not in result["activations"]
-        assert "layer_1" not in result["activations"]
+        assert "concatenated" in result.activations
+        assert "layer_0" not in result.activations
+        assert "layer_1" not in result.activations
 
-        assert result["belief_states"] is not None
-        n_prefixes = result["belief_states"].shape[0]
+        assert result.belief_states is not None
+        n_prefixes = result.belief_states.shape[0]
         expected_d = synthetic_data["d_layer0"] + synthetic_data["d_layer1"]
-        assert result["activations"]["concatenated"].shape == (n_prefixes, expected_d)
+        assert result.activations["concatenated"].shape == (n_prefixes, expected_d)
 
     def test_last_token_individual(self, synthetic_data):
         """Test 'last' token with 'individual' layers."""
@@ -110,15 +110,15 @@ class TestPrepareActivations:
             concat_layers=False,
         )
 
-        assert "layer_0" in result["activations"]
-        assert "layer_1" in result["activations"]
+        assert "layer_0" in result.activations
+        assert "layer_1" in result.activations
 
-        assert result["belief_states"] is not None
+        assert result.belief_states is not None
         batch_size = synthetic_data["batch_size"]
-        assert result["activations"]["layer_0"].shape == (batch_size, synthetic_data["d_layer0"])
-        assert result["activations"]["layer_1"].shape == (batch_size, synthetic_data["d_layer1"])
-        assert result["belief_states"].shape == (batch_size, synthetic_data["belief_dim"])
-        assert result["weights"].shape == (batch_size,)
+        assert result.activations["layer_0"].shape == (batch_size, synthetic_data["d_layer0"])
+        assert result.activations["layer_1"].shape == (batch_size, synthetic_data["d_layer1"])
+        assert result.belief_states.shape == (batch_size, synthetic_data["belief_dim"])
+        assert result.weights.shape == (batch_size,)
 
     def test_last_token_concatenated(self, synthetic_data):
         """Test 'last' token with 'concatenated' layers."""
@@ -131,12 +131,12 @@ class TestPrepareActivations:
             concat_layers=True,
         )
 
-        assert "concatenated" in result["activations"]
+        assert "concatenated" in result.activations
 
         batch_size = synthetic_data["batch_size"]
         expected_d = synthetic_data["d_layer0"] + synthetic_data["d_layer1"]
-        assert result["activations"]["concatenated"].shape == (batch_size, expected_d)
-
+        assert result.activations["concatenated"].shape == (batch_size, expected_d)
+        
     def test_uniform_weights(self, synthetic_data):
         """Test use_probs_as_weights=False produces uniform normalized weights."""
         result = prepare_activations(
@@ -150,9 +150,9 @@ class TestPrepareActivations:
         )
 
         # All weights should be equal (uniform)
-        assert jnp.allclose(result["weights"], result["weights"][0])
+        assert jnp.allclose(result.weights, result.weights[0])
         # Weights should sum to 1
-        assert jnp.allclose(result["weights"].sum(), 1.0)
+        assert jnp.allclose(result.weights.sum(), 1.0)
 
     def test_accepts_torch_inputs(self, synthetic_data):
         """prepare_activations should accept PyTorch tensors."""
@@ -171,8 +171,8 @@ class TestPrepareActivations:
             concat_layers=False,
         )
 
-        assert "layer_0" in result["activations"]
-        assert result["activations"]["layer_0"].shape[0] == synthetic_data["batch_size"]
+        assert "layer_0" in result.activations
+        assert result.activations["layer_0"].shape[0] == synthetic_data["batch_size"]
 
 
 class TestLinearRegressionAnalysis:
