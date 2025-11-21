@@ -95,7 +95,7 @@ def test_generate_data_batch_with_all_states():
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
-    belief_states, probs, inputs, labels = generate_data_batch(
+    belief_states, probs, inputs, _ = generate_data_batch(
         states,
         hmm,
         batch_size,
