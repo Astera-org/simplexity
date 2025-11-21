@@ -1,9 +1,5 @@
 """Tests for activation tracker structured config validation and instantiation."""
 
-import os
-
-os.environ.setdefault("JAX_PLATFORMS", "cpu")
-
 import jax.numpy as jnp
 import pytest
 from omegaconf import DictConfig, OmegaConf
@@ -39,11 +35,13 @@ def _build_valid_tracker_cfg() -> DictConfig:
 
 
 def test_validate_activation_tracker_config_accepts_instance_wrapped_analyses() -> None:
+    """Tests that a valid activation tracker config passes validation."""
     cfg = _build_valid_tracker_cfg()
     validate_activation_tracker_config(cfg.activation_tracker)
 
 
 def test_validate_activation_tracker_config_requires_instance_block() -> None:
+    """Tests that missing 'instance' block raises ConfigValidationError."""
     bad_cfg = OmegaConf.create(
         {
             "instance": {
@@ -61,6 +59,7 @@ def test_validate_activation_tracker_config_requires_instance_block() -> None:
 
 
 def test_instantiate_activation_tracker_builds_analysis_objects() -> None:
+    """Tests that the activation tracker and its analyses are instantiated correctly."""
     cfg = _build_valid_tracker_cfg()
     tracker = _instantiate_activation_tracker(cfg, "activation_tracker.instance")
     assert tracker is not None
