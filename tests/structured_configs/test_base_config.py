@@ -62,12 +62,12 @@ class TestBaseConfig:
 
         # Tags with non-string keys
         cfg = DictConfig({"tags": {123: "value"}})
-        with pytest.raises(ConfigValidationError, match="BaseConfig.tags keys must be strings"):
+        with pytest.raises(ConfigValidationError, match="BaseConfig.tags keys must be strs"):
             validate_base_config(cfg)
 
         # Tags with non-string values
         cfg = DictConfig({"tags": {"key": 123}})
-        with pytest.raises(ConfigValidationError, match="BaseConfig.tags values must be strings"):
+        with pytest.raises(ConfigValidationError, match="BaseConfig.tags values must be strs"):
             validate_base_config(cfg)
 
     def test_validate_base_config_invalid_mlflow(self) -> None:
@@ -77,7 +77,35 @@ class TestBaseConfig:
         with pytest.raises(ConfigValidationError, match="BaseConfig.mlflow must be a MLFlowConfig"):
             validate_base_config(cfg)
 
-        # MLFlowConfig with missing experiment_name
-        cfg = DictConfig({"mlflow": DictConfig({"run_name": "test"})})
+        # MLFlowConfig with empty experiment_name (whitespace)
+        cfg = DictConfig({"mlflow": DictConfig({"experiment_name": "  "})})
         with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
             validate_base_config(cfg)
+
+    def test_validate_base_config_propagates_mlflow_errors(self) -> None:
+        """Test that MLflow validation errors propagate correctly."""
+        # Invalid tracking_uri scheme
+        cfg = DictConfig({"mlflow": DictConfig({"tracking_uri": "relative/path"})})
+        with pytest.raises(ConfigValidationError, match="MLFlowConfig.tracking_uri must have a valid URI scheme"):
+            validate_base_config(cfg)
+
+        # Empty experiment_name
+        cfg = DictConfig({"mlflow": DictConfig({"experiment_name": "  "})})
+        with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
+            validate_base_config(cfg)
+
+    def test_structured_base_config_round_trip(self) -> None:
+        """Test OmegaConf.structured() round-trip for BaseConfig."""
+        from omegaconf import OmegaConf
+        from simplexity.structured_configs.base import BaseConfig
+
+        # Create structured config with non-None values
+        cfg: DictConfig = OmegaConf.structured(
+            BaseConfig(seed=7, tags={"stage": "dev"}, mlflow=None)
+        )
+        assert cfg.seed == 7
+        assert cfg.tags == {"stage": "dev"}
+        assert cfg.mlflow is None
+
+        # Validate the structured config
+        validate_base_config(cfg)
