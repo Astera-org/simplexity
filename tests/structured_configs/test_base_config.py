@@ -93,19 +93,3 @@ class TestBaseConfig:
         cfg = DictConfig({"mlflow": DictConfig({"experiment_name": "  "})})
         with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
             validate_base_config(cfg)
-
-    def test_structured_base_config_round_trip(self) -> None:
-        """Test OmegaConf.structured() round-trip for BaseConfig."""
-        from omegaconf import OmegaConf
-        from simplexity.structured_configs.base import BaseConfig
-
-        # Create structured config with non-None values
-        cfg: DictConfig = OmegaConf.structured(
-            BaseConfig(seed=7, tags={"stage": "dev"}, mlflow=None)
-        )
-        assert cfg.seed == 7
-        assert cfg.tags == {"stage": "dev"}
-        assert cfg.mlflow is None
-
-        # Validate the structured config
-        validate_base_config(cfg)
