@@ -1,0 +1,35 @@
+name: Merge Queue Tests
+
+on:
+  merge_group:
+
+jobs:
+  full-test-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run full test suite
+        run: |
+          echo "::notice::Running full test suite before merge"
+          # Run all tests without testmon selection
+          # This ensures comprehensive testing before merging to main
+          uv run --extra aws --extra dev --extra cuda --extra penzai pytest \
+            --capture=no \
+            --verbose \
+            --cov-fail-under=0
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: Astera-org/simplexity
+          verbose: true
+          files: ./coverage.xml
+          fail_ci_if_error: false
