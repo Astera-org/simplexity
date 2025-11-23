@@ -15,9 +15,11 @@ creation from dataclass and derived config classes.
 
 from dataclasses import dataclass
 
+import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from simplexity.structured_configs.instance import InstanceConfig
+from simplexity.exceptions import ConfigValidationError
+from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 
 
 class TestInstanceConfig:
@@ -48,16 +50,8 @@ class TestInstanceConfig:
         assert cfg.get("other_key") == "other_value"
         assert cfg.get("default_attribute") == 42
 
-
-class TestValidateInstanceConfig:
-    """Test validate_instance_config function."""
-
     def test_validate_instance_config_valid(self) -> None:
         """Test validate_instance_config with valid configs."""
-        import pytest
-        from simplexity.exceptions import ConfigValidationError
-        from simplexity.structured_configs.instance import validate_instance_config
-
         # Valid config with _target_
         cfg = DictConfig({"_target_": "some.module.SomeClass"})
         validate_instance_config(cfg)
@@ -68,10 +62,6 @@ class TestValidateInstanceConfig:
 
     def test_validate_instance_config_invalid_target(self) -> None:
         """Test validate_instance_config with invalid _target_."""
-        import pytest
-        from simplexity.exceptions import ConfigValidationError
-        from simplexity.structured_configs.instance import validate_instance_config
-
         # Missing _target_
         cfg = DictConfig({})
         with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a string"):
@@ -89,10 +79,6 @@ class TestValidateInstanceConfig:
 
     def test_validate_instance_config_unexpected_target(self) -> None:
         """Test validate_instance_config with unexpected target."""
-        import pytest
-        from simplexity.exceptions import ConfigValidationError
-        from simplexity.structured_configs.instance import validate_instance_config
-
         # Target doesn't match expected
         cfg = DictConfig({"_target_": "actual.Target"})
         with pytest.raises(
