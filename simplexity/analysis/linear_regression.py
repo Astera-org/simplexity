@@ -9,39 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-
-def _standardize_features(x: Any) -> jax.Array:
-    x_arr = jnp.asarray(x, dtype=jnp.float32)
-    if x_arr.ndim == 1:
-        x_arr = x_arr[:, None]
-    if x_arr.ndim != 2:
-        raise ValueError("Features must be a 2D array")
-    return x_arr
-
-
-def _standardize_targets(y: Any) -> jax.Array:
-    y_arr = jnp.asarray(y, dtype=jnp.float32)
-    if y_arr.ndim == 1:
-        y_arr = y_arr[:, None]
-    if y_arr.ndim != 2:
-        raise ValueError("Targets must be a 2D array")
-    return y_arr
-
-
-def _standardize_weights(weights: Any, n_samples: int) -> jax.Array:
-    if n_samples <= 0:
-        raise ValueError("At least one sample is required")
-    if weights is None:
-        return jnp.ones(n_samples, dtype=jnp.float32) / float(n_samples)
-    w_arr = jnp.asarray(weights, dtype=jnp.float32)
-    if w_arr.ndim != 1 or w_arr.shape[0] != n_samples:
-        raise ValueError("Weights must be shape (n_samples,)")
-    if jnp.any(w_arr < 0):
-        raise ValueError("Weights must be non-negative")
-    total = float(jnp.sum(w_arr))
-    if total <= 0:
-        raise ValueError("Weights must sum to a positive value")
-    return w_arr / total
+from simplexity.analysis.normalization import _normalize_weights, _standardize_features, _standardize_targets
 
 
 def _design_matrix(x: jax.Array, fit_intercept: bool) -> jax.Array:
@@ -87,7 +55,9 @@ def linear_regression(
     y_arr = _standardize_targets(y)
     if x_arr.shape[0] != y_arr.shape[0]:
         raise ValueError("Features and targets must share the same first dimension")
-    w_arr = _standardize_weights(weights, x_arr.shape[0])
+    w_arr = _normalize_weights(weights, x_arr.shape[0])
+    if w_arr is None:
+        w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
     design = _design_matrix(x_arr, fit_intercept)
     sqrt_w = jnp.sqrt(w_arr)[:, None]
     weighted_design = design * sqrt_w
@@ -125,7 +95,9 @@ def linear_regression_svd(
     y_arr = _standardize_targets(y)
     if x_arr.shape[0] != y_arr.shape[0]:
         raise ValueError("Features and targets must share the same first dimension")
-    w_arr = _standardize_weights(weights, x_arr.shape[0])
+    w_arr = _normalize_weights(weights, x_arr.shape[0])
+    if w_arr is None:
+        w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
     design = _design_matrix(x_arr, fit_intercept)
     sqrt_w = jnp.sqrt(w_arr)[:, None]
     weighted_design = design * sqrt_w

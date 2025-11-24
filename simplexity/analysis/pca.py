@@ -8,21 +8,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from simplexity.analysis.normalization import _normalize_weights
+
 DEFAULT_VARIANCE_THRESHOLDS: tuple[float, ...] = (0.80, 0.90, 0.95, 0.99)
-
-
-def _normalize_weights(weights: np.ndarray | jax.Array | None, n_samples: int) -> jnp.ndarray | None:
-    if weights is None:
-        return None
-    weights_np = np.asarray(weights, dtype=np.float64)
-    if weights_np.ndim != 1 or weights_np.shape[0] != n_samples:
-        raise ValueError("Weights must be shape (n_samples,)")
-    if np.any(weights_np < 0):
-        raise ValueError("Weights must be non-negative")
-    total = float(weights_np.sum())
-    if not np.isfinite(total) or total <= 0:
-        raise ValueError("Sum of weights must be positive")
-    return jnp.asarray(weights_np / total)
 
 
 def compute_weighted_pca(
