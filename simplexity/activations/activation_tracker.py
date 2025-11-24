@@ -25,6 +25,7 @@ class PreparedActivations:
 
 
 class PrepareOptions(NamedTuple):
+    """Configuration options for activation preparation."""
     last_token_only: bool
     concat_layers: bool
     use_probs_as_weights: bool
