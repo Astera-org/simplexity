@@ -145,10 +145,7 @@ def layer_linear_regression(
     """Layer-wise regression helper that wraps :func:`linear_regression`."""
     if belief_states is None:
         raise ValueError("linear_regression requires belief_states")
-    x_arr = jnp.asarray(layer_activations)
-    y_arr = jnp.asarray(belief_states)
-    w_arr = jnp.asarray(weights)
-    return linear_regression(x_arr, y_arr, w_arr, **kwargs)
+    return linear_regression(layer_activations, belief_states, weights, **kwargs)
 
 
 def layer_linear_regression_svd(
@@ -160,7 +157,4 @@ def layer_linear_regression_svd(
     """Layer-wise regression helper that wraps :func:`linear_regression_svd`."""
     if belief_states is None:
         raise ValueError("linear_regression_svd requires belief_states")
-    x_arr = jnp.asarray(layer_activations)
-    y_arr = jnp.asarray(belief_states)
-    w_arr = jnp.asarray(weights)
-    return linear_regression_svd(x_arr, y_arr, w_arr, **kwargs)
+    return linear_regression_svd(layer_activations, belief_states, weights, **kwargs)
