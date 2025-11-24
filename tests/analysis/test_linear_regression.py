@@ -82,7 +82,7 @@ def test_linear_regression_rejects_zero_sum_weights() -> None:
     y = np.ones((2, 1))
     weights = np.array([0.0, 0.0])
 
-    with pytest.raises(ValueError, match="Weights must sum to a positive value"):
+    with pytest.raises(ValueError, match="Sum of weights must be positive"):
         linear_regression(x, y, weights)
 
 
@@ -135,13 +135,14 @@ def test_linear_regression_rejects_high_rank_inputs() -> None:
         linear_regression(np.ones((2, 1)), y_bad, weights)
 
 
-def test_linear_regression_requires_samples() -> None:
-    """At least one sample must be provided."""
+def test_linear_regression_requires_nonempty_weighted_samples() -> None:
+    """Even with empty inputs, the solver should reject missing samples."""
     x = np.empty((0, 1))
     y = np.empty((0, 1))
+    weights = np.empty((0,))
 
     with pytest.raises(ValueError, match="At least one sample is required"):
-        linear_regression(x, y, None)
+        linear_regression(x, y, weights)
 
 
 def test_linear_regression_mismatched_feature_target_shapes() -> None:

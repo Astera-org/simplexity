@@ -25,8 +25,10 @@ def compute_weighted_pca(
     if x_arr.ndim != 2:
         raise ValueError("Input must be a 2D array")
     n_samples, n_features = x_arr.shape
-    if n_samples == 0 or n_features == 0:
-        raise ValueError("Cannot compute PCA on empty data")
+    if n_samples == 0:
+        raise ValueError("At least one sample is required")
+    if n_features == 0:
+        raise ValueError("At least one feature is required")
 
     max_rank = int(min(n_samples, n_features))
     if n_components is None:

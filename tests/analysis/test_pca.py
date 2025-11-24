@@ -109,10 +109,10 @@ def test_compute_weighted_pca_requires_two_dimensional_inputs() -> None:
     with pytest.raises(ValueError, match="Input must be a 2D array"):
         compute_weighted_pca(jnp.ones(3))
 
-    with pytest.raises(ValueError, match="Cannot compute PCA on empty data"):
+    with pytest.raises(ValueError, match="At least one sample is required"):
         compute_weighted_pca(jnp.empty((0, 3)))
 
-    with pytest.raises(ValueError, match="Cannot compute PCA on empty data"):
+    with pytest.raises(ValueError, match="At least one feature is required"):
         compute_weighted_pca(jnp.empty((3, 0)))
 
 

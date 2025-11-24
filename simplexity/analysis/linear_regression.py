@@ -55,6 +55,8 @@ def linear_regression(
     y_arr = _standardize_targets(y)
     if x_arr.shape[0] != y_arr.shape[0]:
         raise ValueError("Features and targets must share the same first dimension")
+    if x_arr.shape[0] == 0:
+        raise ValueError("At least one sample is required")
     w_arr = _normalize_weights(weights, x_arr.shape[0])
     if w_arr is None:
         w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
@@ -95,6 +97,8 @@ def linear_regression_svd(
     y_arr = _standardize_targets(y)
     if x_arr.shape[0] != y_arr.shape[0]:
         raise ValueError("Features and targets must share the same first dimension")
+    if x_arr.shape[0] == 0:
+        raise ValueError("At least one sample is required")
     w_arr = _normalize_weights(weights, x_arr.shape[0])
     if w_arr is None:
         w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
