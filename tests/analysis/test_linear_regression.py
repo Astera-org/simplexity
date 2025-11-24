@@ -2,7 +2,6 @@
 
 import chex
 import jax.numpy as jnp
-import numpy as np
 import pytest
 
 from simplexity.analysis.linear_regression import (
