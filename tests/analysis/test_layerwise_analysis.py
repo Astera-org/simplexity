@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import pytest
 
-from simplexity.analysis.layerwise_analysis import LayerwiseAnalysis
+from simplexity.analysis.layerwise_analysis import ANALYSIS_REGISTRY, LayerwiseAnalysis
 
 
 def _make_synthetic_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.ndarray]:
@@ -96,14 +96,21 @@ def test_linear_regression_svd_kwargs_validation_errors() -> None:
         )
 
 
+def test_linear_regression_svd_rejects_unexpected_kwargs() -> None:
+    """Unexpected SVD kwargs should raise clear errors."""
+    with pytest.raises(ValueError, match="Unexpected linear_regression_svd kwargs"):
+        LayerwiseAnalysis(
+            "linear_regression_svd",
+            analysis_kwargs={"bad": True},
+        )
+
+
 def test_linear_regression_svd_kwargs_are_normalized() -> None:
     """Validator should coerce mixed numeric types to floats."""
-    analysis = LayerwiseAnalysis(
-        "linear_regression_svd",
-        analysis_kwargs={"rcond_values": [1, 1e-3]},
-    )
+    validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
+    params = validator({"rcond_values": [1, 1e-3]})
 
-    assert analysis._analysis_kwargs["rcond_values"] == (1.0, 0.001)
+    assert params["rcond_values"] == (1.0, 0.001)
 
 
 def test_pca_kwargs_require_int_components() -> None:
@@ -123,8 +130,32 @@ def test_pca_kwargs_require_sequence_thresholds() -> None:
             analysis_kwargs={"variance_thresholds": 0.9},
         )
 
-    with pytest.raises(ValueError, match="variance thresholds must be within \(0, 1]"):
+    with pytest.raises(ValueError, match=r"variance thresholds must be within \(0, 1]"):
         LayerwiseAnalysis(
             "pca",
             analysis_kwargs={"variance_thresholds": (0.5, 1.5)},
         )
+
+
+def test_pca_rejects_unexpected_kwargs() -> None:
+    """Unexpected PCA kwargs should surface informative errors."""
+    with pytest.raises(ValueError, match="Unexpected pca kwargs"):
+        LayerwiseAnalysis(
+            "pca",
+            analysis_kwargs={"bad": True},
+        )
+
+
+def test_layerwise_analysis_property_accessors() -> None:
+    """Constructor flags should surface via property accessors."""
+    analysis = LayerwiseAnalysis(
+        "pca",
+        last_token_only=True,
+        concat_layers=True,
+        use_probs_as_weights=False,
+    )
+
+    assert analysis.last_token_only is True
+    assert analysis.concat_layers is True
+    assert analysis.use_probs_as_weights is False
+    assert analysis.requires_belief_states is False

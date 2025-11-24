@@ -106,3 +106,79 @@ def test_linear_regression_svd_handles_empty_features() -> None:
 
     assert scalars["best_rcond"] == pytest.approx(1e-15)
     chex.assert_trees_all_close(projections["projected"], np.zeros_like(y))
+
+
+def test_linear_regression_accepts_one_dimensional_inputs() -> None:
+    """1D features and targets should be promoted to column vectors."""
+    x = np.arange(4.0)
+    y = 5.0 * x + 1.0
+    weights = np.ones_like(x)
+
+    scalars, projections = linear_regression(x, y, weights)
+
+    assert pytest.approx(1.0) == scalars["r2"]
+    chex.assert_trees_all_close(projections["projected"], y[:, None])
+
+
+def test_linear_regression_rejects_high_rank_inputs() -> None:
+    """Features and targets must be 2D after standardization."""
+    x = np.ones((2, 1, 1))
+    y = np.ones((2, 1))
+    weights = np.ones(2)
+
+    with pytest.raises(ValueError, match="Features must be a 2D array"):
+        linear_regression(x, y, weights)
+
+    y_bad = np.ones((2, 1, 1))
+    with pytest.raises(ValueError, match="Targets must be a 2D array"):
+        linear_regression(np.ones((2, 1)), y_bad, weights)
+
+
+def test_linear_regression_requires_samples() -> None:
+    """At least one sample must be provided."""
+    x = np.empty((0, 1))
+    y = np.empty((0, 1))
+
+    with pytest.raises(ValueError, match="At least one sample is required"):
+        linear_regression(x, y, None)
+
+
+def test_linear_regression_mismatched_feature_target_shapes() -> None:
+    """Mismatch in sample dimension should raise for both solvers."""
+    x = np.ones((3, 1))
+    y = np.ones((2, 1))
+    weights = np.ones(3)
+
+    with pytest.raises(ValueError, match="Features and targets must share the same first dimension"):
+        linear_regression(x, y, weights)
+
+    with pytest.raises(ValueError, match="Features and targets must share the same first dimension"):
+        linear_regression_svd(x, y, weights)
+
+
+def test_linear_regression_svd_falls_back_to_default_rcond() -> None:
+    """Empty rcond lists should fall back to the default threshold search."""
+    x = np.ones((3, 1))
+    y = np.ones((3, 1))
+    weights = np.ones(3)
+
+    scalars, _ = linear_regression_svd(x, y, weights, rcond_values=[])
+
+    assert scalars["best_rcond"] == pytest.approx(1e-15)
+
+
+def test_layer_linear_regression_svd_runs_end_to_end() -> None:
+    """Layer helper should proxy through to the base implementation."""
+    x = np.arange(6.0).reshape(3, 2)
+    weights = np.ones(3) / 3.0
+    beliefs = 2.0 * x.sum(axis=1, keepdims=True)
+
+    scalars, projections = layer_linear_regression_svd(
+        x,
+        weights,
+        beliefs,
+        rcond_values=[1e-3],
+    )
+
+    assert pytest.approx(1.0, abs=1e-6) == scalars["r2"]
+    chex.assert_trees_all_close(projections["projected"], beliefs)

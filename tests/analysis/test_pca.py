@@ -102,3 +102,22 @@ def test_layer_pca_analysis_zero_variance_threshold_reporting() -> None:
     )
     assert scalars["n_components_50pct"] == 3.0
     assert projections["pca"].shape == (4, 3)
+
+
+def test_compute_weighted_pca_requires_two_dimensional_inputs() -> None:
+    """PCA helper should enforce 2D inputs and non-empty shapes."""
+    with pytest.raises(ValueError, match="Input must be a 2D array"):
+        compute_weighted_pca(jnp.ones(3))
+
+    with pytest.raises(ValueError, match="Cannot compute PCA on empty data"):
+        compute_weighted_pca(jnp.empty((0, 3)))
+
+    with pytest.raises(ValueError, match="Cannot compute PCA on empty data"):
+        compute_weighted_pca(jnp.empty((3, 0)))
+
+
+def test_compute_weighted_pca_requires_positive_component_count() -> None:
+    """n_components must be positive when specified explicitly."""
+    x = jnp.ones((3, 2))
+    with pytest.raises(ValueError, match="n_components must be positive"):
+        compute_weighted_pca(x, n_components=0)
