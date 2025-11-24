@@ -14,17 +14,16 @@ DEFAULT_VARIANCE_THRESHOLDS: tuple[float, ...] = (0.80, 0.90, 0.95, 0.99)
 
 
 def compute_weighted_pca(
-    x: jax.Array | np.ndarray,
+    x: jax.Array,
     *,
     n_components: int | None = None,
     weights: jax.Array | np.ndarray | None = None,
     center: bool = True,
 ) -> Mapping[str, jax.Array]:
     """Compute weighted PCA for a 2D feature matrix."""
-    x_arr = jnp.asarray(x)
-    if x_arr.ndim != 2:
+    if x.ndim != 2:
         raise ValueError("Input must be a 2D array")
-    n_samples, n_features = x_arr.shape
+    n_samples, n_features = x.shape
     if n_samples == 0:
         raise ValueError("At least one sample is required")
     if n_features == 0:
@@ -42,11 +41,11 @@ def compute_weighted_pca(
 
     norm_weights = normalize_weights(weights, n_samples)
     if norm_weights is None:
-        mean = x_arr.mean(axis=0) if center else jnp.zeros(n_features, dtype=x_arr.dtype)
+        mean = x.mean(axis=0) if center else jnp.zeros(n_features, dtype=x.dtype)
     else:
-        mean = jnp.average(x_arr, axis=0, weights=norm_weights) if center else jnp.zeros(n_features, dtype=x_arr.dtype)
+        mean = jnp.average(x, axis=0, weights=norm_weights) if center else jnp.zeros(n_features, dtype=x.dtype)
 
-    x_centered = x_arr - mean
+    x_centered = x - mean
     if norm_weights is None:
         cov = (x_centered.T @ x_centered) / x_centered.shape[0]
     else:

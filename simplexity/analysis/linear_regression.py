@@ -46,8 +46,8 @@ def _regression_metrics(
 
 
 def linear_regression(
-    x: Any,
-    y: Any,
+    x: jax.Array,
+    y: jax.Array,
     weights: jax.Array | np.ndarray | None,
     *,
     fit_intercept: bool = True,
@@ -87,8 +87,8 @@ def _compute_beta_from_svd(
 
 
 def linear_regression_svd(
-    x: Any,
-    y: Any,
+    x: jax.Array,
+    y: jax.Array,
     weights: jax.Array | np.ndarray | None,
     *,
     rcond_values: Sequence[float] | None = None,
