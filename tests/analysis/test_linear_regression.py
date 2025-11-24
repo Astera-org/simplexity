@@ -1,6 +1,7 @@
 """Tests for reusable linear regression helpers."""
 
 import chex
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -45,8 +46,8 @@ def test_linear_regression_svd_selects_best_rcond() -> None:
 
 def test_layer_regression_requires_targets() -> None:
     """Layer helpers surface missing belief state errors."""
-    x = np.ones((3, 2))
-    weights = np.ones(3)
+    x = jnp.ones((3, 2))
+    weights = jnp.ones(3)
 
     with pytest.raises(ValueError, match="requires belief_states"):
         layer_linear_regression(x, weights, None)
@@ -169,8 +170,8 @@ def test_linear_regression_svd_falls_back_to_default_rcond() -> None:
 
 def test_layer_linear_regression_svd_runs_end_to_end() -> None:
     """Layer helper should proxy through to the base implementation."""
-    x = np.arange(6.0).reshape(3, 2)
-    weights = np.ones(3) / 3.0
+    x = jnp.arange(6.0).reshape(3, 2)
+    weights = jnp.ones(3) / 3.0
     beliefs = 2.0 * x.sum(axis=1, keepdims=True)
 
     scalars, projections = layer_linear_regression_svd(
