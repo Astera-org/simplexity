@@ -9,7 +9,7 @@ from simplexity.activations.activation_analyses import (
     LinearRegressionSVDAnalysis,
     PcaAnalysis,
 )
-from simplexity.activations.activation_tracker import ActivationTracker, prepare_activations
+from simplexity.activations.activation_tracker import ActivationTracker, prepare_activations, PrepareOptions
 
 
 @pytest.fixture
@@ -61,8 +61,11 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=False,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=False,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         assert hasattr(result, "activations")
@@ -86,8 +89,11 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=False,
-            concat_layers=True,
+            prepare_options=PrepareOptions(
+                last_token_only=False,
+                concat_layers=True,
+                use_probs_as_weights=False,
+            ),
         )
 
         assert "concatenated" in result.activations
@@ -106,8 +112,11 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         assert "layer_0" in result.activations
@@ -127,8 +136,11 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=True,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=True,
+                use_probs_as_weights=False,
+            ),
         )
 
         assert "concatenated" in result.activations
@@ -144,9 +156,11 @@ class TestPrepareActivations:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
-            use_probs_as_weights=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         # All weights should be equal (uniform)
@@ -168,8 +182,11 @@ class TestPrepareActivations:
             beliefs,
             probs,
             activations,
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         assert "layer_0" in result.activations
@@ -188,8 +205,11 @@ class TestLinearRegressionAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         scalars, projections = analysis.analyze(
@@ -220,8 +240,11 @@ class TestLinearRegressionAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         prepared.belief_states = None
@@ -242,9 +265,11 @@ class TestLinearRegressionAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
-            use_probs_as_weights=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         scalars, projections = analysis.analyze(
@@ -269,8 +294,11 @@ class TestLinearRegressionSVDAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         scalars, projections = analysis.analyze(
@@ -306,8 +334,11 @@ class TestLinearRegressionSVDAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         prepared.belief_states = None
@@ -332,8 +363,11 @@ class TestPcaAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         scalars, projections = analysis.analyze(
@@ -367,8 +401,11 @@ class TestPcaAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         prepared.belief_states = None
@@ -392,8 +429,11 @@ class TestPcaAnalysis:
             synthetic_data["beliefs"],
             synthetic_data["probs"],
             synthetic_data["activations"],
-            last_token_only=True,
-            concat_layers=False,
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
         )
 
         _, projections = analysis.analyze(
