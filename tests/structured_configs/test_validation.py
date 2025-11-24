@@ -178,3 +178,21 @@ def test_validate_initial_state_failures() -> None:
         validate_initial_state(jnp.ones((3,), dtype=jnp.float32), 2, "state")
     with pytest.raises(ConfigValidationError, match="state must be a float array"):
         validate_initial_state(jnp.ones((2,), dtype=jnp.int32), 2, "state")
+
+
+@pytest.mark.parametrize(
+    "validator, value, field_name",
+    [
+        (validate_positive_int, None, "test_field"),
+        (validate_non_negative_int, None, "test_field"),
+        (validate_positive_float, None, "test_field"),
+        (validate_non_negative_float, None, "test_field"),
+        (validate_bool, None, "test_field"),
+        (validate_sequence, None, "test_field"),
+        (validate_mapping, None, "test_field"),
+        (validate_uri, None, "test_field"),
+    ],
+)
+def test_validators_allow_none(validator: Any, value: Any, field_name: str) -> None:
+    """Test that validators allow None when is_none_allowed is True."""
+    validator(value, field_name, is_none_allowed=True)
