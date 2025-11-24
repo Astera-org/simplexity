@@ -24,6 +24,12 @@ class PreparedActivations:
     weights: jax.Array
 
 
+class PrepareOptions(NamedTuple):
+    last_token_only: bool
+    concat_layers: bool
+    use_probs_as_weights: bool
+
+
 def _get_uniform_weights(n_samples: int, dtype: DTypeLike) -> jax.Array:
     """Get uniform weights that sum to 1."""
     weights = jnp.ones(n_samples, dtype=dtype)
@@ -45,9 +51,7 @@ def prepare_activations(
     beliefs: jax.Array | torch.Tensor | np.ndarray,
     probs: jax.Array | torch.Tensor | np.ndarray,
     activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
-    last_token_only: bool = False,
-    concat_layers: bool = False,
-    use_probs_as_weights: bool = True,
+    prepare_options: PrepareOptions,
 ) -> PreparedActivations:
     """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
     inputs = _to_jax_array(inputs)
@@ -60,16 +64,18 @@ def prepare_activations(
         beliefs=beliefs,
         probs=probs,
         activations_by_layer=activations,
-        select_last_token=last_token_only,
+        select_last_token=prepare_options.last_token_only,
     )
 
     layer_acts = dataset.activations_by_layer
     belief_states = dataset.beliefs
     weights = (
-        dataset.probs if use_probs_as_weights else _get_uniform_weights(belief_states.shape[0], belief_states.dtype)
+        dataset.probs
+        if prepare_options.use_probs_as_weights
+        else _get_uniform_weights(belief_states.shape[0], belief_states.dtype)
     )
 
-    if concat_layers:
+    if prepare_options.concat_layers:
         concatenated = jnp.concatenate(list(layer_acts.values()), axis=-1)
         layer_acts = {"concatenated": concatenated}
 
@@ -78,12 +84,6 @@ def prepare_activations(
         belief_states=belief_states,
         weights=weights,
     )
-
-
-class PrepareOptions(NamedTuple):
-    last_token_only: bool
-    concat_layers: bool
-    use_probs_as_weights: bool
 
 
 class ActivationTracker:
@@ -104,11 +104,12 @@ class ActivationTracker:
         preprocessing_cache: dict[PrepareOptions, PreparedActivations] = {}
 
         for analysis in self._analyses.values():
-            config_key = PrepareOptions(
+            prepare_options = PrepareOptions(
                 analysis.last_token_only,
                 analysis.concat_layers,
                 analysis.use_probs_as_weights,
             )
+            config_key = prepare_options
 
             if config_key not in preprocessing_cache:
                 prepared = prepare_activations(
@@ -116,9 +117,7 @@ class ActivationTracker:
                     beliefs=beliefs,
                     probs=probs,
                     activations=activations,
-                    last_token_only=analysis.last_token_only,
-                    concat_layers=analysis.concat_layers,
-                    use_probs_as_weights=analysis.use_probs_as_weights,
+                    prepare_options=prepare_options,
                 )
                 preprocessing_cache[config_key] = prepared
 
@@ -126,12 +125,12 @@ class ActivationTracker:
         all_projections = {}
 
         for analysis_name, analysis in self._analyses.items():
-            config_key = PrepareOptions(
+            prepare_options = PrepareOptions(
                 analysis.last_token_only,
                 analysis.concat_layers,
                 analysis.use_probs_as_weights,
             )
-            prepared = preprocessing_cache[config_key]
+            prepared = preprocessing_cache[prepare_options]
 
             prepared_activations: Mapping[str, jax.Array] = prepared.activations
             prepared_beliefs = prepared.belief_states
