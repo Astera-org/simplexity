@@ -19,6 +19,7 @@ from simplexity.run_management.structured_configs import (
 
 @pytest.fixture
 def tracker_cfg() -> DictConfig:
+    """Provides a valid activation tracker config for testing."""
     return OmegaConf.create(
         {
             "activation_tracker": {
