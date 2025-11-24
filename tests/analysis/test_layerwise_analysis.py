@@ -6,7 +6,8 @@ import pytest
 from simplexity.analysis.layerwise_analysis import ANALYSIS_REGISTRY, LayerwiseAnalysis
 
 
-def _make_synthetic_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.ndarray]:
+@pytest.fixture
+def analysis_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.ndarray]:
     activations = {
         "layer_a": jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]),
         "layer_b": jnp.array([[2.0, 1.0], [1.0, 2.0], [0.0, 1.0]]),
@@ -16,9 +17,9 @@ def _make_synthetic_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.n
     return activations, weights, belief_states
 
 
-def test_layerwise_analysis_linear_regression_namespacing() -> None:
+def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> None:
     """Metrics and projections should be namespace-qualified per layer."""
-    activations, weights, belief_states = _make_synthetic_inputs()
+    activations, weights, belief_states = analysis_inputs
     analysis = LayerwiseAnalysis("linear_regression", last_token_only=True)
 
     scalars, projections = analysis.analyze(
@@ -31,9 +32,9 @@ def test_layerwise_analysis_linear_regression_namespacing() -> None:
     assert set(projections) == {"layer_a_projected", "layer_b_projected"}
 
 
-def test_layerwise_analysis_requires_targets() -> None:
+def test_layerwise_analysis_requires_targets(analysis_inputs) -> None:
     """Analyses that need belief states should validate input."""
-    activations, weights, _ = _make_synthetic_inputs()
+    activations, weights, _ = analysis_inputs
     analysis = LayerwiseAnalysis("linear_regression")
 
     with pytest.raises(ValueError, match="requires belief_states"):
@@ -55,9 +56,9 @@ def test_invalid_kwargs_validation() -> None:
         )
 
 
-def test_pca_analysis_does_not_require_beliefs() -> None:
+def test_pca_analysis_does_not_require_beliefs(analysis_inputs) -> None:
     """PCA analysis should run without belief states and namespace results."""
-    activations, weights, _ = _make_synthetic_inputs()
+    activations, weights, _ = analysis_inputs
     analysis = LayerwiseAnalysis(
         "pca",
         analysis_kwargs={"n_components": 2, "variance_thresholds": (0.5,)},
@@ -155,7 +156,7 @@ def test_layerwise_analysis_property_accessors() -> None:
         use_probs_as_weights=False,
     )
 
-    assert analysis.last_token_only is True
-    assert analysis.concat_layers is True
-    assert analysis.use_probs_as_weights is False
-    assert analysis.requires_belief_states is False
+    assert analysis.last_token_only
+    assert analysis.concat_layers
+    assert not analysis.use_probs_as_weights
+    assert not analysis.requires_belief_states

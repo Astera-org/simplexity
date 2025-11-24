@@ -44,7 +44,6 @@ from simplexity.run_management.run_logging import (
 )
 from simplexity.run_management.structured_configs import (
     ConfigValidationError,
-    is_activation_analysis_target,
     is_activation_tracker_target,
     is_generative_process_target,
     is_hooked_transformer_config,
@@ -475,22 +474,12 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
     """Instantiate an activation tracker."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
-        analyses_cfg = instance_config.get("analyses")
-        if analyses_cfg is None:
-            raise ConfigValidationError("ActivationTracker requires an analyses mapping")
-
         tracker_cfg = OmegaConf.create(OmegaConf.to_container(instance_config, resolve=False))
         converted_analyses: dict[str, DictConfig] = {}
+        analyses_cfg = instance_config.get("analyses") or {}
         for key, analysis_cfg in analyses_cfg.items():
-            if not isinstance(analysis_cfg, DictConfig) or "instance" not in analysis_cfg:
-                raise ConfigValidationError(
-                    f"ActivationTracker analysis '{key}' must provide an InstanceConfig via 'instance'"
-                )
             name_override = analysis_cfg.get("name")
             cfg_to_instantiate = analysis_cfg.instance
-            target = cfg_to_instantiate.get("_target_", None)
-            if not is_activation_analysis_target(target):
-                raise ConfigValidationError(f"ActivationTracker analysis '{key}' has invalid target: {target}")
             converted_analyses[name_override or key] = cfg_to_instantiate
 
         tracker_cfg.analyses = converted_analyses

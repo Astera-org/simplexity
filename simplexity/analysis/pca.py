@@ -70,6 +70,9 @@ def compute_weighted_pca(
 
     projections = x_centered @ eigvecs_sel
 
+    # We are using biased-covariance here, which means the absolute scale
+    # of the eigenvalues is smaller by a factor of (n-1)/n compared to the
+    # unbiased estimate
     return {
         "components": eigvecs_sel.T,
         "explained_variance": eigvals_sel,

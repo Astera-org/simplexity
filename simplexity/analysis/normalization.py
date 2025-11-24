@@ -25,12 +25,12 @@ def _normalize_weights(weights: np.ndarray | jax.Array | None, n_samples: int) -
     """Normalize weights to sum to 1, or return None if weights is None."""
     if weights is None:
         return None
-    weights_np = np.asarray(weights, dtype=np.float64)
-    if weights_np.ndim != 1 or weights_np.shape[0] != n_samples:
+    weights = jnp.asarray(weights, dtype=jnp.float32)
+    if weights.ndim != 1 or weights.shape[0] != n_samples:
         raise ValueError("Weights must be shape (n_samples,)")
-    if np.any(weights_np < 0):
+    if bool(jnp.any(weights < 0)):
         raise ValueError("Weights must be non-negative")
-    total = float(weights_np.sum())
-    if not np.isfinite(total) or total <= 0:
+    total = float(weights.sum())
+    if not jnp.isfinite(total) or total <= 0:
         raise ValueError("Sum of weights must be positive")
-    return jnp.asarray(weights_np / total)
+    return jnp.asarray(weights / total)

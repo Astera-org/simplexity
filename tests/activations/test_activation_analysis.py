@@ -7,7 +7,7 @@ import pytest
 from simplexity.activations.activation_analyses import (
     LinearRegressionAnalysis,
     LinearRegressionSVDAnalysis,
-    PCAAnalysis,
+    PcaAnalysis,
 )
 from simplexity.activations.activation_tracker import ActivationTracker, prepare_activations
 
@@ -320,12 +320,12 @@ class TestLinearRegressionSVDAnalysis:
             )
 
 
-class TestPCAAnalysis:
-    """Test PCAAnalysis."""
+class TestPcaAnalysis:
+    """Test PcaAnalysis."""
 
     def test_basic_pca(self, synthetic_data):
         """Test basic PCA analysis."""
-        analysis = PCAAnalysis(n_components=3)
+        analysis = PcaAnalysis(n_components=3)
 
         prepared = prepare_activations(
             synthetic_data["inputs"],
@@ -360,7 +360,7 @@ class TestPCAAnalysis:
 
     def test_pca_without_belief_states(self, synthetic_data):
         """Test PCA works without belief_states."""
-        analysis = PCAAnalysis(n_components=2)
+        analysis = PcaAnalysis(n_components=2)
 
         prepared = prepare_activations(
             synthetic_data["inputs"],
@@ -385,7 +385,7 @@ class TestPCAAnalysis:
 
     def test_pca_all_components(self, synthetic_data):
         """Test PCA with n_components=None computes all components."""
-        analysis = PCAAnalysis(n_components=None)
+        analysis = PcaAnalysis(n_components=None)
 
         prepared = prepare_activations(
             synthetic_data["inputs"],
@@ -418,7 +418,7 @@ class TestActivationTracker:
                     last_token_only=True,
                     concat_layers=False,
                 ),
-                "pca": PCAAnalysis(
+                "pca": PcaAnalysis(
                     n_components=2,
                     last_token_only=True,
                     concat_layers=False,
@@ -468,7 +468,7 @@ class TestActivationTracker:
                     last_token_only=True,
                     concat_layers=False,
                 ),
-                "pca": PCAAnalysis(
+                "pca": PcaAnalysis(
                     n_components=2,
                     last_token_only=True,
                     concat_layers=False,
@@ -494,7 +494,7 @@ class TestActivationTracker:
                     last_token_only=True,
                     concat_layers=True,
                 ),
-                "pca": PCAAnalysis(
+                "pca": PcaAnalysis(
                     n_components=2,
                     last_token_only=True,
                     concat_layers=True,
@@ -540,12 +540,12 @@ class TestActivationTracker:
         """Test that tracker efficiently pre-computes only needed preprocessing modes."""
         tracker = ActivationTracker(
             {
-                "pca_all_tokens": PCAAnalysis(
+                "pca_all_tokens": PcaAnalysis(
                     n_components=2,
                     last_token_only=False,
                     concat_layers=False,
                 ),
-                "pca_last_token": PCAAnalysis(
+                "pca_last_token": PcaAnalysis(
                     n_components=3,
                     last_token_only=True,
                     concat_layers=False,
@@ -581,7 +581,7 @@ class TestActivationTracker:
                     last_token_only=True,
                     concat_layers=False,
                 ),
-                "pca": PCAAnalysis(
+                "pca": PcaAnalysis(
                     n_components=2,
                     last_token_only=True,
                     concat_layers=False,

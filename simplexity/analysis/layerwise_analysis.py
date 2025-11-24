@@ -130,18 +130,22 @@ class LayerwiseAnalysis:
 
     @property
     def last_token_only(self) -> bool:
+        """Whether to use only the last token's activations for analysis."""
         return self._last_token_only
 
     @property
     def concat_layers(self) -> bool:
+        """Whether to concatenate activations from all layers before analysis."""
         return self._concat_layers
 
     @property
     def use_probs_as_weights(self) -> bool:
+        """Whether to use probabilities as weights for analysis."""
         return self._use_probs_as_weights
 
     @property
     def requires_belief_states(self) -> bool:
+        """Whether the analysis needs belief state targets."""
         return self._requires_belief_states
 
     def analyze(
@@ -150,13 +154,14 @@ class LayerwiseAnalysis:
         weights: jax.Array,
         belief_states: jax.Array | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+        """Analyze activations and return namespaced scalar metrics and projections."""
         if self._requires_belief_states and belief_states is None:
             raise ValueError("This analysis requires belief_states")
         scalars: dict[str, float] = {}
         projections: dict[str, jax.Array] = {}
-        for layer_name in sorted(activations):
+        for layer_name, layer_activations in activations.items():
             layer_scalars, layer_projections = self._analysis_fn(
-                activations[layer_name],
+                layer_activations,
                 weights,
                 belief_states,
                 **self._analysis_kwargs,

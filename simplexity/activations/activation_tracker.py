@@ -2,10 +2,11 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import torch
 from jax.typing import DTypeLike
 
@@ -40,10 +41,10 @@ def _to_jax_array(value: Any) -> jax.Array:
 
 
 def prepare_activations(
-    inputs: jax.Array,
-    beliefs: jax.Array,
-    probs: jax.Array,
-    activations: Mapping[str, jax.Array],
+    inputs: jax.Array | torch.Tensor | np.ndarray,
+    beliefs: jax.Array | torch.Tensor | np.ndarray,
+    probs: jax.Array | torch.Tensor | np.ndarray,
+    activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
     last_token_only: bool = False,
     concat_layers: bool = False,
     use_probs_as_weights: bool = True,
@@ -79,6 +80,12 @@ def prepare_activations(
     )
 
 
+class PrepareOptions(NamedTuple):
+    last_token_only: bool
+    concat_layers: bool
+    use_probs_as_weights: bool
+
+
 class ActivationTracker:
     """Orchestrates multiple activation analyses with efficient preprocessing."""
 
@@ -88,16 +95,16 @@ class ActivationTracker:
 
     def analyze(
         self,
-        inputs: jax.Array,
-        beliefs: jax.Array,
-        probs: jax.Array,
-        activations: Mapping[str, jax.Array],
+        inputs: jax.Array | torch.Tensor | np.ndarray,
+        beliefs: jax.Array | torch.Tensor | np.ndarray,
+        probs: jax.Array | torch.Tensor | np.ndarray,
+        activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Run all analyses and return namespaced results."""
-        preprocessing_cache: dict[tuple[bool, bool, bool], PreparedActivations] = {}
+        preprocessing_cache: dict[PrepareOptions, PreparedActivations] = {}
 
         for analysis in self._analyses.values():
-            config_key = (
+            config_key = PrepareOptions(
                 analysis.last_token_only,
                 analysis.concat_layers,
                 analysis.use_probs_as_weights,
@@ -119,7 +126,7 @@ class ActivationTracker:
         all_projections = {}
 
         for analysis_name, analysis in self._analyses.items():
-            config_key = (
+            config_key = PrepareOptions(
                 analysis.last_token_only,
                 analysis.concat_layers,
                 analysis.use_probs_as_weights,
@@ -140,11 +147,7 @@ class ActivationTracker:
                 weights=prepared_weights,
                 belief_states=prepared_beliefs,
             )
-
-            for key, value in scalars.items():
-                all_scalars[f"{analysis_name}/{key}"] = value
-
-            for key, value in projections.items():
-                all_projections[f"{analysis_name}/{key}"] = value
+            all_scalars.update({f"{analysis_name}/{key}": value for key, value in scalars.items()})
+            all_projections.update({f"{analysis_name}/{key}": value for key, value in projections.items()})
 
         return all_scalars, all_projections

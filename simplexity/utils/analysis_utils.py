@@ -60,7 +60,7 @@ def dedup_probs_sum(
     total_mass = dedup_probs.sum()
     if total_mass > 0:
         dedup_probs = dedup_probs / total_mass
-    if total_mass == 0:
+    else:
         raise ValueError("Total probability mass is zero after deduplication")
 
     return dedup_probs, prefixes
@@ -76,13 +76,13 @@ def make_sequence_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[int]]:
         dict: sequence_tuple -> list of seq_idx indices with that sequence
     """
     batch_size, _ = inputs.shape
-    sequence_to_indices: dict[tuple[int, ...], list[int]] = {}
+    sequence_to_indices: defaultdict[tuple[int, ...], list[int]] = defaultdict(list)
 
     inputs_np = np.asarray(inputs)
 
     for seq_idx in range(batch_size):
         seq = tuple(inputs_np[seq_idx])
-        sequence_to_indices.setdefault(seq, []).append(seq_idx)
+        sequence_to_indices[seq].append(seq_idx)
 
     return sequence_to_indices
 

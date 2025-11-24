@@ -32,9 +32,11 @@ def _regression_metrics(
     weighted_ss_res = float(weighted_sq_residuals.sum())
     target_mean = jnp.sum(targets * weights[:, None], axis=0)
     weighted_ss_tot = jnp.sum((targets - target_mean) ** 2 * weights[:, None])
-    r2 = 1.0 - (weighted_ss_res / float(weighted_ss_tot)) if weighted_ss_tot > 0 else 0.0
+    r2 = 1.0 - (weighted_ss_res / float(weighted_ss_tot)) if float(weighted_ss_tot) > 0 else 0.0
     dists = jnp.sqrt(jnp.sum(residuals**2, axis=1))
     dist = float(jnp.sum(dists * weights))
+    # RMSE and MAE are returned as means over target dimensions
+    # rather than sums to keep consistent with R²
     return {
         "r2": float(r2),
         "rmse": float(rmse.mean()),

@@ -41,7 +41,7 @@ class ActivationAnalysis(Protocol):
         ...
 
 
-class PCAAnalysis(LayerwiseAnalysis):
+class PcaAnalysis(LayerwiseAnalysis):
     """LayerwiseAnalysis wrapper for PCA computations."""
 
     def __init__(

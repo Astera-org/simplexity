@@ -17,7 +17,8 @@ from simplexity.run_management.structured_configs import (
 )
 
 
-def _build_valid_tracker_cfg() -> DictConfig:
+@pytest.fixture
+def tracker_cfg() -> DictConfig:
     return OmegaConf.create(
         {
             "activation_tracker": {
@@ -27,7 +28,7 @@ def _build_valid_tracker_cfg() -> DictConfig:
                         "pca": {
                             "name": "pca_custom",
                             "instance": {
-                                "_target_": "simplexity.activations.activation_analyses.PCAAnalysis",
+                                "_target_": "simplexity.activations.activation_analyses.PcaAnalysis",
                                 "n_components": 1,
                                 "last_token_only": True,
                                 "concat_layers": False,
@@ -50,10 +51,9 @@ def _build_valid_tracker_cfg() -> DictConfig:
     )
 
 
-def test_validate_activation_tracker_config_accepts_instance_wrapped_analyses() -> None:
+def test_validate_activation_tracker_config_accepts_instance_wrapped_analyses(tracker_cfg: DictConfig) -> None:
     """Tests that a valid activation tracker config passes validation."""
-    cfg = _build_valid_tracker_cfg()
-    validate_activation_tracker_config(cfg.activation_tracker)
+    validate_activation_tracker_config(tracker_cfg.activation_tracker)
 
 
 def test_validate_activation_tracker_config_requires_instance_block() -> None:
@@ -76,10 +76,10 @@ def test_validate_activation_tracker_config_requires_instance_block() -> None:
 
 def test_activation_analysis_target_helpers() -> None:
     """Activation analysis helpers should flag valid prefixes and tracker targets."""
-    assert is_activation_analysis_target("simplexity.activations.foo.Bar") is True
-    assert is_activation_analysis_target("other.module") is False
-    assert is_activation_tracker_target("simplexity.activations.activation_tracker.ActivationTracker") is True
-    assert is_activation_tracker_target("simplexity.activations.other") is False
+    assert is_activation_analysis_target("simplexity.activations.foo.Bar")
+    assert not is_activation_analysis_target("other.module")
+    assert is_activation_tracker_target("simplexity.activations.activation_tracker.ActivationTracker")
+    assert not is_activation_tracker_target("simplexity.activations.other")
 
 
 def test_validate_activation_analysis_config_errors() -> None:
@@ -159,13 +159,12 @@ def test_validate_activation_tracker_config_errors() -> None:
         validate_activation_tracker_config(cfg_bad_target)
 
 
-def test_setup_activation_trackers_integration(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_setup_activation_trackers_integration(monkeypatch: pytest.MonkeyPatch, tracker_cfg: DictConfig) -> None:
     """Setup helper should instantiate trackers for filtered keys."""
-    cfg = _build_valid_tracker_cfg()
     captured_instance_keys = []
 
     def fake_filter(cfg_arg, instance_keys, *_, **__):
-        assert cfg_arg is cfg
+        assert cfg_arg is tracker_cfg
         captured_instance_keys.extend(instance_keys)
         return ["activation_tracker.instance"]
 
@@ -185,13 +184,12 @@ def test_setup_activation_trackers_integration(monkeypatch: pytest.MonkeyPatch) 
         fake_instantiate,
     )
 
-    trackers = _setup_activation_trackers(cfg, ["activation_tracker.instance"])
+    trackers = _setup_activation_trackers(tracker_cfg, ["activation_tracker.instance"])
     assert trackers == {"activation_tracker.instance": instantiated["activation_tracker.instance"]}
 
 
-def test_setup_activation_trackers_no_instances_logs(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_setup_activation_trackers_no_instances_logs(monkeypatch: pytest.MonkeyPatch, tracker_cfg: DictConfig) -> None:
     """When no instance keys survive filtering the helper returns None."""
-    cfg = _build_valid_tracker_cfg()
 
     def fake_filter(*_, **__):
         return []
@@ -201,14 +199,13 @@ def test_setup_activation_trackers_no_instances_logs(monkeypatch: pytest.MonkeyP
         fake_filter,
     )
 
-    trackers = _setup_activation_trackers(cfg, ["activation_tracker.instance"])
+    trackers = _setup_activation_trackers(tracker_cfg, ["activation_tracker.instance"])
     assert trackers is None
 
 
-def test_instantiate_activation_tracker_builds_analysis_objects() -> None:
+def test_instantiate_activation_tracker_builds_analysis_objects(tracker_cfg: DictConfig) -> None:
     """Tests that the activation tracker and its analyses are instantiated correctly."""
-    cfg = _build_valid_tracker_cfg()
-    tracker = _instantiate_activation_tracker(cfg, "activation_tracker.instance")
+    tracker = _instantiate_activation_tracker(tracker_cfg, "activation_tracker.instance")
     assert tracker is not None
 
     inputs = jnp.array([[0, 1]], dtype=jnp.int32)
