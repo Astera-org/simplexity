@@ -3,7 +3,8 @@ import jax.numpy as jnp
 import numpy as np
 
 
-def _standardize_features(x: np.ndarray | jax.Array) -> jax.Array:
+def standardize_features(x: np.ndarray | jax.Array) -> jax.Array:
+    """Standardize features to a 2D JAX array."""
     x_arr = jnp.asarray(x, dtype=jnp.float32)
     if x_arr.ndim == 1:
         x_arr = x_arr[:, None]
@@ -12,7 +13,8 @@ def _standardize_features(x: np.ndarray | jax.Array) -> jax.Array:
     return x_arr
 
 
-def _standardize_targets(y: np.ndarray | jax.Array) -> jax.Array:
+def standardize_targets(y: np.ndarray | jax.Array) -> jax.Array:
+    """Standardize targets to a 2D JAX array."""
     y_arr = jnp.asarray(y, dtype=jnp.float32)
     if y_arr.ndim == 1:
         y_arr = y_arr[:, None]
@@ -21,7 +23,7 @@ def _standardize_targets(y: np.ndarray | jax.Array) -> jax.Array:
     return y_arr
 
 
-def _normalize_weights(weights: np.ndarray | jax.Array | None, n_samples: int) -> jax.Array | None:
+def normalize_weights(weights: np.ndarray | jax.Array | None, n_samples: int) -> jax.Array | None:
     """Normalize weights to sum to 1, or return None if weights is None."""
     if weights is None:
         return None

@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from simplexity.analysis.normalization import _normalize_weights
+from simplexity.analysis.normalization import normalize_weights
 
 DEFAULT_VARIANCE_THRESHOLDS: tuple[float, ...] = (0.80, 0.90, 0.95, 0.99)
 
@@ -40,7 +40,7 @@ def compute_weighted_pca(
             raise ValueError(f"n_components {n_components} cannot exceed min(n_samples, n_features)={max_rank}")
         num_components = int(n_components)
 
-    norm_weights = _normalize_weights(weights, n_samples)
+    norm_weights = normalize_weights(weights, n_samples)
     if norm_weights is None:
         mean = x_arr.mean(axis=0) if center else jnp.zeros(n_features, dtype=x_arr.dtype)
     else:

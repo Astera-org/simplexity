@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from simplexity.analysis.normalization import _normalize_weights, _standardize_features, _standardize_targets
+from simplexity.analysis.normalization import normalize_weights, standardize_features, standardize_targets
 
 
 def _design_matrix(x: jax.Array, fit_intercept: bool) -> jax.Array:
@@ -53,13 +53,13 @@ def linear_regression(
     fit_intercept: bool = True,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Weighted linear regression using a closed-form least squares solution."""
-    x_arr = _standardize_features(x)
-    y_arr = _standardize_targets(y)
+    x_arr = standardize_features(x)
+    y_arr = standardize_targets(y)
     if x_arr.shape[0] != y_arr.shape[0]:
         raise ValueError("Features and targets must share the same first dimension")
     if x_arr.shape[0] == 0:
         raise ValueError("At least one sample is required")
-    w_arr = _normalize_weights(weights, x_arr.shape[0])
+    w_arr = normalize_weights(weights, x_arr.shape[0])
     if w_arr is None:
         w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
     design = _design_matrix(x_arr, fit_intercept)
@@ -95,13 +95,13 @@ def linear_regression_svd(
     fit_intercept: bool = True,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Weighted linear regression solved via SVD with configurable rcond search."""
-    x_arr = _standardize_features(x)
-    y_arr = _standardize_targets(y)
+    x_arr = standardize_features(x)
+    y_arr = standardize_targets(y)
     if x_arr.shape[0] != y_arr.shape[0]:
         raise ValueError("Features and targets must share the same first dimension")
     if x_arr.shape[0] == 0:
         raise ValueError("At least one sample is required")
-    w_arr = _normalize_weights(weights, x_arr.shape[0])
+    w_arr = normalize_weights(weights, x_arr.shape[0])
     if w_arr is None:
         w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
     design = _design_matrix(x_arr, fit_intercept)
