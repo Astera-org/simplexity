@@ -38,7 +38,7 @@ def is_pytorch_adam_optimizer_config(cfg: DictConfig) -> bool:
     """Check if the configuration is a PyTorch optimizer configuration."""
     target = cfg.get("_target_", None)
     if isinstance(target, str):
-        return target.startswith("torch.optim.adam")
+        return target.lower().startswith("torch.optim.adam")
     return False
 
 
