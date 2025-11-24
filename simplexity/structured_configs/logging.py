@@ -108,15 +108,7 @@ def validate_mlflow_logger_instance_config(cfg: DictConfig) -> None:
 @dynamic_resolve
 def update_logging_instance_config(cfg: DictConfig, updated_cfg: DictConfig) -> None:
     """Update a LoggingInstanceConfig with the updated configuration."""
-    # TODO: Is there a better way to do this?
-    cfg._target_ = updated_cfg.get("_target_")  # pylint: disable=protected-access
-    cfg.experiment_id = updated_cfg.get("experiment_id")
-    cfg.experiment_name = updated_cfg.get("experiment_name")
-    cfg.run_id = updated_cfg.get("run_id")
-    cfg.run_name = updated_cfg.get("run_name")
-    cfg.tracking_uri = updated_cfg.get("tracking_uri")
-    cfg.registry_uri = updated_cfg.get("registry_uri")
-    cfg.downgrade_unity_catalog = updated_cfg.get("downgrade_unity_catalog")
+    cfg.merge_with(updated_cfg)
 
 
 @dataclass
