@@ -108,10 +108,3 @@ class LinearRegressionSVDAnalysis(LayerwiseAnalysis):
             use_probs_as_weights=use_probs_as_weights,
             analysis_kwargs=analysis_kwargs,
         )
-
-
-ALL_ANALYSES: dict[str, type[ActivationAnalysis]] = {
-    "pca": PCAAnalysis,
-    "linear_regression": LinearRegressionAnalysis,
-    "linear_regression_svd": LinearRegressionSVDAnalysis,
-}

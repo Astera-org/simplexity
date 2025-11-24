@@ -56,10 +56,12 @@ def dedup_probs_sum(
         prefixes.append(prefix)
 
     dedup_probs = jnp.array(dedup_values, dtype=probs.dtype)
-    # normalize to sum to 1
+
     total_mass = dedup_probs.sum()
     if total_mass > 0:
         dedup_probs = dedup_probs / total_mass
+    if total_mass == 0:
+        raise ValueError("Total probability mass is zero after deduplication")
 
     return dedup_probs, prefixes
 
