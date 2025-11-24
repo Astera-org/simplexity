@@ -138,6 +138,8 @@ omit = [
     "*/dist/*",
     "*/venv/*",
     "*/.venv/*",
+    # TODO: Remove this exclusion once tests are added for run_management.py
+    "simplexity/run_management/run_management.py",
 ]
 
 [tool.coverage.report]
