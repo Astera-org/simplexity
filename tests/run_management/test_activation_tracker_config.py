@@ -4,8 +4,17 @@ import jax.numpy as jnp
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from simplexity.run_management.run_management import _instantiate_activation_tracker
-from simplexity.run_management.structured_configs import ConfigValidationError, validate_activation_tracker_config
+from simplexity.run_management.run_management import (
+    _instantiate_activation_tracker,
+    _setup_activation_trackers,
+)
+from simplexity.run_management.structured_configs import (
+    ConfigValidationError,
+    is_activation_analysis_target,
+    is_activation_tracker_target,
+    validate_activation_analysis_config,
+    validate_activation_tracker_config,
+)
 
 
 def _build_valid_tracker_cfg() -> DictConfig:
@@ -63,6 +72,137 @@ def test_validate_activation_tracker_config_requires_instance_block() -> None:
     )
     with pytest.raises(ConfigValidationError):
         validate_activation_tracker_config(bad_cfg)
+
+
+def test_activation_analysis_target_helpers() -> None:
+    """Activation analysis helpers should flag valid prefixes and tracker targets."""
+    assert is_activation_analysis_target("simplexity.activations.foo.Bar") is True
+    assert is_activation_analysis_target("other.module") is False
+    assert is_activation_tracker_target("simplexity.activations.activation_tracker.ActivationTracker") is True
+    assert is_activation_tracker_target("simplexity.activations.other") is False
+
+
+def test_validate_activation_analysis_config_errors() -> None:
+    """Validator should enforce instance presence and target namespace."""
+    cfg_missing_instance = OmegaConf.create({"name": "bad"})
+    with pytest.raises(ConfigValidationError, match="instance is required"):
+        validate_activation_analysis_config(cfg_missing_instance)
+
+    cfg_bad_target = OmegaConf.create(
+        {
+            "instance": {"_target_": "other.module"},
+            "name": "foo",
+        }
+    )
+    with pytest.raises(ConfigValidationError, match="must be an activation analysis target"):
+        validate_activation_analysis_config(cfg_bad_target)
+
+    cfg_empty_name = OmegaConf.create(
+        {
+            "instance": {"_target_": "simplexity.activations.some.Analysis"},
+            "name": "",
+        }
+    )
+    with pytest.raises(ConfigValidationError, match="name"):
+        validate_activation_analysis_config(cfg_empty_name)
+
+
+def test_validate_activation_tracker_config_errors() -> None:
+    """Tracker validator should reject invalid nested analyses."""
+    cfg_missing_analyses = OmegaConf.create(
+        {
+            "instance": {
+                "_target_": "simplexity.activations.activation_tracker.ActivationTracker",
+            }
+        }
+    )
+    with pytest.raises(ConfigValidationError, match="analyses is required"):
+        validate_activation_tracker_config(cfg_missing_analyses)
+
+    cfg_not_dict = OmegaConf.create(
+        {
+            "instance": {
+                "_target_": "simplexity.activations.activation_tracker.ActivationTracker",
+                "analyses": 5,
+            }
+        }
+    )
+    with pytest.raises(ConfigValidationError, match="must be a dictionary"):
+        validate_activation_tracker_config(cfg_not_dict)
+
+    cfg_missing_instance = OmegaConf.create(
+        {
+            "instance": {
+                "_target_": "simplexity.activations.activation_tracker.ActivationTracker",
+                "analyses": {"pca": {}},
+            }
+        }
+    )
+    with pytest.raises(ConfigValidationError, match="must specify an InstanceConfig"):
+        validate_activation_tracker_config(cfg_missing_instance)
+
+    cfg_bad_target = OmegaConf.create(
+        {
+            "instance": {
+                "_target_": "simplexity.activations.activation_tracker.ActivationTracker",
+                "analyses": {
+                    "pca": {
+                        "instance": {
+                            "_target_": "other.module",
+                        }
+                    }
+                },
+            }
+        }
+    )
+    with pytest.raises(ConfigValidationError, match="must target an activation analysis"):
+        validate_activation_tracker_config(cfg_bad_target)
+
+
+def test_setup_activation_trackers_integration(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Setup helper should instantiate trackers for filtered keys."""
+    cfg = _build_valid_tracker_cfg()
+    captured_instance_keys = []
+
+    def fake_filter(cfg_arg, instance_keys, *_, **__):
+        assert cfg_arg is cfg
+        captured_instance_keys.extend(instance_keys)
+        return ["activation_tracker.instance"]
+
+    monkeypatch.setattr(
+        "simplexity.run_management.run_management.filter_instance_keys",
+        fake_filter,
+    )
+
+    instantiated = {}
+
+    def fake_instantiate(_, key):
+        instantiated[key] = object()
+        return instantiated[key]
+
+    monkeypatch.setattr(
+        "simplexity.run_management.run_management._instantiate_activation_tracker",
+        fake_instantiate,
+    )
+
+    trackers = _setup_activation_trackers(cfg, ["activation_tracker.instance"])
+    assert trackers == {"activation_tracker.instance": instantiated["activation_tracker.instance"]}
+
+
+def test_setup_activation_trackers_no_instances_logs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When no instance keys survive filtering the helper returns None."""
+    cfg = _build_valid_tracker_cfg()
+
+    def fake_filter(*_, **__):
+        return []
+
+    monkeypatch.setattr(
+        "simplexity.run_management.run_management.filter_instance_keys",
+        fake_filter,
+    )
+
+    trackers = _setup_activation_trackers(cfg, ["activation_tracker.instance"])
+    assert trackers is None
 
 
 def test_instantiate_activation_tracker_builds_analysis_objects() -> None:
