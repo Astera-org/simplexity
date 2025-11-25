@@ -35,8 +35,29 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Cache testmon database
+        uses: actions/cache@v4
+        with:
+          path: .testmondata*
+          key: testmon-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ hashFiles('simplexity/**/*.py', 'tests/**/*.py') }}
+          restore-keys: |
+            testmon-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-
+            testmon-${{ runner.os }}-main-
+            testmon-${{ runner.os }}-
+
       - name: Run tests with coverage
         run: |
+          # Conditional testmon execution:
+          # - On PRs: Use --testmon to run only affected tests
+          # - On main branch: Use --testmon-noselect to run all tests and update database
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            TESTMON_FLAG="--testmon"
+            echo "::notice::Running affected tests only (PR mode)"
+          else
+            TESTMON_FLAG="--testmon-noselect"
+            echo "::notice::Running full test suite (main branch mode)"
+          fi
+          
           # Run tests with coverage tracking (no threshold enforcement)
           # Coverage is tracked but won't fail - new code in PRs is checked via diff-cover
           # TODO: Enable strict overall coverage enforcement once coverage improves
@@ -44,7 +65,9 @@ jobs:
           uv run --extra aws --extra dev --extra cuda --extra penzai pytest \
             --capture=no \
             --verbose \
-            --cov-fail-under=0
+            --cov-fail-under=0 \
+            $TESTMON_FLAG
+          
           # Verify coverage.xml was generated (required for diff-cover and Codecov)
           # This is ensured by --cov-report=xml in pyproject.toml, but we verify for clarity
           if [ ! -f coverage.xml ]; then

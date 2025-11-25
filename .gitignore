@@ -22,6 +22,11 @@ diff-coverage-report.md
 .hypothesis/
 .pytest_cache/
 
+# pytest-testmon database
+.testmondata
+.testmondata-shm
+.testmondata-wal
+
 # Environment files
 conda.yaml
 requirements.txt
