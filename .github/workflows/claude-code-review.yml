@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: read
       id-token: write
     
@@ -80,13 +80,52 @@ jobs:
             - Test coverage
             using the repository's CLAUDE.md for guidance on style and conventions.
 
-            Provide a concise summary of your review.
-            If you do not think there are any improvements to be considered, just say "PR approved, no improvements needed".
-            If you do have suggestions, provide them in a nicely formatted list with a brief explanation of the issue,
-            referencing the relevant code and giving a suggested fix, ideally as a code block.
-            Remember to be concise, communite the essential information precisely and do not add any superfluous text.
-
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
+            IMPORTANT: You must create a proper GitHub review with inline comments on specific lines (not just a single comment).
+            
+            Review Process:
+            1. Use `gh pr view --json number,headRefName,baseRefName` to get the PR number
+            2. Use `gh pr diff` to see all changes - this shows the unified diff format
+            3. For each issue you find:
+               - Note the file path and the line number in the diff (the position after the @@ line)
+               - The position is the line number where the change appears in the unified diff (count from the @@ hunk header)
+            4. Create ONE review with all inline comments using the GitHub API
+            
+            To create a review with inline comments, use this format:
+            
+            ```bash
+            PR_NUM=$(gh pr view --json number -q .number)
+            gh api repos/:owner/:repo/pulls/$PR_NUM/reviews \
+              -X POST \
+              -f event=REQUEST_CHANGES \
+              -f body="Overall review summary" \
+              -f comments='[
+                {
+                  "path": "simplexity/file.py",
+                  "position": 15,
+                  "body": "Issue description and suggested fix"
+                },
+                {
+                  "path": "tests/test_file.py", 
+                  "position": 42,
+                  "body": "Another issue description"
+                }
+              ]'
+            ```
+            
+            Important:
+            - `event` must be one of: APPROVE, REQUEST_CHANGES, or COMMENT
+            - `position` is the line number in the unified diff (the number after @@ in the diff output)
+            - Count lines in the diff starting from the hunk header (the @@ line)
+            - Include ALL inline comments in a single API call
+            - If no issues found: use `event=APPROVE` with body "PR approved, no improvements needed" and empty comments array
+            - If issues found: use `event=REQUEST_CHANGES` with inline comments for each specific issue
+            
+            For each inline comment, provide:
+            - Clear description of the issue
+            - Reference to the specific code
+            - Suggested fix (preferably as a code block)
+            
+            Be concise and actionable. Each inline comment should be resolvable independently.
           
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr review:*),Bash(gh api:*)"'
 
