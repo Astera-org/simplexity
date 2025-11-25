@@ -43,6 +43,7 @@ from simplexity.run_management.run_logging import (
     log_system_info,
 )
 from simplexity.run_management.structured_configs import (
+    ConfigValidationError,
     is_activation_tracker_target,
     is_generative_process_target,
     is_hooked_transformer_config,
@@ -523,7 +524,16 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
     """Instantiate an activation tracker."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
-        tracker = hydra.utils.instantiate(instance_config)
+        tracker_cfg = OmegaConf.create(OmegaConf.to_container(instance_config, resolve=False))
+        converted_analyses: dict[str, DictConfig] = {}
+        analyses_cfg = instance_config.get("analyses") or {}
+        for key, analysis_cfg in analyses_cfg.items():
+            name_override = analysis_cfg.get("name")
+            cfg_to_instantiate = analysis_cfg.instance
+            converted_analyses[name_override or key] = cfg_to_instantiate
+
+        tracker_cfg.analyses = converted_analyses
+        tracker = hydra.utils.instantiate(tracker_cfg)
         SIMPLEXITY_LOGGER.info("[activation tracker] instantiated activation tracker: %s", tracker.__class__.__name__)
         return tracker
     raise KeyError

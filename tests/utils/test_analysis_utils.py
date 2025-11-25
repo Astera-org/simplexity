@@ -355,12 +355,7 @@ class TestBuildLastTokenDataset:
 
     def test_basic_functionality(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
         """Test basic last token dataset building."""
-        # Get last token data
-        last_beliefs = simple_beliefs[:, -1, :]
-        last_probs = simple_probs[:, -1]
-        last_activations = {k: v[:, -1, :] for k, v in simple_activations.items()}
-
-        dataset = build_last_token_dataset(simple_inputs, last_beliefs, last_probs, last_activations)
+        dataset = build_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Check that dataset has expected fields
         assert dataset.beliefs is not None
@@ -375,11 +370,7 @@ class TestBuildLastTokenDataset:
         # simple_inputs has sequences [1,2,3], [1,2,4], [1,2,3]
         # So we should get 2 unique sequences
 
-        last_beliefs = simple_beliefs[:, -1, :]
-        last_probs = simple_probs[:, -1]
-        last_activations = {k: v[:, -1, :] for k, v in simple_activations.items()}
-
-        dataset = build_last_token_dataset(simple_inputs, last_beliefs, last_probs, last_activations)
+        dataset = build_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Should have 2 unique sequences
         assert dataset.beliefs.shape[0] == 2
@@ -387,11 +378,7 @@ class TestBuildLastTokenDataset:
 
     def test_preserves_dimensions(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
         """Test that feature dimensions are preserved."""
-        last_beliefs = simple_beliefs[:, -1, :]
-        last_probs = simple_probs[:, -1]
-        last_activations = {k: v[:, -1, :] for k, v in simple_activations.items()}
-
-        dataset = build_last_token_dataset(simple_inputs, last_beliefs, last_probs, last_activations)
+        dataset = build_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Check belief dimension
         assert dataset.beliefs.shape[1] == 2
