@@ -71,9 +71,71 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                         bos_token=cfg.generative_process.bos_token,
                         eos_token=cfg.generative_process.eos_token,
                     )
-                persister.save_model_to_registry(model, "test_model", model_inputs=inputs)
-            else:
-                persister.save_weights(model, 0)
+                    outputs: torch.Tensor = model(inputs)
+                    signature = infer_signature(
+                        model_input=inputs.detach().cpu().numpy(),
+                        model_output=outputs.detach().cpu().numpy(),
+                    )
+                    kwargs["signature"] = signature
+                mlflow_pytorch.log_model(**kwargs)
+    
+    # Demonstrate metric tracker usage
+    if components.metric_trackers:
+        SIMPLEXITY_LOGGER.info("[demo] demonstrating metric tracker")
+        metric_tracker = components.get_metric_tracker()
+        logger = components.get_logger()
+        
+        # Simulate a simple training loop
+        model = components.get_predictive_model()
+        optimizer = components.get_optimizer()
+        
+        if model and optimizer and components.generative_processes and components.initial_states:
+            first_key = next(iter(components.generative_processes.keys()))
+            batch_size = (
+                cfg.generative_process.batch_size if cfg.generative_process.batch_size is not None else 4
+            )
+            sequence_len = (
+                cfg.generative_process.sequence_len if cfg.generative_process.sequence_len is not None else 10
+            )
+            
+            SIMPLEXITY_LOGGER.info("[demo] running 10 training steps to demonstrate metric tracking")
+            for step in range(10):
+                # Generate a batch of data
+                _, inputs, targets = generate_data_batch(
+                    components.initial_states[first_key],
+                    components.generative_processes[first_key],
+                    batch_size,
+                    sequence_len,
+                    jax.random.key(cfg.seed + step),
+                    bos_token=cfg.generative_process.bos_token,
+                    eos_token=cfg.generative_process.eos_token,
+                )
+                
+                # Forward pass
+                outputs = model(inputs)
+                loss_fn = torch.nn.CrossEntropyLoss()
+                loss = loss_fn(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+                
+                # Backward pass
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                
+                # Update metric tracker
+                metric_tracker.step(tokens=inputs.numel(), loss=loss.item())
+                
+                # Update metrics at different frequencies
+                if step % 2 == 0:  # Update some metrics every 2 steps
+                    metric_tracker.update_metrics(group="all")
+                
+                # Log metrics every 5 steps
+                if step % 5 == 0:
+                    metrics = metric_tracker.metrics()
+                    SIMPLEXITY_LOGGER.info(f"[demo] Step {step} metrics: {metrics}")
+                    if logger:
+                        logger.log_metrics(metrics, step=step)
+            
+            SIMPLEXITY_LOGGER.info("[demo] metric tracking demonstration complete")
 
 
 if __name__ == "__main__":
