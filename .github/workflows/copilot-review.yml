@@ -20,55 +20,116 @@ on:
     workflows: ["simplexity"]
     types:
       - completed
+  pull_request:
+    types:
+      - ready_for_review
 
 jobs:
   copilot-review:
-    # Only run if the triggering workflow succeeded and it was triggered by a pull_request
-    if: |
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       issues: read
+      checks: read
+      actions: read
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
           fetch-depth: 1
 
-      - name: Check and request Copilot review
+      - name: Check PR status and checks
+        id: check-status
         uses: actions/github-script@v7
         with:
           script: |
-            const workflowRun = context.payload.workflow_run;
+            let pr;
             
-            // Find the PR associated with this workflow run
-            const prs = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              head: `${context.repo.owner}:${workflowRun.head_branch}`,
-            });
-            
-            if (prs.data.length === 0) {
-              core.info('No open PR found - skipping');
-              return;
+            if (context.eventName === 'workflow_run') {
+              // Triggered by workflow_run - check if workflow succeeded
+              const workflowRun = context.payload.workflow_run;
+              if (workflowRun.event !== 'pull_request' || workflowRun.conclusion !== 'success') {
+                core.setFailed('Workflow did not succeed or was not triggered by PR');
+                return;
+              }
+              
+              // Find the PR associated with this workflow run
+              const prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${workflowRun.head_branch}`,
+              });
+              
+              if (prs.data.length === 0) {
+                core.setFailed('No open PR found');
+                return;
+              }
+              
+              pr = prs.data[0];
+            } else {
+              // Triggered by ready_for_review event
+              pr = context.payload.pull_request;
+              
+              // Check if the simplexity workflow has completed successfully
+              // List all workflow runs for this commit
+              const workflowRuns = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head_sha: pr.head.sha,
+              });
+              
+              // Find the simplexity workflow run
+              const simplexityRun = workflowRuns.data.workflow_runs.find(
+                run => run.name === 'simplexity' || run.path === '.github/workflows/simplexity.yaml'
+              );
+              
+              if (!simplexityRun) {
+                core.info('Simplexity workflow not found for this commit - skipping review');
+                core.setFailed('Checks not found');
+                return;
+              }
+              
+              if (simplexityRun.status !== 'completed' || simplexityRun.conclusion !== 'success') {
+                core.info(`Simplexity workflow status: ${simplexityRun.status}, conclusion: ${simplexityRun.conclusion} - skipping review`);
+                core.setFailed('Checks not passing');
+                return;
+              }
             }
-            
-            const pr = prs.data[0];
-            const prNumber = pr.number;
             
             // Skip if PR is a draft
             if (pr.draft === true) {
-              core.info(`PR #${prNumber} is a draft - skipping Copilot review`);
+              core.info(`PR #${pr.number} is a draft - skipping Copilot review`);
+              core.setFailed('PR is a draft');
               return;
             }
             
-            core.info(`Processing PR #${prNumber} - all checks have passed`);
+            core.info(`Processing PR #${pr.number} - all checks have passed`);
+
+      - name: Check and request Copilot review
+        if: steps.check-status.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let pr;
+            
+            if (context.eventName === 'workflow_run') {
+              const workflowRun = context.payload.workflow_run;
+              const prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${workflowRun.head_branch}`,
+              });
+              pr = prs.data[0];
+            } else {
+              pr = context.payload.pull_request;
+            }
+            
+            const prNumber = pr.number;
             
             // Get current reviewers to check if Copilot is already a reviewer
             const reviews = await github.rest.pulls.listRequestedReviewers({
