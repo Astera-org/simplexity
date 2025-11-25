@@ -179,15 +179,11 @@ class TestOptimizerConfig:
     def test_validate_optimizer_config_non_optimizer_target(self) -> None:
         """Test validate_optimizer_config raises when instance target is not an optimizer target."""
         cfg = DictConfig({"instance": DictConfig({"_target_": "simplexity.logging.mlflow_logger.MLFlowLogger"})})
-        with pytest.raises(
-            ConfigValidationError, match="OptimizerConfig.instance must be an optimizer target"
-        ):
+        with pytest.raises(ConfigValidationError, match="OptimizerConfig.instance must be an optimizer target"):
             validate_optimizer_config(cfg)
 
         cfg = DictConfig({"instance": DictConfig({"_target_": "torch.nn.Linear"})})
-        with pytest.raises(
-            ConfigValidationError, match="OptimizerConfig.instance must be an optimizer target"
-        ):
+        with pytest.raises(ConfigValidationError, match="OptimizerConfig.instance must be an optimizer target"):
             validate_optimizer_config(cfg)
 
     def test_validate_optimizer_config_invalid_name(self) -> None:

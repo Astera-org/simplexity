@@ -403,9 +403,7 @@ class TestHookedTransformerConfig:
             patch("simplexity.structured_configs.predictive_model.resolve_device", return_value="cpu"),
         ):
             resolve_hooked_transformer_config(cfg)
-            mock_warning.assert_called_once_with(
-                "[predictive model] specified device %s resolved to %s", "cuda", "cpu"
-            )
+            mock_warning.assert_called_once_with("[predictive model] specified device %s resolved to %s", "cuda", "cpu")
         assert cfg.get("device") == "cpu"
 
     def test_resolve_hooked_transformer_config_device_auto(self) -> None:
