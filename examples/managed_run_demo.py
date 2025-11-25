@@ -11,17 +11,21 @@
 
 import logging
 import logging.config
+import time
 from pathlib import Path
 
 import hydra
 import jax
+import mlflow.pytorch as mlflow_pytorch
+import torch
 import yaml
+from mlflow.models.signature import infer_signature
 from torch.nn import Module as PytorchModel
 
 import simplexity
 from examples.configs.demo_config import Config
 from simplexity.generative_processes.torch_generator import generate_data_batch
-from simplexity.persistence.mlflow_persister import MLFlowPersister
+from simplexity.utils.pip_utils import create_requirements_file
 
 DEMO_DIR = Path(__file__).parent
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
@@ -49,12 +53,20 @@ def main(cfg: Config, components: simplexity.Components) -> None:
     assert components.optimizers is not None
     is_mlflow_persister = cfg.persistence.name == "mlflow_persister"
     if is_mlflow_persister:
-        persister = components.get_persister()
-        assert isinstance(persister, MLFlowPersister)
         for model in components.predictive_models.values():
+            persister = components.get_persister()
+            if persister:
+                persister.save_weights(model, 0)
             if isinstance(model, PytorchModel):
-                inputs = None
+                timestamp = int(time.time())
+                kwargs = {
+                    "pytorch_model": model,
+                    "name": f"demo_{timestamp}",
+                    "registered_model_name": f"demo_model_{timestamp}",
+                    "pip_requirements": create_requirements_file(),
+                }
                 if components.generative_processes and components.initial_states is not None:
+                    # Get the first generative process and corresponding initial state (keys match)
                     first_key = next(iter(components.generative_processes.keys()))
                     batch_size = (
                         cfg.generative_process.batch_size if cfg.generative_process.batch_size is not None else 1
@@ -136,6 +148,7 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                         logger.log_metrics(metrics, step=step)
             
             SIMPLEXITY_LOGGER.info("[demo] metric tracking demonstration complete")
+
 
 
 if __name__ == "__main__":
