@@ -1,7 +1,8 @@
 """Activation analysis for Transformer layers."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, NamedTuple
 
 import jax
@@ -9,8 +10,16 @@ import jax.numpy as jnp
 import numpy as np
 import torch
 from jax.typing import DTypeLike
+from omegaconf import DictConfig
 
 from simplexity.activations.activation_analyses import ActivationAnalysis
+from simplexity.activations.activation_visualizations import (
+    ActivationVisualizationPayload,
+    PreparedMetadata,
+    build_visualization_payloads,
+)
+from simplexity.activations.visualization_persistence import save_visualization_payloads
+from simplexity.activations.visualization_configs import build_activation_visualization_config
 from simplexity.utils.analysis_utils import build_deduplicated_dataset
 from simplexity.utils.pytorch_utils import torch_to_jax
 
@@ -22,6 +31,7 @@ class PreparedActivations:
     activations: Mapping[str, jax.Array]
     belief_states: jax.Array | None
     weights: jax.Array
+    metadata: PreparedMetadata
 
 
 class PrepareOptions(NamedTuple):
@@ -81,19 +91,37 @@ def prepare_activations(
         concatenated = jnp.concatenate(list(layer_acts.values()), axis=-1)
         layer_acts = {"concatenated": concatenated}
 
+    metadata = PreparedMetadata(
+        sequences=dataset.sequences,
+        steps=np.asarray([len(sequence) for sequence in dataset.sequences], dtype=np.int32),
+        select_last_token=prepare_options.last_token_only,
+    )
+
     return PreparedActivations(
         activations=layer_acts,
         belief_states=belief_states,
         weights=weights,
+        metadata=metadata,
     )
 
 
 class ActivationTracker:
     """Orchestrates multiple activation analyses with efficient preprocessing."""
 
-    def __init__(self, analyses: Mapping[str, ActivationAnalysis]):
+    def __init__(
+        self,
+        analyses: Mapping[str, ActivationAnalysis],
+        *,
+        visualizations: Mapping[str, list[DictConfig | Mapping[str, Any]]] | None = None,
+        default_backend: str = "altair",
+    ):
         """Initialize the tracker with named analyses."""
         self._analyses = analyses
+        self._default_backend = default_backend
+        self._visualization_specs: dict[str, list[Any]] = {}
+        if visualizations:
+            for name, cfgs in visualizations.items():
+                self._visualization_specs[name] = [build_activation_visualization_config(cfg) for cfg in cfgs]
 
     def analyze(
         self,
@@ -101,7 +129,7 @@ class ActivationTracker:
         beliefs: jax.Array | torch.Tensor | np.ndarray,
         probs: jax.Array | torch.Tensor | np.ndarray,
         activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
-    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array], Mapping[str, ActivationVisualizationPayload]]:
         """Run all analyses and return namespaced results."""
         preprocessing_cache: dict[PrepareOptions, PreparedActivations] = {}
 
@@ -125,6 +153,7 @@ class ActivationTracker:
 
         all_scalars = {}
         all_projections = {}
+        all_visualizations: dict[str, ActivationVisualizationPayload] = {}
 
         for analysis_name, analysis in self._analyses.items():
             prepare_options = PrepareOptions(
@@ -151,4 +180,35 @@ class ActivationTracker:
             all_scalars.update({f"{analysis_name}/{key}": value for key, value in scalars.items()})
             all_projections.update({f"{analysis_name}/{key}": value for key, value in projections.items()})
 
-        return all_scalars, all_projections
+            viz_configs = self._visualization_specs.get(analysis_name)
+            if viz_configs:
+                np_weights = np.asarray(prepared_weights)
+                np_beliefs = None if prepared_beliefs is None else np.asarray(prepared_beliefs)
+                np_projections = {key: np.asarray(value) for key, value in projections.items()}
+                payloads = build_visualization_payloads(
+                    analysis_name,
+                    viz_configs,
+                    default_backend=self._default_backend,
+                    prepared_metadata=prepared.metadata,
+                    weights=np_weights,
+                    belief_states=np_beliefs,
+                    projections=np_projections,
+                    scalars={key: float(value) for key, value in scalars.items()},
+                    analysis_concat_layers=analysis.concat_layers,
+                    layer_names=list(prepared.activations.keys()),
+                )
+                all_visualizations.update(
+                    {f"{analysis_name}/{payload.name}": payload for payload in payloads}
+                )
+
+        return all_scalars, all_projections, all_visualizations
+
+    def save_visualizations(
+        self,
+        visualizations: Mapping[str, ActivationVisualizationPayload],
+        root: Path,
+        step: int,
+    ) -> Mapping[str, str]:
+        """Persist visualization payloads to disk with history accumulation."""
+
+        return save_visualization_payloads(visualizations, root, step)

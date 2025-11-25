@@ -136,6 +136,7 @@ class AestheticsConfig:  # pylint: disable=too-many-instance-attributes
     tooltip: list[ChannelAestheticsConfig] | None = None
     row: ChannelAestheticsConfig | None = None
     column: ChannelAestheticsConfig | None = None
+    detail: ChannelAestheticsConfig | None = None
 
 
 @dataclass

@@ -1,0 +1,19 @@
+defaults:
+  - _self_
+  - logging: mlflow_logger
+  - mlflow: databricks
+  - generative_process: mess3
+  - predictive_model: transformer
+  - optimizer: pytorch_adam
+  - persistence: mlflow_persister
+  - activation_tracker: with_visuals
+
+experiment_name: activation_tracker_demo_casper
+run_name: activation_tracker_demo_${now:%Y%m%d_%H%M%S}
+seed: 0
+tags:
+  research_step: demo
+  retention: temp
+training_steps: 50000
+validate_every: 2000
+visualization_dir: activation_visualizations
