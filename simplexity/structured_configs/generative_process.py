@@ -443,8 +443,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     else:
         _eos_token = cfg.get("eos_token")
         validate_non_negative_int(_eos_token, "GenerativeProcessConfig.eos_token", is_none_allowed=True)
-        assert _eos_token is not None
-        if _vocab_size is not None and _eos_token >= _vocab_size:
+        if _vocab_size is not None and _eos_token is not None and _eos_token >= _vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.eos_token ({_eos_token}) must be < vocab_size ({_vocab_size})"
             )
