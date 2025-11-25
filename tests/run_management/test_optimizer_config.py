@@ -18,7 +18,7 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.run_management.structured_configs import (
+from simplexity.structured_configs.optimizer import (
     InstanceConfig,
     OptimizerConfig,
     is_optimizer_config,

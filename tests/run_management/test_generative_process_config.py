@@ -21,7 +21,7 @@ import pytest
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.run_management.structured_configs import (
+from simplexity.structured_configs.generative_process import (
     GenerativeProcessConfig,
     InstanceConfig,
     is_generative_process_config,
@@ -392,7 +392,7 @@ class TestGenerativeProcessConfig:
         )
         cfg[attribute] = MISSING
         # assert that there is a SIMPLEXITY_LOGGER debug log
-        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+        with patch("simplexity.structured_configs.generative_process.SIMPLEXITY_LOGGER.debug") as mock_debug:
             validate_generative_process_config(cfg)
             mock_debug.assert_called_once_with(
                 f"[generative process] {attribute} is missing, will be resolved dynamically"
@@ -584,7 +584,7 @@ class TestGenerativeProcessConfig:
                 "vocab_size": 5,
             }
         )
-        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+        with patch("simplexity.structured_configs.generative_process.SIMPLEXITY_LOGGER.debug") as mock_debug:
             resolve_generative_process_config(cfg, base_vocab_size=3)
             mock_debug.assert_has_calls(
                 [
@@ -608,7 +608,7 @@ class TestGenerativeProcessConfig:
                 "vocab_size": 3,
             }
         )
-        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.debug") as mock_debug:
+        with patch("simplexity.structured_configs.generative_process.SIMPLEXITY_LOGGER.debug") as mock_debug:
             resolve_generative_process_config(cfg, base_vocab_size=3)
             mock_debug.assert_has_calls(
                 [
@@ -634,7 +634,7 @@ class TestGenerativeProcessConfig:
                 "vocab_size": MISSING,
             }
         )
-        with patch("simplexity.run_management.structured_configs.SIMPLEXITY_LOGGER.info") as mock_info:
+        with patch("simplexity.structured_configs.generative_process.SIMPLEXITY_LOGGER.info") as mock_info:
             resolve_generative_process_config(cfg, base_vocab_size=3)
             mock_info.assert_has_calls(
                 [

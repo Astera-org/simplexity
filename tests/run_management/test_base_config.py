@@ -17,7 +17,7 @@ import pytest
 from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.run_management.structured_configs import validate_base_config
+from simplexity.structured_configs.base import validate_base_config
 
 
 class TestBaseConfig:
