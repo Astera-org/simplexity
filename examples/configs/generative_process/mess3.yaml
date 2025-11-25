@@ -2,12 +2,11 @@ name: mess3
 instance:
   _target_: simplexity.generative_processes.builder.build_hidden_markov_model
   process_name: mess3
-  x: 0.15
-  a: 0.6
+  process_params:
+    x: 0.15
+    a: 0.6
 
 base_vocab_size: ???
 bos_token: ???
 eos_token: null
 vocab_size: ???
-sequence_len: 4
-batch_size: 2
