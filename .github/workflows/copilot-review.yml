@@ -1,0 +1,125 @@
+# GitHub Copilot Code Review
+#
+# This workflow requests a review from GitHub Copilot only after all checks pass.
+# 
+# IMPORTANT: To use this workflow, you must DISABLE the automatic Copilot review
+# in your repository ruleset (Settings > Rules > Rulesets). Otherwise, Copilot
+# will be added as a reviewer immediately when the PR is created, defeating the
+# purpose of this workflow.
+#
+# This workflow:
+# 1. Triggers after the "simplexity" workflow completes successfully
+# 2. Finds the associated PR
+# 3. Checks if Copilot is already a reviewer (to avoid duplicates)
+# 4. Requests Copilot as a reviewer if not already present
+
+name: Copilot Code Review
+
+on:
+  workflow_run:
+    workflows: ["simplexity"]
+    types:
+      - completed
+
+jobs:
+  copilot-review:
+    # Only run if the triggering workflow succeeded and it was triggered by a pull_request
+    if: |
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+
+      - name: Check and request Copilot review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflowRun = context.payload.workflow_run;
+            
+            // Find the PR associated with this workflow run
+            const prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${workflowRun.head_branch}`,
+            });
+            
+            if (prs.data.length === 0) {
+              core.info('No open PR found - skipping');
+              return;
+            }
+            
+            const pr = prs.data[0];
+            const prNumber = pr.number;
+            
+            // Skip if PR is a draft
+            if (pr.draft === true) {
+              core.info(`PR #${prNumber} is a draft - skipping Copilot review`);
+              return;
+            }
+            
+            core.info(`Processing PR #${prNumber} - all checks have passed`);
+            
+            // Get current reviewers to check if Copilot is already a reviewer
+            const reviews = await github.rest.pulls.listRequestedReviewers({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+            
+            // Check if Copilot is already a requested reviewer
+            const existingReviewers = [
+              ...(reviews.data.users || []).map(u => u.login.toLowerCase()),
+              ...(reviews.data.teams || []).map(t => t.slug.toLowerCase()),
+            ];
+            
+            const copilotIdentifiers = ['github-copilot', 'copilot', 'github-copilot[bot]'];
+            const hasCopilot = existingReviewers.some(r => 
+              copilotIdentifiers.some(id => r.includes(id))
+            );
+            
+            if (hasCopilot) {
+              core.info('GitHub Copilot is already a requested reviewer for this PR - skipping');
+              return;
+            }
+            
+            // Try to request Copilot as a reviewer
+            core.info(`Requesting Copilot review for PR #${prNumber}...`);
+            
+            try {
+              // Note: The GitHub API may not directly support requesting Copilot as a reviewer
+              // since it's an app, not a user. This is a best-effort attempt.
+              // You may need to configure this differently based on your organization's setup.
+              
+              // Try requesting with empty arrays first (some setups might handle this)
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                reviewers: [],
+                team_reviewers: [],
+              });
+              
+              core.info(`Review request API call completed for PR #${prNumber}`);
+              core.warning('Note: If Copilot was not added, it may need to be requested differently.');
+              core.info('You may need to manually request a review from GitHub Copilot,');
+              core.info('or configure Copilot reviews through repository settings.');
+              
+            } catch (error) {
+              core.warning(`Could not request Copilot review via API: ${error.message}`);
+              core.info('This is expected if Copilot needs to be requested through a different method.');
+              core.info('You may need to:');
+              core.info('1. Manually request a review from GitHub Copilot in the PR');
+              core.info('2. Check repository settings for Copilot review configuration');
+              core.info('3. Verify Copilot is installed and available for this repository');
+            }

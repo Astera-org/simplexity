@@ -29,20 +29,62 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
+      - name: Check if PR is draft
+        id: check-draft
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const workflowRun = context.payload.workflow_run;
+              
+              // Find the PR associated with this workflow run
+              const prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${workflowRun.head_branch}`,
+              });
+              
+              if (prs.data.length === 0) {
+                core.info('No open PR found - skipping Claude review');
+                core.setFailed('No PR found');
+                return;
+              }
+              
+              const pr = prs.data[0];
+              const isDraft = pr.draft === true;
+              
+              if (isDraft) {
+                core.info(`PR #${pr.number} is a draft - skipping Claude review`);
+                core.setFailed('PR is a draft');
+              } else {
+                core.info(`PR #${pr.number} is ready for review - proceeding with Claude review`);
+              }
+            } catch (error) {
+              core.warning(`Error checking PR status: ${error.message}`);
+              core.setFailed('Error checking PR status');
+            }
+
       - name: Run Claude Code Review
+        if: steps.check-draft.outcome == 'success'
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Please review this pull request and provide feedback on:
+            Please review this pull request for:
             - Code quality and best practices
             - Potential bugs or issues
             - Performance considerations
             - Security concerns
             - Test coverage
-            
-            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
+            using the repository's CLAUDE.md for guidance on style and conventions.
+
+            Provide a concise summary of your review.
+            If you do not think there are any improvements to be considered, just say "PR approved, no improvements needed".
+            If you do have suggestions, provide them in a nicely formatted list with a brief explanation of the issue,
+            referencing the relevant code and giving a suggested fix, ideally as a code block.
+            Remember to be concise, communite the essential information precisely and do not add any superfluous text.
 
             Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
           
