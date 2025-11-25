@@ -21,10 +21,8 @@ from simplexity.structured_configs.predictive_model import (
 )
 
 
-class TestHookedTransformerConfig:
+class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
     """Test HookedTransformerConfig."""
-
-    """Test PredictiveModelConfig."""
 
     def test_hooked_transformer_config(self) -> None:
         """Test creating hooked transformer config from dataclass."""
@@ -284,6 +282,7 @@ class TestHookedTransformerConfig:
         assert cfg.get("device") == "cpu"
 
     def test_resolve_hooked_transformer_config_with_complete_values(self) -> None:
+        """Test resolve_hooked_transformer_config with complete values."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -311,6 +310,7 @@ class TestHookedTransformerConfig:
         assert cfg.get("device") == "cuda"
 
     def test_resolve_hooked_transformer_config_with_missing_values(self) -> None:
+        """Test resolve_hooked_transformer_config with missing values."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -338,6 +338,7 @@ class TestHookedTransformerConfig:
         assert cfg.get("device") == "cuda"
 
     def test_resolve_hooked_transformer_config_with_invalid_values(self) -> None:
+        """Test resolve_hooked_transformer_config with invalid values."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -355,6 +356,7 @@ class TestHookedTransformerConfig:
             resolve_hooked_transformer_config(cfg, vocab_size=4)
 
     def test_resolve_hooked_transformer_config_with_conflicting_device(self) -> None:
+        """Test resolve_hooked_transformer_config with conflicting device."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -386,6 +388,7 @@ class TestHookedTransformerConfig:
         assert cfg.get("device") == "cpu"
 
     def test_resolve_hooked_transformer_config_device_mismatch_updates_cfg(self) -> None:
+        """Test resolve_hooked_transformer_config device mismatch updates config."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -407,6 +410,7 @@ class TestHookedTransformerConfig:
         assert cfg.get("device") == "cpu"
 
     def test_resolve_hooked_transformer_config_device_auto(self) -> None:
+        """Test resolve_hooked_transformer_config with auto device."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
