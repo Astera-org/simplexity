@@ -369,6 +369,8 @@ class GenerativeProcessConfig:
     bos_token: int | None = MISSING
     eos_token: int | None = MISSING
     vocab_size: int = MISSING
+    batch_size: int | None = None
+    sequence_len: int | None = None
 
 
 def is_generative_process_target(target: str) -> bool:
@@ -431,7 +433,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     else:
         _bos_token = cfg.get("bos_token")
         validate_non_negative_int(_bos_token, "GenerativeProcessConfig.bos_token", is_none_allowed=True)
-        if _bos_token is not None and _vocab_size is not None and _bos_token >= _vocab_size:
+        if _vocab_size is not None and _bos_token is not None and _bos_token >= _vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.bos_token ({_bos_token}) must be < vocab_size ({_vocab_size})"
             )
@@ -442,7 +444,7 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     else:
         _eos_token = cfg.get("eos_token")
         validate_non_negative_int(_eos_token, "GenerativeProcessConfig.eos_token", is_none_allowed=True)
-        if _eos_token is not None and _vocab_size is not None and _eos_token >= _vocab_size:
+        if _vocab_size is not None and _eos_token is not None and _eos_token >= _vocab_size:
             raise ConfigValidationError(
                 f"GenerativeProcessConfig.eos_token ({_eos_token}) must be < vocab_size ({_vocab_size})"
             )
@@ -473,6 +475,20 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
                 f"+ use_eos_token ({use_eos_token}) "
                 f"= {expected_vocab_size}"
             )
+
+    # Validate batch_size if present
+    if not OmegaConf.is_missing(cfg, "batch_size"):
+        batch_size = cfg.get("batch_size")
+        validate_positive_int(batch_size, "GenerativeProcessConfig.batch_size", is_none_allowed=True)
+    else:
+        SIMPLEXITY_LOGGER.debug("[generative process] batch_size is missing, will be resolved dynamically")
+
+    # Validate sequence_len if present
+    if not OmegaConf.is_missing(cfg, "sequence_len"):
+        sequence_len = cfg.get("sequence_len")
+        validate_positive_int(sequence_len, "GenerativeProcessConfig.sequence_len", is_none_allowed=True)
+    else:
+        SIMPLEXITY_LOGGER.debug("[generative process] sequence_len is missing, will be resolved dynamically")
 
 
 @dynamic_resolve

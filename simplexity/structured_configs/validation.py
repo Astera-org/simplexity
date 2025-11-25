@@ -130,10 +130,12 @@ def validate_mapping(
         raise ConfigValidationError(f"{field_name} values must be {value_type.__name__}s")
 
 
-def validate_uri(uri: str, field_name: str, is_none_allowed: bool = False) -> None:
+def validate_uri(uri: str | None, field_name: str, is_none_allowed: bool = False) -> None:
     """Validate that a string is a valid URI."""
     if is_none_allowed and uri is None:
         return
+    if uri is None:
+        raise ConfigValidationError(f"{field_name} must be a string, got None")
     if not uri.strip():
         raise ConfigValidationError(f"{field_name} cannot be empty")
     if uri.startswith("databricks"):

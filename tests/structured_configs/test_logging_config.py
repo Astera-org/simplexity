@@ -249,7 +249,9 @@ class TestLoggingConfig:
                 )
             }
         )
-        with pytest.raises(ConfigValidationError, match="FileLoggerInstanceConfig.file_path must be a non-empty string"):
+        with pytest.raises(
+            ConfigValidationError, match="FileLoggerInstanceConfig.file_path must be a non-empty string"
+        ):
             validate_logging_config(cfg)
 
     def test_update_logging_instance_config(self) -> None:

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import types
 from collections import OrderedDict
+from typing import Any
 
 import jax.numpy as jnp
 import pytest
@@ -26,12 +26,14 @@ from simplexity.structured_configs.validation import (
 
 
 def test_validate_nonempty_str_success() -> None:
+    """Test validate_nonempty_str accepts valid inputs."""
     validate_nonempty_str("ok", "field")
     validate_nonempty_str("something", "field", is_none_allowed=True)
     validate_nonempty_str(None, "field", is_none_allowed=True)
 
 
 def test_validate_nonempty_str_errors() -> None:
+    """Test validate_nonempty_str raises errors for invalid inputs."""
     with pytest.raises(ConfigValidationError, match="field must be a string"):
         validate_nonempty_str(123, "field")
     with pytest.raises(ConfigValidationError, match="field must be a non-empty string"):
@@ -39,7 +41,7 @@ def test_validate_nonempty_str_errors() -> None:
 
 
 @pytest.mark.parametrize(
-    "validator,value,error",
+    ("validator", "value", "error"),
     [
         (validate_positive_int, "1", "must be an int"),
         (validate_positive_int, 0, "must be positive"),
@@ -49,18 +51,20 @@ def test_validate_nonempty_str_errors() -> None:
     ],
 )
 def test_integer_validators_raise(validator, value, error) -> None:
+    """Test integer validators raise errors for invalid inputs."""
     with pytest.raises(ConfigValidationError, match=error):
         validator(value, "field")
 
 
 def test_integer_validators_allow_valid_values() -> None:
+    """Test integer validators accept valid inputs."""
     validate_positive_int(3, "field")
     validate_non_negative_int(0, "field")
     validate_non_negative_int(None, "field", is_none_allowed=True)
 
 
 @pytest.mark.parametrize(
-    "validator,value,error",
+    ("validator", "value", "error"),
     [
         (validate_positive_float, "0.1", "must be a float"),
         (validate_positive_float, -0.5, "must be positive"),
@@ -69,17 +73,20 @@ def test_integer_validators_allow_valid_values() -> None:
     ],
 )
 def test_float_validators_raise(validator, value, error) -> None:
+    """Test float validators raise errors for invalid inputs."""
     with pytest.raises(ConfigValidationError, match=error):
         validator(value, "field")
 
 
 def test_float_validators_allow_valid_values() -> None:
+    """Test float validators accept valid inputs."""
     validate_positive_float(0.1, "field")
     validate_non_negative_float(0.0, "field")
     validate_non_negative_float(None, "field", is_none_allowed=True)
 
 
 def test_validate_bool() -> None:
+    """Test validate_bool accepts valid inputs and rejects invalid ones."""
     validate_bool(True, "flag")
     validate_bool(False, "flag")
     validate_bool(None, "flag", is_none_allowed=True)
@@ -88,14 +95,16 @@ def test_validate_bool() -> None:
 
 
 @pytest.mark.parametrize(
-    "value,kwargs",
+    ("value", "kwargs"),
     [([0.1, 0.2], {"element_type": float}), ([1, 2], {}), (jnp.ones((2,), dtype=jnp.float32), {"element_type": float})],
 )
 def test_validate_sequence_accepts_valid_inputs(value, kwargs) -> None:
+    """Test validate_sequence accepts valid inputs."""
     validate_sequence(value, "seq", **kwargs)
 
 
 def test_validate_sequence_rejects_bad_inputs() -> None:
+    """Test validate_sequence raises errors for invalid inputs."""
     with pytest.raises(ConfigValidationError, match="seq must be a sequence"):
         validate_sequence(123, "seq")
     with pytest.raises(ConfigValidationError, match="seq must be a 1D array"):
@@ -107,7 +116,7 @@ def test_validate_sequence_rejects_bad_inputs() -> None:
 
 
 @pytest.mark.parametrize(
-    "value,kwargs",
+    ("value", "kwargs"),
     [
         (OrderedDict({"k": "v"}), {"key_type": str, "value_type": str}),
         ({"k": 1}, {"key_type": str}),
@@ -115,10 +124,12 @@ def test_validate_sequence_rejects_bad_inputs() -> None:
     ],
 )
 def test_validate_mapping_accepts_valid_inputs(value, kwargs) -> None:
+    """Test validate_mapping accepts valid inputs."""
     validate_mapping(value, "mapping", **kwargs)
 
 
 def test_validate_mapping_rejects_bad_inputs() -> None:
+    """Test validate_mapping raises errors for invalid inputs."""
     with pytest.raises(ConfigValidationError, match="mapping must be a dictionary"):
         validate_mapping(123, "mapping")
     with pytest.raises(ConfigValidationError, match="mapping keys must be strs"):
@@ -128,6 +139,7 @@ def test_validate_mapping_rejects_bad_inputs() -> None:
 
 
 def test_validate_uri_allows_expected_schemes(monkeypatch) -> None:
+    """Test validate_uri accepts valid URIs and handles urlparse errors."""
     validate_uri("databricks://workspace", "uri")
     validate_uri("file:///tmp/file", "uri")
     validate_uri(None, "uri", is_none_allowed=True)
@@ -141,7 +153,8 @@ def test_validate_uri_allows_expected_schemes(monkeypatch) -> None:
         validate_uri("http://example.com", "uri")
 
 
-def test_validate_uri_rejects_invalid_strings(monkeypatch) -> None:
+def test_validate_uri_rejects_invalid_strings() -> None:
+    """Test validate_uri raises errors for invalid URI strings."""
     with pytest.raises(ConfigValidationError, match="uri cannot be empty"):
         validate_uri("   ", "uri")
     with pytest.raises(ConfigValidationError, match="uri must have a valid URI scheme"):
@@ -149,11 +162,13 @@ def test_validate_uri_rejects_invalid_strings(monkeypatch) -> None:
 
 
 def test_validate_transition_matrices_success() -> None:
+    """Test validate_transition_matrices accepts valid inputs."""
     matrices = jnp.ones((2, 2, 2), dtype=jnp.float32)
     validate_transition_matrices(matrices, "matrices")
 
 
 def test_validate_transition_matrices_failures() -> None:
+    """Test validate_transition_matrices raises errors for invalid inputs."""
     with pytest.raises(ConfigValidationError, match="matrices must be a jax.Array"):
         validate_transition_matrices([[1]], "matrices")
     with pytest.raises(ConfigValidationError, match="matrices must be a 3D jax.Array"):
@@ -165,11 +180,13 @@ def test_validate_transition_matrices_failures() -> None:
 
 
 def test_validate_initial_state_success() -> None:
+    """Test validate_initial_state accepts valid inputs."""
     state = jnp.ones((2,), dtype=jnp.float32)
     validate_initial_state(state, 2, "state")
 
 
 def test_validate_initial_state_failures() -> None:
+    """Test validate_initial_state raises errors for invalid inputs."""
     with pytest.raises(ConfigValidationError, match="state must be a jax.Array"):
         validate_initial_state([1, 2], 2, "state")
     with pytest.raises(ConfigValidationError, match="state must be a 1D jax.Array"):
@@ -181,7 +198,7 @@ def test_validate_initial_state_failures() -> None:
 
 
 @pytest.mark.parametrize(
-    "validator, value, field_name",
+    ("validator", "value", "field_name"),
     [
         (validate_positive_int, None, "test_field"),
         (validate_non_negative_int, None, "test_field"),
