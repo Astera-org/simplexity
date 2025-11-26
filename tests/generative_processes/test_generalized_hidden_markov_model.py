@@ -23,13 +23,13 @@ from tests.assertions import assert_proportional
 @pytest.fixture
 def z1r() -> GeneralizedHiddenMarkovModel:
     """Return the zero-one random generalized HMM."""
-    return build_generalized_hidden_markov_model("zero_one_random", p=0.5)
+    return build_generalized_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
 
 
 @pytest.fixture
 def fanizza_model() -> GeneralizedHiddenMarkovModel:
     """Return the fanizza generalized HMM."""
-    return build_generalized_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
+    return build_generalized_hidden_markov_model(process_name="fanizza", process_params={"alpha": 2000, "lamb": 0.49})
 
 
 @pytest.mark.parametrize(("model_name", "vocab_size", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])

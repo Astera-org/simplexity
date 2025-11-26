@@ -41,7 +41,7 @@ def test_validate_nonempty_str_errors() -> None:
 
 
 @pytest.mark.parametrize(
-    "validator,value,error",
+    ("validator", "value", "error"),
     [
         (validate_positive_int, "1", "must be an int"),
         (validate_positive_int, 0, "must be positive"),
@@ -64,7 +64,7 @@ def test_integer_validators_allow_valid_values() -> None:
 
 
 @pytest.mark.parametrize(
-    "validator,value,error",
+    ("validator", "value", "error"),
     [
         (validate_positive_float, "0.1", "must be a float"),
         (validate_positive_float, -0.5, "must be positive"),
@@ -72,7 +72,7 @@ def test_integer_validators_allow_valid_values() -> None:
         (validate_non_negative_float, -0.1, "must be non-negative"),
     ],
 )
-def test_float_validators_raise(validator, value, error) -> None:
+def test_float_validators_raise(validator: Any, value: Any, error: str) -> None:
     """Test float validators raise errors for invalid inputs."""
     with pytest.raises(ConfigValidationError, match=error):
         validator(value, "field")
@@ -95,7 +95,7 @@ def test_validate_bool() -> None:
 
 
 @pytest.mark.parametrize(
-    "value,kwargs",
+    ("value", "kwargs"),
     [([0.1, 0.2], {"element_type": float}), ([1, 2], {}), (jnp.ones((2,), dtype=jnp.float32), {"element_type": float})],
 )
 def test_validate_sequence_accepts_valid_inputs(value, kwargs) -> None:
@@ -116,7 +116,7 @@ def test_validate_sequence_rejects_bad_inputs() -> None:
 
 
 @pytest.mark.parametrize(
-    "value,kwargs",
+    ("value", "kwargs"),
     [
         (OrderedDict({"k": "v"}), {"key_type": str, "value_type": str}),
         ({"k": 1}, {"key_type": str}),
@@ -198,7 +198,7 @@ def test_validate_initial_state_failures() -> None:
 
 
 @pytest.mark.parametrize(
-    "validator, value, field_name",
+    ("validator", "value", "field_name"),
     [
         (validate_positive_int, None, "test_field"),
         (validate_non_negative_int, None, "test_field"),
