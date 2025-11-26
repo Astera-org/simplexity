@@ -16,7 +16,6 @@ from pathlib import Path
 import hydra
 import jax
 import jax.numpy as jnp
-import torch
 import yaml
 from torch.nn import Module as PytorchModel
 
@@ -70,7 +69,6 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                         bos_token=cfg.generative_process.bos_token,
                         eos_token=cfg.generative_process.eos_token,
                     )
-                    assert isinstance(inputs, torch.Tensor)
                 persister.save_model_to_registry(model, "test_model", model_inputs=inputs)
             else:
                 persister.save_weights(model, 0)
