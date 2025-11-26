@@ -97,7 +97,7 @@ def test_generate_data_batch_with_eos_token():
 
 def test_generate_data_batch_with_full_history():
     """Ensure belief states and prefix probabilities can be returned."""
-    hmm = build_hidden_markov_model("zero_one_random", p=0.5)
+    hmm = build_hidden_markov_model("zero_one_random", process_params={"p": 0.5})
     batch_size = 4
     sequence_len = 6
     gen_state: jax.Array = hmm.initial_state
