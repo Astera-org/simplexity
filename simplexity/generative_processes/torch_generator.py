@@ -1,4 +1,4 @@
-"""Generator for generative processes."""
+"""Torch generator for generative processes."""
 
 # pylint: disable-all
 # Temporarily disable all pylint checkers during AST traversal to prevent crash.
@@ -9,14 +9,14 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-import equinox as eqx
 import jax
-import jax.numpy as jnp
+import torch
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.generator import generate_data_batch as generate_jax_data_batch
+from simplexity.utils.pytorch_utils import jax_to_torch
 
 
-@eqx.filter_jit
 def generate_data_batch(
     gen_states: jax.Array,
     data_generator: GenerativeProcess,
@@ -25,14 +25,15 @@ def generate_data_batch(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array, torch.Tensor, torch.Tensor]:
     """Generate a batch of data."""
-    batch_keys = jax.random.split(key, batch_size)
-    gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, False)
-    if bos_token is not None:
-        tokens = jnp.concatenate([jnp.full((batch_size, 1), bos_token), tokens], axis=1)
-    if eos_token is not None:
-        tokens = jnp.concatenate([tokens, jnp.full((batch_size, 1), eos_token)], axis=1)
-    inputs = tokens[:, :-1]
-    labels = tokens[:, 1:]
-    return gen_states, inputs, labels
+    gen_states, inputs, labels = generate_jax_data_batch(
+        gen_states,
+        data_generator,
+        batch_size,
+        sequence_len,
+        key,
+        bos_token,
+        eos_token,
+    )
+    return gen_states, jax_to_torch(inputs), jax_to_torch(labels)

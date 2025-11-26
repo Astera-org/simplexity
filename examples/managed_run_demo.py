@@ -22,7 +22,7 @@ from torch.nn import Module as PytorchModel
 
 import simplexity
 from examples.configs.demo_config import Config
-from simplexity.generative_processes.generator import generate_data_batch
+from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 
 DEMO_DIR = Path(__file__).parent
@@ -69,7 +69,6 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                         jax.random.key(cfg.seed),
                         bos_token=cfg.generative_process.bos_token,
                         eos_token=cfg.generative_process.eos_token,
-                        to_torch=True,
                     )
                     assert isinstance(inputs, torch.Tensor)
                 persister.save_model_to_registry(model, "test_model", model_inputs=inputs)
