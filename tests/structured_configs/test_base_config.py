@@ -13,11 +13,13 @@ including validation of seed, tags, and MLFlow configuration fields.
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+from unittest.mock import call, patch
+
 import pytest
 from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.structured_configs.base import validate_base_config
+from simplexity.structured_configs.base import resolve_base_config, validate_base_config
 
 
 class TestBaseConfig:
@@ -93,3 +95,37 @@ class TestBaseConfig:
         cfg = DictConfig({"mlflow": DictConfig({"experiment_name": "  "})})
         with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
             validate_base_config(cfg)
+
+    def test_resolve_base_config(self) -> None:
+        """Test resolve_base_config with valid configs."""
+        cfg = DictConfig({})
+        resolve_base_config(cfg, strict=True, seed=34)
+        assert cfg.seed == 34
+        assert cfg.tags.strict == "true"
+
+        # default seed
+        cfg = DictConfig({})
+        resolve_base_config(cfg, strict=False)
+        assert cfg.seed == 42
+        assert cfg.tags.strict == "false"
+
+    def test_resolve_base_config_with_existing_values(self) -> None:
+        """Test resolve_base_config overrides mismatched seed and strict values."""
+        # matching values
+        cfg = DictConfig({"seed": 34, "tags": DictConfig({"strict": "true"})})
+        resolve_base_config(cfg, strict=True, seed=34)
+        assert cfg.seed == 34
+        assert cfg.tags.strict == "true"
+
+        # non-matching values
+        cfg = DictConfig({"seed": 34, "tags": DictConfig({"strict": "true"})})
+        with patch("simplexity.structured_configs.base.SIMPLEXITY_LOGGER.warning") as mock_warning:
+            resolve_base_config(cfg, strict=False, seed=56)
+            mock_warning.assert_has_calls(
+                [
+                    call("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", 34, 56),
+                    call("Strict tag set to '%s', but strict mode is '%s'. Overriding strict tag.", "true", "false"),
+                ]
+            )
+            assert cfg.seed == 56
+            assert cfg.tags.strict == "false"

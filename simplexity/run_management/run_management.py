@@ -24,8 +24,6 @@ from contextlib import contextmanager, nullcontext
 from typing import Any
 
 import hydra
-import jax
-import jax.numpy as jnp
 import mlflow
 from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
@@ -33,6 +31,7 @@ from torch.nn import Module as PytorchModel
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
+from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.components import Components
 from simplexity.run_management.run_logging import (
@@ -42,19 +41,32 @@ from simplexity.run_management.run_logging import (
     log_source_script,
     log_system_info,
 )
-from simplexity.structured_configs.base import validate_base_config
+from simplexity.structured_configs.activation_tracker import (
+    is_activation_tracker_target,
+    validate_activation_tracker_config,
+)
+from simplexity.structured_configs.base import resolve_base_config, validate_base_config
 from simplexity.structured_configs.generative_process import (
     is_generative_process_target,
     resolve_generative_process_config,
     validate_generative_process_config,
 )
-from simplexity.structured_configs.logging import is_logger_target, validate_logging_config
+from simplexity.structured_configs.logging import (
+    is_logger_target,
+    update_logging_instance_config,
+    validate_logging_config,
+)
+from simplexity.structured_configs.mlflow import update_mlflow_config
 from simplexity.structured_configs.optimizer import (
     is_optimizer_target,
     is_pytorch_optimizer_config,
     validate_optimizer_config,
 )
-from simplexity.structured_configs.persistence import is_model_persister_target, validate_persistence_config
+from simplexity.structured_configs.persistence import (
+    is_model_persister_target,
+    update_persister_instance_config,
+    validate_persistence_config,
+)
 from simplexity.structured_configs.predictive_model import (
     is_hooked_transformer_config,
     is_predictive_model_target,
@@ -66,7 +78,7 @@ from simplexity.utils.config_utils import (
     get_instance_keys,
     typed_instantiate,
 )
-from simplexity.utils.mlflow_utils import get_experiment_id, resolve_registry_uri
+from simplexity.utils.mlflow_utils import get_experiment, get_run, resolve_registry_uri
 from simplexity.utils.pytorch_utils import resolve_device
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
@@ -175,57 +187,72 @@ def _assert_tagged(cfg: DictConfig) -> None:
 
 def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
     mlflow_config: DictConfig | None = cfg.get("mlflow", None)
-    if mlflow_config:
-        experiment_name: str | None = mlflow_config.get("experiment_name", None)
-        assert experiment_name is not None, "Experiment name must be set"
-        run_name: str | None = mlflow_config.get("run_name", None)
-        assert run_name is not None, "Run name must be set"
-        tracking_uri: str | None = mlflow_config.get("tracking_uri", None)
-        registry_uri: str | None = mlflow_config.get("registry_uri", None)
-        downgrade_unity_catalog: bool = mlflow_config.get("downgrade_unity_catalog", True)
-        if tracking_uri:
-            mlflow.set_tracking_uri(tracking_uri)
-            SIMPLEXITY_LOGGER.info("[mlflow] tracking uri: %s", mlflow.get_tracking_uri())
-        resolved_registry_uri = resolve_registry_uri(
-            registry_uri=registry_uri,
-            tracking_uri=tracking_uri,
-            downgrade_unity_catalog=downgrade_unity_catalog,
-        )
-        if resolved_registry_uri:
-            mlflow.set_registry_uri(resolved_registry_uri)
-            SIMPLEXITY_LOGGER.info("[mlflow] registry uri: %s", mlflow.get_registry_uri())
-        experiment_id = get_experiment_id(experiment_name)
-        runs = mlflow.search_runs(
-            experiment_ids=[experiment_id],
-            filter_string=f"attributes.run_name = '{run_name}'",
-            max_results=1,
-            output_format="list",
-        )
-        assert isinstance(runs, list)
-        if runs:
-            run_id = runs[0].info.run_id
-            SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' already exists with id: %s", run_name, run_id)
-        else:
-            run_id = None
-            SIMPLEXITY_LOGGER.info("[mlflow] run with name '%s' does not yet exist", run_name)
-        SIMPLEXITY_LOGGER.info(
-            "[mlflow] starting run with: {id: %s, experiment id: %s, run name: %s}", run_id, experiment_id, run_name
-        )
-        return mlflow.start_run(
-            run_id=run_id,
-            experiment_id=experiment_id,
-            run_name=run_name,
-            log_system_metrics=True,
-        )
-    return nullcontext()
+    if mlflow_config is None:
+        return nullcontext()
+
+    tracking_uri: str | None = mlflow_config.get("tracking_uri", None)
+    if tracking_uri:
+        mlflow.set_tracking_uri(tracking_uri)
+        SIMPLEXITY_LOGGER.info("[mlflow] tracking uri: %s", mlflow.get_tracking_uri())
+
+    registry_uri: str | None = mlflow_config.get("registry_uri", None)
+    downgrade_unity_catalog: bool = mlflow_config.get("downgrade_unity_catalog", True)
+    resolved_registry_uri = resolve_registry_uri(
+        registry_uri=registry_uri,
+        tracking_uri=tracking_uri,
+        downgrade_unity_catalog=downgrade_unity_catalog,
+    )
+    if resolved_registry_uri:
+        mlflow.set_registry_uri(resolved_registry_uri)
+        SIMPLEXITY_LOGGER.info("[mlflow] registry uri: %s", mlflow.get_registry_uri())
+
+    client = mlflow.MlflowClient(tracking_uri=tracking_uri, registry_uri=resolved_registry_uri)
+
+    experiment_id: str | None = mlflow_config.get("experiment_id", None)
+    experiment_name: str | None = mlflow_config.get("experiment_name", None)
+    experiment = get_experiment(
+        experiment_id=experiment_id,
+        experiment_name=experiment_name,
+        client=client,
+        create_if_missing=True,
+    )
+    assert experiment is not None
+
+    run_id: str | None = mlflow_config.get("run_id", None)
+    run_name: str | None = mlflow_config.get("run_name", None)
+    run = get_run(run_id=run_id, run_name=run_name, experiment_id=experiment.experiment_id, client=client)
+    assert run is not None
+
+    updated_cfg = DictConfig(
+        {
+            "experiment_id": experiment.experiment_id,
+            "experiment_name": experiment.name,
+            "run_id": run.info.run_id,
+            "run_name": run.info.run_name,
+            "tracking_uri": mlflow.get_tracking_uri(),
+            "registry_uri": mlflow.get_registry_uri(),
+            "downgrade_unity_catalog": downgrade_unity_catalog,
+        }
+    )
+    update_mlflow_config(mlflow_config, updated_cfg=updated_cfg)
+
+    return mlflow.start_run(
+        run_id=run.info.run_id,
+        experiment_id=experiment.experiment_id,
+        run_name=run.info.run_name,
+        log_system_metrics=True,
+    )
 
 
 def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
     """Setup the logging."""
-    logging_instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
-    if logging_instance_config:
-        logger = typed_instantiate(logging_instance_config, Logger)
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        logger = typed_instantiate(instance_config, Logger)
         SIMPLEXITY_LOGGER.info("[logging] instantiated logger: %s", logger.__class__.__name__)
+        if isinstance(logger, MLFlowLogger):
+            updated_cfg = OmegaConf.structured(logger.cfg)
+            update_logging_instance_config(instance_config, updated_cfg=updated_cfg)
         return logger
     raise KeyError
 
@@ -261,23 +288,17 @@ def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> Gener
         SIMPLEXITY_LOGGER.info(
             "[generative process] instantiated generative process: %s", generative_process.__class__.__name__
         )
+        config_key = instance_key.rsplit(".", 1)[0]
+        generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key)
+        if generative_process_config is None:
+            raise RuntimeError("Error selecting generative process config")
+        base_vocab_size = generative_process.vocab_size
+        resolve_generative_process_config(generative_process_config, base_vocab_size)
         return generative_process
     raise KeyError
 
 
-def _create_initial_state(generative_process: GenerativeProcess, batch_size: int | None) -> jax.Array:
-    """Setup the initial state."""
-    if batch_size is None:
-        initial_state = generative_process.initial_state
-    else:
-        initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
-    SIMPLEXITY_LOGGER.info("[generative process] instantiated initial state with shape: %s", initial_state.shape)
-    return initial_state
-
-
-def _setup_generative_processes(
-    cfg: DictConfig, instance_keys: list[str]
-) -> tuple[dict[str, GenerativeProcess] | None, dict[str, jax.Array] | None]:
+def _setup_generative_processes(cfg: DictConfig, instance_keys: list[str]) -> dict[str, GenerativeProcess] | None:
     instance_keys = filter_instance_keys(
         cfg,
         instance_keys,
@@ -287,7 +308,6 @@ def _setup_generative_processes(
     )
     if instance_keys:
         generative_processes = {}
-        initial_states = {}
         for instance_key in instance_keys:
             generative_process = _instantiate_generative_process(cfg, instance_key)
             config_key = instance_key.rsplit(".", 1)[0]
@@ -297,11 +317,9 @@ def _setup_generative_processes(
             base_vocab_size = generative_process.vocab_size
             resolve_generative_process_config(generative_process_config, base_vocab_size)
             generative_processes[instance_key] = generative_process
-            batch_size = generative_process_config.get("batch_size", None)
-            initial_states[instance_key] = _create_initial_state(generative_process, batch_size)
-        return generative_processes, initial_states
+        return generative_processes
     SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
-    return None, None
+    return None
 
 
 def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister:
@@ -310,6 +328,9 @@ def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister
     if instance_config:
         persister: ModelPersister = hydra.utils.instantiate(instance_config)
         SIMPLEXITY_LOGGER.info("[persister] instantiated persister: %s", persister.__class__.__name__)
+        if isinstance(persister, MLFlowPersister):
+            updated_cfg = OmegaConf.structured(persister.cfg)
+            update_persister_instance_config(instance_config, updated_cfg=updated_cfg)
         return persister
     raise KeyError
 
@@ -402,16 +423,7 @@ def _setup_predictive_models(
             if instance_config_config is None:
                 raise RuntimeError("Error selecting predictive model config")
             vocab_size = _get_attribute_value(cfg, instance_keys, "vocab_size")
-            bos_token = _get_attribute_value(cfg, instance_keys, "bos_token")
-            eos_token = _get_attribute_value(cfg, instance_keys, "eos_token")
-            sequence_len = _get_attribute_value(cfg, instance_keys, "sequence_len")
-            resolve_hooked_transformer_config(
-                instance_config_config,
-                vocab_size=vocab_size,
-                bos_token=bos_token,
-                eos_token=eos_token,
-                sequence_len=sequence_len,
-            )
+            resolve_hooked_transformer_config(instance_config_config, vocab_size=vocab_size)
         model = _instantiate_predictive_model(cfg, instance_key)
         step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
         load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
@@ -469,7 +481,41 @@ def _setup_optimizers(
     return None
 
 
-def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, verbose: bool) -> None:
+def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
+    """Instantiate an activation tracker."""
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        tracker_cfg = OmegaConf.create(OmegaConf.to_container(instance_config, resolve=False))
+        converted_analyses: dict[str, DictConfig] = {}
+        analyses_cfg = instance_config.get("analyses") or {}
+        for key, analysis_cfg in analyses_cfg.items():
+            name_override = analysis_cfg.get("name")
+            cfg_to_instantiate = analysis_cfg.instance
+            converted_analyses[name_override or key] = cfg_to_instantiate
+
+        tracker_cfg.analyses = converted_analyses
+        tracker = hydra.utils.instantiate(tracker_cfg)
+        SIMPLEXITY_LOGGER.info("[activation tracker] instantiated activation tracker: %s", tracker.__class__.__name__)
+        return tracker
+    raise KeyError
+
+
+def _setup_activation_trackers(cfg: DictConfig, instance_keys: list[str]) -> dict[str, Any] | None:
+    """Setup activation trackers."""
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_activation_tracker_target,
+        validate_fn=validate_activation_tracker_config,
+        component_name="activation tracker",
+    )
+    if instance_keys:
+        return {instance_key: _instantiate_activation_tracker(cfg, instance_key) for instance_key in instance_keys}
+    SIMPLEXITY_LOGGER.info("[activation tracker] no activation tracker configs found")
+    return None
+
+
+def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, *, verbose: bool) -> None:
     if loggers is None:
         return
     for logger in loggers.values():
@@ -497,13 +543,12 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components = Components()
     instance_keys = get_instance_keys(cfg)
     components.loggers = _setup_logging(cfg, instance_keys, strict=strict)
-    generative_processes, initial_states = _setup_generative_processes(cfg, instance_keys)
-    components.generative_processes = generative_processes
-    components.initial_states = initial_states
+    components.generative_processes = _setup_generative_processes(cfg, instance_keys)
     components.persisters = _setup_persisters(cfg, instance_keys)
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
-    _do_logging(cfg, components.loggers, verbose)
+    components.activation_trackers = _setup_activation_trackers(cfg, instance_keys)
+    _do_logging(cfg, components.loggers, verbose=verbose)
     return components
 
 
@@ -525,6 +570,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
             try:
                 cfg = get_config(args, kwargs)
                 validate_base_config(cfg)
+                resolve_base_config(cfg, strict=strict)
                 with _setup_mlflow(cfg):
                     components = _setup(cfg, strict=strict, verbose=verbose)
                     output = fn(*args, **kwargs, components=components)

@@ -216,7 +216,6 @@ class TestPersistenceConfig:
             }
         )
         validate_local_equinox_persister_instance_config(eqx_cfg)
-
         # Test __init__
         eqx_instance = LocalEquinoxPersisterInstanceConfig(directory="/tmp")
         assert eqx_instance.filename == "model.eqx"
@@ -243,7 +242,6 @@ class TestPersistenceConfig:
             }
         )
         validate_local_penzai_persister_instance_config(penzai_cfg)
-
         # Test __init__
         penzai_instance = LocalPenzaiPersisterInstanceConfig(directory="/tmp")
         assert penzai_instance._target_ == "simplexity.persistence.local_penzai_persister.LocalPenzaiPersister"
@@ -257,7 +255,6 @@ class TestPersistenceConfig:
             }
         )
         validate_local_pytorch_persister_instance_config(pt_cfg)
-
         # Test __init__
         pt_instance = LocalPytorchPersisterInstanceConfig(directory="/tmp")
         assert pt_instance.filename == "model.pt"

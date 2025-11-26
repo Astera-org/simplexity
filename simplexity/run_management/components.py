@@ -12,8 +12,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-import jax
-
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
@@ -25,10 +23,10 @@ class Components:
 
     loggers: dict[str, Logger] | None = None
     generative_processes: dict[str, GenerativeProcess] | None = None
-    initial_states: dict[str, jax.Array] | None = None
     persisters: dict[str, ModelPersister] | None = None
     predictive_models: dict[str, Any] | None = None  # TODO: improve typing
     optimizers: dict[str, Any] | None = None  # TODO: improve typing
+    activation_trackers: dict[str, Any] | None = None  # TODO: improve typing
 
     def get_logger(self, key: str | None = None) -> Logger | None:
         """Get the logger."""
@@ -67,25 +65,6 @@ class Components:
         if len(ending_matches) > 1:
             raise KeyError(f"Multiple generative processes with key '{key}' found: {ending_matches}")
         raise KeyError(f"Generative process with key '{key}' not found")
-
-    def get_initial_state(self, key: str | None = None) -> jax.Array | None:
-        """Get the initial state."""
-        if self.initial_states is None:
-            if key is None:
-                return None
-            raise KeyError("No initial states found")
-        if key is None:
-            if len(self.initial_states) == 1:
-                return next(iter(self.initial_states.values()))
-            raise KeyError("No key provided and multiple initial states found")
-        if key in self.initial_states:
-            return self.initial_states[key]
-        ending_matches = [instance_key for instance_key in self.initial_states if instance_key.endswith(key)]
-        if len(ending_matches) == 1:
-            return self.initial_states[ending_matches[0]]
-        if len(ending_matches) > 1:
-            raise KeyError(f"Multiple initial states with key '{key}' found: {ending_matches}")
-        raise KeyError(f"Initial state with key '{key}' not found")
 
     def get_persister(self, key: str | None = None) -> ModelPersister | None:
         """Get the persister."""
@@ -143,3 +122,22 @@ class Components:
         if len(ending_matches) > 1:
             raise KeyError(f"Multiple optimizers with key '{key}' found: {ending_matches}")
         raise KeyError(f"Optimizer with key '{key}' not found")
+
+    def get_activation_tracker(self, key: str | None = None) -> Any | None:
+        """Get the activation tracker."""
+        if self.activation_trackers is None:
+            if key is None:
+                return None
+            raise KeyError("No activation trackers found")
+        if key is None:
+            if len(self.activation_trackers) == 1:
+                return next(iter(self.activation_trackers.values()))
+            raise KeyError("No key provided and multiple activation trackers found")
+        if key in self.activation_trackers:
+            return self.activation_trackers[key]
+        ending_matches = [instance_key for instance_key in self.activation_trackers if instance_key.endswith(key)]
+        if len(ending_matches) == 1:
+            return self.activation_trackers[ending_matches[0]]
+        if len(ending_matches) > 1:
+            raise KeyError(f"Multiple activation trackers with key '{key}' found: {ending_matches}")
+        raise KeyError(f"Activation tracker with key '{key}' not found")
