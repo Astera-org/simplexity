@@ -16,10 +16,10 @@ from pathlib import Path
 import hydra
 import jax
 import yaml
+from examples.configs.demo_config import Config
 from torch.nn import Module as PytorchModel
 
 import simplexity
-from examples.configs.demo_config import Config
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 
