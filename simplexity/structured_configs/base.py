@@ -65,8 +65,7 @@ def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42) -> Non
     if cfg.get("seed") is None:
         cfg.seed = seed
     else:
-        seed_tag = cfg.get("seed")
-        assert isinstance(seed_tag, int)
+        seed_tag: int = cfg.get("seed")
         if seed_tag != seed:
             SIMPLEXITY_LOGGER.warning("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", seed_tag, seed)
             cfg.seed = seed
@@ -74,14 +73,12 @@ def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42) -> Non
     if cfg.get("tags") is None:
         cfg.tags = DictConfig({"strict": str(strict).lower()})
     else:
-        tags = cfg.get("tags")
-        assert isinstance(tags, DictConfig)
+        tags: DictConfig = cfg.get("tags")
         strict_value = str(strict).lower()
         if tags.get("strict") is None:
             tags.strict = strict_value
         else:
-            strict_tag = tags.get("strict")
-            assert isinstance(strict_tag, str)
+            strict_tag: str = tags.get("strict")
             if strict_tag.lower() != strict_value:
                 SIMPLEXITY_LOGGER.warning(
                     "Strict tag set to '%s', but strict mode is '%s'. Overriding strict tag.", strict_tag, strict_value
