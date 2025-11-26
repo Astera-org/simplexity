@@ -369,8 +369,6 @@ class GenerativeProcessConfig:
     bos_token: int | None = MISSING
     eos_token: int | None = MISSING
     vocab_size: int = MISSING
-    batch_size: int | None = None
-    sequence_len: int | None = None
 
 
 def is_generative_process_target(target: str) -> bool:
@@ -477,20 +475,6 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
                 f"+ use_eos_token ({use_eos_token}) "
                 f"= {expected_vocab_size}"
             )
-
-    # Validate batch_size if present
-    if not OmegaConf.is_missing(cfg, "batch_size"):
-        batch_size = cfg.get("batch_size")
-        validate_positive_int(batch_size, "GenerativeProcessConfig.batch_size", is_none_allowed=True)
-    else:
-        SIMPLEXITY_LOGGER.debug("[generative process] batch_size is missing, will be resolved dynamically")
-
-    # Validate sequence_len if present
-    if not OmegaConf.is_missing(cfg, "sequence_len"):
-        sequence_len = cfg.get("sequence_len")
-        validate_positive_int(sequence_len, "GenerativeProcessConfig.sequence_len", is_none_allowed=True)
-    else:
-        SIMPLEXITY_LOGGER.debug("[generative process] sequence_len is missing, will be resolved dynamically")
 
 
 @dynamic_resolve
