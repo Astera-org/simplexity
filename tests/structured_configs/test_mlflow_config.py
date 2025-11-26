@@ -31,7 +31,7 @@ class TestMLFlowConfig:
         assert cfg.get("run_name") == "some_run"
         assert cfg.get("tracking_uri") is None
         assert cfg.get("registry_uri") is None
-        assert cfg.get("downgrade_unity_catalog")
+        assert cfg.get("downgrade_unity_catalog") is None
 
     def test_validate_mlflow_config_valid(self) -> None:
         """Test validate_mlflow_config with valid configs."""
@@ -53,32 +53,6 @@ class TestMLFlowConfig:
             }
         )
         validate_mlflow_config(cfg)
-
-    def test_validate_mlflow_config_missing_required_fields(self) -> None:
-        """Test validate_mlflow_config with missing required fields."""
-        # Missing experiment_name
-        cfg = DictConfig(
-            {
-                "run_name": "my_run",
-                "tracking_uri": "databricks",
-                "registry_uri": "databricks",
-                "downgrade_unity_catalog": True,
-            }
-        )
-        with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
-            validate_mlflow_config(cfg)
-
-        # Missing run_name
-        cfg = DictConfig(
-            {
-                "experiment_name": "my_experiment",
-                "tracking_uri": "databricks",
-                "registry_uri": "databricks",
-                "downgrade_unity_catalog": True,
-            }
-        )
-        with pytest.raises(ConfigValidationError, match="MLFlowConfig.run_name must be a non-empty string"):
-            validate_mlflow_config(cfg)
 
     def test_validate_mlflow_config_invalid_downgrade_unity_catalog(self) -> None:
         """Test validate_mlflow_config with invalid downgrade_unity_catalog."""

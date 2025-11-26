@@ -78,6 +78,10 @@ def resolve_registry_uri(
             return normalized_uri
         return uri
 
+    # Default to downgrading if not explicitly set to False
+    if downgrade_unity_catalog is None:
+        downgrade_unity_catalog = True
+
     if registry_uri:
         if downgrade_unity_catalog:
             registry_uri = convert_uri(registry_uri)
