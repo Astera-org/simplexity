@@ -17,12 +17,13 @@ import hydra
 import jax
 import jax.numpy as jnp
 import yaml
-from examples.configs.demo_config import Config
 from torch.nn import Module as PytorchModel
 
 import simplexity
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.persistence.mlflow_persister import MLFlowPersister
+
+from .configs.demo_config import Config
 
 DEMO_DIR = Path(__file__).parent
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
