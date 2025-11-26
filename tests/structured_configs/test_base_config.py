@@ -110,7 +110,7 @@ class TestBaseConfig:
         assert cfg.tags.strict == "false"
 
     def test_resolve_base_config_with_existing_values(self) -> None:
-        """Test resolve_base_config with invalid strict."""
+        """Test resolve_base_config overrides mismatched seed and strict values."""
         # matching values
         cfg = DictConfig({"seed": 34, "tags": DictConfig({"strict": "true"})})
         resolve_base_config(cfg, strict=True, seed=34)
