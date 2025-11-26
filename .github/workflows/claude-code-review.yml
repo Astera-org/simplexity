@@ -22,7 +22,7 @@ jobs:
       id-token: write
       checks: read
       actions: read
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
         with:
           script: |
             let pr;
-            
+
             if (context.eventName === 'workflow_run') {
               // Triggered by workflow_run - check if workflow succeeded
               const workflowRun = context.payload.workflow_run;
@@ -88,14 +88,14 @@ jobs:
                 return;
               }
             }
-            
+
             // Check if PR is a draft
             if (pr.draft === true) {
               core.info(`PR #${pr.number} is a draft - skipping Claude review`);
               core.setFailed('PR is a draft');
               return;
             }
-            
+
             core.info(`PR #${pr.number} is ready for review and checks are passing - proceeding with Claude review`);
 
       - name: Run Claude Code Review
@@ -114,17 +114,16 @@ jobs:
             using the repository's CLAUDE.md for guidance on style and conventions.
 
             IMPORTANT: You must create a proper GitHub review with inline comments on specific lines (not just a single comment).
-            
+
             Review Process:
             1. Use `gh pr view --json number,headRefName,baseRefName` to get the PR number
-            2. Use `gh pr diff` to see all changes - this shows the unified diff format
+            2. Use `gh pr diff` to see the changes.
             3. For each issue you find:
-               - Note the file path and the line number in the diff (the position after the @@ line)
-               - The position is the line number where the change appears in the unified diff (count from the @@ hunk header)
-            4. Create ONE review with all inline comments using the GitHub API
-            
+               - Note the file path and the *actual file line number* (not the diff position).
+            4. Create ONE review with all inline comments using the GitHub API.
+
             To create a review with inline comments, use this format:
-            
+
             ```bash
             PR_NUM=$(gh pr view --json number -q .number)
             gh api repos/:owner/:repo/pulls/$PR_NUM/reviews \
@@ -134,31 +133,32 @@ jobs:
               -f comments='[
                 {
                   "path": "simplexity/file.py",
-                  "position": 15,
+                  "line": 15,
+                  "side": "RIGHT",
                   "body": "Issue description and suggested fix"
                 },
                 {
                   "path": "tests/test_file.py", 
-                  "position": 42,
+                  "line": 42,
+                  "side": "RIGHT",
                   "body": "Another issue description"
                 }
               ]'
             ```
-            
+
             Important:
             - `event` must be one of: APPROVE, REQUEST_CHANGES, or COMMENT
-            - `position` is the line number in the unified diff (the number after @@ in the diff output)
-            - Count lines in the diff starting from the hunk header (the @@ line)
+            - Use `line` (the actual line number in the file) and `side="RIGHT"` (for new changes).
+            - Do NOT use `position`.
             - Include ALL inline comments in a single API call
             - If no issues found: use `event=APPROVE` with body "PR approved, no improvements needed" and empty comments array
             - If issues found: use `event=REQUEST_CHANGES` with inline comments for each specific issue
-            
+
             For each inline comment, provide:
             - Clear description of the issue
             - Reference to the specific code
             - Suggested fix (preferably as a code block)
-            
-            Be concise and actionable. Each inline comment should be resolvable independently.
-          
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr review:*),Bash(gh api:*)"'
 
+            Be concise and actionable. Each inline comment should be resolvable independently.
+
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr review:*),Bash(gh api:*)"'
