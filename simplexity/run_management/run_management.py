@@ -515,7 +515,7 @@ def _setup_activation_trackers(cfg: DictConfig, instance_keys: list[str]) -> dic
     return None
 
 
-def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, *, strict: bool, verbose: bool) -> None:
+def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, *, verbose: bool) -> None:
     if loggers is None:
         return
     for logger in loggers.values():
@@ -548,7 +548,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
     components.activation_trackers = _setup_activation_trackers(cfg, instance_keys)
-    _do_logging(cfg, components.loggers, strict=strict, verbose=verbose)
+    _do_logging(cfg, components.loggers, verbose=verbose)
     return components
 
 
