@@ -18,6 +18,7 @@ import logging
 import os
 import random
 import subprocess
+import tempfile
 import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
@@ -25,7 +26,8 @@ from typing import Any
 
 import hydra
 import mlflow
-from omegaconf import DictConfig, OmegaConf
+from mlflow.exceptions import MlflowException
+from omegaconf import DictConfig, OmegaConf, open_dict
 from torch.nn import Module as PytorchModel
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
@@ -107,6 +109,135 @@ def _suppress_pydantic_field_attribute_warning() -> Iterator[None]:
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
         yield
+
+
+def _load_config(cfg: DictConfig, load_config: DictConfig) -> None:
+    """Load the config."""
+    if not load_config:
+        SIMPLEXITY_LOGGER.warning("[config] load_config entry is empty, skipping")
+        return
+
+    tracking_uri: str | None = load_config.get("tracking_uri")
+    experiment_name: str | None = load_config.get("experiment_name")
+    experiment_id: str | None = load_config.get("experiment_id")
+    run_name: str | None = load_config.get("run_name")
+    run_id: str | None = load_config.get("run_id")
+    configs_to_load: DictConfig | None = load_config.get("configs")
+    artifact_path: str = load_config.get("artifact_path", "config.yaml")
+
+    if not configs_to_load:
+        run_identifier = run_name or run_id or "<unknown>"
+        SIMPLEXITY_LOGGER.warning(
+            f"[config] no configs specified for load_config run '{run_identifier}', nothing to merge"
+        )
+        return
+
+    client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+
+    if experiment_id:
+        experiment = client.get_experiment(experiment_id)
+        if experiment is None:
+            raise ValueError(
+                f"Experiment with id '{experiment_id}' not found for load_config "
+                f"run '{run_name or run_id or '<unknown>'}'"
+            )
+        if experiment_name:
+            if experiment.name != experiment_name:
+                raise ValueError(
+                    f"Experiment id '{experiment_id}' refers to '{experiment.name}', which does not match "
+                    f"provided experiment_name '{experiment_name}'"
+                )
+        else:
+            experiment_name = experiment.name
+    elif experiment_name:
+        experiment = client.get_experiment_by_name(experiment_name)
+        if experiment is None:
+            raise ValueError(
+                f"Experiment '{experiment_name}' not found for load_config run '{run_name or run_id or '<unknown>'}'"
+            )
+        experiment_id = experiment.experiment_id
+    else:
+        raise ValueError("load_config requires experiment_name or experiment_id")
+    assert experiment_id is not None
+    assert experiment_name is not None
+
+    if run_id:
+        try:
+            run = client.get_run(run_id)
+        except MlflowException as e:  # pragma: no cover - mlflow always raises for missing runs
+            raise ValueError(
+                f"Run with id '{run_id}' not found in experiment '{experiment_name}' for load_config entry"
+            ) from e
+        if run.info.experiment_id != experiment_id:
+            raise ValueError(
+                f"Run id '{run_id}' belongs to experiment id '{run.info.experiment_id}', expected '{experiment_id}'"
+            )
+        if run_name and run.info.run_name != run_name:
+            raise ValueError(
+                f"Run id '{run_id}' refers to run '{run.info.run_name}', which does not match "
+                f"provided run_name '{run_name}'"
+            )
+    elif run_name:
+        runs = client.search_runs(
+            experiment_ids=[experiment_id],
+            filter_string=f"attributes.run_name = '{run_name}'",
+            max_results=1,
+        )
+        if not runs:
+            raise ValueError(
+                f"Run with name '{run_name}' not found in experiment '{experiment_name}' for load_config entry"
+            )
+        run = runs[0]
+    else:
+        raise ValueError("load_config requires run_name or run_id")
+
+    run_id = run.info.run_id
+    run_name = run.info.run_name
+    assert run_id is not None
+    assert run_name is not None
+
+    SIMPLEXITY_LOGGER.info(
+        f"[config] loading artifact '{artifact_path}' from run '{run_name}' ({run_id}) "
+        f"in experiment '{experiment_name}' ({experiment_id})"
+    )
+    with tempfile.TemporaryDirectory() as temp_dir:
+        artifact_local_path = client.download_artifacts(run_id, artifact_path, temp_dir)
+        source_cfg = OmegaConf.load(artifact_local_path)
+
+    configs_mapping: dict[str, str] = OmegaConf.to_container(configs_to_load, resolve=True)  # type: ignore[arg-type]
+    with open_dict(cfg):
+        for source_key, destination_key in configs_mapping.items():
+            if not isinstance(source_key, str) or not source_key:
+                raise ValueError("load_config configs keys must be non-empty strings")
+            if not isinstance(destination_key, str) or not destination_key:
+                raise ValueError("load_config configs values must be non-empty strings")
+
+            selected_config = OmegaConf.select(source_cfg, source_key, throw_on_missing=False)
+            if selected_config is None:
+                raise KeyError(f"Config key '{source_key}' not found in run '{run_name}' artifact '{artifact_path}'")
+
+            cloned_config = OmegaConf.create(OmegaConf.to_container(selected_config, resolve=False))
+            existing_destination = OmegaConf.select(cfg, destination_key, throw_on_missing=False)
+            if existing_destination is None:
+                SIMPLEXITY_LOGGER.info(
+                    f"[config] adding config '{source_key}' from run '{run_name}' to '{destination_key}'"
+                )
+                OmegaConf.update(cfg, destination_key, cloned_config, force_add=True)
+            else:
+                SIMPLEXITY_LOGGER.info(
+                    f"[config] merging config '{source_key}' from run '{run_name}' into '{destination_key}'"
+                )
+                merged_config = OmegaConf.merge(cloned_config, existing_destination)
+                OmegaConf.update(cfg, destination_key, merged_config, force_add=True)
+
+
+def _get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
+    """Get the config from the arguments."""
+    cfg = get_config(args, kwargs)
+    load_configs: list[DictConfig] = cfg.get("load_configs", [])
+    for load_config in load_configs:
+        _load_config(cfg, load_config)
+    return cfg
 
 
 def _setup_environment() -> None:
@@ -534,7 +665,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
-                cfg = get_config(args, kwargs)
+                cfg = _get_config(args, kwargs)
                 validate_base_config(cfg)
                 with _setup_mlflow(cfg):
                     components = _setup(cfg, strict=strict, verbose=verbose)
