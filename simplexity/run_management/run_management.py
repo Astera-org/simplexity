@@ -45,7 +45,7 @@ from simplexity.structured_configs.activation_tracker import (
     is_activation_tracker_target,
     validate_activation_tracker_config,
 )
-from simplexity.structured_configs.base import validate_base_config
+from simplexity.structured_configs.base import resolve_base_config, validate_base_config
 from simplexity.structured_configs.generative_process import (
     is_generative_process_target,
     resolve_generative_process_config,
@@ -515,7 +515,7 @@ def _setup_activation_trackers(cfg: DictConfig, instance_keys: list[str]) -> dic
     return None
 
 
-def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, verbose: bool) -> None:
+def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, *, strict: bool, verbose: bool) -> None:
     if loggers is None:
         return
     for logger in loggers.values():
@@ -548,7 +548,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
     components.activation_trackers = _setup_activation_trackers(cfg, instance_keys)
-    _do_logging(cfg, components.loggers, verbose)
+    _do_logging(cfg, components.loggers, strict=strict, verbose=verbose)
     return components
 
 
@@ -570,6 +570,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
             try:
                 cfg = get_config(args, kwargs)
                 validate_base_config(cfg)
+                resolve_base_config(cfg, strict=strict)
                 with _setup_mlflow(cfg):
                     components = _setup(cfg, strict=strict, verbose=verbose)
                     output = fn(*args, **kwargs, components=components)

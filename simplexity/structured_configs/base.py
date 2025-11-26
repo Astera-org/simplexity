@@ -9,6 +9,7 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import logging
 from dataclasses import dataclass
 
 from omegaconf import DictConfig
@@ -16,6 +17,9 @@ from omegaconf import DictConfig
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.mlflow import MLFlowConfig, validate_mlflow_config
 from simplexity.structured_configs.validation import validate_mapping, validate_non_negative_int
+from simplexity.utils.config_utils import dynamic_resolve
+
+SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 @dataclass
@@ -43,3 +47,33 @@ def validate_base_config(cfg: DictConfig) -> None:
         if not isinstance(mlflow, DictConfig):
             raise ConfigValidationError("BaseConfig.mlflow must be a MLFlowConfig")
         validate_mlflow_config(mlflow)
+
+
+@dynamic_resolve
+def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42) -> None:
+    """Resolve the BaseConfig."""
+    if cfg.get("seed") is None:
+        cfg.seed = seed
+    else:
+        seed_tag = cfg.get("seed")
+        assert isinstance(seed_tag, int)
+        if seed_tag != seed:
+            SIMPLEXITY_LOGGER.warning("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", seed_tag, seed)
+            cfg.seed = seed
+
+    if cfg.get("tags") is None:
+        cfg.tags = DictConfig({"strict": str(strict).lower()})
+    else:
+        tags = cfg.get("tags")
+        assert isinstance(tags, DictConfig)
+        strict_value = str(strict).lower()
+        if tags.get("strict") is None:
+            tags.strict = strict_value
+        else:
+            strict_tag = tags.get("strict")
+            assert isinstance(strict_tag, str)
+            if strict_tag.lower() != strict_value:
+                SIMPLEXITY_LOGGER.warning(
+                    "Strict tag set to '%s', but strict mode is '%s'. Overriding strict tag.", strict_tag, strict_value
+                )
+                tags.strict = strict_value
