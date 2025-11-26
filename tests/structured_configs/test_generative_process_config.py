@@ -2,7 +2,7 @@
 
 This module contains tests for generative process configuration validation, including
 validation of generative process targets, vocab sizes, special tokens (BOS/EOS),
-sequence length, batch size, and generative process configuration instances.
+and generative process configuration instances.
 """
 
 # pylint: disable-all
@@ -24,9 +24,9 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.generative_process import (
-    GenerativeProcessConfig,
     GeneralizedHiddenMarkovModelBuilderInstanceConfig,
     GeneralizedHiddenMarkovModelInstanceConfig,
+    GenerativeProcessConfig,
     HiddenMarkovModelBuilderInstanceConfig,
     HiddenMarkovModelInstanceConfig,
     InstanceConfig,
@@ -202,9 +202,10 @@ class TestGenerativeProcessBuilders:
     def test_generalized_hidden_markov_model_instance_validation(self) -> None:
         transition_matrices = jnp.ones((2, 2, 2), dtype=jnp.float32)
         initial_state = jnp.ones((2,), dtype=jnp.float32)
+        target = "simplexity.generative_processes.generalized_hidden_markov_model.GeneralizedHiddenMarkovModel"
         cfg = DictConfig(
             {
-                "_target_": "simplexity.generative_processes.generalized_hidden_markov_model.GeneralizedHiddenMarkovModel",
+                "_target_": target,
                 "transition_matrices": transition_matrices,
                 "initial_state": initial_state,
             },
@@ -217,6 +218,7 @@ class TestGenerativeProcessBuilders:
             transition_matrices=transition_matrices,
             initial_state=initial_state,
         )
+        assert structured_instance.initial_state is not None
         assert structured_instance.initial_state.shape[0] == 2
 
         cfg.initial_state = jnp.ones((1,), dtype=jnp.float32)
@@ -244,8 +246,6 @@ class TestGenerativeProcessConfig:
         assert cfg.get("bos_token") is None
         assert cfg.get("eos_token") is None
         assert cfg.get("vocab_size") == 3
-        assert cfg.get("sequence_len") is None
-        assert cfg.get("batch_size") is None
 
     def test_validate_generative_process_config_handles_generalized_builder(self) -> None:
         cfg = DictConfig(
@@ -286,9 +286,10 @@ class TestGenerativeProcessConfig:
     def test_validate_generative_process_config_handles_generalized_instance(self) -> None:
         transition_matrices = jnp.ones((2, 2, 2), dtype=jnp.float32)
         initial_state = jnp.ones((2,), dtype=jnp.float32)
+        target = "simplexity.generative_processes.generalized_hidden_markov_model.GeneralizedHiddenMarkovModel"
         instance_cfg = DictConfig(
             {
-                "_target_": "simplexity.generative_processes.generalized_hidden_markov_model.GeneralizedHiddenMarkovModel",
+                "_target_": target,
                 "transition_matrices": transition_matrices,
                 "initial_state": initial_state,
             },
@@ -408,8 +409,6 @@ class TestGenerativeProcessConfig:
                 "bos_token": 3,
                 "eos_token": 4,
                 "vocab_size": 5,
-                "sequence_len": 256,
-                "batch_size": 64,
             }
         )
         validate_generative_process_config(cfg)
@@ -669,9 +668,7 @@ class TestGenerativeProcessConfig:
         # assert that there is a SIMPLEXITY_LOGGER debug log
         with patch("simplexity.structured_configs.generative_process.SIMPLEXITY_LOGGER.debug") as mock_debug:
             validate_generative_process_config(cfg)
-            mock_debug.assert_any_call(
-                f"[generative process] {attribute} is missing, will be resolved dynamically"
-            )
+            mock_debug.assert_any_call(f"[generative process] {attribute} is missing, will be resolved dynamically")
 
     def test_validate_generative_process_config_invalid_bos_eos_token_same_value(self):
         """Test validate_generative_process_config raises when bos_token and eos_token are the same."""

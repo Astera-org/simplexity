@@ -82,7 +82,6 @@ class TestInstanceConfig:
         # Target doesn't match expected
         cfg = DictConfig({"_target_": "actual.Target"})
         with pytest.raises(
-            ConfigValidationError, 
-            match="InstanceConfig._target_ must be expected.Target, got actual.Target"
+            ConfigValidationError, match="InstanceConfig._target_ must be expected.Target, got actual.Target"
         ):
             validate_instance_config(cfg, expected_target="expected.Target")

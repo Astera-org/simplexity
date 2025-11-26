@@ -1,6 +1,6 @@
 """Test the mixed-state tree module."""
 
-# pylint: disable-all
+# pylint: disable=all
 # Temporarily disable all pylint checkers during AST traversal to prevent crash.
 # The imports checker crashes when resolving simplexity package imports due to a bug
 # in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185

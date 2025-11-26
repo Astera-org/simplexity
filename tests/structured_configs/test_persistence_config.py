@@ -166,15 +166,11 @@ class TestPersistenceConfig:
     def test_validate_persistence_config_non_persister_target(self) -> None:
         """Test validate_persistence_config raises when instance target is not a persister target."""
         cfg = DictConfig({"instance": DictConfig({"_target_": "simplexity.logging.mlflow_logger.MLFlowLogger"})})
-        with pytest.raises(
-            ConfigValidationError, match="PersistenceConfig.instance must be a persister target"
-        ):
+        with pytest.raises(ConfigValidationError, match="PersistenceConfig.instance must be a persister target"):
             validate_persistence_config(cfg)
 
         cfg = DictConfig({"instance": DictConfig({"_target_": "torch.optim.Adam"})})
-        with pytest.raises(
-            ConfigValidationError, match="PersistenceConfig.instance must be a persister target"
-        ):
+        with pytest.raises(ConfigValidationError, match="PersistenceConfig.instance must be a persister target"):
             validate_persistence_config(cfg)
 
     def test_validate_persistence_config_invalid_name(self) -> None:
@@ -220,7 +216,6 @@ class TestPersistenceConfig:
             }
         )
         validate_local_equinox_persister_instance_config(eqx_cfg)
-        
         # Test __init__
         eqx_instance = LocalEquinoxPersisterInstanceConfig(directory="/tmp")
         assert eqx_instance.filename == "model.eqx"
@@ -234,7 +229,9 @@ class TestPersistenceConfig:
                 "filename": "model.pt",
             }
         )
-        with pytest.raises(ConfigValidationError, match="LocalEquinoxPersisterInstanceConfig.filename must end with .eqx"):
+        with pytest.raises(
+            ConfigValidationError, match="LocalEquinoxPersisterInstanceConfig.filename must end with .eqx"
+        ):
             validate_local_equinox_persister_instance_config(eqx_cfg_invalid)
 
         # Penzai
@@ -245,7 +242,6 @@ class TestPersistenceConfig:
             }
         )
         validate_local_penzai_persister_instance_config(penzai_cfg)
-        
         # Test __init__
         penzai_instance = LocalPenzaiPersisterInstanceConfig(directory="/tmp")
         assert penzai_instance._target_ == "simplexity.persistence.local_penzai_persister.LocalPenzaiPersister"
@@ -259,7 +255,6 @@ class TestPersistenceConfig:
             }
         )
         validate_local_pytorch_persister_instance_config(pt_cfg)
-        
         # Test __init__
         pt_instance = LocalPytorchPersisterInstanceConfig(directory="/tmp")
         assert pt_instance.filename == "model.pt"
@@ -273,15 +268,15 @@ class TestPersistenceConfig:
                 "filename": "model.eqx",
             }
         )
-        with pytest.raises(ConfigValidationError, match="LocalPytorchPersisterInstanceConfig.filename must end with .pt"):
+        with pytest.raises(
+            ConfigValidationError, match="LocalPytorchPersisterInstanceConfig.filename must end with .pt"
+        ):
             validate_local_pytorch_persister_instance_config(pt_cfg_invalid)
 
     def test_mlflow_persister_config_init(self) -> None:
         """Test MLFlowPersisterInstanceConfig initialization."""
         config = MLFlowPersisterInstanceConfig(
-            experiment_name="test_exp",
-            run_name="test_run",
-            tracking_uri="file:///tmp/mlruns"
+            experiment_name="test_exp", run_name="test_run", tracking_uri="file:///tmp/mlruns"
         )
         assert config.experiment_name == "test_exp"
         assert config.run_name == "test_run"
@@ -292,9 +287,9 @@ class TestPersistenceConfig:
         """Test update_persister_instance_config."""
         cfg = OmegaConf.structured(MLFlowPersisterInstanceConfig(experiment_name="old"))
         updated_cfg = DictConfig({"experiment_name": "new", "run_name": "new_run"})
-        
+
         update_persister_instance_config(cfg, updated_cfg)
-        
+
         assert cfg.experiment_name == "new"
         assert cfg.run_name == "new_run"
         assert cfg.experiment_id is None

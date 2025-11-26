@@ -1,6 +1,6 @@
 """Test the builder module."""
 
-# pylint: disable-all
+# pylint: disable=all
 # Temporarily disable all pylint checkers during AST traversal to prevent crash.
 # The imports checker crashes when resolving simplexity package imports due to a bug
 # in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
@@ -137,7 +137,7 @@ def test_build_nonergodic_initial_state():
 def test_build_nonergodic_hidden_markov_model():
     """Test the build_nonergodic_hidden_markov_model function."""
     hmm = build_nonergodic_hidden_markov_model(
-        process_names=["coin", "coin"],  # noqa: B904
+        process_names=["coin", "coin"],
         process_params=[{"p": 0.6}, {"p": 0.3}],
         process_weights=[0.8, 0.2],
         vocab_maps=[[0, 1], [0, 2]],

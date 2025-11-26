@@ -64,9 +64,7 @@ def build_hidden_markov_model(
     """Build a hidden Markov model."""
     process_params = process_params or {}
     initial_state = jnp.array(initial_state) if initial_state is not None else None
-    transition_matrices = build_transition_matrices(
-        HMM_MATRIX_FUNCTIONS, process_name=process_name, process_params=process_params
-    )
+    transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params)
     return HiddenMarkovModel(transition_matrices, initial_state)
 
 
@@ -76,11 +74,9 @@ def build_generalized_hidden_markov_model(
     initial_state: jax.Array | Sequence[float] | None = None,
 ) -> GeneralizedHiddenMarkovModel:
     """Build a generalized hidden Markov model."""
-    initial_state = jnp.array(initial_state) if initial_state is not None else None
     process_params = process_params or {}
-    transition_matrices = build_transition_matrices(
-        GHMM_MATRIX_FUNCTIONS, process_name=process_name, process_params=process_params
-    )
+    initial_state = jnp.array(initial_state) if initial_state is not None else None
+    transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, process_params)
     return GeneralizedHiddenMarkovModel(transition_matrices, initial_state)
 
 
@@ -126,8 +122,8 @@ def build_nonergodic_hidden_markov_model(
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model from a list of process names and their corresponding keyword arguments."""
     component_transition_matrices = [
-        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name=name, process_params=params)
-        for name, params in zip(process_names, process_params, strict=True)
+        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params)
+        for process_name, process_params in zip(process_names, process_params, strict=True)
     ]
     composite_transition_matrix = build_nonergodic_transition_matrices(component_transition_matrices, vocab_maps)
     component_initial_states = [

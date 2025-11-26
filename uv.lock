@@ -2993,6 +2993,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-testmon"
+version = "2.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "coverage" },
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a8/51/2ba046215da53d10add6db331811b1e0d43cd17874bf1cb066fcab92f586/pytest_testmon-2.1.4.tar.gz", hash = "sha256:cc3dd31f9bf30f6ec11c5153da3c606df7545f3cd90bfb90ce6bd4c48e717aaf", size = 22322, upload-time = "2025-11-07T13:27:55.1Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/14/3f/ca0c171e0b67b80a7faa8fd02b62a08e81b7efc2f25b2adac2f6d0be8d03/pytest_testmon-2.1.4-py3-none-any.whl", hash = "sha256:3d1178b455a727c94dde85228a34b7ef857751ba142c15874df82d8876e31194", size = 24550, upload-time = "2025-11-07T13:27:44.08Z" },
+]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -3520,6 +3533,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "pytest-testmon" },
     { name = "ruff" },
 ]
 mac = [
@@ -3565,6 +3579,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "pytest-mock", marker = "extra == 'dev'" },
+    { name = "pytest-testmon", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "torch", specifier = ">=2.9.0" },
     { name = "transformer-lens", specifier = ">=2.15.4" },
