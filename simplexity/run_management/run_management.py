@@ -40,6 +40,10 @@ from simplexity.run_management.run_logging import (
     log_source_script,
     log_system_info,
 )
+from simplexity.structured_configs.activation_tracker import (
+    is_activation_tracker_target,
+    validate_activation_tracker_config,
+)
 from simplexity.structured_configs.base import validate_base_config
 from simplexity.structured_configs.generative_process import (
     is_generative_process_target,
@@ -443,6 +447,40 @@ def _setup_optimizers(
     return None
 
 
+def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
+    """Instantiate an activation tracker."""
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        tracker_cfg = OmegaConf.create(OmegaConf.to_container(instance_config, resolve=False))
+        converted_analyses: dict[str, DictConfig] = {}
+        analyses_cfg = instance_config.get("analyses") or {}
+        for key, analysis_cfg in analyses_cfg.items():
+            name_override = analysis_cfg.get("name")
+            cfg_to_instantiate = analysis_cfg.instance
+            converted_analyses[name_override or key] = cfg_to_instantiate
+
+        tracker_cfg.analyses = converted_analyses
+        tracker = hydra.utils.instantiate(tracker_cfg)
+        SIMPLEXITY_LOGGER.info("[activation tracker] instantiated activation tracker: %s", tracker.__class__.__name__)
+        return tracker
+    raise KeyError
+
+
+def _setup_activation_trackers(cfg: DictConfig, instance_keys: list[str]) -> dict[str, Any] | None:
+    """Setup activation trackers."""
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_activation_tracker_target,
+        validate_fn=validate_activation_tracker_config,
+        component_name="activation tracker",
+    )
+    if instance_keys:
+        return {instance_key: _instantiate_activation_tracker(cfg, instance_key) for instance_key in instance_keys}
+    SIMPLEXITY_LOGGER.info("[activation tracker] no activation tracker configs found")
+    return None
+
+
 def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, verbose: bool) -> None:
     if loggers is None:
         return
@@ -475,6 +513,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.persisters = _setup_persisters(cfg, instance_keys)
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
+    components.activation_trackers = _setup_activation_trackers(cfg, instance_keys)
     _do_logging(cfg, components.loggers, verbose)
     return components
 
