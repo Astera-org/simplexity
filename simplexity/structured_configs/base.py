@@ -51,7 +51,17 @@ def validate_base_config(cfg: DictConfig) -> None:
 
 @dynamic_resolve
 def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42) -> None:
-    """Resolve the BaseConfig."""
+    """Resolve the BaseConfig by setting default values and logging mismatches.
+
+    This function sets default seed and strict tag values if not present in the config.
+    If values are already set but don't match the provided parameters, it logs
+    a warning and overrides them.
+
+    Args:
+        cfg: A DictConfig with seed and tags fields (from Hydra).
+        strict: Whether strict mode is enabled. Used to set tags.strict.
+        seed: The random seed to use. Defaults to 42.
+    """
     if cfg.get("seed") is None:
         cfg.seed = seed
     else:
