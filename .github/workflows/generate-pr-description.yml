@@ -1,0 +1,132 @@
+name: Generate PR Description
+
+on:
+  merge_group:
+
+jobs:
+  generate-description:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR description is empty
+        id: check-description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              // The merge_group event contains information about the PR being merged
+              const mergeGroup = context.payload.merge_group;
+              const headRef = mergeGroup.head_ref; // e.g., "feature-branch"
+              const baseRef = mergeGroup.base_ref; // e.g., "main"
+              const headSha = mergeGroup.head_sha;
+              
+              core.info(`Merge group: ${headRef} -> ${baseRef} (${headSha})`);
+              
+              // Find the PR that matches this merge group
+              // Try multiple approaches to find the PR
+              let prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${headRef}`,
+                base: baseRef,
+              });
+              
+              // If no PR found, try searching by head SHA
+              if (prs.data.length === 0) {
+                core.info('No PR found by branch, trying to find by commit SHA...');
+                // List all open PRs and find one matching the head SHA
+                const allPrs = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'open',
+                });
+                
+                prs = {
+                  data: allPrs.data.filter(pr => pr.head.sha === headSha)
+                };
+              }
+              
+              if (prs.data.length === 0) {
+                core.info('No open PR found for this merge group - skipping');
+                core.setFailed('No PR found');
+                return;
+              }
+              
+              const pr = prs.data[0];
+              const description = pr.body || '';
+              const hasDescription = description.trim().length > 0;
+              
+              if (hasDescription) {
+                core.info(`PR #${pr.number} already has a description - skipping generation`);
+                core.setFailed('PR already has description');
+                return;
+              } else {
+                core.info(`PR #${pr.number} description is empty - will generate description`);
+              }
+            } catch (error) {
+              core.warning(`Error checking PR: ${error.message}`);
+              core.setFailed('Error checking PR status');
+            }
+
+      - name: Generate PR description with Claude
+        if: steps.check-description.outcome == 'success'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            A pull request is about to be merged but has no description. Please generate a comprehensive PR description based on the changes in this pull request.
+            
+            Steps:
+            1. Find the PR that's in the merge queue:
+               - Use `gh pr list --state open` to list all open PRs
+               - Look for the PR that matches the current merge group (you can identify it by checking which PRs are ready to merge)
+               - Alternatively, check the git branch information to find the associated PR
+               
+            2. Once you have the PR number, verify it has no description using `gh pr view <pr_number>`
+            
+            3. Once you have the PR number, use `gh pr view <pr_number>` to get PR details (title, author, etc.)
+            
+            4. Use `gh pr diff <pr_number>` to see all the changes in the PR
+            
+            5. Analyze the changes and create a clear, concise PR description that includes:
+               - A brief summary of what this PR does
+               - Key changes made (files modified, new features, bug fixes, etc.)
+               - Any breaking changes (if applicable)
+               - Testing considerations
+               - Any other relevant information
+            
+            The description should be well-formatted using Markdown and should help reviewers understand the purpose and scope of the changes.
+            
+            After generating the description, update the PR description using one of these methods:
+            
+            Option 1 (recommended): Save to a file and use --body-file
+            ```bash
+            cat > /tmp/pr_description.md << 'EOF'
+            Your description here
+            EOF
+            gh pr edit <pr_number> --body-file /tmp/pr_description.md
+            ```
+            
+            Option 2: Use a here-document with gh pr edit
+            ```bash
+            gh pr edit <pr_number> --body "$(cat << 'EOF'
+            Your description here
+            EOF
+            )"
+            ```
+            
+            Make sure the description is properly formatted and escaped.
+          
+          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh pr list:*)"'
+

@@ -15,6 +15,7 @@ from pathlib import Path
 
 import hydra
 import jax
+import jax.numpy as jnp
 import yaml
 from torch.nn import Module as PytorchModel
 
@@ -54,17 +55,14 @@ def main(cfg: Config, components: simplexity.Components) -> None:
         for model in components.predictive_models.values():
             if isinstance(model, PytorchModel):
                 inputs = None
-                if components.generative_processes and components.initial_states is not None:
-                    first_key = next(iter(components.generative_processes.keys()))
-                    batch_size = (
-                        cfg.generative_process.batch_size if cfg.generative_process.batch_size is not None else 1
-                    )
-                    sequence_len = (
-                        cfg.generative_process.sequence_len if cfg.generative_process.sequence_len is not None else 1
-                    )
+                if components.generative_processes:
+                    generative_process = next(iter(components.generative_processes.values()))
+                    batch_size = 1
+                    sequence_len = 1
+                    initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
                     _, inputs, _ = generate_data_batch(
-                        components.initial_states[first_key],
-                        components.generative_processes[first_key],
+                        initial_state,
+                        generative_process,
                         batch_size,
                         sequence_len,
                         jax.random.key(cfg.seed),

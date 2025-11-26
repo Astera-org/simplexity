@@ -17,11 +17,13 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.run_management.structured_configs import (
+from simplexity.structured_configs.logging import (
+    FileLoggerInstanceConfig,
     InstanceConfig,
     LoggingConfig,
     is_logger_config,
     is_logger_target,
+    update_logging_instance_config,
     validate_logging_config,
 )
 
@@ -140,11 +142,11 @@ class TestLoggingConfig:
     def test_validate_logging_config_missing_instance(self) -> None:
         """Test validate_logging_config raises when instance is missing."""
         cfg = DictConfig({})
-        with pytest.raises(ConfigValidationError, match="LoggingConfig.instance is required"):
+        with pytest.raises(ConfigValidationError, match="LoggingConfig.instance must be a DictConfig"):
             validate_logging_config(cfg)
 
         cfg = DictConfig({"name": "my_logger"})
-        with pytest.raises(ConfigValidationError, match="LoggingConfig.instance is required"):
+        with pytest.raises(ConfigValidationError, match="LoggingConfig.instance must be a DictConfig"):
             validate_logging_config(cfg)
 
     def test_validate_logging_config_invalid_instance(self) -> None:
@@ -156,7 +158,7 @@ class TestLoggingConfig:
 
         # Instance with empty _target_
         cfg = DictConfig({"instance": DictConfig({"_target_": ""})})
-        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty or whitespace"):
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a non-empty string"):
             validate_logging_config(cfg)
 
         # Instance with non-string _target_
@@ -169,11 +171,11 @@ class TestLoggingConfig:
         cfg = DictConfig(
             {"instance": DictConfig({"_target_": "simplexity.persistence.mlflow_persister.MLFlowPersister"})}
         )
-        with pytest.raises(ConfigValidationError, match="LoggingConfig.instance._target_ must be a logger target"):
+        with pytest.raises(ConfigValidationError, match="LoggingConfig.instance must be a logger target"):
             validate_logging_config(cfg)
 
         cfg = DictConfig({"instance": DictConfig({"_target_": "torch.optim.Adam"})})
-        with pytest.raises(ConfigValidationError, match="LoggingConfig.instance._target_ must be a logger target"):
+        with pytest.raises(ConfigValidationError, match="LoggingConfig.instance must be a logger target"):
             validate_logging_config(cfg)
 
     def test_validate_logging_config_invalid_name(self) -> None:
@@ -207,3 +209,79 @@ class TestLoggingConfig:
         )
         with pytest.raises(ConfigValidationError, match="LoggingConfig.name must be a string or None"):
             validate_logging_config(cfg)
+
+    def test_validate_file_logger_config(self) -> None:
+        """Test validation of FileLogger configuration."""
+        # Valid file logger config
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "simplexity.logging.file_logger.FileLogger",
+                        "file_path": "/tmp/test.log",
+                    }
+                )
+            }
+        )
+        validate_logging_config(cfg)
+
+        # Missing file_path
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "simplexity.logging.file_logger.FileLogger",
+                    }
+                )
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="FileLoggerInstanceConfig.file_path must be a string"):
+            validate_logging_config(cfg)
+
+        # Empty file_path
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "simplexity.logging.file_logger.FileLogger",
+                        "file_path": "",
+                    }
+                )
+            }
+        )
+        with pytest.raises(
+            ConfigValidationError, match="FileLoggerInstanceConfig.file_path must be a non-empty string"
+        ):
+            validate_logging_config(cfg)
+
+    def test_update_logging_instance_config(self) -> None:
+        """Test update_logging_instance_config function."""
+        # Initial config
+        cfg = DictConfig(
+            {
+                "_target_": "simplexity.logging.mlflow_logger.MLFlowLogger",
+                "experiment_name": "exp1",
+                "run_name": "run1",
+            }
+        )
+
+        # Update config
+        updated_cfg = DictConfig(
+            {
+                "_target_": "simplexity.logging.mlflow_logger.MLFlowLogger",
+                "experiment_name": "exp2",
+                "tracking_uri": "file:///tmp/mlruns",
+            }
+        )
+
+        update_logging_instance_config(cfg, updated_cfg)
+
+        assert cfg.experiment_name == "exp2"
+        assert cfg.run_name == "run1"  # Should remain unchanged
+        assert cfg.tracking_uri == "file:///tmp/mlruns"
+
+    def test_file_logger_instance_config_init(self) -> None:
+        """Test FileLoggerInstanceConfig instantiation."""
+        config = FileLoggerInstanceConfig(file_path="test.log")
+        assert config.file_path == "test.log"
+        assert config._target_ == "simplexity.logging.file_logger.FileLogger"

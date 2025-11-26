@@ -8,12 +8,14 @@ from simplexity.run_management.run_management import (
     _instantiate_activation_tracker,
     _setup_activation_trackers,
 )
-from simplexity.run_management.structured_configs import (
-    ConfigValidationError,
+from simplexity.structured_configs.activation_tracker import (
     is_activation_analysis_target,
     is_activation_tracker_target,
     validate_activation_analysis_config,
     validate_activation_tracker_config,
+)
+from simplexity.structured_configs.base import (
+    ConfigValidationError,
 )
 
 

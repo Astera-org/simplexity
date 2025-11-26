@@ -18,7 +18,7 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.run_management.structured_configs import (
+from simplexity.structured_configs.optimizer import (
     InstanceConfig,
     OptimizerConfig,
     is_optimizer_config,
@@ -152,11 +152,11 @@ class TestOptimizerConfig:
     def test_validate_optimizer_config_missing_instance(self) -> None:
         """Test validate_optimizer_config raises when instance is missing."""
         cfg = DictConfig({})
-        with pytest.raises(ConfigValidationError, match="OptimizerConfig.instance is required"):
+        with pytest.raises(ConfigValidationError, match="OptimizerConfig.instance must be a DictConfig"):
             validate_optimizer_config(cfg)
 
         cfg = DictConfig({"name": "my_optimizer"})
-        with pytest.raises(ConfigValidationError, match="OptimizerConfig.instance is required"):
+        with pytest.raises(ConfigValidationError, match="OptimizerConfig.instance must be a DictConfig"):
             validate_optimizer_config(cfg)
 
     def test_validate_optimizer_config_invalid_instance(self) -> None:
@@ -168,7 +168,7 @@ class TestOptimizerConfig:
 
         # Instance with empty _target_
         cfg = DictConfig({"instance": DictConfig({"_target_": ""})})
-        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ cannot be empty or whitespace"):
+        with pytest.raises(ConfigValidationError, match="InstanceConfig._target_ must be a non-empty string"):
             validate_optimizer_config(cfg)
 
         # Instance with non-string _target_
@@ -179,15 +179,11 @@ class TestOptimizerConfig:
     def test_validate_optimizer_config_non_optimizer_target(self) -> None:
         """Test validate_optimizer_config raises when instance target is not an optimizer target."""
         cfg = DictConfig({"instance": DictConfig({"_target_": "simplexity.logging.mlflow_logger.MLFlowLogger"})})
-        with pytest.raises(
-            ConfigValidationError, match="OptimizerConfig.instance._target_ must be an optimizer target"
-        ):
+        with pytest.raises(ConfigValidationError, match="OptimizerConfig.instance must be an optimizer target"):
             validate_optimizer_config(cfg)
 
         cfg = DictConfig({"instance": DictConfig({"_target_": "torch.nn.Linear"})})
-        with pytest.raises(
-            ConfigValidationError, match="OptimizerConfig.instance._target_ must be an optimizer target"
-        ):
+        with pytest.raises(ConfigValidationError, match="OptimizerConfig.instance must be an optimizer target"):
             validate_optimizer_config(cfg)
 
     def test_validate_optimizer_config_invalid_name(self) -> None:
@@ -220,4 +216,65 @@ class TestOptimizerConfig:
             }
         )
         with pytest.raises(ConfigValidationError, match="OptimizerConfig.name must be a string or None"):
+            validate_optimizer_config(cfg)
+
+    def test_validate_pytorch_adam_instance_config(self) -> None:
+        """Test validation of AdamInstanceConfig."""
+        # Valid config
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "torch.optim.Adam",
+                        "lr": 0.001,
+                        "betas": [0.9, 0.999],
+                        "eps": 1e-8,
+                        "weight_decay": 0.01,
+                        "amsgrad": False,
+                    }
+                )
+            }
+        )
+        validate_optimizer_config(cfg)
+
+        # Invalid lr
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "torch.optim.Adam",
+                        "lr": -0.001,
+                    }
+                )
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="AdamInstanceConfig.lr must be positive"):
+            validate_optimizer_config(cfg)
+
+        # Invalid betas length
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "torch.optim.Adam",
+                        "betas": [0.9],
+                    }
+                )
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="AdamInstanceConfig.betas must have length 2"):
+            validate_optimizer_config(cfg)
+
+        # Invalid betas values
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "torch.optim.Adam",
+                        "betas": [-0.9, 0.999],
+                    }
+                )
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="AdamInstanceConfig.betas\\[0\\] must be non-negative"):
             validate_optimizer_config(cfg)
