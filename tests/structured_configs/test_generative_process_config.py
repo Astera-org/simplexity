@@ -2,7 +2,7 @@
 
 This module contains tests for generative process configuration validation, including
 validation of generative process targets, vocab sizes, special tokens (BOS/EOS),
-sequence length, batch size, and generative process configuration instances.
+and generative process configuration instances.
 """
 
 # pylint: disable-all
@@ -246,8 +246,6 @@ class TestGenerativeProcessConfig:
         assert cfg.get("bos_token") is None
         assert cfg.get("eos_token") is None
         assert cfg.get("vocab_size") == 3
-        assert cfg.get("sequence_len") is None
-        assert cfg.get("batch_size") is None
 
     def test_validate_generative_process_config_handles_generalized_builder(self) -> None:
         cfg = DictConfig(
@@ -411,8 +409,6 @@ class TestGenerativeProcessConfig:
                 "bos_token": 3,
                 "eos_token": 4,
                 "vocab_size": 5,
-                "sequence_len": 256,
-                "batch_size": 64,
             }
         )
         validate_generative_process_config(cfg)
