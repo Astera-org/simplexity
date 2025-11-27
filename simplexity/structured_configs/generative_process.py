@@ -9,7 +9,6 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -18,6 +17,7 @@ import jax
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
+from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import (
     validate_bool,
@@ -31,8 +31,6 @@ from simplexity.structured_configs.validation import (
     validate_transition_matrices,
 )
 from simplexity.utils.config_utils import dynamic_resolve
-
-SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 @dataclass

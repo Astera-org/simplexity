@@ -1,7 +1,6 @@
 """Config utilities."""
 
 import importlib
-import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -10,9 +9,9 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.errors import MissingMandatoryValue
 
 from simplexity.exceptions import ConfigValidationError
+from simplexity.logger import SIMPLEXITY_LOGGER
 
 TARGET: str = "_target_"
-SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 def get_instance_keys(cfg: DictConfig, *, nested: bool = False) -> list[str]:

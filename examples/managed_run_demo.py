@@ -9,7 +9,6 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-import logging
 import logging.config
 from pathlib import Path
 
@@ -25,7 +24,6 @@ from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 
 DEMO_DIR = Path(__file__).parent
-SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 def configure_logging() -> None:

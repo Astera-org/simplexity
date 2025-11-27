@@ -11,7 +11,6 @@
 
 from __future__ import annotations
 
-import logging
 import shutil
 import tempfile
 from contextlib import nullcontext
@@ -25,6 +24,7 @@ from mlflow.models.model import ModelInfo
 from mlflow.models.signature import infer_signature
 from omegaconf import DictConfig, OmegaConf
 
+from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
 from simplexity.structured_configs.persistence import MLFlowPersisterInstanceConfig
@@ -37,8 +37,6 @@ from simplexity.utils.mlflow_utils import (
     set_mlflow_uris,
 )
 from simplexity.utils.pip_utils import create_requirements_file
-
-SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) -> LocalPersister:
