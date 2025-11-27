@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import configparser
-import logging
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -12,11 +11,11 @@ from typing import TYPE_CHECKING, Final
 
 import mlflow
 
+from simplexity.logger import SIMPLEXITY_LOGGER
+
 if TYPE_CHECKING:
     from mlflow import MlflowClient
     from mlflow.entities import Experiment, Run
-
-SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 UC_PREFIX: Final = "databricks-uc"
 WORKSPACE_PREFIX: Final = "databricks"
