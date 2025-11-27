@@ -9,6 +9,7 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import logging
 import logging.config
 from pathlib import Path
 
