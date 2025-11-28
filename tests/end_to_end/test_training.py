@@ -11,11 +11,11 @@
 
 from pathlib import Path
 
-import hydra
 import jax
 import jax.numpy as jnp
 import mlflow
 import torch
+from hydra import compose, initialize_config_dir
 from torch.optim import Adam
 from transformer_lens import HookedTransformer
 
@@ -24,8 +24,7 @@ from simplexity.generative_processes.hidden_markov_model import HiddenMarkovMode
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
-
-from .configs.config import Config
+from tests.end_to_end.configs.config import Config
 
 _E2E_DIR = Path(__file__).parent
 
@@ -33,7 +32,6 @@ _E2E_DIR = Path(__file__).parent
 def test_training() -> None:
     """Test training."""
 
-    @hydra.main(config_path=str(_E2E_DIR / "configs"), config_name="config.yaml", version_base="1.2")
     @simplexity.managed_run(strict=False, verbose=True)
     def main(cfg: Config, components: simplexity.Components) -> None:
         """Test the managed run decorator."""
@@ -105,4 +103,6 @@ def test_training() -> None:
         sample_inputs = generate(0)[0]
         persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs)
 
-    main()
+    with initialize_config_dir(str(_E2E_DIR / "configs"), version_base="1.2"):
+        cfg = compose(config_name="config.yaml")
+    main(cfg)
