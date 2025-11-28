@@ -18,6 +18,7 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.transition_matrices import get_stationary_state
+from simplexity.utils.jnp_utils import resolve_jax_device
 
 State = TypeVar("State", bound=jax.Array)
 
@@ -26,6 +27,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     """A Generalized Hidden Markov Model."""
 
     transition_matrices: jax.Array
+    device: jax.Device  # type: ignore[valid-type]
     log_transition_matrices: jax.Array
     normalizing_eigenvector: jax.Array
     log_normalizing_eigenvector: jax.Array
@@ -34,8 +36,17 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     normalizing_constant: jax.Array
     log_normalizing_constant: jax.Array
 
-    def __init__(self, transition_matrices: jax.Array, initial_state: jax.Array | None = None):
+    def __init__(
+        self,
+        transition_matrices: jax.Array,
+        initial_state: jax.Array | None = None,
+        device: str | None = "auto",
+    ):
+        self.device = resolve_jax_device(device)
         self.validate_transition_matrices(transition_matrices)
+
+        # Move inputs to the correct device
+        transition_matrices = jax.device_put(transition_matrices, self.device)
 
         state_transition_matrix = jnp.sum(transition_matrices, axis=0)
         eigenvalues, right_eigenvectors = jnp.linalg.eig(state_transition_matrix)
@@ -53,7 +64,8 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
 
         if initial_state is None:
             initial_state = get_stationary_state(state_transition_matrix.T)
-        self._initial_state = initial_state
+
+        self._initial_state = jax.device_put(initial_state, self.device)
         self.log_initial_state = jnp.log(self._initial_state)
 
         self.normalizing_constant = self._initial_state @ self.normalizing_eigenvector

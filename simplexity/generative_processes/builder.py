@@ -23,10 +23,14 @@ from simplexity.generative_processes.transition_matrices import (
     HMM_MATRIX_FUNCTIONS,
     get_stationary_state,
 )
+from simplexity.utils.jnp_utils import resolve_jax_device
 
 
 def build_transition_matrices(
-    matrix_functions: dict[str, Callable], process_name: str, process_params: Mapping[str, Any] | None = None
+    matrix_functions: dict[str, Callable],
+    process_name: str,
+    process_params: Mapping[str, Any] | None = None,
+    device: str | None = "auto",
 ) -> jax.Array:
     """Build transition matrices for a generative process."""
     if process_name not in matrix_functions:
@@ -37,12 +41,15 @@ def build_transition_matrices(
     matrix_function = matrix_functions[process_name]
     process_params = process_params or {}
     sig = inspect.signature(matrix_function)
+    jax_device = resolve_jax_device(device)
     try:
-        sig.bind_partial(**process_params)
-        transition_matrices = matrix_function(**process_params)
+        with jax.default_device(jax_device):
+            sig.bind_partial(**process_params)
+            transition_matrices = matrix_function(**process_params)
     except TypeError as e:
         params = ", ".join(f"{k}: {v.annotation}" for k, v in sig.parameters.items())
         raise TypeError(f"Invalid arguments for {process_name}: {e}.  Signature is: {params}") from e
+
     return transition_matrices
 
 
@@ -60,24 +67,26 @@ def build_hidden_markov_model(
     process_name: str,
     process_params: Mapping[str, Any] | None = None,
     initial_state: jax.Array | Sequence[float] | None = None,
+    device: str | None = "auto",
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model."""
     process_params = process_params or {}
     initial_state = jnp.array(initial_state) if initial_state is not None else None
-    transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params)
-    return HiddenMarkovModel(transition_matrices, initial_state)
+    transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params, device=device)
+    return HiddenMarkovModel(transition_matrices, initial_state, device=device)
 
 
 def build_generalized_hidden_markov_model(
     process_name: str,
     process_params: Mapping[str, Any] | None = None,
     initial_state: jax.Array | Sequence[float] | None = None,
+    device: str | None = "auto",
 ) -> GeneralizedHiddenMarkovModel:
     """Build a generalized hidden Markov model."""
     process_params = process_params or {}
     initial_state = jnp.array(initial_state) if initial_state is not None else None
-    transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, process_params)
-    return GeneralizedHiddenMarkovModel(transition_matrices, initial_state)
+    transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, process_params, device=device)
+    return GeneralizedHiddenMarkovModel(transition_matrices, initial_state, device=device)
 
 
 def build_nonergodic_transition_matrices(
@@ -119,10 +128,11 @@ def build_nonergodic_hidden_markov_model(
     process_weights: Sequence[float],
     vocab_maps: Sequence[Sequence[int]] | None = None,
     add_bos_token: bool = False,
+    device: str | None = "auto",
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model from a list of process names and their corresponding keyword arguments."""
     component_transition_matrices = [
-        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params)
+        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params, device=device)
         for process_name, process_params in zip(process_names, process_params, strict=True)
     ]
     composite_transition_matrix = build_nonergodic_transition_matrices(component_transition_matrices, vocab_maps)
@@ -135,4 +145,4 @@ def build_nonergodic_hidden_markov_model(
         num_states = composite_transition_matrix.shape[1]
         initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
         initial_state = initial_state.at[num_states - 1].set(1)
-    return HiddenMarkovModel(composite_transition_matrix, initial_state)
+    return HiddenMarkovModel(composite_transition_matrix, initial_state, device=device)

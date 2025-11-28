@@ -4,6 +4,35 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from simplexity.exceptions import DeviceResolutionError
+
+
+def resolve_jax_device(device_spec: str | None = "auto") -> jax.Device:  # type: ignore[valid-type]
+    """Resolve device specification to actual JAX device.
+
+    Args:
+        device_spec: Device specification string. Can be "auto", "cpu", "gpu", "cuda", "metal", "mps".
+
+    Returns:
+        JAX device.
+
+    Raises:
+        DeviceResolutionError: If the requested device is not available.
+    """
+    if device_spec is None or device_spec == "auto":
+        return jax.devices()[0]
+
+    if device_spec == "cpu":
+        return jax.devices("cpu")[0]
+
+    if device_spec in ("gpu", "cuda"):
+        gpus = jax.devices("gpu")
+        if not gpus:
+            raise DeviceResolutionError("GPU requested but not available")
+        return gpus[0]
+
+    raise DeviceResolutionError(f"Unknown device specification: {device_spec}")
+
 
 @eqx.filter_jit
 def entropy(probs: jax.Array, log: bool = False) -> jax.Array:
