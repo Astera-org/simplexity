@@ -9,17 +9,15 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-import logging
 from dataclasses import dataclass
 
 from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
+from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.structured_configs.mlflow import MLFlowConfig, validate_mlflow_config
 from simplexity.structured_configs.validation import validate_mapping, validate_non_negative_int
 from simplexity.utils.config_utils import dynamic_resolve
-
-SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 @dataclass

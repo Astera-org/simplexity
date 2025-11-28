@@ -26,7 +26,6 @@ from simplexity.persistence.mlflow_persister import MLFlowPersister
 from .configs.demo_config import Config
 
 DEMO_DIR = Path(__file__).parent
-SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
 def configure_logging() -> None:

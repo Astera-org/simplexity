@@ -14,7 +14,6 @@ management, and cleanup via the `managed_run` decorator.
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-import logging
 import os
 import random
 import subprocess
@@ -29,6 +28,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
@@ -80,9 +80,6 @@ from simplexity.utils.config_utils import (
 )
 from simplexity.utils.mlflow_utils import get_experiment, get_run, resolve_registry_uri
 from simplexity.utils.pytorch_utils import resolve_device
-
-SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
-logging.captureWarnings(True)
 
 DEFAULT_ENVIRONMENT_VARIABLES = {
     "MLFLOW_LOCK_MODEL_DEPENDENCIES": "true",
