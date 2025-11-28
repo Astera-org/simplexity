@@ -20,6 +20,18 @@ from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 
 @dataclass
+class TrainingConfig:
+    """Configuration for training."""
+
+    num_steps: int
+    batch_size: int
+    sequence_len: int
+    log_every: int
+    checkpoint_every: int
+    evaluate_every: int
+
+
+@dataclass
 class Config:
     """Configuration for the managed run demo."""
 
@@ -29,6 +41,8 @@ class Config:
     persistence: PersistenceConfig
     predictive_model: PredictiveModelConfig
     optimizer: OptimizerConfig
+    training: TrainingConfig
+
     experiment_name: str
     run_name: str
     seed: int
