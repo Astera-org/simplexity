@@ -23,7 +23,10 @@ from contextlib import contextmanager, nullcontext
 from typing import Any
 
 import hydra
+import jax
 import mlflow
+import torch
+from jax._src.config import StateContextManager
 from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
@@ -78,6 +81,7 @@ from simplexity.utils.config_utils import (
     get_instance_keys,
     typed_instantiate,
 )
+from simplexity.utils.jnp_utils import resolve_jax_device
 from simplexity.utils.mlflow_utils import get_experiment, get_run, resolve_registry_uri
 from simplexity.utils.pytorch_utils import resolve_device
 
@@ -180,6 +184,14 @@ def _assert_tagged(cfg: DictConfig) -> None:
     tags: dict[str, Any] = cfg.get("tags", {})
     missing_required_tags = set(REQUIRED_TAGS) - set(tags.keys())
     assert not missing_required_tags, "Tags must include " + ", ".join(missing_required_tags)
+
+
+def _setup_device(cfg: DictConfig) -> StateContextManager:
+    device = cfg.get("device", None)
+    pytorch_device = resolve_device(device)
+    torch.set_default_device(pytorch_device)
+    jax_device = resolve_jax_device(device)
+    return jax.default_device(jax_device)
 
 
 def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
@@ -568,7 +580,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 cfg = get_config(args, kwargs)
                 validate_base_config(cfg)
                 resolve_base_config(cfg, strict=strict)
-                with _setup_mlflow(cfg):
+                with _setup_device(cfg), _setup_mlflow(cfg):
                     components = _setup(cfg, strict=strict, verbose=verbose)
                     output = fn(*args, **kwargs, components=components)
                 _cleanup(components)
