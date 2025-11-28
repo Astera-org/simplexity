@@ -2,6 +2,7 @@
 
 import importlib
 from collections.abc import Callable
+from contextlib import ExitStack
 from typing import Any
 
 import hydra
@@ -78,15 +79,52 @@ def get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
 
 
 def dynamic_resolve(fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Dynamic resolve decorator."""
+    """Dynamic resolve decorator.
+
+    Handles nested configs by opening all parent configs up to the root.
+    This allows modification of nested configs even when their parent is readonly.
+    """
 
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         cfg = get_config(args, kwargs)
-        with open_dict(cfg):
-            output = fn(*args, **kwargs)
+
+        # Collect all parent configs up to the root
+        # We need to open all of them to allow modification of nested configs
+        configs_to_open = []
+        current = cfg
+        while current is not None:
+            configs_to_open.append(current)
+            # pylint: disable=protected-access
+            # We need to traverse the parent chain to open all parent configs
+            parent = current._get_parent()
+            if parent is None:
+                break
+            current = parent if isinstance(parent, DictConfig) else None
+
+        # Track readonly state and temporarily disable it for all configs in the chain
+        # This is necessary because open_dict alone doesn't work for nested readonly configs
+        readonly_states = {}
+        try:
+            # Use ExitStack to manage multiple context managers for open_dict
+            with ExitStack() as stack:
+                for config in reversed(configs_to_open):
+                    stack.enter_context(open_dict(config))
+                    # Also explicitly set readonly to False if it's currently readonly
+                    # This is needed for nested configs where parent is readonly
+                    if OmegaConf.is_readonly(config):
+                        readonly_states[config] = True
+                        OmegaConf.set_readonly(config, False)
+                    else:
+                        readonly_states[config] = False
+                output = fn(*args, **kwargs)
+        finally:
+            # Restore readonly state for all configs
+            for config, was_readonly in readonly_states.items():
+                if was_readonly:
+                    OmegaConf.set_readonly(config, True)
+
         OmegaConf.resolve(cfg)
         OmegaConf.set_struct(cfg, True)
-        OmegaConf.set_readonly(cfg, True)
         return output
 
     return wrapper
