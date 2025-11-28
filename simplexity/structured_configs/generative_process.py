@@ -429,11 +429,10 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     else:
         _bos_token = cfg.get("bos_token")
         validate_non_negative_int(_bos_token, "GenerativeProcessConfig.bos_token", is_none_allowed=True)
-        assert _bos_token is not None
-        if _vocab_size is not None and _bos_token >= _vocab_size:
-            raise ConfigValidationError(
-                f"GenerativeProcessConfig.bos_token ({_bos_token}) must be < vocab_size ({_vocab_size})"
-            )
+    if _bos_token is not None and _vocab_size is not None and _bos_token >= _vocab_size:
+        raise ConfigValidationError(
+            f"GenerativeProcessConfig.bos_token ({_bos_token}) must be < vocab_size ({_vocab_size})"
+        )
 
     _eos_token: int | None = None
     if OmegaConf.is_missing(cfg, "eos_token"):
@@ -441,11 +440,10 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
     else:
         _eos_token = cfg.get("eos_token")
         validate_non_negative_int(_eos_token, "GenerativeProcessConfig.eos_token", is_none_allowed=True)
-        assert _eos_token is not None
-        if _vocab_size is not None and _eos_token >= _vocab_size:
-            raise ConfigValidationError(
-                f"GenerativeProcessConfig.eos_token ({_eos_token}) must be < vocab_size ({_vocab_size})"
-            )
+    if _eos_token is not None and _vocab_size is not None and _eos_token >= _vocab_size:
+        raise ConfigValidationError(
+            f"GenerativeProcessConfig.eos_token ({_eos_token}) must be < vocab_size ({_vocab_size})"
+        )
 
     # Ensure tokens are distinct if both are set (skip if either is MISSING)
     if (
