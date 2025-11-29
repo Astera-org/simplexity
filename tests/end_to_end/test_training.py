@@ -18,8 +18,14 @@ from tests.end_to_end.training import train
 _E2E_DIR = Path(__file__).parent
 
 
-def test_training() -> None:
+def test_training(tmp_path: Path) -> None:
     """Test training."""
     with initialize_config_dir(str(_E2E_DIR / "configs"), version_base="1.2"):
-        cfg = compose(config_name="config.yaml")
+        mlflow_dir = tmp_path / "mlruns"
+        mlflow_uri = f"file:{mlflow_dir.absolute()}"
+        overrides = [
+            f"mlflow.tracking_uri={mlflow_uri}",
+            f"mlflow.registry_uri={mlflow_uri}",
+        ]
+        cfg = compose(config_name="config.yaml", overrides=overrides)
     train(cfg)
