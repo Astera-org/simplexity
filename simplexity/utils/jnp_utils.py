@@ -7,11 +7,11 @@ import jax.numpy as jnp
 from simplexity.exceptions import DeviceResolutionError
 
 
-def resolve_jax_device(device_spec: str | None = "auto") -> jax.Device:  # type: ignore[valid-type]
+def resolve_jax_device(backend: str | None = None) -> jax.Device:  # type: ignore[valid-type]
     """Resolve device specification to actual JAX device.
 
     Args:
-        device_spec: Device specification string. Can be "auto", "cpu", "gpu", "cuda", "metal", "mps".
+        backend: Device specification string. Can be "auto", "cpu", "gpu", "cuda", "metal", "mps".
 
     Returns:
         JAX device.
@@ -19,19 +19,26 @@ def resolve_jax_device(device_spec: str | None = "auto") -> jax.Device:  # type:
     Raises:
         DeviceResolutionError: If the requested device is not available.
     """
-    if device_spec is None or device_spec == "auto":
-        return jax.devices()[0]
-
-    if device_spec == "cpu":
-        return jax.devices("cpu")[0]
-
-    if device_spec in ("gpu", "cuda"):
-        gpus = jax.devices("gpu")
+    gpus = jax.devices("gpu")
+    if backend in ("gpu", "cuda"):
         if not gpus:
             raise DeviceResolutionError("GPU requested but not available")
         return gpus[0]
 
-    raise DeviceResolutionError(f"Unknown device specification: {device_spec}")
+    cpus = jax.devices("cpu")
+    if backend == "cpu":
+        if not cpus:
+            raise DeviceResolutionError("CPU requested but not available")
+        return cpus[0]
+
+    if backend is None or backend == "auto":
+        if gpus:
+            return gpus[0]
+        if cpus:
+            return cpus[0]
+        raise DeviceResolutionError("No devices available")
+
+    raise DeviceResolutionError(f"Unknown device specification: {backend}")
 
 
 @eqx.filter_jit
