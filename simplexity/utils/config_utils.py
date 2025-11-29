@@ -125,6 +125,7 @@ def dynamic_resolve(fn: Callable[..., Any]) -> Callable[..., Any]:
 
         OmegaConf.resolve(cfg)
         OmegaConf.set_struct(cfg, True)
+        OmegaConf.set_readonly(cfg, True)
         return output
 
     return wrapper
