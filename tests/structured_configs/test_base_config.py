@@ -15,6 +15,7 @@ including validation of seed, tags, and MLFlow configuration fields.
 
 from unittest.mock import call, patch
 
+import jax
 import pytest
 from omegaconf import DictConfig
 
@@ -32,12 +33,27 @@ class TestBaseConfig:
 
         cfg = DictConfig(
             {
+                "device": "auto",
                 "seed": 42,
                 "tags": DictConfig({"key": "value"}),
                 "mlflow": DictConfig({"experiment_name": "test", "run_name": "test"}),
             }
         )
         validate_base_config(cfg)
+
+    def test_validate_base_config_invalid_device(self) -> None:
+        """Test validate_base_config with invalid device."""
+        cfg = DictConfig({"device": ""})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.device must be a non-empty string"):
+            validate_base_config(cfg)
+
+        cfg = DictConfig({"device": jax.devices()[0]})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.device must be a string"):
+            validate_base_config(cfg)
+
+        cfg = DictConfig({"device": "invalid"})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.device must be one of: auto, cpu, gpu, cuda"):
+            validate_base_config(cfg)
 
     def test_validate_base_config_invalid_seed(self) -> None:
         """Test validate_base_config with invalid configs."""
@@ -99,7 +115,10 @@ class TestBaseConfig:
     def test_resolve_base_config(self) -> None:
         """Test resolve_base_config with valid configs."""
         cfg = DictConfig({})
-        resolve_base_config(cfg, strict=True, seed=34)
+        with patch("jax.devices") as mock_devices:
+            mock_devices.return_value = [jax.devices("cpu")[0]]
+            resolve_base_config(cfg, strict=True, seed=34)
+        assert cfg.device == "cpu"
         assert cfg.seed == 34
         assert cfg.tags.strict == "true"
 
