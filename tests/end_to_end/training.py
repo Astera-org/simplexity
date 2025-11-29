@@ -71,7 +71,7 @@ def train(cfg: Config, components: simplexity.Components) -> None:
         return loss.item()
 
     def log_step(step: int, loss: float) -> None:
-        logger.log_metrics(step, {"loss": loss})
+        logger.log_metrics(step, {"train/loss": loss})
 
     eval_inputs, eval_labels = generate(cfg.training.num_steps)
 
@@ -83,7 +83,7 @@ def train(cfg: Config, components: simplexity.Components) -> None:
 
     def eval_step(step: int) -> None:
         loss = evaluate()
-        logger.log_metrics(step, {"eval_loss": loss})
+        logger.log_metrics(step, {"eval/loss": loss})
 
     def checkpoint_step(step: int) -> None:
         persister.save_weights(predictive_model, step)
