@@ -23,6 +23,7 @@ from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 class Config:
     """Configuration for the managed run demo."""
 
+    device: str
     mlflow: MLFlowConfig
     logging: LoggingConfig
     generative_process: GenerativeProcessConfig

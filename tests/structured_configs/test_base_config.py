@@ -32,12 +32,29 @@ class TestBaseConfig:
 
         cfg = DictConfig(
             {
+                "device": "auto",
                 "seed": 42,
                 "tags": DictConfig({"key": "value"}),
                 "mlflow": DictConfig({"experiment_name": "test", "run_name": "test"}),
             }
         )
         validate_base_config(cfg)
+
+    def test_validate_base_config_invalid_device(self) -> None:
+        """Test validate_base_config with invalid device."""
+        cfg = DictConfig({"device": ""})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.device must be a non-empty string"):
+            validate_base_config(cfg)
+
+        cfg = DictConfig({"device": 0})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.device must be a string"):
+            validate_base_config(cfg)
+
+        cfg = DictConfig({"device": "invalid"})
+        with pytest.raises(
+            ConfigValidationError, match="BaseConfig.device must be one of: \\('auto', 'cpu', 'gpu', 'cuda'\\)"
+        ):
+            validate_base_config(cfg)
 
     def test_validate_base_config_invalid_seed(self) -> None:
         """Test validate_base_config with invalid configs."""
@@ -99,13 +116,15 @@ class TestBaseConfig:
     def test_resolve_base_config(self) -> None:
         """Test resolve_base_config with valid configs."""
         cfg = DictConfig({})
-        resolve_base_config(cfg, strict=True, seed=34)
+        resolve_base_config(cfg, strict=True, seed=34, device="gpu")
+        assert cfg.device == "gpu"
         assert cfg.seed == 34
         assert cfg.tags.strict == "true"
 
         # default seed
         cfg = DictConfig({})
         resolve_base_config(cfg, strict=False)
+        assert cfg.device == "auto"
         assert cfg.seed == 42
         assert cfg.tags.strict == "false"
 

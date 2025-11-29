@@ -59,7 +59,6 @@ penzai = [
     "orbax-checkpoint",
     "penzai",
 ] # Deprecated: penzai is no longer maintained.
-mac = ["jax-metal"]
 
 [tool.ruff]
 line-length = 120

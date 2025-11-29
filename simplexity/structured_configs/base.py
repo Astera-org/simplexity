@@ -16,7 +16,7 @@ from omegaconf import DictConfig
 from simplexity.exceptions import ConfigValidationError
 from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.structured_configs.mlflow import MLFlowConfig, validate_mlflow_config
-from simplexity.structured_configs.validation import validate_mapping, validate_non_negative_int
+from simplexity.structured_configs.validation import validate_mapping, validate_non_negative_int, validate_nonempty_str
 from simplexity.utils.config_utils import dynamic_resolve
 
 
@@ -24,6 +24,7 @@ from simplexity.utils.config_utils import dynamic_resolve
 class BaseConfig:
     """Base configuration for all components."""
 
+    device: str | None = None
     seed: int | None = None
     tags: dict[str, str] | None = None
     mlflow: MLFlowConfig | None = None
@@ -35,10 +36,15 @@ def validate_base_config(cfg: DictConfig) -> None:
     Args:
         cfg: A DictConfig with seed, tags, and mlflow fields (from Hydra).
     """
+    device = cfg.get("device")
     seed = cfg.get("seed")
     tags = cfg.get("tags")
     mlflow = cfg.get("mlflow")
 
+    validate_nonempty_str(device, "BaseConfig.device", is_none_allowed=True)
+    allowed_devices = ("auto", "cpu", "gpu", "cuda")
+    if device is not None and device not in allowed_devices:
+        raise ConfigValidationError(f"BaseConfig.device must be one of: {allowed_devices}")
     validate_non_negative_int(seed, "BaseConfig.seed", is_none_allowed=True)
     validate_mapping(tags, "BaseConfig.tags", key_type=str, value_type=str, is_none_allowed=True)
     if mlflow is not None:
@@ -48,7 +54,7 @@ def validate_base_config(cfg: DictConfig) -> None:
 
 
 @dynamic_resolve
-def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42) -> None:
+def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42, device: str | None = None) -> None:
     """Resolve the BaseConfig by setting default values and logging mismatches.
 
     This function sets default seed and strict tag values if not present in the config.
@@ -59,7 +65,20 @@ def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42) -> Non
         cfg: A DictConfig with seed and tags fields (from Hydra).
         strict: Whether strict mode is enabled. Used to set tags.strict.
         seed: The random seed to use. Defaults to 42.
+        device: The device to use. Defaults to "auto".
     """
+    if device is None:
+        device = "auto"
+    if cfg.get("device") is None:
+        cfg.device = device
+    else:
+        device_tag: str = cfg.get("device")
+        if device_tag != device:
+            SIMPLEXITY_LOGGER.warning(
+                "Device tag set to '%s', but device is '%s'. Overriding device tag.", device_tag, device
+            )
+            cfg.device = device
+
     if cfg.get("seed") is None:
         cfg.seed = seed
     else:
