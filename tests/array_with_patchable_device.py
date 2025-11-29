@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import patch
 
 import jax
+import jax.nn
 import jax.numpy as jnp
 
 
@@ -92,7 +93,7 @@ def extract_array(a: Any) -> Any:
 
 
 @contextmanager
-def patch_jax_for_patchable_device(module_path: str, mock_devices: tuple[Any, ...] = ()):
+def patch_jax_for_patchable_device(module_path: str, mock_devices: tuple[Any, ...] = ()):  # pylint: disable=too-many-locals
     """Context manager that patches JAX functions to work with ArrayWithPatchableDevice.
 
     This function patches all JAX functions that need to handle ArrayWithPatchableDevice
@@ -108,7 +109,6 @@ def patch_jax_for_patchable_device(module_path: str, mock_devices: tuple[Any, ..
         A context manager that applies all necessary patches
     """
     # Get original functions before patching to avoid recursion
-    import jax.nn
 
     original_jnp_sum = jnp.sum
     original_jnp_all = jnp.all
