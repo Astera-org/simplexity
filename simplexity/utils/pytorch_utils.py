@@ -82,7 +82,7 @@ def resolve_device(device_spec: str | None = None) -> str:
         else:
             return "cpu"
 
-    if device_spec == "cuda":
+    if device_spec in ("cuda", "gpu"):
         if torch.cuda.is_available():
             return "cuda"
         raise DeviceResolutionError("CUDA requested but CUDA is not available")
