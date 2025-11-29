@@ -11,7 +11,7 @@ def resolve_jax_device(backend: str | None = None) -> jax.Device:  # type: ignor
     """Resolve device specification to actual JAX device.
 
     Args:
-        backend: Device specification string. Can be "auto", "cpu", "gpu", "cuda", "metal", "mps".
+        backend: Device specification string. Can be "auto", "cpu", "gpu", "cuda".
 
     Returns:
         JAX device.
