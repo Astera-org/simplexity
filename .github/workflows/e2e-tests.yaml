@@ -18,7 +18,7 @@ jobs:
           # Run only end-to-end tests
           # Note: End-to-end tests use tmp_path for MLflow files (automatically cleaned up)
           # and override MLflow URIs via Hydra compose overrides
-          uv run --extra cuda pytest \
+          uv run --extra cuda --extra dev pytest \
             tests/end_to_end/ \
             --capture=no \
             --verbose
