@@ -10,6 +10,7 @@ defaults:
 
 experiment_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
 run_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
+device: auto
 seed: 0
 tags:
   research_step: demo
