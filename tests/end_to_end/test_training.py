@@ -13,19 +13,17 @@ from pathlib import Path
 
 from hydra import compose, initialize_config_dir
 
-from tests.end_to_end.training import train
-
-_E2E_DIR = Path(__file__).parent
+from tests.end_to_end.training import CONFIG_DIR, CONFIG_NAME, train
 
 
 def test_training(tmp_path: Path) -> None:
     """Test training."""
-    with initialize_config_dir(str(_E2E_DIR / "configs"), version_base="1.2"):
+    with initialize_config_dir(CONFIG_DIR, version_base="1.2"):
         mlflow_dir = tmp_path / "mlruns"
         mlflow_uri = f"file:{mlflow_dir.absolute()}"
         overrides = [
             f"mlflow.tracking_uri={mlflow_uri}",
             f"mlflow.registry_uri={mlflow_uri}",
         ]
-        cfg = compose(config_name="config.yaml", overrides=overrides)
+        cfg = compose(config_name=CONFIG_NAME, overrides=overrides)
     train(cfg)

@@ -9,6 +9,9 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+from pathlib import Path
+
+import hydra
 import jax
 import jax.numpy as jnp
 import mlflow
@@ -22,6 +25,9 @@ from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from tests.end_to_end.configs.config import Config
+
+CONFIG_DIR = str(Path(__file__).parent / "configs")
+CONFIG_NAME = "config.yaml"
 
 
 @simplexity.managed_run(strict=False, verbose=True)
@@ -94,3 +100,8 @@ def train(cfg: Config, components: simplexity.Components) -> None:
     registered_model_name = cfg.predictive_model.name or "test_model"
     sample_inputs = generate(0)[0]
     persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs)
+
+
+if __name__ == "__main__":
+    main = hydra.main(config_path=CONFIG_DIR, config_name=CONFIG_NAME, version_base="1.2")(train)
+    main()
