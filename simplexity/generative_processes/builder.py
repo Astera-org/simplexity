@@ -30,7 +30,7 @@ def build_transition_matrices(
     matrix_functions: dict[str, Callable],
     process_name: str,
     process_params: Mapping[str, Any] | None = None,
-    device: str | None = "auto",
+    device: str | None = None,
 ) -> jax.Array:
     """Build transition matrices for a generative process."""
     if process_name not in matrix_functions:
@@ -67,7 +67,7 @@ def build_hidden_markov_model(
     process_name: str,
     process_params: Mapping[str, Any] | None = None,
     initial_state: jax.Array | Sequence[float] | None = None,
-    device: str | None = "auto",
+    device: str | None = None,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model."""
     process_params = process_params or {}
@@ -80,7 +80,7 @@ def build_generalized_hidden_markov_model(
     process_name: str,
     process_params: Mapping[str, Any] | None = None,
     initial_state: jax.Array | Sequence[float] | None = None,
-    device: str | None = "auto",
+    device: str | None = None,
 ) -> GeneralizedHiddenMarkovModel:
     """Build a generalized hidden Markov model."""
     process_params = process_params or {}
@@ -128,7 +128,7 @@ def build_nonergodic_hidden_markov_model(
     process_weights: Sequence[float],
     vocab_maps: Sequence[Sequence[int]] | None = None,
     add_bos_token: bool = False,
-    device: str | None = "auto",
+    device: str | None = None,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model from a list of process names and their corresponding keyword arguments."""
     component_transition_matrices = [

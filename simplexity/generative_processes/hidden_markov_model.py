@@ -31,7 +31,7 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         self,
         transition_matrices: jax.Array,
         initial_state: jax.Array | None = None,
-        device: str | None = "auto",
+        device: str | None = None,
     ):
         self.device = resolve_jax_device(device)
         self.validate_transition_matrices(transition_matrices)

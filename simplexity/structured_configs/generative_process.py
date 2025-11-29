@@ -40,14 +40,14 @@ class HiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
     process_name: str
     process_params: Mapping[str, Any] | None = None
     initial_state: jax.Array | Sequence[float] | None = None
-    device: str | None = "auto"
+    device: str | None = None
 
     def __init__(
         self,
         process_name: str,
         process_params: Mapping[str, Any] | None = None,
         initial_state: jax.Array | Sequence[float] | None = None,
-        device: str | None = "auto",
+        device: str | None = None,
         _target_: str = "simplexity.generative_processes.builder.build_hidden_markov_model",
     ) -> None:
         super().__init__(_target_=_target_)
@@ -97,14 +97,14 @@ class GeneralizedHiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
     process_name: str
     process_params: Mapping[str, Any] | None = None
     initial_state: jax.Array | Sequence[float] | None = None
-    device: str | None = "auto"
+    device: str | None = None
 
     def __init__(
         self,
         process_name: str,
         process_params: Mapping[str, Any] | None = None,
         initial_state: jax.Array | Sequence[float] | None = None,
-        device: str | None = "auto",
+        device: str | None = None,
         _target_: str = "simplexity.generative_processes.builder.build_generalized_hidden_markov_model",
     ) -> None:
         super().__init__(_target_=_target_)
@@ -164,7 +164,7 @@ class NonergodicHiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
     process_weights: Sequence[float]
     vocab_maps: Sequence[Sequence[int]] | None = None
     add_bos_token: bool = False
-    device: str | None = "auto"
+    device: str | None = None
 
     def __init__(
         self,
@@ -173,7 +173,7 @@ class NonergodicHiddenMarkovModelBuilderInstanceConfig(InstanceConfig):
         process_weights: Sequence[float],
         vocab_maps: Sequence[Sequence[int]] | None = None,
         add_bos_token: bool = False,
-        device: str | None = "auto",
+        device: str | None = None,
         _target_: str = "simplexity.generative_processes.builder.build_nonergodic_hidden_markov_model",
     ) -> None:
         super().__init__(_target_=_target_)
@@ -273,13 +273,13 @@ class GeneralizedHiddenMarkovModelInstanceConfig(InstanceConfig):
 
     transition_matrices: jax.Array
     initial_state: jax.Array | None = None
-    device: str | None = "auto"
+    device: str | None = None
 
     def __init__(
         self,
         transition_matrices: jax.Array,
         initial_state: jax.Array | None = None,
-        device: str | None = "auto",
+        device: str | None = None,
         _target_: str = "simplexity.generative_processes.generalized_hidden_markov_model.GeneralizedHiddenMarkovModel",
     ) -> None:
         super().__init__(_target_=_target_)
@@ -327,13 +327,13 @@ class HiddenMarkovModelInstanceConfig(InstanceConfig):
 
     transition_matrices: jax.Array
     initial_state: jax.Array | None = None
-    device: str | None = "auto"
+    device: str | None = None
 
     def __init__(
         self,
         transition_matrices: jax.Array,
         initial_state: jax.Array | None = None,
-        device: str | None = "auto",
+        device: str | None = None,
         _target_: str = "simplexity.generative_processes.hidden_markov_model.HiddenMarkovModel",
     ) -> None:
         super().__init__(_target_=_target_)
@@ -382,7 +382,7 @@ class GenerativeProcessConfig:
     bos_token: int | None = MISSING
     eos_token: int | None = MISSING
     vocab_size: int = MISSING
-    device: str | None = "auto"
+    device: str | None = None
 
 
 def is_generative_process_target(target: str) -> bool:

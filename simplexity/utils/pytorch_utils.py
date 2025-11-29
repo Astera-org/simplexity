@@ -72,7 +72,7 @@ def torch_to_jax(torch_tensor: torch.Tensor) -> jax.Array:
         return jax_array
 
 
-def resolve_device(device_spec: str | None = "auto") -> str:
+def resolve_device(device_spec: str | None = None) -> str:
     """Resolve device specification to actual PyTorch device string."""
     if device_spec is None or device_spec == "auto":
         if torch.cuda.is_available():
