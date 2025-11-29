@@ -1,0 +1,25 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  end-to-end-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run end-to-end tests
+        run: |
+          # Run only end-to-end tests
+          # Note: End-to-end tests use tmp_path for MLflow files (automatically cleaned up)
+          # and override MLflow URIs via Hydra compose overrides
+          uv run --extra cuda pytest \
+            tests/end_to_end/ \
+            --capture=no \
+            --verbose
+
