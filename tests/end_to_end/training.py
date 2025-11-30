@@ -1,4 +1,4 @@
-"""Managed run demo."""
+"""End-to-end training script for testing."""
 
 # pylint: disable-all
 # Temporarily disable all pylint checkers during AST traversal to prevent crash.
