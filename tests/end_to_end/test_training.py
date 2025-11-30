@@ -10,34 +10,36 @@
 # the problematic imports checker that would crash during AST traversal.
 
 from pathlib import Path
+from typing import cast
 
 import mlflow
 import numpy as np
 from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
+from tests.end_to_end.configs.configs import Config
 from tests.end_to_end.training import CONFIG_DIR, CONFIG_NAME, train
 
 
 def test_training(tmp_path: Path) -> None:
     """Test training."""
+    mlflow_db = tmp_path / "mlflow.db"
+    mlflow_uri = f"sqlite:///{mlflow_db.absolute()}"
+    overrides = [
+        f"mlflow.tracking_uri={mlflow_uri}",
+        f"mlflow.registry_uri={mlflow_uri}",
+    ]
     with initialize_config_dir(CONFIG_DIR, version_base="1.2"):
-        mlflow_db = tmp_path / "mlflow.db"
-        mlflow_uri = f"sqlite:///{mlflow_db.absolute()}"
-        overrides = [
-            f"mlflow.tracking_uri={mlflow_uri}",
-            f"mlflow.registry_uri={mlflow_uri}",
-        ]
         cfg = compose(config_name=CONFIG_NAME, overrides=overrides)
     train(cfg)
 
-    client = mlflow.MlflowClient(tracking_uri=mlflow_uri)
-    experiment = client.get_experiment_by_name(cfg.mlflow.experiment_name)
-    assert experiment is not None
-    runs = client.search_runs(experiment_ids=[experiment.experiment_id], max_results=1)
-    assert len(runs) == 1
-    run = runs[0]
-    run_id = run.info.run_id
+    cfg = cast(Config, cfg)
+
+    client = mlflow.MlflowClient(tracking_uri=mlflow_uri, registry_uri=mlflow_uri)
+    run_id = cfg.mlflow.run_id
+    assert run_id is not None
+    run = client.get_run(run_id)
+    assert run is not None
 
     # Tags
     tags = run.data.tags
@@ -72,7 +74,7 @@ def test_training(tmp_path: Path) -> None:
     assert np.all(eval_loss > 0)
 
     # Checkpoints
-    model_dir = cfg.persistence.instance.model_dir or "models"
+    model_dir = cfg.persistence.instance.model_dir or "models"  # type: ignore
     checkpoints = client.list_artifacts(run.info.run_id, model_dir)
     assert len(checkpoints) == cfg.training.num_steps // cfg.training.checkpoint_every + 1
 
