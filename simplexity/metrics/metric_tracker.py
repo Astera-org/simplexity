@@ -70,20 +70,20 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         self._context.step += 1
         num_tokens = tokens.numel() if isinstance(tokens, torch.Tensor) else tokens
         self._context.num_tokens = num_tokens
-        self._context.loss = float(loss) if isinstance(loss, torch.Tensor) else loss
+        self._context.loss = float(loss)
 
     def update_metrics(self, group: str = "all") -> None:
         """Update the metrics for the given group."""
         if group in self._missing_update_keys:
             SIMPLEXITY_LOGGER.warning("Update of metric group %s misses metrics that require updates every step", group)
-        
+
         if self._needs_learning_rates[group]:
             self._context.learning_rates = self._extract_learning_rates()
         if self._needs_gradients[group]:
             self._context.gradients = self._snapshot_gradients()
         if self._needs_named_parameters[group]:
             self._context.named_parameters = self._snapshot_named_parameters()
-            
+
         for metric_name in self._metric_groups[group]:
             metric = self._metrics[metric_name]
             metric.update(self._context)
@@ -96,7 +96,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         loss: float | torch.Tensor,
     ) -> None:
         """Update the metric tracker with the given context (Deprecated).
-        
+
         This method combines step() and update_metrics() for backward compatibility.
         """
         self.step(tokens=tokens, loss=loss)
