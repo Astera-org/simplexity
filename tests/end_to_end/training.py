@@ -24,7 +24,7 @@ from simplexity.generative_processes.hidden_markov_model import HiddenMarkovMode
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
-from tests.end_to_end.configs.config import Config
+from tests.end_to_end.configs.configs import Config
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
 CONFIG_NAME = "config.yaml"
