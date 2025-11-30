@@ -33,7 +33,7 @@ from simplexity.structured_configs.persistence import PersistenceConfig
 from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
-CONFIG_NAME = "training_config.yaml"
+CONFIG_NAME = "training_test.yaml"
 
 
 @dataclass
