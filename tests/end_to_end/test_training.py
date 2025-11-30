@@ -17,8 +17,7 @@ import numpy as np
 from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
-from tests.end_to_end.configs.configs import Config
-from tests.end_to_end.training import CONFIG_DIR, CONFIG_NAME, train
+from tests.end_to_end.training import CONFIG_DIR, CONFIG_NAME, TrainingRunConfig, train
 
 
 def test_training(tmp_path: Path) -> None:
@@ -33,7 +32,7 @@ def test_training(tmp_path: Path) -> None:
         cfg = compose(config_name=CONFIG_NAME, overrides=overrides)
     train(cfg)
 
-    cfg = cast(Config, cfg)
+    cfg = cast(TrainingRunConfig, cfg)
 
     client = mlflow.MlflowClient(tracking_uri=mlflow_uri, registry_uri=mlflow_uri)
     run_id = cfg.mlflow.run_id

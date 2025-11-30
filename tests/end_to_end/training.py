@@ -9,6 +9,7 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import hydra
@@ -24,14 +25,50 @@ from simplexity.generative_processes.hidden_markov_model import HiddenMarkovMode
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
-from tests.end_to_end.configs.configs import Config
+from simplexity.structured_configs.generative_process import GenerativeProcessConfig
+from simplexity.structured_configs.logging import LoggingConfig
+from simplexity.structured_configs.mlflow import MLFlowConfig
+from simplexity.structured_configs.optimizer import OptimizerConfig
+from simplexity.structured_configs.persistence import PersistenceConfig
+from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
-CONFIG_NAME = "config.yaml"
+CONFIG_NAME = "training_config.yaml"
+
+
+@dataclass
+class TrainingConfig:
+    """Configuration for training."""
+
+    num_steps: int
+    batch_size: int
+    sequence_len: int
+    log_every: int
+    checkpoint_every: int
+    evaluate_every: int
+
+
+@dataclass
+class TrainingRunConfig:
+    """Configuration for the managed run demo."""
+
+    mlflow: MLFlowConfig
+    logging: LoggingConfig
+    generative_process: GenerativeProcessConfig
+    persistence: PersistenceConfig
+    predictive_model: PredictiveModelConfig
+    optimizer: OptimizerConfig
+    training: TrainingConfig
+
+    device: str
+    experiment_name: str
+    run_name: str
+    seed: int
+    tags: dict[str, str]
 
 
 @simplexity.managed_run(strict=False, verbose=True)
-def train(cfg: Config, components: simplexity.Components) -> None:
+def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     """Test the managed run decorator."""
     active_run = mlflow.active_run()
     assert active_run is not None
