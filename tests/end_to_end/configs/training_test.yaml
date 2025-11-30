@@ -4,8 +4,9 @@ defaults:
   - logging: mlflow_logger
   - generative_process: mess3
   - persistence: mlflow_persister
-  - predictive_model: transformer
+  - predictive_model: tiny_transformer
   - optimizer: pytorch_adam
+  - training: minimal
 
 experiment_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
 run_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
