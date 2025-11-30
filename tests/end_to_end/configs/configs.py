@@ -35,7 +35,6 @@ class TrainingConfig:
 class Config:
     """Configuration for the managed run demo."""
 
-    device: str
     mlflow: MLFlowConfig
     logging: LoggingConfig
     generative_process: GenerativeProcessConfig
@@ -44,6 +43,7 @@ class Config:
     optimizer: OptimizerConfig
     training: TrainingConfig
 
+    device: str
     experiment_name: str
     run_name: str
     seed: int
