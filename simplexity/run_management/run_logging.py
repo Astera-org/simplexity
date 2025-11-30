@@ -10,7 +10,6 @@
 # the problematic imports checker that would crash during AST traversal.
 
 import inspect
-import logging
 import platform
 import sys
 import tempfile
@@ -18,6 +17,7 @@ from pathlib import Path
 
 from hydra.core.hydra_config import HydraConfig
 
+from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.logging.logger import Logger
 from simplexity.utils.git_utils import get_git_info
 
@@ -122,7 +122,7 @@ def log_hydra_artifacts(logger: Logger) -> None:
             try:
                 logger.log_artifact(str(path), artifact_path=".hydra")
             except Exception as e:
-                logging.warning("Failed to log Hydra artifact %s: %s", path, e)
+                SIMPLEXITY_LOGGER.warning("Failed to log Hydra artifact %s: %s", path, e)
 
 
 def log_source_script(logger: Logger) -> None:
@@ -131,4 +131,4 @@ def log_source_script(logger: Logger) -> None:
     if calling_file_path:
         logger.log_artifact(calling_file_path, artifact_path="source")
     else:
-        logging.warning("Failed to log source script")
+        SIMPLEXITY_LOGGER.warning("Failed to log source script")

@@ -228,7 +228,7 @@ class TestMLFlowLoggerArtifacts:
             mock_run.info.run_id = "run_456"
             mock_client.create_run.return_value = mock_run
 
-            logger = MLFlowLogger("test_experiment")
+            logger = MLFlowLogger(experiment_name="test_experiment")
             yield logger, mock_client
 
     def test_log_artifact_calls_client(self, mock_mlflow_logger):

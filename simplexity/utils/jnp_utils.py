@@ -4,6 +4,64 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from simplexity.exceptions import DeviceResolutionError
+
+
+def _get_gpus() -> list[jax.Device]:  # type: ignore[type-arg]
+    """Get all GPU devices."""
+    try:
+        return jax.devices("gpu")
+    except RuntimeError as e:
+        if "no platforms" in str(e).lower() or "gpu" in str(e).lower():
+            return []
+        raise
+
+
+def _get_cpus() -> list[jax.Device]:  # type: ignore[type-arg]
+    """Get all CPU devices."""
+    try:
+        return jax.devices("cpu")
+    except RuntimeError as e:
+        if "no platforms" in str(e).lower() or "cpu" in str(e).lower():
+            return []
+        raise
+
+
+def resolve_jax_device(backend: str | None = None) -> jax.Device:  # type: ignore[valid-type]
+    """Resolve device specification to actual JAX device.
+
+    Args:
+        backend: Device specification string. Can be "auto", "cpu", "gpu", "cuda".
+
+    Returns:
+        JAX device.
+
+    Raises:
+        DeviceResolutionError: If the requested device is not available.
+    """
+    if backend in ("gpu", "cuda"):
+        gpus = _get_gpus()
+        if not gpus:
+            raise DeviceResolutionError("GPU requested but not available")
+        return gpus[0]
+
+    if backend == "cpu":
+        cpus = _get_cpus()
+        if not cpus:
+            raise DeviceResolutionError("CPU requested but not available")
+        return cpus[0]
+
+    if backend is None or backend == "auto":
+        gpus = _get_gpus()
+        if gpus:
+            return gpus[0]
+        cpus = _get_cpus()
+        if cpus:
+            return cpus[0]
+        raise DeviceResolutionError("No devices available")
+
+    raise DeviceResolutionError(f"Unknown device specification: {backend}")
+
 
 @eqx.filter_jit
 def entropy(probs: jax.Array, log: bool = False) -> jax.Array:

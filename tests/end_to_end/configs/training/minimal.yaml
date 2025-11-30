@@ -1,0 +1,6 @@
+num_steps: 10
+batch_size: 1
+sequence_len: 2
+log_every: 1
+evaluate_every: 2
+checkpoint_every: 5
