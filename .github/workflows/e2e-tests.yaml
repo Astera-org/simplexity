@@ -1,3 +1,5 @@
+name: End-to-End Tests
+
 on:
   push:
     branches:
