@@ -73,7 +73,7 @@ def test_training(tmp_path: Path) -> None:
     assert np.all(eval_loss > 0)
 
     # Checkpoints
-    model_dir = cfg.persistence.instance.model_dir or "models"  # type: ignore
+    model_dir = cfg.persistence.instance.model_dir or "models"  # type: ignore[attr-defined]
     checkpoints = client.list_artifacts(run.info.run_id, model_dir)
     assert len(checkpoints) == cfg.training.num_steps // cfg.training.checkpoint_every + 1
 
