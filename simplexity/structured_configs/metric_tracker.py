@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
-from simplexity.structured_configs.validation import validate_nonempty_str
+from simplexity.structured_configs.validation import validate_mapping, validate_nonempty_str, validate_sequence
 
 
 @dataclass
@@ -42,7 +42,7 @@ class MetricTrackerConfig:
 
 def is_metric_tracker_target(target: str) -> bool:
     """Check if the target is a metric tracker target."""
-    return target.startswith("simplexity.metrics.")
+    return target == "simplexity.metrics.metric_tracker.MetricTracker"
 
 
 def is_metric_tracker_config(cfg: DictConfig) -> bool:
@@ -59,48 +59,21 @@ def validate_metric_tracker_instance_config(cfg: DictConfig) -> None:
     Args:
         cfg: A DictConfig with _target_, metric_names, and metric_kwargs fields (from Hydra).
     """
-    validate_instance_config(cfg)
+    validate_instance_config(cfg, expected_target="simplexity.metrics.metric_tracker.MetricTracker")
 
-    # Validate metric_names if provided
     metric_names = cfg.get("metric_names")
     if metric_names is not None:
         if isinstance(metric_names, DictConfig):
-            # Validate dict format: {group_name: [metric1, metric2, ...]}
-            for key, value in metric_names.items():
-                if not isinstance(key, str):
-                    raise ConfigValidationError(
-                        f"MetricTrackerInstanceConfig.metric_names keys must be strings, got {type(key)}"
-                    )
-                if not isinstance(value, (list, DictConfig)):
-                    raise ConfigValidationError(
-                        f"MetricTrackerInstanceConfig.metric_names['{key}'] must be a list, got {type(value)}"
-                    )
-                if isinstance(value, list):
-                    for item in value:
-                        if not isinstance(item, str):
-                            raise ConfigValidationError(
-                                f"MetricTrackerInstanceConfig.metric_names['{key}'] items must be strings, "
-                                f"got {type(item)}"
-                            )
-        elif isinstance(metric_names, (list, DictConfig)):
-            # Validate list format: [metric1, metric2, ...]
-            if isinstance(metric_names, list):
-                for item in metric_names:
-                    if not isinstance(item, str):
-                        raise ConfigValidationError(
-                            f"MetricTrackerInstanceConfig.metric_names items must be strings, got {type(item)}"
-                        )
+            validate_mapping(metric_names, "MetricTrackerInstanceConfig.metric_names", key_type=str)
+            for value in metric_names.values():
+                validate_sequence(value, "MetricTrackerInstanceConfig.metric_names", element_type=str)
+        elif isinstance(metric_names, list):
+            validate_sequence(metric_names, "MetricTrackerInstanceConfig.metric_names", element_type=str)
         else:
-            raise ConfigValidationError(
-                f"MetricTrackerInstanceConfig.metric_names must be a dict or list, got {type(metric_names)}"
-            )
+            raise ConfigValidationError("MetricTrackerInstanceConfig.metric_names must be a dict or list")
 
-    # Validate metric_kwargs if provided
     metric_kwargs = cfg.get("metric_kwargs")
-    if metric_kwargs is not None and not isinstance(metric_kwargs, DictConfig):
-        raise ConfigValidationError(
-            f"MetricTrackerInstanceConfig.metric_kwargs must be a dict, got {type(metric_kwargs)}"
-        )
+    validate_mapping(metric_kwargs, "MetricTrackerInstanceConfig.metric_kwargs", key_type=str, is_none_allowed=True)
 
 
 def validate_metric_tracker_config(cfg: DictConfig) -> None:
@@ -112,14 +85,6 @@ def validate_metric_tracker_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("MetricTrackerConfig.instance is required")
-
-    target = instance.get("_target_", None)
-    if not is_metric_tracker_target(target):
-        raise ConfigValidationError(
-            f"MetricTrackerConfig.instance._target_ must be a metric tracker target, got {target}"
-        )
-
-    # Validate the instance config
     validate_metric_tracker_instance_config(instance)
 
     validate_nonempty_str(cfg.get("name"), "MetricTrackerConfig.name", is_none_allowed=True)
