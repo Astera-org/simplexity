@@ -41,13 +41,13 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         optimizer: torch.optim.Optimizer | None = None,
         metric_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        self._metric_groups = self._initialize_metric_groups(metric_names)
+        self._metric_groups = self._get_metric_groups(metric_names)
         self.model = model
         self.optimizer = optimizer
         self._context = Context()
-        self._group_requirements = self._compute_group_requirements()
+        self._group_requirements = self._get_group_requirements()
         metric_kwargs = {} if metric_kwargs is None else metric_kwargs
-        self._metrics = self._initialize_metrics(metric_kwargs)
+        self._metrics = self._get_metrics(metric_kwargs)
         self._cache: dict[str, Mapping[str, float]] = {}
 
     def step(self, *, tokens: int | torch.Tensor, loss: float | torch.Tensor) -> None:
@@ -60,7 +60,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         self._cache.clear()
 
         requirements = self._group_requirements[self.step_group].step
-        self._context = self._update_context(requirements)
+        self._update_context(requirements)
         for metric_name in self._metric_groups[self.step_group]:
             metric = self._metrics[metric_name]
             metric.step(self._context)
@@ -69,7 +69,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         """Get the metrics for the given group."""
         collected = {}
         requirements = self._group_requirements[group].compute
-        self._context = self._update_context(requirements)
+        self._update_context(requirements)
         for metric_name in self._metric_groups[group]:
             if metric_name not in self._cache:
                 metric = self._metrics[metric_name]
@@ -77,9 +77,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             collected.update(self._cache[metric_name])
         return collected
 
-    def _initialize_metric_groups(
-        self, metrics: Mapping[str, Sequence[str]] | Sequence[str] | None
-    ) -> dict[str, list[str]]:
+    def _get_metric_groups(self, metrics: Mapping[str, Sequence[str]] | Sequence[str] | None) -> dict[str, list[str]]:
         metric_groups: dict[str, list[str]] = {}
         if isinstance(metrics, dict):
             metric_groups = {group: list(metrics_list) for group, metrics_list in metrics.items()}
@@ -101,8 +99,8 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         ]
         return metric_groups
 
-    def _compute_group_requirements(self) -> dict[str, Requirements]:
-        """Compute combined Requirements for each metric group."""
+    def _get_group_requirements(self) -> dict[str, Requirements]:
+        """Initialize combined Requirements for each metric group."""
         group_requirements: dict[str, Requirements] = {}
 
         for group, metrics_list in self._metric_groups.items():
@@ -111,15 +109,15 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
         return group_requirements
 
-    def _initialize_metrics(self, metric_kwargs: dict[str, Any]) -> dict[str, Metric]:
+    def _get_metrics(self, metric_kwargs: dict[str, Any]) -> dict[str, Metric]:
         requirements = self._group_requirements[self.all_group].init
-        self._context = self._update_context(requirements)
+        self._update_context(requirements)
         return {
             metric_name: ALL_METRICS[metric_name](self._context, **metric_kwargs)
             for metric_name in self._metric_groups[self.all_group]
         }
 
-    def _update_context(self, requirements: Requirements) -> Context:
+    def _update_context(self, requirements: Requirements) -> None:
         """Update context with required fields for the given group."""
         if self._context.learning_rates is None and getattr(requirements, "learning_rates", False):
             self._context.learning_rates = self._extract_learning_rates()
@@ -127,7 +125,6 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             self._context.gradients = self._snapshot_gradients()
         if self._context.named_parameters is None and getattr(requirements, "named_parameters", False):
             self._context.named_parameters = self._snapshot_named_parameters()
-        return self._context
 
     def _extract_learning_rates(self) -> Mapping[str, float]:
         assert self.optimizer is not None, "Optimizer is required for metrics that require learning rates"
