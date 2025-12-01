@@ -24,9 +24,11 @@ import simplexity
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.mlflow_logger import MLFlowLogger
+from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.structured_configs.generative_process import GenerativeProcessConfig
 from simplexity.structured_configs.logging import LoggingConfig
+from simplexity.structured_configs.metric_tracker import MetricTrackerConfig
 from simplexity.structured_configs.mlflow import MLFlowConfig
 from simplexity.structured_configs.optimizer import OptimizerConfig
 from simplexity.structured_configs.persistence import PersistenceConfig
@@ -43,7 +45,8 @@ class TrainingConfig:
     num_steps: int
     batch_size: int
     sequence_len: int
-    log_every: int
+    log_cheap_every: int
+    log_expensive_every: int
     checkpoint_every: int
     evaluate_every: int
 
@@ -58,6 +61,7 @@ class TrainingRunConfig:
     persistence: PersistenceConfig
     predictive_model: PredictiveModelConfig
     optimizer: OptimizerConfig
+    metric_tracker: MetricTrackerConfig
     training: TrainingConfig
 
     device: str
@@ -82,6 +86,8 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     assert isinstance(predictive_model, HookedTransformer)
     optimizer = components.get_optimizer()
     assert isinstance(optimizer, Adam)
+    metric_tracker = components.get_metric_tracker()
+    assert isinstance(metric_tracker, MetricTracker)
 
     gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
 
@@ -105,10 +111,12 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        metric_tracker.step(tokens=inputs.numel(), loss=loss.item())
         return loss.item()
 
-    def log_step(step: int, loss: float) -> None:
-        logger.log_metrics(step, {"train/loss": loss})
+    def log_step(step: int, group: str) -> None:
+        metrics = metric_tracker.get_metrics(group)
+        logger.log_metrics(step, metrics)
 
     eval_inputs, eval_labels = generate(cfg.training.num_steps)
 
@@ -126,9 +134,14 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         persister.save_weights(predictive_model, step)
 
     for step in range(cfg.training.num_steps + 1):
-        loss = evaluate() if step == 0 else train_step(step)
-        if step % cfg.training.log_every == 0:
-            log_step(step, loss)
+        if step == 0:
+            metric_tracker.context.loss = evaluate()
+        else:
+            train_step(step)
+        if step % cfg.training.log_cheap_every == 0:
+            log_step(step, "cheap")
+        if step % cfg.training.log_expensive_every == 0:
+            log_step(step, "expensive")
         if step % cfg.training.evaluate_every == 0:
             eval_step(step)
         if step % cfg.training.checkpoint_every == 0:
