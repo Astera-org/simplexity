@@ -355,10 +355,10 @@ class FisherInformationMetric(Metric):
 class LossProgressMetric(Metric):
     """Tracks the progress towards the optimal loss."""
 
-    requirements = Requirements(compute=RequiredFields(loss=True))
+    requirements = Requirements(init=RequiredFields(loss=True), compute=RequiredFields(loss=True))
 
-    def __init__(self, _context: Context, **kwargs: Any) -> None:
-        self.initial_loss = kwargs.get("initial_loss", float("inf"))
+    def __init__(self, context: Context, **kwargs: Any) -> None:
+        self.initial_loss = context.loss
         self.optimal_loss = kwargs.get("optimal_loss", 0)
 
     def step(self, _context: Context) -> None:
