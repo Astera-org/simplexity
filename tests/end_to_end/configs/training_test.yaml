@@ -6,7 +6,7 @@ defaults:
   - persistence: mlflow_persister
   - predictive_model: tiny_transformer
   - optimizer: pytorch_adam
-  - metric_tracker: basic
+  - metric_tracker: simple
   - training: minimal
 
 experiment_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
