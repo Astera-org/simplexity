@@ -24,7 +24,7 @@ from simplexity.metrics.metrics import (
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 _ALL_GROUP = "all"
-_STEP_GROUP = "update_every_step"
+_STEP_GROUP = "step"
 
 
 class MetricTracker:  # pylint: disable=too-many-instance-attributes
