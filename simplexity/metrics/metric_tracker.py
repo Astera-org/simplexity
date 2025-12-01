@@ -119,7 +119,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
     def _update_context(self, requirements: Requirements) -> None:
         """Update context with required fields for the given group."""
-        if self.context.learning_rates is None and getattr(requirements, "learning_rates", False):
+        if not self.context.learning_rates and getattr(requirements, "learning_rates", False):
             self.context.learning_rates = self._extract_learning_rates()
         if self.context.gradients is None and getattr(requirements, "gradients", False):
             self.context.gradients = self._snapshot_gradients()
