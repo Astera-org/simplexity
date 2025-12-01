@@ -1,7 +1,0 @@
-# @package _global_
-
-defaults:
-  - _self_
-  - metric_tracker: basic
-
-seed: 42
