@@ -79,7 +79,7 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
     def _get_metric_groups(self, metrics: Mapping[str, Sequence[str]] | Sequence[str] | None) -> dict[str, list[str]]:
         metric_groups: dict[str, list[str]] = {}
-        if isinstance(metrics, dict):
+        if isinstance(metrics, Mapping):
             metric_groups = {group: list(metrics_list) for group, metrics_list in metrics.items()}
             all_metric_names = list(
                 set([metric_name for metrics_list in metric_groups.values() for metric_name in metrics_list])
