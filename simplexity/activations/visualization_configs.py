@@ -17,13 +17,18 @@ from simplexity.visualization.structured_configs import (
     PlotSizeConfig,
 )
 
-FieldSource = Literal["projections", "scalars", "belief_states", "weights", "metadata"]
+FieldSource = Literal["projections", "scalars", "belief_states", "weights", "metadata", "scalar_history"]
 ReducerType = Literal["argmax", "l2_norm"]
 
 
 @dataclass
 class ScalarSeriesMapping:
-    """Describe how to unfold scalar metrics into a tidy dataframe."""
+    """Describe how to unfold indexed scalar metrics into long-format (tidy) dataframe.
+
+    This is used for plotting scalar values over an index dimension (e.g., cumulative
+    variance vs. component count). For adding scalar values as columns to existing data,
+    use wildcard mappings instead: `mappings: {rmse: {source: scalars, key: "layer_0_rmse"}}`.
+    """
 
     key_template: str
     index_field: str
@@ -45,7 +50,7 @@ class ActivationVisualizationFieldRef:
 
     source: FieldSource
     key: str | None = None
-    component: int | None = None
+    component: int | str | None = None
     reducer: ReducerType | None = None
 
     def __post_init__(self) -> None:
@@ -53,8 +58,34 @@ class ActivationVisualizationFieldRef:
             raise ConfigValidationError("Projection field references must specify the `key` to read from.")
         if self.source == "scalars" and not self.key:
             raise ConfigValidationError("Scalar field references must specify the `key` to read from.")
+        if self.source == "scalar_history" and not self.key:
+            raise ConfigValidationError("Scalar history field references must specify the `key` to read from.")
         if self.source == "metadata" and not self.key:
             raise ConfigValidationError("Metadata field references must specify the `key` to read from.")
+
+        if isinstance(self.component, str):
+            if self.component != "*" and not self._is_valid_range(self.component):
+                raise ConfigValidationError(
+                    f"Component pattern '{self.component}' invalid. Use '*' or 'N...M'"
+                )
+            if self.source not in ("projections", "belief_states"):
+                raise ConfigValidationError(
+                    f"Component patterns only supported for projections/belief_states, not '{self.source}'"
+                )
+
+    @staticmethod
+    def _is_valid_range(component: str) -> bool:
+        """Check if string matches 'N...M' range pattern."""
+        if "..." not in component:
+            return False
+        parts = component.split("...")
+        if len(parts) != 2:
+            return False
+        try:
+            start, end = int(parts[0]), int(parts[1])
+            return start < end
+        except ValueError:
+            return False
 
 
 @dataclass
@@ -80,14 +111,19 @@ class ActivationVisualizationPreprocessStep:
     output_fields: list[str]
 
     def __post_init__(self) -> None:
+        # Check if any input fields contain patterns (wildcards or ranges)
+        has_pattern = any("*" in field or "..." in field for field in self.input_fields)
+
         if self.type == "project_to_simplex":
-            if len(self.input_fields) != 3:
+            # Skip input validation if patterns present (will be validated at runtime)
+            if not has_pattern and len(self.input_fields) != 3:
                 raise ConfigValidationError("project_to_simplex requires exactly three input_fields.")
             if len(self.output_fields) != 2:
                 raise ConfigValidationError("project_to_simplex requires exactly two output_fields.")
         elif self.type == "combine_rgb":
-            if len(self.input_fields) != 3:
-                raise ConfigValidationError("combine_rgb requires exactly three input_fields.")
+            # Skip input validation if patterns present (will be validated at runtime)
+            if not has_pattern and len(self.input_fields) < 3:
+                raise ConfigValidationError("combine_rgb requires at least three input_fields.")
             if len(self.output_fields) != 1:
                 raise ConfigValidationError("combine_rgb requires exactly one output_field.")
 
@@ -159,6 +195,9 @@ class ActivationVisualizationConfig:
 
 def build_activation_visualization_config(raw_cfg: Mapping[str, Any]) -> ActivationVisualizationConfig:
     """Recursively convert dictionaries/OmegaConf nodes to visualization dataclasses."""
+
+    if isinstance(raw_cfg, ActivationVisualizationConfig):
+        return raw_cfg
 
     config_dict = dict(OmegaConf.to_container(raw_cfg, resolve=False) or {})
     data_mapping_cfg = config_dict.get("data_mapping")

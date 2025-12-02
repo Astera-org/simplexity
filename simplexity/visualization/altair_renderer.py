@@ -319,8 +319,43 @@ def _apply_accumulation_detail(layer_charts, layers, plot_cfg, plot_df: pd.DataF
         if aesthetics and aesthetics.detail is not None:
             updated.append(chart)
             continue
+        if _layer_references_field(layer_cfg, "step"):
+            updated.append(chart)
+            continue
         updated.append(chart.encode(detail=alt.Detail(field="step", type="ordinal")))
     return updated
+
+
+def _layer_references_field(layer_cfg: LayerConfig, field: str) -> bool:
+    aesthetics = layer_cfg.aesthetics
+    if not aesthetics:
+        return False
+
+    channel_names = [
+        "x",
+        "y",
+        "x2",
+        "y2",
+        "color",
+        "stroke",
+        "strokeDash",
+        "size",
+        "shape",
+        "tooltip",
+    ]
+    for name in channel_names:
+        channel = getattr(aesthetics, name, None)
+        if channel is None:
+            continue
+        # tooltip can be list-like
+        if isinstance(channel, list):
+            for entry in channel:
+                if getattr(entry, "field", None) == field:
+                    return True
+            continue
+        if getattr(channel, "field", None) == field:
+            return True
+    return False
 
 
 def _build_title_params(guides: PlotLevelGuideConfig):

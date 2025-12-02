@@ -188,6 +188,7 @@ class PlotLevelGuideConfig:
     subtitle: str | None = None
     caption: str | None = None
     labels: list[LabelConfig] | None = None
+    title_scalars: dict[str, str] | None = None
 
 
 @dataclass

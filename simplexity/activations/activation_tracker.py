@@ -8,6 +8,7 @@ from typing import Any, NamedTuple
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pandas as pd
 import torch
 from jax.typing import DTypeLike
 from omegaconf import DictConfig
@@ -119,6 +120,7 @@ class ActivationTracker:
         self._analyses = analyses
         self._default_backend = default_backend
         self._visualization_specs: dict[str, list[Any]] = {}
+        self._scalar_history: dict[str, list[tuple[int, float]]] = {}
         if visualizations:
             for name, cfgs in visualizations.items():
                 self._visualization_specs[name] = [build_activation_visualization_config(cfg) for cfg in cfgs]
@@ -129,6 +131,8 @@ class ActivationTracker:
         beliefs: jax.Array | torch.Tensor | np.ndarray,
         probs: jax.Array | torch.Tensor | np.ndarray,
         activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
+        *,
+        step: int | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array], Mapping[str, ActivationVisualizationPayload]]:
         """Run all analyses and return namespaced results."""
         preprocessing_cache: dict[PrepareOptions, PreparedActivations] = {}
@@ -177,8 +181,16 @@ class ActivationTracker:
                 weights=prepared_weights,
                 belief_states=prepared_beliefs,
             )
-            all_scalars.update({f"{analysis_name}/{key}": value for key, value in scalars.items()})
+
+            namespaced_scalars = {f"{analysis_name}/{key}": value for key, value in scalars.items()}
+            all_scalars.update(namespaced_scalars)
             all_projections.update({f"{analysis_name}/{key}": value for key, value in projections.items()})
+
+            if step is not None:
+                for scalar_key, scalar_value in namespaced_scalars.items():
+                    if scalar_key not in self._scalar_history:
+                        self._scalar_history[scalar_key] = []
+                    self._scalar_history[scalar_key].append((step, float(scalar_value)))
 
             viz_configs = self._visualization_specs.get(analysis_name)
             if viz_configs:
@@ -194,6 +206,7 @@ class ActivationTracker:
                     belief_states=np_beliefs,
                     projections=np_projections,
                     scalars={key: float(value) for key, value in scalars.items()},
+                    scalar_history_step=step,
                     analysis_concat_layers=analysis.concat_layers,
                     layer_names=list(prepared.activations.keys()),
                 )
@@ -212,3 +225,19 @@ class ActivationTracker:
         """Persist visualization payloads to disk with history accumulation."""
 
         return save_visualization_payloads(visualizations, root, step)
+
+    def get_scalar_history_df(self) -> pd.DataFrame:
+        """Export scalar history as a tidy pandas DataFrame.
+
+        Returns:
+            DataFrame with columns: metric, step, value
+        """
+        if not self._scalar_history:
+            return pd.DataFrame(columns=["metric", "step", "value"])
+
+        rows = []
+        for metric_name, history in self._scalar_history.items():
+            for step, value in history:
+                rows.append({"metric": metric_name, "step": step, "value": value})
+
+        return pd.DataFrame(rows)
