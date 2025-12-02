@@ -134,14 +134,14 @@ def named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mappin
         ref_tensor = reference.get(name)
         if ref_tensor is None or tensor.numel() == 0:
             continue
-        
+
         # Ensure tensors are on the same device and dtype before subtraction
         # We move reference to current device as current is likely the active model state
         ref_tensor = ref_tensor.to(device=tensor.device, dtype=tensor.dtype)
-        
+
         diffs.append((tensor - ref_tensor).view(-1))
-    
+
     if not diffs:
         return 0.0
-        
+
     return float(torch.linalg.vector_norm(torch.cat(diffs), ord=2))
