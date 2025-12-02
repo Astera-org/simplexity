@@ -133,8 +133,8 @@ class TokensMetric(Metric):
     def compute(self, context: Context) -> Mapping[str, float]:
         """Compute the token count metric."""
         return {
-            "tokens/raw": context.num_tokens,
-            "tokens/raw/cumulative": self.cumulative,
+            "tokens/per_step/raw": context.num_tokens,
+            "tokens/cumulative/raw": self.cumulative,
         }
 
 
@@ -153,10 +153,10 @@ class LearningRateMetric(Metric):
         """Compute the learning rate metric."""
         values: MutableMapping[str, float] = {}
         if len(context.learning_rates) == 1:
-            values["lr"] = list(context.learning_rates.values())[0]
+            values["learning_rate"] = list(context.learning_rates.values())[0]
         else:
             for group_name, lr in context.learning_rates.items():
-                values[f"lr/{group_name}"] = lr
+                values[f"learning_rate/{group_name}"] = lr
         return values
 
 
@@ -178,8 +178,8 @@ class LearningRateWeightedTokensMetric(Metric):
     def compute(self, _context: Context) -> Mapping[str, float]:
         """Compute the learning rate weighted tokens metric."""
         return {
-            "tokens/lr_weighted": self.weighted_tokens,
-            "tokens/lr_weighted/cumulative": self.cumulative,
+            "tokens/per_step/lr_weighted": self.weighted_tokens,
+            "tokens/cumulative/lr_weighted": self.cumulative,
         }
 
 
@@ -204,13 +204,13 @@ class GradientWeightedTokensMetric(Metric):
     def compute(self, _context: Context) -> Mapping[str, float]:
         """Compute the gradient weighted tokens metric."""
         return {
-            "tokens/gradient_weighted": self.weighted_tokens,
-            "tokens/gradient_weighted/cumulative": self.cumulative,
+            "tokens/per_step/gradient_weighted": self.weighted_tokens,
+            "tokens/cumulative/gradient_weighted": self.cumulative,
         }
 
 
-class CurrentLossMetric(Metric):
-    """Logs the instantaneous training loss."""
+class LossMetric(Metric):
+    """Tracks the training loss."""
 
     requirements = Requirements(step=RequiredFields(loss=True, step=True), compute=RequiredFields(loss=True))
 
@@ -232,7 +232,7 @@ class CurrentLossMetric(Metric):
     def compute(self, context: Context) -> Mapping[str, float]:
         """Compute the current loss metric."""
         return {
-            "loss": context.loss,
+            "loss/step": context.loss,
             "loss/min": self.min_loss,
             "loss/ma": sum(self.ma_losses) / self.ma_window_size,
             "loss/ema": self.ema_loss,
@@ -298,7 +298,7 @@ class DistanceFromInitializationMetric(Metric):
         self.max_distance = max(self.max_distance, distance)
         return {
             "params/distance_from_init": distance,
-            "params/distance_from_init/max": self.max_distance,
+            "params/max_distance_from_init": self.max_distance,
         }
 
 
@@ -323,8 +323,8 @@ class CumulativeParameterUpdateMetric(Metric):
     def compute(self, _context: Context) -> Mapping[str, float]:
         """Compute the update norm metric."""
         return {
-            "params/update_l2_norm": self.step_norm,
-            "params/update_l2_norm/cumulative": self.cumulative,
+            "params/per_step/update_norm": self.step_norm,
+            "params/cumulative/update_norm": self.cumulative,
         }
 
 
@@ -347,8 +347,8 @@ class FisherInformationMetric(Metric):
     def compute(self, _context: Context) -> Mapping[str, float]:
         """Compute the Fisher information metric."""
         return {
-            "params/fisher_information": self.fisher_information,
-            "params/fisher_information/cumulative": self.cumulative,
+            "params/per_step/fisher_information": self.fisher_information,
+            "params/cumulative/fisher_information": self.cumulative,
         }
 
 
@@ -377,7 +377,7 @@ ALL_METRICS: dict[str, type[Metric]] = {
     "lr": LearningRateMetric,
     "learning_rate_weighted_tokens": LearningRateWeightedTokensMetric,
     "gradient_weighted_tokens": GradientWeightedTokensMetric,
-    "loss": CurrentLossMetric,
+    "loss": LossMetric,
     "parameter_norm": ParameterNormMetric,
     "weight_norm": WeightNormMetric,
     "distance_from_initialization": DistanceFromInitializationMetric,
