@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field, fields, make_dataclass
 from typing import Any
@@ -151,6 +152,10 @@ class TokensMetric(Metric):
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
         self.cumulative = 0.0
+        current_time = time.time()
+        self._start_time = current_time
+        self._last_time = current_time
+        self._last_cumulative = self.cumulative
 
     def step(self, context: Context) -> None:
         """Step the token count metric."""
@@ -158,9 +163,16 @@ class TokensMetric(Metric):
 
     def compute(self, context: Context) -> Mapping[str, float]:
         """Compute the token count metric."""
+        current_time = time.time()
+        tokens_per_second = (self.cumulative - self._last_cumulative) / (current_time - self._last_time)
+        cumulative_tokens_per_second = self.cumulative / (current_time - self._start_time)
+        self._last_time = current_time
+        self._last_cumulative = self.cumulative
         return {
             "step/tokens": context.num_tokens,
             "cum/tokens": self.cumulative,
+            "step/tokens_per_second": tokens_per_second,
+            "cum/tokens_per_second": cumulative_tokens_per_second,
         }
 
 
