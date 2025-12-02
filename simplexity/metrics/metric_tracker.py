@@ -52,10 +52,9 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
     def step(self, *, tokens: int | torch.Tensor = 0, loss: float | torch.Tensor = float("inf")) -> None:
         """Advance the global step and update running counters."""
-        self.context = Context(
-            num_tokens=tokens.numel() if isinstance(tokens, torch.Tensor) else tokens,
-            loss=float(loss),
-        )
+        num_tokens = tokens.numel() if isinstance(tokens, torch.Tensor) else tokens
+        loss = float(loss.detach().item()) if isinstance(loss, torch.Tensor) else loss
+        self.context = Context(num_tokens=num_tokens, loss=loss)
         self._cache.clear()
 
         requirements = self._group_requirements[self.step_group].step

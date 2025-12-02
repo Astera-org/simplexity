@@ -130,7 +130,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         predictive_model.eval()
         outputs = predictive_model(eval_inputs)
         loss = get_loss(outputs, eval_labels)
-        return loss.item()
+        return float(loss.detach().item())
 
     def add_key_prefix(d: dict[str, Any], prefix: str) -> dict[str, Any]:
         return {f"{prefix}/{k}": v for k, v in d.items()}
@@ -167,5 +167,5 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
 
 
 if __name__ == "__main__":
-    main = hydra.main(config_path=CONFIG_DIR, config_name=CONFIG_NAME, version_base="1.2")(train)
+    main = hydra.main(config_path=CONFIG_DIR, config_name="training.yaml", version_base="1.2")(train)
     main()
