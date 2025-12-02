@@ -65,12 +65,15 @@ def test_training(tmp_path: Path) -> None:
         metric_history = client.get_metric_history(run.info.run_id, metric_name)
         return np.array([metric.value for metric in metric_history])
 
-    train_loss = get_metric_values("loss")
-    eval_loss = get_metric_values("eval/loss")
+    train_loss = get_metric_values("loss/step")
+    eval_loss = get_metric_values("eval/loss/step")
+    param_norm = get_metric_values("model/params_norm")
     assert train_loss.shape == (cfg.training.num_steps // cfg.training.log_cheap_every + 1,)
     assert eval_loss.shape == (cfg.training.num_steps // cfg.training.evaluate_every + 1,)
+    assert param_norm.shape == (cfg.training.num_steps // cfg.training.log_expensive_every + 1,)
     assert np.all(train_loss > 0)
     assert np.all(eval_loss > 0)
+    assert np.all(param_norm > 0)
 
     # Checkpoints
     model_dir = cfg.persistence.instance.model_dir or "models"  # type: ignore[attr-defined]
