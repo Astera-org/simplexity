@@ -136,8 +136,8 @@ class TokensMetric(Metric):
     def compute(self, context: Context) -> Mapping[str, float]:
         """Compute the token count metric."""
         return {
-            "tokens/per_step/raw": context.num_tokens,
-            "tokens/cumulative/raw": self.cumulative,
+            "step/tokens": context.num_tokens,
+            "cum/tokens": self.cumulative,
         }
 
 
@@ -158,7 +158,7 @@ class LearningRateMetric(Metric):
         """Compute the learning rate metric."""
         values: MutableMapping[str, float] = {}
         if len(context.learning_rates) == 1:
-            values["learning_rate"] = list(context.learning_rates.values())[0]
+            values["step/learning_rate"] = list(context.learning_rates.values())[0]
         else:
             for group_name, lr in context.learning_rates.items():
                 values[f"learning_rate/{group_name}"] = lr
@@ -185,8 +185,8 @@ class LearningRateWeightedTokensMetric(Metric):
     def compute(self, _context: Context) -> Mapping[str, float]:
         """Compute the learning rate weighted tokens metric."""
         return {
-            "tokens/per_step/lr_weighted": self.weighted_tokens,
-            "tokens/cumulative/lr_weighted": self.cumulative,
+            "step/lr_weighted_tokens": self.weighted_tokens,
+            "cum/lr_weighted_tokens": self.cumulative,
         }
 
 
@@ -198,8 +198,10 @@ class GradientWeightedTokensMetric(Metric):
     )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
-        self.weighted_tokens = 0.0
-        self.cumulative = 0.0
+        self.gradient_signal = 0.0
+        self.cumulative_gradient_signal = 0.0
+        self.fisher_proxy = 0.0
+        self.cumulative_fisher_proxy = 0.0
 
     def step(self, context: Context) -> None:
         """Step the gradient weighted tokens metric."""
@@ -207,14 +209,18 @@ class GradientWeightedTokensMetric(Metric):
         assert context.learning_rates is not None, "Learning rates are required for this metric"
         lr = list(context.learning_rates.values())[0]
         gradient_norm = tensor_stack_l2_norm(context.gradients.values())
-        self.weighted_tokens = lr * gradient_norm * float(context.num_tokens)
-        self.cumulative += self.weighted_tokens
+        self.gradient_signal = lr * gradient_norm * float(context.num_tokens)
+        self.cumulative_gradient_signal += self.gradient_signal
+        self.fisher_proxy = gradient_norm**2 * float(context.num_tokens)
+        self.cumulative_fisher_proxy += self.fisher_proxy
 
     def compute(self, _context: Context) -> Mapping[str, float]:
         """Compute the gradient weighted tokens metric."""
         return {
-            "tokens/per_step/gradient_weighted": self.weighted_tokens,
-            "tokens/cumulative/gradient_weighted": self.cumulative,
+            "step/gradient_signal": self.gradient_signal,
+            "cum/gradient_signal": self.cumulative_gradient_signal,
+            "step/fisher_proxy": self.fisher_proxy,
+            "cum/fisher_proxy": self.cumulative_fisher_proxy,
         }
 
 
@@ -278,12 +284,12 @@ class ParameterNormMetric(Metric):
         weights = [tensor for name, tensor in context.named_parameters.items() if name.endswith("weight")]
         weight_norm = tensor_stack_l2_norm(weights)
         return {
-            "params/l2_norm": norm,
-            "params/weights_l2_norm": weight_norm,
+            "model/params_l2_norm": norm,
+            "model/weights_l2_norm": weight_norm,
         }
 
 
-class DistanceFromInitializationMetric(Metric):
+class ParameterDistanceMetric(Metric):
     """Reports the parameter space distance from the initial model state."""
 
     requirements = Requirements(
@@ -305,12 +311,12 @@ class DistanceFromInitializationMetric(Metric):
         distance = named_tensor_distance(context.named_parameters, self.initial_named_parameters)
         self.max_distance = max(self.max_distance, distance)
         return {
-            "params/distance_from_init": distance,
-            "params/max_distance_from_init": self.max_distance,
+            "model/distance_from_init": distance,
+            "model/max_distance_from_init": self.max_distance,
         }
 
 
-class CumulativeParameterUpdateMetric(Metric):
+class ParameterUpdateMetric(Metric):
     """Tracks the cumulative parameter update."""
 
     requirements = Requirements(
@@ -334,34 +340,8 @@ class CumulativeParameterUpdateMetric(Metric):
     def compute(self, _context: Context) -> Mapping[str, float]:
         """Compute the update norm metric."""
         return {
-            "params/per_step/update_norm": self.step_norm,
-            "params/cumulative/update_norm": self.cumulative,
-        }
-
-
-class FisherInformationMetric(Metric):
-    """Tracks the Fisher information."""
-
-    requirements = Requirements(
-        step=RequiredFields(gradients=True),
-    )
-
-    def __init__(self, _context: Context, **_kwargs: Any) -> None:
-        self.fisher_information = 0.0
-        self.cumulative = 0.0
-
-    def step(self, context: Context) -> None:
-        """Step the Fisher information metric."""
-        assert context.gradients is not None, "Gradients are required for this metric"
-        gradient_norm = tensor_stack_l2_norm(context.gradients.values())
-        self.fisher_information = gradient_norm**2
-        self.cumulative += self.fisher_information
-
-    def compute(self, _context: Context) -> Mapping[str, float]:
-        """Compute the Fisher information metric."""
-        return {
-            "params/per_step/fisher_information": self.fisher_information,
-            "params/cumulative/fisher_information": self.cumulative,
+            "step/update_norm": self.step_norm,
+            "cum/update_norm": self.cumulative,
         }
 
 
@@ -372,7 +352,6 @@ ALL_METRICS: dict[str, type[Metric]] = {
     "gradient_weighted_tokens": GradientWeightedTokensMetric,
     "loss": LossMetric,
     "parameter_norm": ParameterNormMetric,
-    "distance_from_initialization": DistanceFromInitializationMetric,
-    "cumulative_parameter_update": CumulativeParameterUpdateMetric,
-    "fisher_information": FisherInformationMetric,
+    "parameter_distance": ParameterDistanceMetric,
+    "parameter_update": ParameterUpdateMetric,
 }
