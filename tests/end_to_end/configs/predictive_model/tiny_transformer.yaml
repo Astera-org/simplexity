@@ -12,7 +12,7 @@ instance:
     d_vocab: ???
     act_fn: "relu"
     normalization_type: "LN"
-    device: "cpu"
+    device: ${device}
     seed: ${seed}
 
 load_checkpoint_step: null
