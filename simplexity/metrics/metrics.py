@@ -296,7 +296,11 @@ class LossMetric(Metric):
 
     def compute(self, context: Context) -> Mapping[str, float]:
         """Compute the current loss metric."""
-        progress = (self.initial_loss - context.loss) / (self.initial_loss - self.optimal_loss)
+        # Avoid division by zero when initial_loss == optimal_loss
+        if self.initial_loss == self.optimal_loss:
+            progress = 0.0
+        else:
+            progress = (self.initial_loss - context.loss) / (self.initial_loss - self.optimal_loss)
         return {
             "loss/step": context.loss,
             "loss/min": self.min_loss,
