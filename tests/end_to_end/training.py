@@ -88,9 +88,9 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     assert isinstance(predictive_model, HookedTransformer)
     optimizer = components.get_optimizer()
     assert isinstance(optimizer, Adam)
-    training_metric_tracker = components.get_metric_tracker("training_metric_tracker")
+    training_metric_tracker = components.get_metric_tracker("training_metric_tracker.instance")
     assert isinstance(training_metric_tracker, MetricTracker)
-    eval_metric_tracker = components.get_metric_tracker("eval_metric_tracker")
+    eval_metric_tracker = components.get_metric_tracker("eval_metric_tracker.instance")
     assert isinstance(eval_metric_tracker, MetricTracker)
 
     gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
