@@ -212,9 +212,15 @@ class GradientWeightedTokensMetric(Metric):
 class LossMetric(Metric):
     """Tracks the training loss."""
 
-    requirements = Requirements(step=RequiredFields(loss=True, step=True), compute=RequiredFields(loss=True))
+    requirements = Requirements(
+        init=RequiredFields(loss=True),
+        step=RequiredFields(loss=True),
+        compute=RequiredFields(loss=True),
+    )
 
-    def __init__(self, _context: Context, **kwargs: Any) -> None:
+    def __init__(self, context: Context, **kwargs: Any) -> None:
+        self.initial_loss = context.loss
+        self.optimal_loss = kwargs.get("optimal_loss", 0)
         self.min_loss = float("inf")
         self.ma_window_size = kwargs.get("ma_window_size", 100)
         self.ma_losses = [float("inf")] * self.ma_window_size
@@ -223,6 +229,8 @@ class LossMetric(Metric):
 
     def step(self, context: Context) -> None:
         """Step the current loss metric."""
+        if self.initial_loss == float("inf"):
+            self.initial_loss = context.loss
         self.min_loss = min(self.min_loss, context.loss)
         self.ma_losses[context.step % self.ma_window_size] = context.loss
         if self.ema_loss == float("inf"):
@@ -231,11 +239,13 @@ class LossMetric(Metric):
 
     def compute(self, context: Context) -> Mapping[str, float]:
         """Compute the current loss metric."""
+        progress = (self.initial_loss - context.loss) / (self.initial_loss - self.optimal_loss)
         return {
             "loss/step": context.loss,
             "loss/min": self.min_loss,
             "loss/ma": sum(self.ma_losses) / self.ma_window_size,
             "loss/ema": self.ema_loss,
+            "loss/progress_to_optimal": progress,
         }
 
 
@@ -352,26 +362,6 @@ class FisherInformationMetric(Metric):
         }
 
 
-class LossProgressMetric(Metric):
-    """Tracks the progress towards the optimal loss."""
-
-    requirements = Requirements(init=RequiredFields(loss=True), compute=RequiredFields(loss=True))
-
-    def __init__(self, context: Context, **kwargs: Any) -> None:
-        self.initial_loss = context.loss
-        self.optimal_loss = kwargs.get("optimal_loss", 0)
-
-    def step(self, _context: Context) -> None:
-        """Step the loss progress metric."""
-
-    def compute(self, context: Context) -> Mapping[str, float]:
-        """Compute the loss progress metric."""
-        if self.initial_loss == float("inf"):
-            self.initial_loss = context.loss
-        progress = (self.initial_loss - context.loss) / (self.initial_loss - self.optimal_loss)
-        return {"loss/progress_to_optimal": progress}
-
-
 ALL_METRICS: dict[str, type[Metric]] = {
     "tokens": TokensMetric,
     "lr": LearningRateMetric,
@@ -383,5 +373,4 @@ ALL_METRICS: dict[str, type[Metric]] = {
     "distance_from_initialization": DistanceFromInitializationMetric,
     "cumulative_parameter_update": CumulativeParameterUpdateMetric,
     "fisher_information": FisherInformationMetric,
-    "loss_progress_to_optimal": LossProgressMetric,
 }
