@@ -24,6 +24,7 @@ dependencies = [
     "torch>=2.9.0",
     "transformer-lens>=2.15.4",
     "treescope",
+    "pydantic>=2.12.0",
 ]
 
 [project.optional-dependencies]
@@ -51,13 +52,13 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-mock",
+    "pytest-testmon",
     "ruff",
 ]
 penzai = [
     "orbax-checkpoint",
     "penzai",
 ] # Deprecated: penzai is no longer maintained.
-mac = ["jax-metal"]
 
 [tool.ruff]
 line-length = 120
@@ -137,6 +138,9 @@ omit = [
     "*/dist/*",
     "*/venv/*",
     "*/.venv/*",
+    # TODO(#108): Remove this exclusion once tests are added for run_management.py
+    # See https://github.com/Astera-org/simplexity/issues/108 for requirements and success criteria
+    "simplexity/run_management/run_management.py",
 ]
 
 [tool.coverage.report]

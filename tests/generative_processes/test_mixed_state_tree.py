@@ -1,5 +1,17 @@
 """Test the mixed-state tree module."""
 
+<<<<<<< HEAD
+=======
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
+>>>>>>> origin/main
 from pathlib import Path
 
 import chex
@@ -78,8 +90,13 @@ def load_golden(process_name: str) -> MixedStateTree[TreeData, NodeDictValue]:
 @pytest.mark.parametrize("process_name", ["mess3", "rrxor", "zero_one_random"])
 def test_hmm_mixed_state_tree(process_name: str):
     """Test generating a mixed-state tree for a hidden Markov model."""
+<<<<<<< HEAD
     params = PROCESS_PARAMS[process_name]
     model = build_hidden_markov_model(process_name, initial_state=None, **params)
+=======
+    process_params = PROCESS_PARAMS[process_name]
+    model = build_hidden_markov_model(process_name=process_name, process_params=process_params, initial_state=None)
+>>>>>>> origin/main
     generator = MixedStateTreeGenerator(model, max_sequence_length=4)
     tree: MixedStateTree[TreeData, NodeDictValue] = generator.generate()
     golden = load_golden(process_name)
@@ -103,8 +120,15 @@ def test_hmm_mixed_state_tree(process_name: str):
 )
 def test_ghmm_mixed_state_tree(process_name: str):
     """Test generating a mixed-state tree for a generalized hidden Markov model."""
+<<<<<<< HEAD
     params = PROCESS_PARAMS[process_name]
     model = build_generalized_hidden_markov_model(process_name, **params)
+=======
+    process_params = PROCESS_PARAMS[process_name]
+    model = build_generalized_hidden_markov_model(
+        process_name=process_name, process_params=process_params, initial_state=None
+    )
+>>>>>>> origin/main
     generator = MixedStateTreeGenerator(model, max_sequence_length=4)
     tree: MixedStateTree[TreeData, NodeDictValue] = generator.generate()
     golden = load_golden(process_name)

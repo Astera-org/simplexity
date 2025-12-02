@@ -1,5 +1,17 @@
 """Tests for mixed-state presentation utilities."""
 
+<<<<<<< HEAD
+=======
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
+>>>>>>> origin/main
 import math
 from typing import cast
 
@@ -155,14 +167,22 @@ LOG_NODES = {
 @pytest.fixture
 def generator() -> MixedStateTreeGenerator:
     """Return the standard mixed-state tree generator."""
+<<<<<<< HEAD
     ghmm = build_generalized_hidden_markov_model("no_consecutive_ones", p=0.5)
+=======
+    ghmm = build_generalized_hidden_markov_model(process_name="no_consecutive_ones", process_params={"p": 0.5})
+>>>>>>> origin/main
     return MixedStateTreeGenerator(ghmm, max_sequence_length=2)
 
 
 @pytest.fixture
 def log_generator() -> LogMixedStateTreeGenerator:
     """Return the log-space mixed-state tree generator."""
+<<<<<<< HEAD
     hmm = build_hidden_markov_model("no_consecutive_ones", p=0.5)
+=======
+    hmm = build_hidden_markov_model(process_name="no_consecutive_ones", process_params={"p": 0.5})
+>>>>>>> origin/main
     return LogMixedStateTreeGenerator(hmm, max_sequence_length=2, prob_threshold=-jnp.inf)
 
 

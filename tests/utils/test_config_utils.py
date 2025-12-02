@@ -316,6 +316,33 @@ def test_dynamic_resolve() -> None:
         cfg.key = "newer_value"
 
 
+def test_dynamic_resolve_nested_config() -> None:
+    """Test dynamic resolve with nested config that has readonly parent."""
+    # Simulate the scenario where a parent config is made readonly,
+    # and we need to modify a nested config
+    parent_cfg = DictConfig({"nested": DictConfig({"key": "value"})})
+
+    # Make parent readonly (simulating what resolve_base_config does)
+    OmegaConf.set_struct(parent_cfg, True)
+    OmegaConf.set_readonly(parent_cfg, True)
+
+    nested_cfg = parent_cfg.nested
+
+    @dynamic_resolve
+    def mutate_nested_cfg(cfg: DictConfig, updated_cfg: DictConfig) -> None:
+        """Simulate update_mlflow_config behavior."""
+        cfg.merge_with(updated_cfg)
+
+    updated_cfg = DictConfig({"key": "new_value", "new_key": "new_value"})
+
+    # This should work - dynamic_resolve should handle nested readonly configs
+    mutate_nested_cfg(nested_cfg, updated_cfg=updated_cfg)
+
+    assert nested_cfg.key == "new_value"
+    assert nested_cfg.new_key == "new_value"
+    assert OmegaConf.is_readonly(nested_cfg)
+
+
 def test_typed_instantiate() -> None:
     """Test typed instantiate with built-in str type."""
     cfg = DictConfig({"_target_": "builtins.str", "object": 42})

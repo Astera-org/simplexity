@@ -48,6 +48,7 @@ def test_resolve_device_valid():
     with patch("torch.cuda.is_available") as mock_is_cuda_available:
         mock_is_cuda_available.return_value = True
         assert resolve_device("cuda") == "cuda"
+        assert resolve_device("gpu") == "cuda"
 
     with patch("torch.backends.mps.is_available") as mock_is_mps_available:
         mock_is_mps_available.return_value = True

@@ -9,6 +9,12 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+<<<<<<< HEAD
+=======
+from typing import cast
+from unittest.mock import call, create_autospec, patch
+
+>>>>>>> origin/main
 import chex
 import equinox as eqx
 import jax
@@ -17,19 +23,31 @@ import pytest
 
 from simplexity.generative_processes.builder import build_generalized_hidden_markov_model
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
+from tests.array_with_patchable_device import (
+    ArrayWithPatchableDevice,
+    patch_jax_for_patchable_device,
+)
 from tests.assertions import assert_proportional
 
 
 @pytest.fixture
 def z1r() -> GeneralizedHiddenMarkovModel:
     """Return the zero-one random generalized HMM."""
+<<<<<<< HEAD
     return build_generalized_hidden_markov_model("zero_one_random", p=0.5)
+=======
+    return build_generalized_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
+>>>>>>> origin/main
 
 
 @pytest.fixture
 def fanizza_model() -> GeneralizedHiddenMarkovModel:
     """Return the fanizza generalized HMM."""
+<<<<<<< HEAD
     return build_generalized_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
+=======
+    return build_generalized_hidden_markov_model(process_name="fanizza", process_params={"alpha": 2000, "lamb": 0.49})
+>>>>>>> origin/main
 
 
 @pytest.mark.parametrize(("model_name", "vocab_size", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])
@@ -38,6 +56,71 @@ def test_properties(model_name: str, vocab_size: int, num_states: int, request: 
     model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
     assert model.vocab_size == vocab_size
     assert model.num_states == num_states
+
+
+def test_init_device_mismatch():
+    """Test that transition matrices are moved to the model device if they are on a different device."""
+    mock_cpu = create_autospec(jax.Device, instance=True)
+    mock_gpu = create_autospec(jax.Device, instance=True)
+
+    # Create real arrays for the actual computation
+    # For GHMM, transition matrices must be 3D: (vocab_size, num_states, num_states)
+    real_transition_matrices = jnp.array([[[0.5, 0.5], [0.5, 0.5]], [[0.5, 0.5], [0.5, 0.5]]])
+    real_initial_state = jnp.array([0.5, 0.5])
+
+    # Create arrays that appear to be on CPU initially
+    transition_matrices_on_cpu = cast(jax.Array, ArrayWithPatchableDevice(real_transition_matrices, mock_cpu))
+    initial_state_on_cpu = cast(jax.Array, ArrayWithPatchableDevice(real_initial_state, mock_cpu))
+
+    # Create arrays that appear to be on GPU after device_put
+    transition_matrices_on_gpu = cast(jax.Array, ArrayWithPatchableDevice(real_transition_matrices, mock_gpu))
+    initial_state_on_gpu = cast(jax.Array, ArrayWithPatchableDevice(real_initial_state, mock_gpu))
+
+    def device_put_side_effect(array, device):
+        """Mock device_put to return arrays with GPU device."""
+        if array is transition_matrices_on_cpu:
+            return transition_matrices_on_gpu
+        if array is initial_state_on_cpu:
+            return initial_state_on_gpu
+        return array
+
+    with (
+        patch(
+            "simplexity.generative_processes.generalized_hidden_markov_model.resolve_jax_device",
+            return_value=mock_gpu,
+        ),
+        patch(
+            "simplexity.generative_processes.generalized_hidden_markov_model.jax.device_put",
+            side_effect=device_put_side_effect,
+        ),
+        patch_jax_for_patchable_device(
+            "simplexity.generative_processes.generalized_hidden_markov_model",
+            mock_devices=(mock_cpu, mock_gpu),
+        ),
+        patch(
+            "simplexity.generative_processes.generalized_hidden_markov_model.SIMPLEXITY_LOGGER.warning"
+        ) as mock_warning,
+    ):
+        assert transition_matrices_on_cpu.device == mock_cpu
+        assert initial_state_on_cpu.device == mock_cpu
+        model = GeneralizedHiddenMarkovModel(transition_matrices_on_cpu, initial_state_on_cpu, device="gpu")
+        assert model.transition_matrices.device == mock_gpu
+        assert model.initial_state.device == mock_gpu
+        mock_warning.assert_has_calls(
+            [
+                call(
+                    "Transition matrices are on device %s but model is on device %s. "
+                    "Moving transition matrices to model device.",
+                    mock_cpu,
+                    mock_gpu,
+                ),
+                call(
+                    "Initial state is on device %s but model is on device %s. Moving initial state to model device.",
+                    mock_cpu,
+                    mock_gpu,
+                ),
+            ]
+        )
 
 
 def test_normalize_belief_state(z1r: GeneralizedHiddenMarkovModel):

@@ -1,5 +1,17 @@
 """Test the builder module."""
 
+<<<<<<< HEAD
+=======
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
+>>>>>>> origin/main
 import chex
 import jax.numpy as jnp
 import pytest
@@ -19,7 +31,13 @@ from tests.generative_processes.test_transition_matrices import validate_hmm_tra
 
 def test_build_transition_matrices():
     """Test the build_transition_matrices function."""
+<<<<<<< HEAD
     transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, "coin", p=0.6)
+=======
+    transition_matrices = build_transition_matrices(
+        HMM_MATRIX_FUNCTIONS, process_name="coin", process_params={"p": 0.6}
+    )
+>>>>>>> origin/main
     assert transition_matrices.shape == (2, 1, 1)
     expected = jnp.array([[[0.6]], [[0.4]]])
     chex.assert_trees_all_close(transition_matrices, expected)
@@ -66,32 +84,45 @@ def test_add_begin_of_sequence_token():
 
 def test_build_hidden_markov_model():
     """Test the build_hidden_markov_model function."""
+<<<<<<< HEAD
     hmm = build_hidden_markov_model("even_ones", p=0.5)
+=======
+    hmm = build_hidden_markov_model(process_name="even_ones", process_params={"p": 0.5})
+>>>>>>> origin/main
     assert hmm.vocab_size == 2
 
     with pytest.raises(KeyError):  # noqa: PT011
-        build_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
+        build_hidden_markov_model(process_name="fanizza", process_params={"alpha": 2000, "lamb": 0.49})
 
     with pytest.raises(TypeError):
-        build_hidden_markov_model("even_ones", bogus=0.5)
+        build_hidden_markov_model(process_name="even_ones", process_params={"bogus": 0.5})
 
 
 def test_build_generalized_hidden_markov_model():
     """Test the build_generalized_hidden_markov_model function."""
+<<<<<<< HEAD
     ghmm = build_generalized_hidden_markov_model("even_ones", p=0.5)
+=======
+    ghmm = build_generalized_hidden_markov_model(process_name="even_ones", process_params={"p": 0.5})
+>>>>>>> origin/main
     assert ghmm.vocab_size == 2
 
-    ghmm = build_generalized_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
+    ghmm = build_generalized_hidden_markov_model(process_name="fanizza", process_params={"alpha": 2000, "lamb": 0.49})
     assert ghmm.vocab_size == 2
 
     with pytest.raises(KeyError):  # noqa: PT011
-        build_generalized_hidden_markov_model("dummy")
+        build_generalized_hidden_markov_model(process_name="dummy")
 
 
 def test_build_nonergodic_transition_matrices():
     """Test the build_nonergodic_transition_matrices function."""
+<<<<<<< HEAD
     coin_1 = build_transition_matrices(HMM_MATRIX_FUNCTIONS, "coin", p=0.6)
     coin_2 = build_transition_matrices(HMM_MATRIX_FUNCTIONS, "coin", p=0.3)
+=======
+    coin_1 = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name="coin", process_params={"p": 0.6})
+    coin_2 = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name="coin", process_params={"p": 0.3})
+>>>>>>> origin/main
     transition_matrices = build_nonergodic_transition_matrices([coin_1, coin_2], [[0, 1], [0, 2]])
     assert transition_matrices.shape == (3, 2, 2)
     expected = jnp.array(
@@ -127,7 +158,7 @@ def test_build_nonergodic_hidden_markov_model():
     """Test the build_nonergodic_hidden_markov_model function."""
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["coin", "coin"],
-        process_kwargs=[{"p": 0.6}, {"p": 0.3}],
+        process_params=[{"p": 0.6}, {"p": 0.3}],
         process_weights=[0.8, 0.2],
         vocab_maps=[[0, 1], [0, 2]],
         add_bos_token=False,
@@ -160,7 +191,7 @@ def test_build_nonergodic_hidden_markov_model_with_nonergodic_process():
     kwargs = {"p": 0.4, "q": 0.25}
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["mr_name", "mr_name"],
-        process_kwargs=[kwargs, kwargs],
+        process_params=[kwargs, kwargs],
         process_weights=[0.8, 0.2],
         vocab_maps=[[0, 1, 2, 3], [0, 1, 2, 4]],
         add_bos_token=False,
@@ -175,7 +206,7 @@ def test_build_nonergodic_hidden_markov_model_bos():
     """Test the build_nonergodic_hidden_markov_model function with a BOS token."""
     hmm = build_nonergodic_hidden_markov_model(
         process_names=["coin", "coin"],
-        process_kwargs=[{"p": 0.6}, {"p": 0.3}],
+        process_params=[{"p": 0.6}, {"p": 0.3}],
         process_weights=[0.8, 0.2],
         vocab_maps=[[0, 1], [0, 2]],
         add_bos_token=True,

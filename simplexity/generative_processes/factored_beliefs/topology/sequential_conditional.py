@@ -132,7 +132,7 @@ class SequentialConditional(eqx.Module):
             else:
                 # Select based on parent's observed token
                 parent_token = obs_tuple[i - 1]
-                k_i = self.control_maps[i][parent_token]
+                k_i = self.control_maps[i][parent_token] # type: ignore
                 variants.append(k_i)
         return tuple(variants)
 
