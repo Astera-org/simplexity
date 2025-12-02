@@ -17,7 +17,6 @@ from simplexity.utils.pytorch_utils import named_tensor_distance, tensor_stack_l
 class Context:
     """Immutable view of the information required by a metric for one step."""
 
-    step: int = 0
     num_tokens: int = 0
     loss: float = float("inf")
     learning_rates: Mapping[str, float] = field(default_factory=dict)
