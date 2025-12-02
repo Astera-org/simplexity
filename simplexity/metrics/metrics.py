@@ -121,7 +121,10 @@ class Metric:
 class TokensMetric(Metric):
     """Tracks instantaneous and cumulative token counts."""
 
-    requirements = Requirements(step=RequiredFields(num_tokens=True), compute=RequiredFields(num_tokens=True))
+    requirements = Requirements(
+        step=RequiredFields(num_tokens=True),
+        compute=RequiredFields(num_tokens=True),
+    )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
         self.cumulative = 0.0
@@ -141,7 +144,9 @@ class TokensMetric(Metric):
 class LearningRateMetric(Metric):
     """Reports learning rates for each optimizer param group."""
 
-    requirements = Requirements(compute=RequiredFields(learning_rates=True))
+    requirements = Requirements(
+        compute=RequiredFields(learning_rates=True),
+    )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
         pass
@@ -163,7 +168,9 @@ class LearningRateMetric(Metric):
 class LearningRateWeightedTokensMetric(Metric):
     """Tracks the learning rate weighted tokens."""
 
-    requirements = Requirements(step=RequiredFields(num_tokens=True, learning_rates=True))
+    requirements = Requirements(
+        step=RequiredFields(num_tokens=True, learning_rates=True),
+    )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
         self.weighted_tokens = 0.0
@@ -186,7 +193,9 @@ class LearningRateWeightedTokensMetric(Metric):
 class GradientWeightedTokensMetric(Metric):
     """Tracks the gradient weighted tokens."""
 
-    requirements = Requirements(step=RequiredFields(num_tokens=True, learning_rates=True, gradients=True))
+    requirements = Requirements(
+        step=RequiredFields(num_tokens=True, learning_rates=True, gradients=True),
+    )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
         self.weighted_tokens = 0.0
@@ -252,7 +261,9 @@ class LossMetric(Metric):
 class ParameterNormMetric(Metric):
     """Computes the global L2 norm over all parameters."""
 
-    requirements = Requirements(compute=RequiredFields(named_parameters=True))
+    requirements = Requirements(
+        compute=RequiredFields(named_parameters=True),
+    )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
         pass
@@ -270,7 +281,9 @@ class ParameterNormMetric(Metric):
 class WeightNormMetric(Metric):
     """Computes the L2 norm over parameters whose name ends with 'weight'."""
 
-    requirements = Requirements(compute=RequiredFields(named_parameters=True))
+    requirements = Requirements(
+        compute=RequiredFields(named_parameters=True),
+    )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
         pass
@@ -290,7 +303,8 @@ class DistanceFromInitializationMetric(Metric):
     """Reports the parameter space distance from the initial model state."""
 
     requirements = Requirements(
-        init=RequiredFields(named_parameters=True), compute=RequiredFields(named_parameters=True)
+        init=RequiredFields(named_parameters=True),
+        compute=RequiredFields(named_parameters=True),
     )
 
     def __init__(self, context: Context, **_kwargs: Any) -> None:
@@ -315,7 +329,10 @@ class DistanceFromInitializationMetric(Metric):
 class CumulativeParameterUpdateMetric(Metric):
     """Tracks the cumulative parameter update."""
 
-    requirements = Requirements(init=RequiredFields(named_parameters=True), step=RequiredFields(named_parameters=True))
+    requirements = Requirements(
+        init=RequiredFields(named_parameters=True),
+        step=RequiredFields(named_parameters=True),
+    )
 
     def __init__(self, context: Context, **_kwargs: Any) -> None:
         assert context.named_parameters is not None, "Named parameters are required for this metric"
@@ -341,7 +358,9 @@ class CumulativeParameterUpdateMetric(Metric):
 class FisherInformationMetric(Metric):
     """Tracks the Fisher information."""
 
-    requirements = Requirements(step=RequiredFields(gradients=True))
+    requirements = Requirements(
+        step=RequiredFields(gradients=True),
+    )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
         self.fisher_information = 0.0
@@ -364,7 +383,7 @@ class FisherInformationMetric(Metric):
 
 ALL_METRICS: dict[str, type[Metric]] = {
     "tokens": TokensMetric,
-    "lr": LearningRateMetric,
+    "learning_rate": LearningRateMetric,
     "learning_rate_weighted_tokens": LearningRateWeightedTokensMetric,
     "gradient_weighted_tokens": GradientWeightedTokensMetric,
     "loss": LossMetric,
