@@ -10,9 +10,11 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_beliefs.topology.topology import ConditionalContext, ConditionalStructure
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.structures import ConditionalContext, ConditionalStructure
+from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.utils.factoring_utils import TokenEncoder, transition_with_obs
+from simplexity.utils.jnp_utils import resolve_jax_device
 
 ComponentType = Literal["hmm", "ghmm"]
 FactoredState = tuple[jnp.ndarray, ...]
@@ -37,6 +39,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
     # Static structure
     component_types: tuple[ComponentType, ...]
     num_variants: tuple[int, ...]
+    device: jax.Device  # type: ignore[valid-type]
 
     # Per-factor parameters
     transition_matrices: tuple[jnp.ndarray, ...]
@@ -55,6 +58,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         normalizing_eigenvectors: Sequence[jnp.ndarray],
         initial_states: Sequence[jnp.ndarray],
         structure: ConditionalStructure,
+        device: str | None = None,
     ) -> None:
         """Initialize factored generative process.
 
@@ -66,14 +70,56 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
                 normalizing_eigenvectors[i] has shape [K_i, S_i]
             initial_states: Initial state per factor (shape [S_i])
             structure: Conditional structure defining factor interactions
+            device: Device to place arrays on (e.g., "cpu", "gpu")
         """
         if len(component_types) == 0:
             raise ValueError("Must provide at least one component")
 
+        self.device = resolve_jax_device(device)
         self.component_types = tuple(component_types)
-        self.transition_matrices = tuple(transition_matrices)
-        self.normalizing_eigenvectors = tuple(normalizing_eigenvectors)
-        self.initial_states = tuple(initial_states)
+
+        # Move transition matrices to device
+        transition_matrices_on_device = []
+        for i, T in enumerate(transition_matrices):
+            if T.device != self.device:
+                SIMPLEXITY_LOGGER.warning(
+                    "Transition matrices[%d] on device %s but model is on device %s. Moving to model device.",
+                    i,
+                    T.device,
+                    self.device,
+                )
+                T = jax.device_put(T, self.device)
+            transition_matrices_on_device.append(T)
+        self.transition_matrices = tuple(transition_matrices_on_device)
+
+        # Move normalizing eigenvectors to device
+        normalizing_eigenvectors_on_device = []
+        for i, norm in enumerate(normalizing_eigenvectors):
+            if norm.device != self.device:
+                SIMPLEXITY_LOGGER.warning(
+                    "Normalizing eigenvectors[%d] on device %s but model is on device %s. Moving to model device.",
+                    i,
+                    norm.device,
+                    self.device,
+                )
+                norm = jax.device_put(norm, self.device)
+            normalizing_eigenvectors_on_device.append(norm)
+        self.normalizing_eigenvectors = tuple(normalizing_eigenvectors_on_device)
+
+        # Move initial states to device
+        initial_states_on_device = []
+        for i, state in enumerate(initial_states):
+            if state.device != self.device:
+                SIMPLEXITY_LOGGER.warning(
+                    "Initial states[%d] on device %s but model is on device %s. Moving to model device.",
+                    i,
+                    state.device,
+                    self.device,
+                )
+                state = jax.device_put(state, self.device)
+            initial_states_on_device.append(state)
+        self.initial_states = tuple(initial_states_on_device)
+
         self.structure = structure
 
         # Validate shapes and compute derived sizes
@@ -81,14 +127,10 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         num_variants = []
         for i, T in enumerate(self.transition_matrices):
             if T.ndim != 4:
-                raise ValueError(
-                    f"transition_matrices[{i}] must have shape [K, V, S, S], got {T.shape}"
-                )
+                raise ValueError(f"transition_matrices[{i}] must have shape [K, V, S, S], got {T.shape}")
             K, V, S1, S2 = T.shape
             if S1 != S2:
-                raise ValueError(
-                    f"transition_matrices[{i}] square mismatch: {S1} vs {S2}"
-                )
+                raise ValueError(f"transition_matrices[{i}] square mismatch: {S1} vs {S2}")
             vocab_sizes.append(V)
             num_variants.append(K)
 
@@ -131,9 +173,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         return self.structure.compute_joint_distribution(context)
 
     @eqx.filter_jit
-    def log_observation_probability_distribution(
-        self, log_belief_state: FactoredState
-    ) -> jnp.ndarray:
+    def log_observation_probability_distribution(self, log_belief_state: FactoredState) -> jnp.ndarray:
         """Compute log P(composite_token | state).
 
         Args:
@@ -181,16 +221,10 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
         # Update each factor's state
         new_states: list[jnp.ndarray] = []
-        for i, (s_i, t_i, k_i) in enumerate(zip(state, obs_tuple, variants)):
+        for i, (s_i, t_i, k_i) in enumerate(zip(state, obs_tuple, variants, strict=True)):
             T_k = self.transition_matrices[i][k_i]
-            norm_k = (
-                self.normalizing_eigenvectors[i][k_i]
-                if self.component_types[i] == "ghmm"
-                else None
-            )
-            new_state_i = transition_with_obs(
-                self.component_types[i], s_i, T_k, t_i, norm_k
-            )
+            norm_k = self.normalizing_eigenvectors[i][k_i] if self.component_types[i] == "ghmm" else None
+            new_state_i = transition_with_obs(self.component_types[i], s_i, T_k, t_i, norm_k)
             new_states.append(new_state_i)
 
         return tuple(new_states)
@@ -229,10 +263,9 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
         def step(carry: FactoredState, obs: jnp.ndarray):
             state = carry
-            log_dist = self.log_observation_probability_distribution(
-                tuple(jnp.log(s) for s in state)
-            )
-            lp = log_dist[obs]
+            # Compute distribution directly without converting to log and back
+            dist = self.observation_probability_distribution(state)
+            lp = jnp.log(dist[obs])
             new_state = self.transition_states(state, obs)
             return new_state, lp
 

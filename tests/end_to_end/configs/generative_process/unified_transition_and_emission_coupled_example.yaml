@@ -3,8 +3,8 @@
 # - Emissions: Can be independent OR sequential (factor i depends on i-1's token)
 # - Transitions: Always mutually conditional (factor i's transition depends on all other factors)
 
-name: unified_transition_coupled_example
-base_vocab_size: 36  # 3 * 3 * 4 = 24
+name: unified_transition_and_emission_coupled_example
+base_vocab_size: ???  # Will auto-infer as 3 * 3 * 4 = 36
 vocab_size: ???
 
 instance:

@@ -9,12 +9,9 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-<<<<<<< HEAD
-=======
 from typing import cast
 from unittest.mock import call, create_autospec, patch
 
->>>>>>> origin/main
 import chex
 import equinox as eqx
 import jax
@@ -33,11 +30,7 @@ from tests.assertions import assert_proportional
 @pytest.fixture
 def z1r() -> HiddenMarkovModel:
     """Return the zero-one random HMM."""
-<<<<<<< HEAD
-    return build_hidden_markov_model("zero_one_random", p=0.5)
-=======
     return build_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
->>>>>>> origin/main
 
 
 def test_properties(z1r: HiddenMarkovModel):

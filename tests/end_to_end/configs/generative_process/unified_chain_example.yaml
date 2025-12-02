@@ -4,7 +4,7 @@
 # Each factor i>0 selects its parameter variant based on factor i-1's token.
 
 name: unified_chain_example
-base_vocab_size: 12  # 3 * 2 * 2 = 12
+base_vocab_size: ???  # Will auto-infer as 3 * 2 * 2 = 12
 vocab_size: ???
 
 instance:

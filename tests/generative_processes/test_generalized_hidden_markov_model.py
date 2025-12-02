@@ -9,12 +9,9 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-<<<<<<< HEAD
-=======
 from typing import cast
 from unittest.mock import call, create_autospec, patch
 
->>>>>>> origin/main
 import chex
 import equinox as eqx
 import jax
@@ -33,21 +30,13 @@ from tests.assertions import assert_proportional
 @pytest.fixture
 def z1r() -> GeneralizedHiddenMarkovModel:
     """Return the zero-one random generalized HMM."""
-<<<<<<< HEAD
-    return build_generalized_hidden_markov_model("zero_one_random", p=0.5)
-=======
     return build_generalized_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
->>>>>>> origin/main
 
 
 @pytest.fixture
 def fanizza_model() -> GeneralizedHiddenMarkovModel:
     """Return the fanizza generalized HMM."""
-<<<<<<< HEAD
-    return build_generalized_hidden_markov_model("fanizza", alpha=2000, lamb=0.49)
-=======
     return build_generalized_hidden_markov_model(process_name="fanizza", process_params={"alpha": 2000, "lamb": 0.49})
->>>>>>> origin/main
 
 
 @pytest.mark.parametrize(("model_name", "vocab_size", "num_states"), [("z1r", 2, 3), ("fanizza_model", 2, 4)])

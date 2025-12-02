@@ -2,7 +2,7 @@
 # Factor i depends on Factor i-1's emitted token (one-way conditional dependencies)
 
 name: unified_chain_3mess3_2tomq
-base_vocab_size: 432  # (3^3) * (4^2) = 27 * 16 = 432
+base_vocab_size: ???  # Will auto-infer as (3^3) * (4^2) = 27 * 16 = 432
 vocab_size: ???
 
 instance:

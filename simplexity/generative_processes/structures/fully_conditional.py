@@ -10,7 +10,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_beliefs.topology.topology import ConditionalContext
+from simplexity.generative_processes.structures.protocol import ConditionalContext
 from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
 

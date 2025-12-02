@@ -10,7 +10,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_beliefs.topology.topology import ConditionalContext
+from simplexity.generative_processes.structures.protocol import ConditionalContext
 from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
 
@@ -71,9 +71,7 @@ class SequentialConditional(eqx.Module):
         # Root distribution (factor 0, variant 0)
         T_root = transition_matrices[0][0]  # [V_0, S_0, S_0]
         norm_root = normalizing_eigenvectors[0][0] if component_types[0] == "ghmm" else None
-        p_root = compute_obs_dist_for_variant(
-            component_types[0], states[0], T_root, norm_root
-        )  # [V_0]
+        p_root = compute_obs_dist_for_variant(component_types[0], states[0], T_root, norm_root)  # [V_0]
         joint = p_root
 
         # Iteratively extend with conditional factors
@@ -132,7 +130,7 @@ class SequentialConditional(eqx.Module):
             else:
                 # Select based on parent's observed token
                 parent_token = obs_tuple[i - 1]
-                k_i = self.control_maps[i][parent_token] # type: ignore
+                k_i = self.control_maps[i][parent_token]  # type: ignore
                 variants.append(k_i)
         return tuple(variants)
 

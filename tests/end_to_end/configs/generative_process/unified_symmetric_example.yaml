@@ -4,7 +4,7 @@
 # Uses product-of-experts to compute joint distribution.
 
 name: unified_symmetric_example
-base_vocab_size: 27  # 3 * 3 * 3 = 27
+base_vocab_size: ???  # Will auto-infer as 3 * 3 * 3 = 27
 vocab_size: ???
 
 instance:

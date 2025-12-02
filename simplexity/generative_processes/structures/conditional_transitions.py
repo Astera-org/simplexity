@@ -9,13 +9,14 @@ all other factors' tokens.
 """
 
 from __future__ import annotations
-from typing import Sequence
+
+from collections.abc import Sequence
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_beliefs.topology.topology import ConditionalContext
+from simplexity.generative_processes.structures.protocol import ConditionalContext
 from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
 
@@ -66,9 +67,7 @@ class ConditionalTransitions(eqx.Module):
                 If provided, emission_control_maps[i] should have shape
                 [prod(V_j for j<i)] for i>0.
         """
-        self.control_maps_transition = tuple(
-            jnp.asarray(cm, dtype=jnp.int32) for cm in control_maps_transition
-        )
+        self.control_maps_transition = tuple(jnp.asarray(cm, dtype=jnp.int32) for cm in control_maps_transition)
         self.emission_variant_indices = jnp.asarray(emission_variant_indices, dtype=jnp.int32)
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
         F = len(vocab_sizes)
