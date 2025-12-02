@@ -118,29 +118,6 @@ class Metric:
         return {}  # pragma: no cover
 
 
-class TokensMetric(Metric):
-    """Tracks instantaneous and cumulative token counts."""
-
-    requirements = Requirements(
-        step=RequiredFields(num_tokens=True),
-        compute=RequiredFields(num_tokens=True),
-    )
-
-    def __init__(self, _context: Context, **_kwargs: Any) -> None:
-        self.cumulative = 0.0
-
-    def step(self, context: Context) -> None:
-        """Step the token count metric."""
-        self.cumulative += float(context.num_tokens)
-
-    def compute(self, context: Context) -> Mapping[str, float]:
-        """Compute the token count metric."""
-        return {
-            "step/tokens": context.num_tokens,
-            "cum/tokens": self.cumulative,
-        }
-
-
 class LearningRateMetric(Metric):
     """Reports learning rates for each optimizer param group."""
 
@@ -163,6 +140,29 @@ class LearningRateMetric(Metric):
             for group_name, lr in context.learning_rates.items():
                 values[f"learning_rate/{group_name}"] = lr
         return values
+
+
+class TokensMetric(Metric):
+    """Tracks instantaneous and cumulative token counts."""
+
+    requirements = Requirements(
+        step=RequiredFields(num_tokens=True),
+        compute=RequiredFields(num_tokens=True),
+    )
+
+    def __init__(self, _context: Context, **_kwargs: Any) -> None:
+        self.cumulative = 0.0
+
+    def step(self, context: Context) -> None:
+        """Step the token count metric."""
+        self.cumulative += float(context.num_tokens)
+
+    def compute(self, context: Context) -> Mapping[str, float]:
+        """Compute the token count metric."""
+        return {
+            "step/tokens": context.num_tokens,
+            "cum/tokens": self.cumulative,
+        }
 
 
 class LearningRateWeightedTokensMetric(Metric):
@@ -221,6 +221,35 @@ class GradientWeightedTokensMetric(Metric):
             "cum/gradient_signal": self.cumulative_gradient_signal,
             "step/fisher_proxy": self.fisher_proxy,
             "cum/fisher_proxy": self.cumulative_fisher_proxy,
+        }
+
+
+class ParameterUpdateMetric(Metric):
+    """Tracks the cumulative parameter update."""
+
+    requirements = Requirements(
+        init=RequiredFields(named_parameters=True),
+        step=RequiredFields(named_parameters=True),
+    )
+
+    def __init__(self, context: Context, **_kwargs: Any) -> None:
+        assert context.named_parameters is not None, "Named parameters are required for this metric"
+        self.previous_named_parameters: Mapping[str, torch.Tensor] = context.named_parameters
+        self.step_norm = 0.0
+        self.cumulative = 0.0
+
+    def step(self, context: Context) -> None:
+        """Step the cumulative parameter update metric."""
+        assert context.named_parameters is not None, "Named parameters are required for this metric"
+        self.step_norm = named_tensor_distance(context.named_parameters, self.previous_named_parameters)
+        self.cumulative += self.step_norm
+        self.previous_named_parameters = context.named_parameters
+
+    def compute(self, _context: Context) -> Mapping[str, float]:
+        """Compute the update norm metric."""
+        return {
+            "step/param_update": self.step_norm,
+            "cum/param_update": self.cumulative,
         }
 
 
@@ -284,8 +313,8 @@ class ParameterNormMetric(Metric):
         weights = [tensor for name, tensor in context.named_parameters.items() if name.endswith("weight")]
         weight_norm = tensor_stack_l2_norm(weights)
         return {
-            "model/params_l2_norm": norm,
-            "model/weights_l2_norm": weight_norm,
+            "model/params_norm": norm,
+            "model/weights_norm": weight_norm,
         }
 
 
@@ -311,47 +340,18 @@ class ParameterDistanceMetric(Metric):
         distance = named_tensor_distance(context.named_parameters, self.initial_named_parameters)
         self.max_distance = max(self.max_distance, distance)
         return {
-            "model/distance_from_init": distance,
-            "model/max_distance_from_init": self.max_distance,
-        }
-
-
-class ParameterUpdateMetric(Metric):
-    """Tracks the cumulative parameter update."""
-
-    requirements = Requirements(
-        init=RequiredFields(named_parameters=True),
-        step=RequiredFields(named_parameters=True),
-    )
-
-    def __init__(self, context: Context, **_kwargs: Any) -> None:
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
-        self.previous_named_parameters: Mapping[str, torch.Tensor] = context.named_parameters
-        self.step_norm = 0.0
-        self.cumulative = 0.0
-
-    def step(self, context: Context) -> None:
-        """Step the cumulative parameter update metric."""
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
-        self.step_norm = named_tensor_distance(context.named_parameters, self.previous_named_parameters)
-        self.cumulative += self.step_norm
-        self.previous_named_parameters = context.named_parameters
-
-    def compute(self, _context: Context) -> Mapping[str, float]:
-        """Compute the update norm metric."""
-        return {
-            "step/update_norm": self.step_norm,
-            "cum/update_norm": self.cumulative,
+            "model/params_distance": distance,
+            "model/max_params_distance": self.max_distance,
         }
 
 
 ALL_METRICS: dict[str, type[Metric]] = {
-    "tokens": TokensMetric,
     "learning_rate": LearningRateMetric,
+    "tokens": TokensMetric,
     "learning_rate_weighted_tokens": LearningRateWeightedTokensMetric,
     "gradient_weighted_tokens": GradientWeightedTokensMetric,
+    "parameter_update": ParameterUpdateMetric,
     "loss": LossMetric,
     "parameter_norm": ParameterNormMetric,
     "parameter_distance": ParameterDistanceMetric,
-    "parameter_update": ParameterUpdateMetric,
 }
