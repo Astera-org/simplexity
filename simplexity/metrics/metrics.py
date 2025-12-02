@@ -311,11 +311,8 @@ class ParameterNormMetric(Metric):
         """Compute the parameter norm metric."""
         assert context.named_parameters is not None, "Named parameters are required for this metric"
         norm = tensor_stack_l2_norm(context.named_parameters.values())
-        weights = [tensor for name, tensor in context.named_parameters.items() if name.endswith("weight")]
-        weight_norm = tensor_stack_l2_norm(weights)
         return {
             "model/params_norm": norm,
-            "model/weights_norm": weight_norm,
         }
 
 
