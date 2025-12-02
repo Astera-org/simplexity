@@ -263,6 +263,7 @@ class LossMetric(Metric):
     )
 
     def __init__(self, context: Context, **kwargs: Any) -> None:
+        self._step = 0
         self.initial_loss = context.loss
         self.optimal_loss = kwargs.get("optimal_loss", 0)
         self.min_loss = float("inf")
@@ -276,10 +277,11 @@ class LossMetric(Metric):
         if self.initial_loss == float("inf"):
             self.initial_loss = context.loss
         self.min_loss = min(self.min_loss, context.loss)
-        self.ma_losses[context.step % self.ma_window_size] = context.loss
+        self.ma_losses[self._step % self.ma_window_size] = context.loss
         if self.ema_loss == float("inf"):
             self.ema_loss = context.loss
         self.ema_loss = self.ema_gamma * self.ema_loss + (1 - self.ema_gamma) * context.loss
+        self._step += 1
 
     def compute(self, context: Context) -> Mapping[str, float]:
         """Compute the current loss metric."""
