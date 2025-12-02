@@ -7,7 +7,7 @@ scattered across various config.py files in the configs directory.
 from dataclasses import dataclass
 from typing import Any
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
@@ -67,7 +67,7 @@ def validate_metric_tracker_instance_config(cfg: DictConfig) -> None:
             validate_mapping(metric_names, "MetricTrackerInstanceConfig.metric_names", key_type=str)
             for value in metric_names.values():
                 validate_sequence(value, "MetricTrackerInstanceConfig.metric_names", element_type=str)
-        elif isinstance(metric_names, list):
+        elif isinstance(metric_names, ListConfig):
             validate_sequence(metric_names, "MetricTrackerInstanceConfig.metric_names", element_type=str)
         else:
             raise ConfigValidationError("MetricTrackerInstanceConfig.metric_names must be a dict or list")
