@@ -268,13 +268,27 @@ def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> Gener
     raise KeyError
 
 
-def _create_initial_state(generative_process: GenerativeProcess, batch_size: int | None) -> jax.Array:
+def _create_initial_state(generative_process: GenerativeProcess, batch_size: int | None) -> jax.Array | tuple[jax.Array, ...]:
     """Setup the initial state."""
-    if batch_size is None:
-        initial_state = generative_process.initial_state
+    # For factored processes, there initial state may be a tuple of arrays
+    # One for each factor.
+    if isinstance(generative_process.initial_state, tuple):
+        if batch_size is None:
+            initial_state = generative_process.initial_state
+        else:
+            initial_state = tuple(
+                jnp.repeat(state[None, :], batch_size, axis=0) for state in generative_process.initial_state
+            )
+        SIMPLEXITY_LOGGER.info(
+            "[generative process] instantiated initial factored state with shapes: %s",
+            tuple(state.shape for state in initial_state),
+        )
     else:
-        initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
-    SIMPLEXITY_LOGGER.info("[generative process] instantiated initial state with shape: %s", initial_state.shape)
+        if batch_size is None:
+            initial_state = generative_process.initial_state
+        else:
+            initial_state = jnp.repeat(generative_process.initial_state[None, :], batch_size, axis=0)
+        SIMPLEXITY_LOGGER.info("[generative process] instantiated initial state with shape: %s", initial_state.shape)
     return initial_state
 
 
