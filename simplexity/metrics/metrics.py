@@ -275,28 +275,12 @@ class ParameterNormMetric(Metric):
         """Compute the parameter norm metric."""
         assert context.named_parameters is not None, "Named parameters are required for this metric"
         norm = tensor_stack_l2_norm(context.named_parameters.values())
-        return {"params/l2_norm": norm}
-
-
-class WeightNormMetric(Metric):
-    """Computes the L2 norm over parameters whose name ends with 'weight'."""
-
-    requirements = Requirements(
-        compute=RequiredFields(named_parameters=True),
-    )
-
-    def __init__(self, _context: Context, **_kwargs: Any) -> None:
-        pass
-
-    def step(self, _context: Context) -> None:
-        """Step the weight norm metric."""
-
-    def compute(self, context: Context) -> Mapping[str, float]:
-        """Compute the weight norm metric."""
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
-        weight_tensors = [tensor for name, tensor in context.named_parameters.items() if name.endswith("weight")]
-        norm = tensor_stack_l2_norm(weight_tensors)
-        return {"params/weights_l2_norm": norm}
+        weights = [tensor for name, tensor in context.named_parameters.items() if name.endswith("weight")]
+        weight_norm = tensor_stack_l2_norm(weights)
+        return {
+            "params/l2_norm": norm,
+            "params/weights_l2_norm": weight_norm,
+        }
 
 
 class DistanceFromInitializationMetric(Metric):
@@ -388,7 +372,6 @@ ALL_METRICS: dict[str, type[Metric]] = {
     "gradient_weighted_tokens": GradientWeightedTokensMetric,
     "loss": LossMetric,
     "parameter_norm": ParameterNormMetric,
-    "weight_norm": WeightNormMetric,
     "distance_from_initialization": DistanceFromInitializationMetric,
     "cumulative_parameter_update": CumulativeParameterUpdateMetric,
     "fisher_information": FisherInformationMetric,
