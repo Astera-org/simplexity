@@ -103,7 +103,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     def get_loss(outputs: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         return loss_fn(outputs.reshape(-1, outputs.shape[-1]), labels.reshape(-1).long())
 
-    def train_step(step: int) -> float:
+    def train_step(step: int):
         predictive_model.train()
         inputs, labels = generate(step)
         outputs = predictive_model(inputs)
@@ -111,8 +111,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        metric_tracker.step(tokens=inputs.numel(), loss=loss.item())
-        return loss.item()
+        metric_tracker.step(tokens=inputs, loss=loss)
 
     def log_step(step: int, group: str) -> None:
         metrics = metric_tracker.get_metrics(group)
