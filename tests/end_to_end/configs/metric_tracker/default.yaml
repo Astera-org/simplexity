@@ -14,5 +14,5 @@ instance:
       - parameter_norm
       - parameter_distance
   metric_kwargs:
-    ma_window_size: 3
+    ma_window_size: 100
     ema_gamma: 0.9
