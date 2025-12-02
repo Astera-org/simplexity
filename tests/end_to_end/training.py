@@ -9,6 +9,7 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,8 @@ from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
 CONFIG_NAME = "training_test.yaml"
+
+logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
 
 
 @dataclass
