@@ -11,6 +11,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import hydra
 import jax
@@ -61,7 +62,8 @@ class TrainingRunConfig:
     persistence: PersistenceConfig
     predictive_model: PredictiveModelConfig
     optimizer: OptimizerConfig
-    metric_tracker: MetricTrackerConfig
+    training_metric_tracker: MetricTrackerConfig
+    eval_metric_tracker: MetricTrackerConfig
     training: TrainingConfig
 
     device: str
@@ -86,8 +88,10 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     assert isinstance(predictive_model, HookedTransformer)
     optimizer = components.get_optimizer()
     assert isinstance(optimizer, Adam)
-    metric_tracker = components.get_metric_tracker()
-    assert isinstance(metric_tracker, MetricTracker)
+    training_metric_tracker = components.get_metric_tracker("training_metric_tracker")
+    assert isinstance(training_metric_tracker, MetricTracker)
+    eval_metric_tracker = components.get_metric_tracker("eval_metric_tracker")
+    assert isinstance(eval_metric_tracker, MetricTracker)
 
     gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
 
@@ -111,10 +115,10 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        metric_tracker.step(tokens=inputs, loss=loss)
+        training_metric_tracker.step(tokens=inputs, loss=loss)
 
     def log_step(step: int, group: str) -> None:
-        metrics = metric_tracker.get_metrics(group)
+        metrics = training_metric_tracker.get_metrics(group)
         logger.log_metrics(step, metrics)
 
     eval_inputs, eval_labels = generate(cfg.training.num_steps)
@@ -125,16 +129,24 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         loss = get_loss(outputs, eval_labels)
         return loss.item()
 
+    def add_key_prefix(d: dict[str, Any], prefix: str) -> dict[str, Any]:
+        return {f"{prefix}/{k}": v for k, v in d.items()}
+
     def eval_step(step: int) -> None:
         loss = evaluate()
-        logger.log_metrics(step, {"eval/loss": loss})
+        eval_metric_tracker.step(loss=loss)
+        metrics = eval_metric_tracker.get_metrics()
+        metrics = add_key_prefix(metrics, "eval")
+        logger.log_metrics(step, metrics)
 
     def checkpoint_step(step: int) -> None:
         persister.save_weights(predictive_model, step)
 
     for step in range(cfg.training.num_steps + 1):
         if step == 0:
-            metric_tracker.context.loss = evaluate()
+            initial_loss = evaluate()
+            training_metric_tracker.context.loss = initial_loss
+            eval_metric_tracker.context.loss = initial_loss
         else:
             train_step(step)
         if step % cfg.training.log_cheap_every == 0:
