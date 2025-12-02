@@ -10,8 +10,8 @@ defaults:
   - metric_tracker@eval_metric_tracker: loss_only
   - training: minimal
 
-experiment_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
-run_name: managed_run_demo_${now:%Y%m%d_%H%M%S}
+experiment_name: training_test
+run_name: training_test_${now:%Y%m%d_%H%M%S}
 device: auto
 seed: 0
 tags:
@@ -19,4 +19,3 @@ tags:
   retention: temp
   example_tag_1: value1
   example_tag_2: value2
-
