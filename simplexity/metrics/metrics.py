@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field, fields, make_dataclass
 from typing import Any
 
@@ -113,7 +113,7 @@ class Metric:
     def step(self, _context: Context) -> None:
         """Step the metric state."""
 
-    def compute(self, _context: Context) -> Mapping[str, float]:
+    def compute(self, _context: Context) -> dict[str, float]:
         """Return the latest scalar(s)."""
         return {}  # pragma: no cover
 
@@ -131,15 +131,12 @@ class LearningRateMetric(Metric):
     def step(self, _context: Context) -> None:
         """Step the learning rate metric."""
 
-    def compute(self, context: Context) -> Mapping[str, float]:
+    def compute(self, context: Context) -> dict[str, float]:
         """Compute the learning rate metric."""
-        values: MutableMapping[str, float] = {}
         if len(context.learning_rates) == 1:
-            values["step/learning_rate"] = list(context.learning_rates.values())[0]
-        else:
-            for group_name, lr in context.learning_rates.items():
-                values[f"learning_rate/{group_name}"] = lr
-        return values
+            lr = list(context.learning_rates.values())[0]
+            return {"step/learning_rate": lr}
+        return {f"learning_rate/{group_name}": lr for group_name, lr in context.learning_rates.items()}
 
 
 class TokensMetric(Metric):
@@ -161,7 +158,7 @@ class TokensMetric(Metric):
         """Step the token count metric."""
         self.cumulative += float(context.num_tokens)
 
-    def compute(self, context: Context) -> Mapping[str, float]:
+    def compute(self, context: Context) -> dict[str, float]:
         """Compute the token count metric."""
         current_time = time.time()
         tokens_per_second = (self.cumulative - self._last_cumulative) / (current_time - self._last_time)
@@ -193,7 +190,7 @@ class LearningRateWeightedTokensMetric(Metric):
         self.weighted_tokens = lr * float(context.num_tokens)
         self.cumulative += self.weighted_tokens
 
-    def compute(self, _context: Context) -> Mapping[str, float]:
+    def compute(self, _context: Context) -> dict[str, float]:
         """Compute the learning rate weighted tokens metric."""
         return {
             "step/lr_weighted_tokens": self.weighted_tokens,
@@ -225,7 +222,7 @@ class GradientWeightedTokensMetric(Metric):
         self.fisher_proxy = gradient_norm**2 * float(context.num_tokens)
         self.cumulative_fisher_proxy += self.fisher_proxy
 
-    def compute(self, _context: Context) -> Mapping[str, float]:
+    def compute(self, _context: Context) -> dict[str, float]:
         """Compute the gradient weighted tokens metric."""
         return {
             "step/gradient_signal": self.gradient_signal,
@@ -256,7 +253,7 @@ class ParameterUpdateMetric(Metric):
         self.cumulative += self.step_norm
         self.previous_named_parameters = context.named_parameters
 
-    def compute(self, _context: Context) -> Mapping[str, float]:
+    def compute(self, _context: Context) -> dict[str, float]:
         """Compute the update norm metric."""
         return {
             "step/param_update": self.step_norm,
@@ -294,7 +291,7 @@ class LossMetric(Metric):
         self.ema_loss = self.ema_gamma * self.ema_loss + (1 - self.ema_gamma) * context.loss
         self._step += 1
 
-    def compute(self, context: Context) -> Mapping[str, float]:
+    def compute(self, context: Context) -> dict[str, float]:
         """Compute the current loss metric."""
         # Avoid division by zero when initial_loss == optimal_loss
         if self.initial_loss == self.optimal_loss:
@@ -323,7 +320,7 @@ class ParameterNormMetric(Metric):
     def step(self, _context: Context) -> None:
         """Step the parameter norm metric."""
 
-    def compute(self, context: Context) -> Mapping[str, float]:
+    def compute(self, context: Context) -> dict[str, float]:
         """Compute the parameter norm metric."""
         assert context.named_parameters is not None, "Named parameters are required for this metric"
         norm = tensor_stack_l2_norm(context.named_parameters.values())
@@ -348,7 +345,7 @@ class ParameterDistanceMetric(Metric):
     def step(self, _context: Context) -> None:
         """Step the distance from initialization metric."""
 
-    def compute(self, context: Context) -> Mapping[str, float]:
+    def compute(self, context: Context) -> dict[str, float]:
         """Compute the distance from initialization metric."""
         assert context.named_parameters is not None, "Named parameters are required for this metric"
         distance = named_tensor_distance(context.named_parameters, self.initial_named_parameters)
