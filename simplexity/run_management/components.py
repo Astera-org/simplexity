@@ -64,12 +64,17 @@ class Components:
         if key is None:
             if len(instances) == 1:
                 return next(iter(instances.values()))
-            raise KeyError(f"No key provided and multiple {component_name} found")
+            raise KeyError(f"No key provided and multiple {component_name}s found")
         if key in instances:
             return instances[key]
         ending_matches = [instance_key for instance_key in instances if instance_key.endswith(key)]
         if len(ending_matches) == 1:
             return instances[ending_matches[0]]
         if len(ending_matches) > 1:
-            raise KeyError(f"Multiple {component_name} with key '{key}' found: {ending_matches}")
+            raise KeyError(f"Multiple {component_name}s with key '{key}' found: {ending_matches}")
+        ending_matches = [instance_key for instance_key in instances if instance_key.endswith(f"{key}.instance")]
+        if len(ending_matches) == 1:
+            return instances[ending_matches[0]]
+        if len(ending_matches) > 1:
+            raise KeyError(f"Multiple {component_name}s with key '{key}.instance' found: {ending_matches}")
         raise KeyError(f"{component_name.capitalize()} with key '{key}' not found")

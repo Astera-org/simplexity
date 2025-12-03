@@ -9,6 +9,7 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import re
 from unittest.mock import Mock
 
 import pytest
@@ -27,7 +28,7 @@ def test_get_none():
 
 def test_get_none_with_key_raises_error():
     components = Components()
-    with pytest.raises(KeyError, match="No optimizer found"):
+    with pytest.raises(KeyError, match="No predictive model found"):
         components.get_predictive_model("mock")
 
 
@@ -75,12 +76,39 @@ def test_get_instance_with_ending_key_raises_error():
             "activation_tracker_2.mock": activation_tracker_2,
         }
     )
-    with pytest.raises(KeyError, match="Multiple activation trackers with key 'mock' found: ['mock_1', 'mock_2']"):
+    with pytest.raises(
+        KeyError,
+        match=re.escape(
+            "Multiple activation trackers with key 'mock' found: "
+            "['activation_tracker_1.mock', 'activation_tracker_2.mock']"
+        ),
+    ):
         components.get_activation_tracker("mock")
+
+
+def test_get_instance_with_ending_instance_key():
+    logger_1 = Mock(spec=Logger)
+    logger_2 = Mock(spec=Logger)
+    components = Components(loggers={"logger.mock_1.instance": logger_1, "logger.mock_2.instance": logger_2})
+    assert components.get_logger("mock_1") == logger_1
+    assert components.get_logger("mock_2") == logger_2
+
+
+def test_get_instance_with_ending_instance_key_raises_error():
+    logger_1 = Mock(spec=Logger)
+    logger_2 = Mock(spec=Logger)
+    components = Components(loggers={"logger_1.mock.instance": logger_1, "logger_2.mock.instance": logger_2})
+    with pytest.raises(
+        KeyError,
+        match=re.escape(
+            "Multiple loggers with key 'mock.instance' found: ['logger_1.mock.instance', 'logger_2.mock.instance']"
+        ),
+    ):
+        components.get_logger("mock")
 
 
 def test_get_instance_with_no_matching_key_raises_error():
     generative_process = Mock(spec=GenerativeProcess)
     components = Components(generative_processes={"generative_process.mock": generative_process})
-    with pytest.raises(KeyError, match="Generative process with key 'mock' not found"):
+    with pytest.raises(KeyError, match=re.escape("Generative process with key 'does_not_exist' not found")):
         components.get_generative_process("does_not_exist")
