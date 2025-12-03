@@ -463,8 +463,8 @@ def _get_optimizer(optimizers: dict[str, Any] | None) -> Any | None:
     if optimizers:
         if len(optimizers) == 1:
             return next(iter(optimizers.values()))
-        SIMPLEXITY_LOGGER.warning("Multiple optimizers found, returning first optimizer")
-        return next(iter(optimizers.values()))
+        SIMPLEXITY_LOGGER.warning("Multiple optimizers found, any optimizer will be skipped")
+        return None
     SIMPLEXITY_LOGGER.warning("No optimizer found")
     return None
 
