@@ -223,7 +223,7 @@ def build_factored_process(
 
 def build_factored_process_from_spec(
     structure_type: Literal["independent", "chain", "symmetric", "transition_coupled"],
-    spec: Sequence[dict[str, Any]] | dict[str, Any],
+    spec: Sequence[dict[str, Any]],
     **structure_params,
 ) -> FactoredGenerativeProcess:
     """Unified builder for factored processes from specification.
