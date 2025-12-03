@@ -98,10 +98,15 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
 
     gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
 
+    # Only need to specify device for MPS since JAX doesn't support it
+    # (JAX will use CPU while PyTorch model is on MPS)
+    model_device = next(predictive_model.parameters()).device
+    device_arg = model_device if model_device.type == "mps" else None
+
     def generate(step: int) -> tuple[torch.Tensor, torch.Tensor]:
         key = jax.random.key(step)
         _, inputs, labels = generate_data_batch(
-            gen_states, generative_process, cfg.training.batch_size, cfg.training.sequence_len, key
+            gen_states, generative_process, cfg.training.batch_size, cfg.training.sequence_len, key, device=device_arg
         )
         return inputs, labels
 
