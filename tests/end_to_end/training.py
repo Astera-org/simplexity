@@ -168,7 +168,9 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
 
     registered_model_name = cfg.predictive_model.name or "test_model"
     sample_inputs = generate(0)[0]
-    persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs)
+    # TODO(https://github.com/Astera-org/simplexity/issues/125): This is a hack
+    step += 1  # pyright: ignore[reportPossiblyUnboundVariable]
+    persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs, step=step)
 
 
 if __name__ == "__main__":
