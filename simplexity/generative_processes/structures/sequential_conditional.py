@@ -81,7 +81,7 @@ class SequentialConditional(eqx.Module):
             ks = jnp.arange(num_var_i, dtype=jnp.int32)
 
             # Vectorize over variants
-            def get_dist_i(k: jnp.ndarray) -> jnp.ndarray:
+            def get_dist_i(k: jnp.ndarray, i: int = i) -> jnp.ndarray:
                 transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
                 return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
@@ -111,7 +111,7 @@ class SequentialConditional(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: ConditionalContext, # pylint: disable=unused-argument
+        context: ConditionalContext,  # pylint: disable=unused-argument
     ) -> tuple[jnp.ndarray, ...]:
         """Select variants based on parent tokens in chain.
 

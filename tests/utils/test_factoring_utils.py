@@ -1,6 +1,5 @@
 """Tests for factoring utilities."""
 
-
 import chex
 import jax.numpy as jnp
 import pytest
@@ -20,6 +19,7 @@ def test_compute_obs_dist_for_variant_ghmm_missing_eigenvector():
     with pytest.raises(ValueError, match="GHMM requires normalizing_eigenvector"):
         compute_obs_dist_for_variant("ghmm", state, transition_matrix, normalizing_eigenvector=None)
 
+
 def test_transition_with_obs_ghmm_missing_eigenvector():
     """GHMM transition without normalizing eigenvector should raise ValueError."""
     state = jnp.array([0.5, 0.5])
@@ -28,6 +28,7 @@ def test_transition_with_obs_ghmm_missing_eigenvector():
 
     with pytest.raises(ValueError, match="GHMM requires normalizing_eigenvector"):
         transition_with_obs("ghmm", state, transition_matrix, obs, normalizing_eigenvector=None)
+
 
 def test_token_encoder_extract_factors_vectorized():
     """TokenEncoder should handle batch decoding."""

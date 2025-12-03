@@ -174,7 +174,7 @@ class ConditionalTransitions(eqx.Module):
             ks = jnp.arange(variant_k, dtype=jnp.int32)
 
             # Compute all variant distributions
-            def get_dist_i(k: jnp.ndarray) -> jnp.ndarray:
+            def get_dist_i(k: jnp.ndarray, i: int = i) -> jnp.ndarray:
                 transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
                 return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
@@ -201,7 +201,7 @@ class ConditionalTransitions(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: ConditionalContext, # pylint: disable=unused-argument
+        context: ConditionalContext,  # pylint: disable=unused-argument
     ) -> tuple[jnp.ndarray, ...]:
         """Select transition variants based on other factors' tokens.
 

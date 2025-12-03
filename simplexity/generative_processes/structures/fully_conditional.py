@@ -81,7 +81,7 @@ class FullyConditional(eqx.Module):
             other_multipliers.append(jnp.array(mult))
 
             # Shape for reshaping conditional [prod_others, V_i] -> [*others, V_i]
-            other_shapes.append(tuple(self.vocab_sizes_py[j] for j in range(F) if j != i))
+            other_shapes.append(tuple(self.vocab_sizes_py[j] for j in range(num_factors) if j != i))
 
             # Permutation to align [*others, V_i] to [V_0, ..., V_{F-1}]
             others = [j for j in range(num_factors) if j != i]
@@ -138,7 +138,7 @@ class FullyConditional(eqx.Module):
             ks = jnp.arange(variant_k, dtype=jnp.int32)
 
             # Compute all variant distributions for factor i
-            def get_dist_i(k: jnp.ndarray) -> jnp.ndarray:
+            def get_dist_i(k: jnp.ndarray, i: int = i) -> jnp.ndarray:
                 transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
                 return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
@@ -172,7 +172,7 @@ class FullyConditional(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: ConditionalContext, # pylint: disable=unused-argument
+        context: ConditionalContext,  # pylint: disable=unused-argument
     ) -> tuple[jnp.ndarray, ...]:
         """Select variants based on all other factors' tokens.
 

@@ -122,7 +122,9 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         num_variants = []
         for i, transition_matrix in enumerate(self.transition_matrices):
             if transition_matrix.ndim != 4:
-                raise ValueError(f"transition_matrices[{i}] must have shape [K, V, S, S], got {transition_matrix.shape}")
+                raise ValueError(
+                    f"transition_matrices[{i}] must have shape [K, V, S, S], got {transition_matrix.shape}"
+                )
             num_var, vocab_size, state_dim1, state_dim2 = transition_matrix.shape
             if state_dim1 != state_dim2:
                 raise ValueError(f"transition_matrices[{i}] square mismatch: {state_dim1} vs {state_dim2}")
