@@ -52,10 +52,12 @@ def test_compute_obs_dist_for_variant_hmm():
     """HMM observation distribution should work without normalizing eigenvector."""
     state = jnp.array([0.6, 0.4])
     # Transition matrix: [V=2, S=2, S=2]
-    T = jnp.array([
-        [[0.8, 0.2], [0.3, 0.7]],  # For obs=0
-        [[0.1, 0.9], [0.4, 0.6]],  # For obs=1
-    ])
+    T = jnp.array(
+        [
+            [[0.8, 0.2], [0.3, 0.7]],  # For obs=0
+            [[0.1, 0.9], [0.4, 0.6]],  # For obs=1
+        ]
+    )
 
     dist = compute_obs_dist_for_variant("hmm", state, T, normalizing_eigenvector=None)
 
@@ -69,10 +71,12 @@ def test_compute_obs_dist_for_variant_hmm():
 def test_transition_with_obs_hmm():
     """HMM transition should work without normalizing eigenvector."""
     state = jnp.array([0.6, 0.4])
-    T = jnp.array([
-        [[0.8, 0.2], [0.3, 0.7]],  # For obs=0
-        [[0.1, 0.9], [0.4, 0.6]],  # For obs=1
-    ])
+    T = jnp.array(
+        [
+            [[0.8, 0.2], [0.3, 0.7]],  # For obs=0
+            [[0.1, 0.9], [0.4, 0.6]],  # For obs=1
+        ]
+    )
     obs = jnp.array(0)
 
     new_state = transition_with_obs("hmm", state, T, obs, normalizing_eigenvector=None)
