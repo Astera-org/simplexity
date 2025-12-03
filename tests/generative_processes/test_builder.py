@@ -15,12 +15,25 @@ import pytest
 
 from simplexity.generative_processes.builder import (
     add_begin_of_sequence_token,
+    build_chain_from_spec,
+    build_factored_process,
+    build_factored_process_from_spec,
     build_generalized_hidden_markov_model,
     build_hidden_markov_model,
+    build_matrices_from_spec,
     build_nonergodic_hidden_markov_model,
     build_nonergodic_initial_state,
     build_nonergodic_transition_matrices,
+    build_symmetric_from_spec,
+    build_transition_coupled_from_spec,
     build_transition_matrices,
+)
+from simplexity.generative_processes.factored_generative_process import FactoredGenerativeProcess
+from simplexity.generative_processes.structures import (
+    ConditionalTransitions,
+    FullyConditional,
+    IndependentStructure,
+    SequentialConditional,
 )
 from simplexity.generative_processes.transition_matrices import HMM_MATRIX_FUNCTIONS
 from tests.generative_processes.test_transition_matrices import validate_hmm_transition_matrices
@@ -220,3 +233,371 @@ def test_build_nonergodic_hidden_markov_model_bos():
     chex.assert_trees_all_close(hmm.transition_matrices, expected_transition_matrices)
     assert hmm.initial_state.shape == (3,)
     chex.assert_trees_all_close(hmm.initial_state, jnp.array([0, 0, 1.0]))
+
+
+@pytest.fixture
+def components_spec():
+    """Base specification for two HMM factors."""
+    return [
+        {
+            "component_type": "hmm",
+            "variants": [{"process_name": "coin", "process_params": {"p": 0.6}}],
+        },
+        {
+            "component_type": "hmm",
+            "variants": [
+                {"process_name": "coin", "process_params": {"p": 0.25}},
+                {"process_name": "coin", "process_params": {"p": 0.75}},
+            ],
+        },
+    ]
+
+
+@pytest.fixture
+def chain_spec():
+    """Chain specification with control map on the second factor."""
+    return [
+        {
+            "component_type": "hmm",
+            "variants": [{"process_name": "coin", "process_params": {"p": 0.6}}],
+        },
+        {
+            "component_type": "hmm",
+            "variants": [
+                {"process_name": "coin", "process_params": {"p": 0.25}},
+                {"process_name": "coin", "process_params": {"p": 0.75}},
+            ],
+            "control_map": [0, 1],
+        },
+    ]
+
+
+@pytest.fixture
+def symmetric_control_maps():
+    """Simple symmetric control maps fixture."""
+    return [[0, 1], [1, 0]]
+
+
+@pytest.fixture
+def transition_coupled_inputs():
+    """Control maps and indices for transition-coupled topology."""
+    return (
+        [[0, 1], [1, 0]],
+        [0, 1],
+        [None, [0, 1]],
+    )
+
+
+def test_build_matrices_from_spec_returns_consistent_arrays(components_spec):
+    """Factored specs should yield aligned parameter shapes."""
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
+        components_spec
+    )
+    assert component_types == ["hmm", "hmm"]
+    assert transition_matrices[0].shape == (1, 2, 1, 1)
+    assert transition_matrices[1].shape[0] == 2
+    assert normalizing_eigenvectors[1].shape == (2, transition_matrices[1].shape[2])
+    for state in initial_states:
+        chex.assert_trees_all_close(jnp.sum(state), jnp.array(1.0))
+
+
+def test_build_chain_from_spec_returns_control_maps(chain_spec):
+    """build_chain_from_spec should return encoded control maps."""
+    (
+        component_types,
+        transition_matrices,
+        normalizing_eigenvectors,
+        initial_states,
+        control_maps,
+    ) = build_chain_from_spec(chain_spec)
+    assert component_types == ["hmm", "hmm"]
+    assert control_maps[0] is None
+    chex.assert_trees_all_close(control_maps[1], jnp.array([0, 1], dtype=jnp.int32))
+
+
+def test_build_chain_from_spec_missing_control_map_raises(components_spec):
+    """Every non-root node in a chain must provide a control map."""
+    with pytest.raises(ValueError):
+        build_chain_from_spec(components_spec)
+
+
+def test_build_symmetric_from_spec_validates_lengths(components_spec, symmetric_control_maps):
+    """Symmetric control maps must cover every combination of other tokens."""
+    (
+        component_types,
+        transition_matrices,
+        normalizing_eigenvectors,
+        initial_states,
+        control_maps,
+    ) = build_symmetric_from_spec(components_spec, symmetric_control_maps)
+    assert component_types == ["hmm", "hmm"]
+    assert len(control_maps) == 2
+    chex.assert_trees_all_close(control_maps[0], jnp.array([0, 1], dtype=jnp.int32))
+    with pytest.raises(ValueError):
+        build_symmetric_from_spec(components_spec, [[0], [0, 1]])
+
+
+def test_build_transition_coupled_from_spec_handles_emission_maps(components_spec, transition_coupled_inputs):
+    """Transition-coupled specs should surface emission controls when provided."""
+    result = build_transition_coupled_from_spec(components_spec, *transition_coupled_inputs)
+    (
+        component_types,
+        transition_matrices,
+        normalizing_eigenvectors,
+        initial_states,
+        control_maps_transition,
+        emission_variant_indices,
+        emission_control_maps,
+    ) = result
+    assert component_types == ["hmm", "hmm"]
+    assert len(control_maps_transition) == 2
+    assert emission_variant_indices.shape == (2,)
+    assert emission_control_maps is not None
+    assert emission_control_maps[0] is None
+    chex.assert_trees_all_close(emission_control_maps[1], jnp.array([0, 1], dtype=jnp.int32))
+
+
+def test_build_chain_process_from_spec_returns_factored_process(chain_spec):
+    """Unified builder with chain structure should return a FactoredGenerativeProcess."""
+    process = build_factored_process_from_spec(structure_type="chain", spec=chain_spec)
+    assert isinstance(process, FactoredGenerativeProcess)
+    assert isinstance(process.structure, SequentialConditional)
+    assert process.vocab_size == 4
+
+
+def test_build_factored_process_dispatches_topologies(
+    chain_spec, components_spec, symmetric_control_maps, transition_coupled_inputs
+):
+    """build_factored_process should route to the appropriate topology builder."""
+    independent_components = build_matrices_from_spec(components_spec)
+    independent_process = build_factored_process(
+        structure_type="independent",
+        component_types=independent_components[0],
+        transition_matrices=independent_components[1],
+        normalizing_eigenvectors=independent_components[2],
+        initial_states=independent_components[3],
+    )
+    assert isinstance(independent_process.structure, IndependentStructure)
+
+    chain_components = build_chain_from_spec(chain_spec)
+    chain_process = build_factored_process(
+        structure_type="chain",
+        component_types=chain_components[0],
+        transition_matrices=chain_components[1],
+        normalizing_eigenvectors=chain_components[2],
+        initial_states=chain_components[3],
+        control_maps=chain_components[4],
+    )
+    assert isinstance(chain_process.structure, SequentialConditional)
+
+    symmetric_components = build_symmetric_from_spec(components_spec, symmetric_control_maps)
+    symmetric_process = build_factored_process(
+        structure_type="symmetric",
+        component_types=symmetric_components[0],
+        transition_matrices=symmetric_components[1],
+        normalizing_eigenvectors=symmetric_components[2],
+        initial_states=symmetric_components[3],
+        control_maps=symmetric_components[4],
+    )
+    assert isinstance(symmetric_process.structure, FullyConditional)
+
+    transition_components = build_transition_coupled_from_spec(components_spec, *transition_coupled_inputs)
+    transition_process = build_factored_process(
+        structure_type="transition_coupled",
+        component_types=transition_components[0],
+        transition_matrices=transition_components[1],
+        normalizing_eigenvectors=transition_components[2],
+        initial_states=transition_components[3],
+        control_maps_transition=transition_components[4],
+        emission_variant_indices=transition_components[5],
+        emission_control_maps=transition_components[6],
+    )
+    assert isinstance(transition_process.structure, ConditionalTransitions)
+    assert transition_process.vocab_size == 4
+    assert transition_process.structure.use_emission_chain is True
+
+
+def test_build_factored_process_from_spec_independent(components_spec):
+    """Test unified builder with independent structure."""
+    process = build_factored_process_from_spec(
+        structure_type="independent",
+        spec=components_spec,
+    )
+    assert isinstance(process, FactoredGenerativeProcess)
+    assert isinstance(process.structure, IndependentStructure)
+    assert process.vocab_size == 4
+
+
+def test_build_factored_process_from_spec_chain(chain_spec):
+    """Test unified builder with chain structure."""
+    process = build_factored_process_from_spec(
+        structure_type="chain",
+        spec=chain_spec,
+    )
+    assert isinstance(process, FactoredGenerativeProcess)
+    assert isinstance(process.structure, SequentialConditional)
+    assert process.vocab_size == 4
+
+
+def test_build_factored_process_from_spec_symmetric(components_spec, symmetric_control_maps):
+    """Test unified builder with symmetric structure."""
+    process = build_factored_process_from_spec(
+        structure_type="symmetric",
+        spec=components_spec,
+        control_maps=symmetric_control_maps,
+    )
+    assert isinstance(process, FactoredGenerativeProcess)
+    assert isinstance(process.structure, FullyConditional)
+    assert process.vocab_size == 4
+
+
+def test_build_factored_process_from_spec_transition_coupled(components_spec, transition_coupled_inputs):
+    """Test unified builder with transition_coupled structure."""
+    control_maps_transition, emission_variant_indices, emission_control_maps = transition_coupled_inputs
+    process = build_factored_process_from_spec(
+        structure_type="transition_coupled",
+        spec=components_spec,
+        control_maps_transition=control_maps_transition,
+        emission_variant_indices=emission_variant_indices,
+        emission_control_maps=emission_control_maps,
+    )
+    assert isinstance(process, FactoredGenerativeProcess)
+    assert isinstance(process.structure, ConditionalTransitions)
+    assert process.vocab_size == 4
+
+
+def test_build_factored_process_from_spec_symmetric_missing_control_maps(components_spec):
+    """Test unified builder validates required params for symmetric."""
+    with pytest.raises(ValueError, match="symmetric structure requires 'control_maps' parameter"):
+        build_factored_process_from_spec(
+            structure_type="symmetric",
+            spec=components_spec,
+        )
+
+
+def test_build_factored_process_from_spec_transition_coupled_missing_params(components_spec):
+    """Test unified builder validates required params for transition_coupled."""
+    with pytest.raises(ValueError, match="transition_coupled structure requires 'control_maps_transition' parameter"):
+        build_factored_process_from_spec(
+            structure_type="transition_coupled",
+            spec=components_spec,
+        )
+
+    with pytest.raises(ValueError, match="transition_coupled structure requires 'emission_variant_indices' parameter"):
+        build_factored_process_from_spec(
+            structure_type="transition_coupled",
+            spec=components_spec,
+            control_maps_transition=[[0, 1], [1, 0]],
+        )
+
+
+def test_build_factored_process_chain_missing_control_maps(components_spec):
+    """Test build_factored_process chain requires control_maps."""
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
+        components_spec
+    )
+
+    with pytest.raises(ValueError, match="Missing required argument 'control_maps' for chain structure"):
+        build_factored_process(
+            structure_type="chain",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+        )
+
+
+def test_build_factored_process_symmetric_missing_control_maps(components_spec):
+    """Test build_factored_process symmetric requires control_maps."""
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
+        components_spec
+    )
+
+    with pytest.raises(ValueError, match="Missing required argument 'control_maps' for symmetric structure"):
+        build_factored_process(
+            structure_type="symmetric",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+        )
+
+
+def test_build_factored_process_transition_coupled_missing_params(components_spec):
+    """Test build_factored_process transition_coupled requires all params."""
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
+        components_spec
+    )
+
+    with pytest.raises(
+        ValueError, match="Missing required argument 'control_maps_transition' for transition_coupled structure"
+    ):
+        build_factored_process(
+            structure_type="transition_coupled",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+        )
+
+    with pytest.raises(
+        ValueError, match="Missing required argument 'emission_variant_indices' for transition_coupled structure"
+    ):
+        build_factored_process(
+            structure_type="transition_coupled",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+            control_maps_transition=(jnp.array([0, 1]),),
+        )
+
+
+def test_build_matrices_from_spec_empty_spec_raises():
+    """Empty spec should raise ValueError."""
+    with pytest.raises(ValueError, match="spec must contain at least one factor"):
+        build_matrices_from_spec([])
+
+
+def test_build_matrices_from_spec_empty_variants_raises():
+    """Factor with empty variants should raise ValueError."""
+    spec = [{"component_type": "hmm", "variants": []}]
+    with pytest.raises(ValueError, match="spec\\[0\\].variants must be non-empty"):
+        build_matrices_from_spec(spec)
+
+
+def test_build_matrices_from_spec_mismatched_vocab_sizes_raises():
+    """Variants with different vocab sizes should raise ValueError."""
+    spec = [
+        {
+            "component_type": "hmm",
+            "variants": [
+                {"process_name": "coin", "process_params": {"p": 0.5}},  # vocab=2
+                {"process_name": "mess3", "process_params": {"x": 0.5, "a": 0.6}},  # vocab=3
+            ],
+        }
+    ]
+    with pytest.raises(ValueError, match="must have same vocab size"):
+        build_matrices_from_spec(spec)
+
+
+def test_build_matrices_from_spec_with_ghmm_variants():
+    """GHMM variants should stack normalizing eigenvectors."""
+    spec = [
+        {
+            "component_type": "ghmm",
+            "variants": [
+                {"process_name": "tom_quantum", "process_params": {"alpha": 1.0, "beta": 1.0}},
+                {"process_name": "tom_quantum", "process_params": {"alpha": 1.0, "beta": 4.0}},
+            ],
+        }
+    ]
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(spec)
+    assert component_types == ["ghmm"]
+    assert normalizing_eigenvectors[0].shape[0] == 2  # 2 variants
+
+
+def test_build_chain_from_spec_empty_chain_raises():
+    """Empty chain should raise ValueError."""
+    with pytest.raises(ValueError, match="chain must contain at least one node"):
+        build_chain_from_spec([])
