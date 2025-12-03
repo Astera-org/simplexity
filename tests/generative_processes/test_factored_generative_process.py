@@ -377,7 +377,6 @@ def test_transition_coupled_transition_variants_follow_control_maps():
     chex.assert_trees_all_close(new_state[1], expected[1])
 
 
-
 def test_independent_structure_observation_distribution():
     """IndependentStructure should produce product of independent factor distributions."""
     component_types = ("hmm", "hmm")
@@ -448,4 +447,3 @@ def test_independent_structure_get_required_params():
     structure = IndependentStructure()
     required_params = structure.get_required_params()
     assert required_params == {}
-

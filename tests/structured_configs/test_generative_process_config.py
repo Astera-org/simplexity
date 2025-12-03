@@ -863,7 +863,7 @@ class TestFactoredProcessBuilders:
     def test_factored_process_from_spec_config_detection(self) -> None:
         """Test build_factored_process_from_spec config detection (unified builder)."""
         target = "simplexity.generative_processes.builder.build_factored_process_from_spec"
-        
+
         # Test independent
         cfg = DictConfig(
             {

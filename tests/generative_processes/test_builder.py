@@ -339,9 +339,7 @@ def test_build_symmetric_from_spec_validates_lengths(components_spec, symmetric_
 
 def test_build_transition_coupled_from_spec_handles_emission_maps(components_spec, transition_coupled_inputs):
     """Transition-coupled specs should surface emission controls when provided."""
-    result = build_transition_coupled_from_spec(
-        components_spec, *transition_coupled_inputs
-    )
+    result = build_transition_coupled_from_spec(components_spec, *transition_coupled_inputs)
     (
         component_types,
         transition_matrices,
@@ -403,9 +401,7 @@ def test_build_factored_process_dispatches_topologies(
     )
     assert isinstance(symmetric_process.structure, FullyConditional)
 
-    transition_components = build_transition_coupled_from_spec(
-        components_spec, *transition_coupled_inputs
-    )
+    transition_components = build_transition_coupled_from_spec(components_spec, *transition_coupled_inputs)
     transition_process = build_factored_process(
         structure_type="transition_coupled",
         component_types=transition_components[0],

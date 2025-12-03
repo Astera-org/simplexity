@@ -76,6 +76,7 @@ def transition_with_obs(
             raise ValueError("GHMM requires normalizing_eigenvector")
         return new_state / (new_state @ normalizing_eigenvector)
 
+
 """Token encoding utilities for factored observations.
 
 Handles conversion between composite tokens and per-factor token tuples

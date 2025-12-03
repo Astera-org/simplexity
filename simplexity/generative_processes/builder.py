@@ -398,7 +398,6 @@ def build_matrices_from_spec(
             for v in variants
         ]
 
-
         # Validate dimensions
         vocab_sizes = [b.vocab_size for b in built]
         num_states = [b.num_states if hasattr(b, "num_states") else b.transition_matrices.shape[1] for b in built]
