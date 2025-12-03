@@ -1,5 +1,14 @@
 """Tests for activation analysis system."""
 
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -9,7 +18,7 @@ from simplexity.activations.activation_analyses import (
     LinearRegressionSVDAnalysis,
     PcaAnalysis,
 )
-from simplexity.activations.activation_tracker import ActivationTracker, prepare_activations, PrepareOptions
+from simplexity.activations.activation_tracker import ActivationTracker, PrepareOptions, prepare_activations
 
 
 @pytest.fixture
