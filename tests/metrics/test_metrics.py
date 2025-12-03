@@ -3,6 +3,7 @@
 from simplexity.metrics.metrics import (
     Context,
     LearningRateMetric,
+    LearningRateWeightedTokensMetric,
     RequiredFields,
     Requirements,
     TokensMetric,
@@ -87,3 +88,23 @@ def test_tokens():
     assert computed["cum/tokens"] == 50
     assert computed["step/tokens_per_second"] > 0
     assert computed["cum/tokens_per_second"] > 0
+
+
+def test_learning_rate_weighted_tokens():
+    """Test the LearningRateWeightedTokensMetric class."""
+    context = Context()
+    metric = LearningRateWeightedTokensMetric(context)
+
+    context = Context(num_tokens=20, learning_rates={"lr": 0.01})
+    metric.step(context)
+    assert metric.compute(context) == {
+        "step/lr_weighted_tokens": 0.2,
+        "cum/lr_weighted_tokens": 0.2,
+    }
+
+    context = Context(num_tokens=30, learning_rates={"lr": 0.02})
+    metric.step(context)
+    assert metric.compute(context) == {
+        "step/lr_weighted_tokens": 0.6,
+        "cum/lr_weighted_tokens": 0.8,
+    }
