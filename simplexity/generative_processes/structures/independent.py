@@ -55,13 +55,13 @@ class IndependentStructure(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        _: ConditionalContext,
+        context: ConditionalContext,  # pylint: disable=unused-argument  # Required by protocol
     ) -> tuple[jnp.ndarray, ...]:
         """Select variants (always 0 for all factors).
 
         Args:
             obs_tuple: Tuple of observed tokens (unused)
-            _: Conditional context (unused)
+            context: Conditional context (unused)
 
         Returns:
             Tuple of variant indices (all zeros)
