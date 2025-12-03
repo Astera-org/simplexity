@@ -5,6 +5,7 @@ from simplexity.metrics.metrics import (
     LearningRateMetric,
     RequiredFields,
     Requirements,
+    TokensMetric,
     combine_required_fields,
     combine_requirements,
 )
@@ -64,3 +65,25 @@ def test_learning_rates():
 
     context = Context(learning_rates={"lr1": 0.01, "lr2": 0.02})
     assert metric.compute(context) == {"learning_rate/lr1": 0.01, "learning_rate/lr2": 0.02}
+
+
+def test_tokens():
+    """Test the TokensMetric class."""
+    context = Context()
+    metric = TokensMetric(context)
+
+    context = Context(num_tokens=20)
+    metric.step(context)
+    computed = metric.compute(context)
+    assert computed["step/tokens"] == 20
+    assert computed["cum/tokens"] == 20
+    assert computed["step/tokens_per_second"] > 0
+    assert computed["cum/tokens_per_second"] > 0
+
+    context = Context(num_tokens=30)
+    metric.step(context)
+    computed = metric.compute(context)
+    assert computed["step/tokens"] == 30
+    assert computed["cum/tokens"] == 50
+    assert computed["step/tokens_per_second"] > 0
+    assert computed["cum/tokens_per_second"] > 0
