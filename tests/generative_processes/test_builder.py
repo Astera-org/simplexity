@@ -551,3 +551,53 @@ def test_build_factored_process_transition_coupled_missing_params(components_spe
             initial_states=initial_states,
             control_maps_transition=(jnp.array([0, 1]),),
         )
+
+
+def test_build_matrices_from_spec_empty_spec_raises():
+    """Empty spec should raise ValueError."""
+    with pytest.raises(ValueError, match="spec must contain at least one factor"):
+        build_matrices_from_spec([])
+
+
+def test_build_matrices_from_spec_empty_variants_raises():
+    """Factor with empty variants should raise ValueError."""
+    spec = [{"component_type": "hmm", "variants": []}]
+    with pytest.raises(ValueError, match="spec\\[0\\].variants must be non-empty"):
+        build_matrices_from_spec(spec)
+
+
+def test_build_matrices_from_spec_mismatched_vocab_sizes_raises():
+    """Variants with different vocab sizes should raise ValueError."""
+    spec = [
+        {
+            "component_type": "hmm",
+            "variants": [
+                {"process_name": "coin", "process_params": {"p": 0.5}},  # vocab=2
+                {"process_name": "mess3", "process_params": {"x": 0.5, "a": 0.6}},  # vocab=3
+            ],
+        }
+    ]
+    with pytest.raises(ValueError, match="must have same vocab size"):
+        build_matrices_from_spec(spec)
+
+
+def test_build_matrices_from_spec_with_ghmm_variants():
+    """GHMM variants should stack normalizing eigenvectors."""
+    spec = [
+        {
+            "component_type": "ghmm",
+            "variants": [
+                {"process_name": "tom_quantum", "process_params": {"alpha": 1.0, "beta": 1.0}},
+                {"process_name": "tom_quantum", "process_params": {"alpha": 1.0, "beta": 4.0}},
+            ],
+        }
+    ]
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(spec)
+    assert component_types == ["ghmm"]
+    assert normalizing_eigenvectors[0].shape[0] == 2  # 2 variants
+
+
+def test_build_chain_from_spec_empty_chain_raises():
+    """Empty chain should raise ValueError."""
+    with pytest.raises(ValueError, match="chain must contain at least one node"):
+        build_chain_from_spec([])
