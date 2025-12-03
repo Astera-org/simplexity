@@ -43,15 +43,6 @@ class ConditionalStructure(Protocol):
     """
 
     def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
-        """Compute joint observation distribution across all factors.
-
-        Args:
-            context: All information needed to compute the joint distribution
-
-        Returns:
-            Flattened joint distribution of shape [prod(V_i)]
-            Uses radix encoding: token = sum(t_i * prod(V_j for j>i))
-        """
         ...
 
     def select_variants(
@@ -59,22 +50,7 @@ class ConditionalStructure(Protocol):
         obs_tuple: tuple[jnp.ndarray, ...],
         context: ConditionalContext,
     ) -> tuple[jnp.ndarray, ...]:
-        """Select parameter variant for each factor given observations.
-
-        Args:
-            obs_tuple: Tuple of F observed tokens (one per factor)
-            context: Context information
-
-        Returns:
-            Tuple of F variant indices (one per factor)
-        """
         ...
 
     def get_required_params(self) -> dict[str, type]:
-        """Return dictionary of structure-specific parameters and their types.
-
-        Returns:
-            Dict mapping parameter names to expected types
-            (e.g., {"control_maps": tuple} for sequential conditional)
-        """
         ...
