@@ -95,13 +95,10 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         if transition_matrices.ndim != 3 or transition_matrices.shape[1] != transition_matrices.shape[2]:
             raise ValueError("Transition matrices must have shape (vocab_size, num_states, num_states)")
 
-        # GHMM-specific validation: matrices should be non-negative
-        if not jnp.all(transition_matrices >= 0):
-            raise ValueError("Transition matrices must be non-negative")
-
         # Check that net transition matrix has dominant eigenvalue close to 1
-        state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+        state_transition_matrix = jnp.asarray(jnp.sum(transition_matrices, axis=0))
         eigenvalues, _ = jnp.linalg.eig(state_transition_matrix)
+        eigenvalues = jnp.asarray(eigenvalues)
         principal_eigenvalue = jnp.max(jnp.abs(eigenvalues))
 
         if not jnp.isclose(principal_eigenvalue, 1.0, rtol=1e-5):
