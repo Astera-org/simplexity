@@ -12,6 +12,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+from simplexity.activations.activation_tracker import ActivationTracker
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.persistence.model_persister import ModelPersister
@@ -26,118 +27,54 @@ class Components:
     persisters: dict[str, ModelPersister] | None = None
     predictive_models: dict[str, Any] | None = None  # TODO: improve typing
     optimizers: dict[str, Any] | None = None  # TODO: improve typing
-    activation_trackers: dict[str, Any] | None = None  # TODO: improve typing
+    activation_trackers: dict[str, ActivationTracker] | None = None
 
     def get_logger(self, key: str | None = None) -> Logger | None:
         """Get the logger."""
-        if self.loggers is None:
-            if key is None:
-                return None
-            raise KeyError("No loggers found")
-        if key is None:
-            if len(self.loggers) == 1:
-                return next(iter(self.loggers.values()))
-            raise KeyError("No key provided and multiple loggers found")
-        if key in self.loggers:
-            return self.loggers[key]
-        ending_matches = [instance_key for instance_key in self.loggers if instance_key.endswith(key)]
-        if len(ending_matches) == 1:
-            return self.loggers[ending_matches[0]]
-        if len(ending_matches) > 1:
-            raise KeyError(f"Multiple loggers with key '{key}' found: {ending_matches}")
-        raise KeyError(f"Logger with key '{key}' not found")
+        return self._get_instance_by_key(self.loggers, key, "logger")
 
     def get_generative_process(self, key: str | None = None) -> GenerativeProcess | None:
         """Get the generative process."""
-        if self.generative_processes is None:
-            if key is None:
-                return None
-            raise KeyError("No generative processes found")
-        if key is None:
-            if len(self.generative_processes) == 1:
-                return next(iter(self.generative_processes.values()))
-            raise KeyError("No key provided and multiple generative processes found")
-        if key in self.generative_processes:
-            return self.generative_processes[key]
-        ending_matches = [instance_key for instance_key in self.generative_processes if instance_key.endswith(key)]
-        if len(ending_matches) == 1:
-            return self.generative_processes[ending_matches[0]]
-        if len(ending_matches) > 1:
-            raise KeyError(f"Multiple generative processes with key '{key}' found: {ending_matches}")
-        raise KeyError(f"Generative process with key '{key}' not found")
+        return self._get_instance_by_key(self.generative_processes, key, "generative process")
 
     def get_persister(self, key: str | None = None) -> ModelPersister | None:
         """Get the persister."""
-        if self.persisters is None:
-            if key is None:
-                return None
-            raise KeyError("No persisters found")
-        if key is None:
-            if len(self.persisters) == 1:
-                return next(iter(self.persisters.values()))
-            raise KeyError("No key provided and multiple persisters found")
-        if key in self.persisters:
-            return self.persisters[key]
-        ending_matches = [instance_key for instance_key in self.persisters if instance_key.endswith(key)]
-        if len(ending_matches) == 1:
-            return self.persisters[ending_matches[0]]
-        if len(ending_matches) > 1:
-            raise KeyError(f"Multiple persisters with key '{key}' found: {ending_matches}")
-        raise KeyError(f"Persister with key '{key}' not found")
+        return self._get_instance_by_key(self.persisters, key, "persister")
 
     def get_predictive_model(self, key: str | None = None) -> Any | None:
         """Get the predictive model."""
-        if self.predictive_models is None:
-            if key is None:
-                return None
-            raise KeyError("No predictive models found")
-        if key is None:
-            if len(self.predictive_models) == 1:
-                return next(iter(self.predictive_models.values()))
-            raise KeyError("No key provided and multiple predictive models found")
-        if key in self.predictive_models:
-            return self.predictive_models[key]
-        ending_matches = [instance_key for instance_key in self.predictive_models if instance_key.endswith(key)]
-        if len(ending_matches) == 1:
-            return self.predictive_models[ending_matches[0]]
-        if len(ending_matches) > 1:
-            raise KeyError(f"Multiple predictive models with key '{key}' found: {ending_matches}")
-        raise KeyError(f"Predictive model with key '{key}' not found")
+        return self._get_instance_by_key(self.predictive_models, key, "predictive model")
 
     def get_optimizer(self, key: str | None = None) -> Any | None:
         """Get the optimizer."""
-        if self.optimizers is None:
-            if key is None:
-                return None
-            raise KeyError("No optimizers found")
-        if key is None:
-            if len(self.optimizers) == 1:
-                return next(iter(self.optimizers.values()))
-            raise KeyError("No key provided and multiple optimizers found")
-        if key in self.optimizers:
-            return self.optimizers[key]
-        ending_matches = [instance_key for instance_key in self.optimizers if instance_key.endswith(key)]
-        if len(ending_matches) == 1:
-            return self.optimizers[ending_matches[0]]
-        if len(ending_matches) > 1:
-            raise KeyError(f"Multiple optimizers with key '{key}' found: {ending_matches}")
-        raise KeyError(f"Optimizer with key '{key}' not found")
+        return self._get_instance_by_key(self.optimizers, key, "optimizer")
 
-    def get_activation_tracker(self, key: str | None = None) -> Any | None:
+    def get_activation_tracker(self, key: str | None = None) -> ActivationTracker | None:
         """Get the activation tracker."""
-        if self.activation_trackers is None:
+        return self._get_instance_by_key(self.activation_trackers, key, "activation tracker")
+
+    def _get_instance_by_key[T: Any](
+        self, instances: dict[str, T] | None, key: str | None, component_name: str
+    ) -> T | None:
+        """Get the instance by key."""
+        if instances is None:
             if key is None:
                 return None
-            raise KeyError("No activation trackers found")
+            raise KeyError(f"No {component_name} found")
         if key is None:
-            if len(self.activation_trackers) == 1:
-                return next(iter(self.activation_trackers.values()))
-            raise KeyError("No key provided and multiple activation trackers found")
-        if key in self.activation_trackers:
-            return self.activation_trackers[key]
-        ending_matches = [instance_key for instance_key in self.activation_trackers if instance_key.endswith(key)]
+            if len(instances) == 1:
+                return next(iter(instances.values()))
+            raise KeyError(f"No key provided and multiple {component_name}s found")
+        if key in instances:
+            return instances[key]
+        ending_matches = [instance_key for instance_key in instances if instance_key.endswith(key)]
         if len(ending_matches) == 1:
-            return self.activation_trackers[ending_matches[0]]
+            return instances[ending_matches[0]]
         if len(ending_matches) > 1:
-            raise KeyError(f"Multiple activation trackers with key '{key}' found: {ending_matches}")
-        raise KeyError(f"Activation tracker with key '{key}' not found")
+            raise KeyError(f"Multiple {component_name}s with key '{key}' found: {ending_matches}")
+        ending_matches = [instance_key for instance_key in instances if instance_key.endswith(f"{key}.instance")]
+        if len(ending_matches) == 1:
+            return instances[ending_matches[0]]
+        if len(ending_matches) > 1:
+            raise KeyError(f"Multiple {component_name}s with key '{key}.instance' found: {ending_matches}")
+        raise KeyError(f"{component_name.capitalize()} with key '{key}' not found")
