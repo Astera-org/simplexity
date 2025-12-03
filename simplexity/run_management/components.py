@@ -33,13 +33,9 @@ class Components:
         """Get the logger."""
         return self._get_instance_by_key(self.loggers, key, "logger")
 
-    def get_generative_process(
-        self, key: str | None = None
-    ) -> GenerativeProcess | None:
+    def get_generative_process(self, key: str | None = None) -> GenerativeProcess | None:
         """Get the generative process."""
-        return self._get_instance_by_key(
-            self.generative_processes, key, "generative process"
-        )
+        return self._get_instance_by_key(self.generative_processes, key, "generative process")
 
     def get_persister(self, key: str | None = None) -> ModelPersister | None:
         """Get the persister."""
@@ -47,21 +43,15 @@ class Components:
 
     def get_predictive_model(self, key: str | None = None) -> Any | None:
         """Get the predictive model."""
-        return self._get_instance_by_key(
-            self.predictive_models, key, "predictive model"
-        )
+        return self._get_instance_by_key(self.predictive_models, key, "predictive model")
 
     def get_optimizer(self, key: str | None = None) -> Any | None:
         """Get the optimizer."""
         return self._get_instance_by_key(self.optimizers, key, "optimizer")
 
-    def get_activation_tracker(
-        self, key: str | None = None
-    ) -> ActivationTracker | None:
+    def get_activation_tracker(self, key: str | None = None) -> ActivationTracker | None:
         """Get the activation tracker."""
-        return self._get_instance_by_key(
-            self.activation_trackers, key, "activation tracker"
-        )
+        return self._get_instance_by_key(self.activation_trackers, key, "activation tracker")
 
     def _get_instance_by_key[T: Any](
         self, instances: dict[str, T] | None, key: str | None, component_name: str
@@ -77,13 +67,9 @@ class Components:
             raise KeyError(f"No key provided and multiple {component_name} found")
         if key in instances:
             return instances[key]
-        ending_matches = [
-            instance_key for instance_key in instances if instance_key.endswith(key)
-        ]
+        ending_matches = [instance_key for instance_key in instances if instance_key.endswith(key)]
         if len(ending_matches) == 1:
             return instances[ending_matches[0]]
         if len(ending_matches) > 1:
-            raise KeyError(
-                f"Multiple {component_name} with key '{key}' found: {ending_matches}"
-            )
+            raise KeyError(f"Multiple {component_name} with key '{key}' found: {ending_matches}")
         raise KeyError(f"{component_name.capitalize()} with key '{key}' not found")
