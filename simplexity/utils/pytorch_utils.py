@@ -18,7 +18,7 @@ from torch.utils import dlpack as torch_dlpack
 from simplexity.exceptions import DeviceResolutionError
 
 
-def jax_to_torch(jax_array: jax.Array) -> torch.Tensor:
+def jax_to_torch(jax_array: jax.Array, device: str | torch.device | None = None) -> torch.Tensor:
     """Convert a JAX array to PyTorch tensor using DLPack for GPU arrays.
 
     This function uses DLPack for zero-copy conversion when the JAX array
@@ -26,12 +26,16 @@ def jax_to_torch(jax_array: jax.Array) -> torch.Tensor:
 
     Args:
         jax_array: JAX array to convert
+        device: Optional target device for the tensor. If specified, the tensor
+            will be moved to this device after conversion.
 
     Returns:
         PyTorch tensor
     """
     try:
         torch_tensor = torch_dlpack.from_dlpack(jax_array)
+        if device is not None:
+            torch_tensor = torch_tensor.to(device)
         return torch_tensor
 
     except TypeError as e:
@@ -42,6 +46,8 @@ def jax_to_torch(jax_array: jax.Array) -> torch.Tensor:
         )
         numpy_array = np.array(jax_array)
         torch_tensor = torch.from_numpy(numpy_array)
+        if device is not None:
+            torch_tensor = torch_tensor.to(device)
         return torch_tensor
 
 
@@ -119,7 +125,8 @@ def tensor_collection_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
 
 def tensor_stack_l2_norm(tensors: Iterable[torch.Tensor]) -> float:
     """Compute an L2 norm across an iterables of tensors with stacking."""
-    return float(torch.linalg.vector_norm(torch.cat([t.detach().float().view(-1) for t in tensors]), ord=2))  # pylint: disable=not-callable
+    stacked = torch.cat([t.detach().float().view(-1) for t in tensors])
+    return float(torch.linalg.norm(stacked.cpu(), ord=2))
 
 
 def named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mapping[str, torch.Tensor]) -> float:
@@ -144,4 +151,5 @@ def named_tensor_distance(current: Mapping[str, torch.Tensor], reference: Mappin
     if not diffs:
         return 0.0
 
-    return float(torch.linalg.vector_norm(torch.cat(diffs), ord=2))
+    combined = torch.cat(diffs)
+    return float(torch.linalg.norm(combined.cpu(), ord=2))
