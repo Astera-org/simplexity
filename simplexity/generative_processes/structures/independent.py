@@ -33,21 +33,21 @@ class IndependentStructure(eqx.Module):
         Returns:
             Flattened joint distribution of shape [prod(V_i)]
         """
-        F = len(context.vocab_sizes)
+        num_factors = len(context.vocab_sizes)
         states = context.states
         component_types = context.component_types
         transition_matrices = context.transition_matrices
         normalizing_eigenvectors = context.normalizing_eigenvectors
 
         parts = []
-        for i in range(F):
-            T_i = transition_matrices[i][0]
+        for i in range(num_factors):
+            T_i = transition_matrices[i][0]  # pylint: disable=invalid-name  # T_i is standard notation
             norm_i = normalizing_eigenvectors[i][0] if component_types[i] == "ghmm" else None
             p_i = compute_obs_dist_for_variant(component_types[i], states[i], T_i, norm_i)
             parts.append(p_i)
 
         joint = parts[0]
-        for i in range(1, F):
+        for i in range(1, num_factors):
             joint = (joint[..., None] * parts[i]).reshape(*joint.shape, parts[i].shape[0])
 
         return joint.reshape(-1)
@@ -55,13 +55,13 @@ class IndependentStructure(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: ConditionalContext,
+        _: ConditionalContext,
     ) -> tuple[jnp.ndarray, ...]:
         """Select variants (always 0 for all factors).
 
         Args:
             obs_tuple: Tuple of observed tokens (unused)
-            context: Conditional context (unused)
+            _: Conditional context (unused)
 
         Returns:
             Tuple of variant indices (all zeros)

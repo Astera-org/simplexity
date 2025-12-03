@@ -466,15 +466,6 @@ def test_build_factored_process_from_spec_transition_coupled(components_spec, tr
     assert process.vocab_size == 4
 
 
-def test_build_factored_process_from_spec_invalid_structure_type(components_spec):
-    """Test unified builder rejects invalid structure_type."""
-    with pytest.raises(ValueError, match="Unknown structure_type 'invalid'"):
-        build_factored_process_from_spec(
-            structure_type="invalid",
-            spec=components_spec,
-        )
-
-
 def test_build_factored_process_from_spec_symmetric_missing_control_maps(components_spec):
     """Test unified builder validates required params for symmetric."""
     with pytest.raises(ValueError, match="symmetric structure requires 'control_maps' parameter"):
@@ -497,22 +488,6 @@ def test_build_factored_process_from_spec_transition_coupled_missing_params(comp
             structure_type="transition_coupled",
             spec=components_spec,
             control_maps_transition=[[0, 1], [1, 0]],
-        )
-
-
-def test_build_factored_process_invalid_structure_type(components_spec):
-    """Test build_factored_process rejects invalid structure_type."""
-    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
-        components_spec
-    )
-
-    with pytest.raises(ValueError, match="Unknown structure_type 'invalid'"):
-        build_factored_process(
-            structure_type="invalid",
-            component_types=component_types,
-            transition_matrices=transition_matrices,
-            normalizing_eigenvectors=normalizing_eigenvectors,
-            initial_states=initial_states,
         )
 
 

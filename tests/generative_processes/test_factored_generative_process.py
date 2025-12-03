@@ -1,5 +1,8 @@
 """Integration tests for the factored generative process."""
 
+# pylint: disable=protected-access
+# Tests need to access protected methods to verify internal implementation
+
 import chex
 import jax
 import jax.numpy as jnp
