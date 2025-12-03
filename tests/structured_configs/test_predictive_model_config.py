@@ -30,15 +30,8 @@ from simplexity.structured_configs.predictive_model import (
 )
 
 
-<<<<<<< HEAD:tests/run_management/test_predictive_model_config.py
-class TestHookedTransformerConfig:
-    """Test HookedTransformerConfig."""
-
-    """Test PredictiveModelConfig."""
-=======
 class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
     """Test HookedTransformerConfig."""
->>>>>>> origin/main:tests/structured_configs/test_predictive_model_config.py
 
     def test_hooked_transformer_config(self) -> None:
         """Test creating hooked transformer config from dataclass."""
@@ -298,10 +291,7 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
         assert cfg.get("device") == "cpu"
 
     def test_resolve_hooked_transformer_config_with_complete_values(self) -> None:
-<<<<<<< HEAD:tests/run_management/test_predictive_model_config.py
-=======
         """Test resolve_hooked_transformer_config with complete values."""
->>>>>>> origin/main:tests/structured_configs/test_predictive_model_config.py
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -329,10 +319,7 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
         assert cfg.get("device") == "cuda"
 
     def test_resolve_hooked_transformer_config_with_missing_values(self) -> None:
-<<<<<<< HEAD:tests/run_management/test_predictive_model_config.py
-=======
         """Test resolve_hooked_transformer_config with missing values."""
->>>>>>> origin/main:tests/structured_configs/test_predictive_model_config.py
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -360,10 +347,7 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
         assert cfg.get("device") == "cuda"
 
     def test_resolve_hooked_transformer_config_with_invalid_values(self) -> None:
-<<<<<<< HEAD:tests/run_management/test_predictive_model_config.py
-=======
         """Test resolve_hooked_transformer_config with invalid values."""
->>>>>>> origin/main:tests/structured_configs/test_predictive_model_config.py
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -388,28 +372,7 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
                 "n_layers": 2,
                 "d_model": 128,
                 "d_head": 32,
-<<<<<<< HEAD:tests/run_management/test_predictive_model_config.py
-                "n_ctx": 8,
-                "n_heads": -1,
-                "d_vocab": MISSING,
-            }
-        )
-        with pytest.raises(
-            ConfigValidationError, match=re.escape("HookedTransformerConfig.n_ctx (8) must be equal to 16")
-        ):
-            resolve_hooked_transformer_config(cfg, bos_token=3, sequence_len=16)
-
-    def test_resolve_hooked_transformer_config_with_conflicting_device(self) -> None:
-        cfg = DictConfig(
-            {
-                "_target_": "transformer_lens.HookedTransformerConfig",
-                "n_layers": 2,
-                "d_model": 128,
-                "d_head": 32,
-                "n_ctx": MISSING,
-=======
                 "n_ctx": 256,
->>>>>>> origin/main:tests/structured_configs/test_predictive_model_config.py
                 "n_heads": -1,
                 "d_vocab": MISSING,
                 "device": "cuda",
@@ -433,8 +396,6 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             )
         assert cfg.get("device") == "cpu"
 
-<<<<<<< HEAD:tests/run_management/test_predictive_model_config.py
-=======
     def test_resolve_hooked_transformer_config_device_mismatch_updates_cfg(self) -> None:
         """Test resolve_hooked_transformer_config device mismatch updates config."""
         cfg = DictConfig(
@@ -479,7 +440,6 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             mock_info.assert_any_call("[predictive model] device resolved to: %s", "mps")
         assert cfg.get("device") == "mps"
 
->>>>>>> origin/main:tests/structured_configs/test_predictive_model_config.py
     def test_is_predictive_model_target_valid(self) -> None:
         """Test is_predictive_model_target with valid model targets."""
         assert is_predictive_model_target("transformer_lens.HookedTransformer")

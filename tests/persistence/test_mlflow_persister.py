@@ -13,10 +13,7 @@ import mlflow
 import pytest
 import torch
 import yaml
-<<<<<<< HEAD
-=======
 from mlflow.models import infer_signature
->>>>>>> origin/main
 from torch.nn import Linear, Module
 
 from simplexity.persistence.mlflow_persister import MLFlowPersister
@@ -24,28 +21,6 @@ from simplexity.predictive_models.types import ModelFramework
 from simplexity.utils.mlflow_utils import set_mlflow_uris
 
 
-<<<<<<< HEAD
-def get_pytorch_model(seed: int) -> Linear:
-    """Build a small deterministic PyTorch model for serialization tests."""
-    torch.manual_seed(seed)
-    return Linear(in_features=4, out_features=2)
-
-
-def get_hydra_config_for_pytorch_model() -> dict:
-    """Get a Hydra config dict for the given PyTorch model."""
-    return {
-        "predictive_model": {
-            "instance": {
-                "_target_": "torch.nn.Linear",
-                "in_features": 4,
-                "out_features": 2,
-            }
-        }
-    }
-
-
-def pytorch_models_equal(model1: Module, model2: Module) -> bool:
-=======
 def _get_artifacts_root(persister: MLFlowPersister) -> Path:
     """Get the artifacts root directory for the given persister."""
     assert persister.tracking_uri is not None
@@ -56,7 +31,6 @@ def _get_artifacts_root(persister: MLFlowPersister) -> Path:
 
 
 def _pytorch_models_equal(model1: Module, model2: Module) -> bool:
->>>>>>> origin/main
     """Check if two PyTorch models have identical parameters."""
     params1 = dict(model1.named_parameters())
     params2 = dict(model2.named_parameters())
@@ -168,104 +142,11 @@ def test_round_trip_from_config(persister: MLFlowPersister, framework: ModelFram
     assert _models_equal(loaded, original)
 
 
-<<<<<<< HEAD
-def test_mlflow_persister_cleanup(tmp_path: Path) -> None:
-    """Test MLflow persister cleanup."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="cleanup",
-        run_name="cleanup-run",
-        tracking_uri=artifact_dir.as_uri(),
-        artifact_path="models",
-    )
-
-    def run_status() -> str:
-        """Get the status of the run."""
-        client = persister.client
-        run_id = persister.run_id
-        run = client.get_run(run_id)
-        return run.info.status
-
-    assert run_status() == "RUNNING"
-
-    model = get_model(0)
-    persister.save_weights(model, step=0)
-    local_persister = persister.get_local_persister(model)
-    assert local_persister.directory.exists()
-
-    persister.cleanup()
-    assert run_status() == "FINISHED"
-    assert not local_persister.directory.exists()
-
-
-def test_mlflow_persister_pytorch_round_trip(tmp_path: Path) -> None:
-    """PyTorch model weights saved via MLflow can be restored back into a new instance."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="pytorch-round-trip",
-        run_name="pytorch-round-trip-run",
-        tracking_uri=artifact_dir.as_uri(),
-        artifact_path="models",
-    )
-
-    original = get_pytorch_model(0)
-    persister.save_weights(original, step=0)
-
-    # MLflow stores artifacts in experiment_id/run_id/artifacts/artifact_path/step/
-    experiment_id = persister.experiment_id
-    run_id = persister.run_id
-    remote_model_path = artifact_dir / experiment_id / run_id / "artifacts" / "models" / "0" / "model.pt"
-    assert remote_model_path.exists()
-
-    updated = get_pytorch_model(1)
-    loaded = persister.load_weights(updated, step=0)
-
-    # Type assertion since we know loaded is a PyTorch model
-    assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
-
-
-def test_mlflow_persister_pytorch_round_trip_from_config(tmp_path: Path) -> None:
-    """PyTorch model weights saved via MLflow can be restored back into a new instance via the config."""
-    artifact_dir = tmp_path / "mlruns"
-    artifact_dir.mkdir()
-
-    persister = MLFlowPersister(
-        experiment_name="pytorch-round-trip",
-        run_name="pytorch-round-trip-run",
-        tracking_uri=artifact_dir.as_uri(),
-        artifact_path="models",
-    )
-
-    original = get_pytorch_model(0)
-    persister.save_weights(original, step=0)
-
-    # MLflow stores artifacts in experiment_id/run_id/artifacts/artifact_path/step/
-    experiment_id = persister.experiment_id
-    run_id = persister.run_id
-    remote_model_path = artifact_dir / experiment_id / run_id / "artifacts" / "models" / "0" / "model.pt"
-    assert remote_model_path.exists()
-
-    # New function expects a config to live at experiment_id/run_id/artifacts/config_path
-    config_path = artifact_dir / experiment_id / run_id / "artifacts" / "config.yaml"
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(get_hydra_config_for_pytorch_model(), f)
-
-    loaded = persister.load_model(step=0)
-    assert pytorch_models_equal(loaded, original)  # type: ignore[arg-type]
-
-
-def test_mlflow_persister_pytorch_cleanup(tmp_path: Path) -> None:
-=======
 @pytest.mark.parametrize(
     "framework",
     [ModelFramework.PYTORCH, ModelFramework.EQUINOX],
 )
 def test_cleanup(tmp_path: Path, framework: ModelFramework) -> None:
->>>>>>> origin/main
     """Test PyTorch model cleanup with MLflow persister."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()

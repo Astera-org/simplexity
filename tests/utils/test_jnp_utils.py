@@ -1,12 +1,5 @@
 """Tests for JAX NumPy utilities."""
 
-<<<<<<< HEAD
-import chex
-import jax
-import jax.numpy as jnp
-
-from simplexity.utils.jnp_utils import log_matmul, signed_logsumexp
-=======
 from unittest.mock import create_autospec, patch
 
 import chex
@@ -126,7 +119,6 @@ def test_resolve_jax_device_invalid_backend():
         pytest.raises(DeviceResolutionError, match="Unknown device specification: invalid"),
     ):
         resolve_jax_device("invalid")
->>>>>>> origin/main
 
 
 def test_log_matmul():
