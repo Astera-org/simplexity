@@ -20,6 +20,36 @@ ComponentType = Literal["hmm", "ghmm"]
 FactoredState = tuple[jnp.ndarray, ...]
 
 
+def _move_arrays_to_device(
+    arrays: Sequence[jnp.ndarray],
+    device: jax.Device,  # type: ignore[valid-type]
+    name: str,
+) -> tuple[jnp.ndarray, ...]:
+    """Move arrays to specified device with warning if needed.
+
+    Args:
+        arrays: Sequence of arrays to move
+        device: Target device
+        name: Name for warning messages (e.g., "Transition matrices")
+
+    Returns:
+        Tuple of arrays on target device
+    """
+    result = []
+    for i, arr in enumerate(arrays):
+        if arr.device != device:
+            SIMPLEXITY_LOGGER.warning(
+                "%s[%d] on device %s but model is on device %s. Moving to model device.",
+                name,
+                i,
+                arr.device,
+                device,
+            )
+            arr = jax.device_put(arr, device)
+        result.append(arr)
+    return tuple(result)
+
+
 class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
     """Unified factored generative process with pluggable conditional structures.
 
@@ -78,47 +108,12 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         self.device = resolve_jax_device(device)
         self.component_types = tuple(component_types)
 
-        # Move transition matrices to device
-        transition_matrices_on_device = []
-        for i, T in enumerate(transition_matrices):
-            if T.device != self.device:
-                SIMPLEXITY_LOGGER.warning(
-                    "Transition matrices[%d] on device %s but model is on device %s. Moving to model device.",
-                    i,
-                    T.device,
-                    self.device,
-                )
-                T = jax.device_put(T, self.device)
-            transition_matrices_on_device.append(T)
-        self.transition_matrices = tuple(transition_matrices_on_device)
-
-        # Move normalizing eigenvectors to device
-        normalizing_eigenvectors_on_device = []
-        for i, norm in enumerate(normalizing_eigenvectors):
-            if norm.device != self.device:
-                SIMPLEXITY_LOGGER.warning(
-                    "Normalizing eigenvectors[%d] on device %s but model is on device %s. Moving to model device.",
-                    i,
-                    norm.device,
-                    self.device,
-                )
-                norm = jax.device_put(norm, self.device)
-            normalizing_eigenvectors_on_device.append(norm)
-        self.normalizing_eigenvectors = tuple(normalizing_eigenvectors_on_device)
-
-        # Move initial states to device
-        initial_states_on_device = []
-        for i, state in enumerate(initial_states):
-            if state.device != self.device:
-                SIMPLEXITY_LOGGER.warning(
-                    "Initial states[%d] on device %s but model is on device %s. Moving to model device.",
-                    i,
-                    state.device,
-                    self.device,
-                )
-                state = jax.device_put(state, self.device)
-            initial_states_on_device.append(state)
-        self.initial_states = tuple(initial_states_on_device)
+        # Move all arrays to device
+        self.transition_matrices = _move_arrays_to_device(transition_matrices, self.device, "Transition matrices")
+        self.normalizing_eigenvectors = _move_arrays_to_device(
+            normalizing_eigenvectors, self.device, "Normalizing eigenvectors"
+        )
+        self.initial_states = _move_arrays_to_device(initial_states, self.device, "Initial states")
 
         self.structure = structure
 

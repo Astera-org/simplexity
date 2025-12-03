@@ -247,8 +247,6 @@ class TestGenerativeProcessConfig:
         assert cfg.get("eos_token") is None
         assert cfg.get("vocab_size") == 3
 
-<<<<<<< HEAD:tests/run_management/test_generative_process_config.py
-=======
     def test_validate_generative_process_config_handles_generalized_builder(self) -> None:
         cfg = DictConfig(
             {
@@ -328,7 +326,6 @@ class TestGenerativeProcessConfig:
         cfg = _with_missing_tokens(cfg)
         validate_generative_process_config(cfg)
 
->>>>>>> origin/main:tests/structured_configs/test_generative_process_config.py
     def test_is_generative_process_target_valid(self) -> None:
         """Test is_generative_process_target with valid generative process targets."""
         assert is_generative_process_target("simplexity.generative_processes.hidden_markov_model.HiddenMarkovModel")
@@ -858,3 +855,147 @@ class TestGenerativeProcessConfig:
             match=re.escape("GenerativeProcessConfig.vocab_size (4) must be equal to 3"),
         ):
             resolve_generative_process_config(cfg, base_vocab_size=3)
+
+
+class TestFactoredProcessBuilders:
+    """Tests for factored generative process builder configs."""
+
+    def test_factored_process_from_spec_config_detection(self) -> None:
+        """Test build_factored_process_from_spec config detection (unified builder)."""
+        target = "simplexity.generative_processes.builder.build_factored_process_from_spec"
+        
+        # Test independent
+        cfg = DictConfig(
+            {
+                "_target_": target,
+                "structure_type": "independent",
+                "spec": [
+                    {
+                        "component_type": "hmm",
+                        "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                    }
+                ],
+            }
+        )
+        assert is_generative_process_target(target)
+        assert is_generative_process_config(cfg)
+
+        # Test chain
+        cfg = DictConfig(
+            {
+                "_target_": target,
+                "structure_type": "chain",
+                "spec": [
+                    {
+                        "component_type": "hmm",
+                        "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                    }
+                ],
+            }
+        )
+        assert is_generative_process_target(target)
+        assert is_generative_process_config(cfg)
+
+        # Test symmetric
+        cfg = DictConfig(
+            {
+                "_target_": target,
+                "structure_type": "symmetric",
+                "spec": [
+                    {
+                        "component_type": "hmm",
+                        "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                    }
+                ],
+                "control_maps": [[0]],
+            }
+        )
+        assert is_generative_process_target(target)
+        assert is_generative_process_config(cfg)
+
+        # Test transition_coupled
+        cfg = DictConfig(
+            {
+                "_target_": target,
+                "structure_type": "transition_coupled",
+                "spec": [
+                    {
+                        "component_type": "hmm",
+                        "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                    }
+                ],
+                "control_maps_transition": [[0]],
+                "emission_variant_indices": [0],
+            }
+        )
+        assert is_generative_process_target(target)
+        assert is_generative_process_config(cfg)
+
+    def test_validate_generative_process_config_handles_factored_process_builders(self) -> None:
+        """Test validate_generative_process_config works with unified factored process builder."""
+        # Independent
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "simplexity.generative_processes.builder.build_factored_process_from_spec",
+                        "structure_type": "independent",
+                        "spec": [
+                            {
+                                "component_type": "hmm",
+                                "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                            }
+                        ],
+                    }
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        cfg = _with_missing_tokens(cfg)
+        validate_generative_process_config(cfg)
+
+        # Chain
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "simplexity.generative_processes.builder.build_factored_process_from_spec",
+                        "structure_type": "chain",
+                        "spec": [
+                            {
+                                "component_type": "hmm",
+                                "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                            }
+                        ],
+                    }
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        cfg = _with_missing_tokens(cfg)
+        validate_generative_process_config(cfg)
+
+        # Symmetric
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(
+                    {
+                        "_target_": "simplexity.generative_processes.builder.build_factored_process_from_spec",
+                        "structure_type": "symmetric",
+                        "spec": [
+                            {
+                                "component_type": "hmm",
+                                "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                            }
+                        ],
+                        "control_maps": [[0]],
+                    }
+                ),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        cfg = _with_missing_tokens(cfg)
+        validate_generative_process_config(cfg)

@@ -4,7 +4,7 @@ This module provides various conditional dependency structures that define
 how factors in a factored generative process depend on each other.
 
 Available structures:
-- Independent: No conditional dependencies between factors
+- IndependentStructure: No conditional dependencies between factors
 - SequentialConditional: One-way chain dependencies (factor i depends on i-1)
 - FullyConditional: Mutual dependencies between all factors
 - ConditionalTransitions: Hybrid structure (independent/sequential emissions, mutual transitions)
@@ -15,6 +15,9 @@ from simplexity.generative_processes.structures.conditional_transitions import (
 )
 from simplexity.generative_processes.structures.fully_conditional import (
     FullyConditional,
+)
+from simplexity.generative_processes.structures.independent import (
+    IndependentStructure,
 )
 from simplexity.generative_processes.structures.protocol import (
     ConditionalContext,
@@ -29,5 +32,6 @@ __all__ = [
     "ConditionalStructure",
     "ConditionalTransitions",
     "FullyConditional",
+    "IndependentStructure",
     "SequentialConditional",
 ]

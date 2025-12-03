@@ -8,54 +8,68 @@ base_vocab_size: ???  # Will auto-infer as 3 * 3 * 3 = 27
 vocab_size: ???
 
 instance:
-  _target_: simplexity.generative_processes.builder.build_symmetric_process_from_spec
+  _target_: simplexity.generative_processes.builder.build_factored_process_from_spec
+
+  structure_type: symmetric
 
   # Component specifications
-  components:
+  spec:
     - component_type: hmm
       variants:
         - process_name: mess3
-          x: 0.15
-          a: 0.6
+          process_params:
+            x: 0.15
+            a: 0.6
         - process_name: mess3
-          x: 0.11
-          a: 0.79
+          process_params:
+            x: 0.11
+            a: 0.79
         - process_name: mess3
-          x: 0.5
-          a: 0.6
+          process_params:
+            x: 0.5
+            a: 0.6
         - process_name: mess3
-          x: 0.5
-          a: 0.21
+          process_params:
+            x: 0.5
+            a: 0.21
 
     - component_type: hmm
       variants:
         - process_name: mess3
-          x: 0.15
-          a: 0.6
+          process_params:
+            x: 0.15
+            a: 0.6
         - process_name: mess3
-          x: 0.11
-          a: 0.79
+          process_params:
+            x: 0.11
+            a: 0.79
         - process_name: mess3
-          x: 0.5
-          a: 0.6
+          process_params:
+            x: 0.5
+            a: 0.6
         - process_name: mess3
-          x: 0.5
-          a: 0.21
+          process_params:
+            x: 0.5
+            a: 0.21
 
     - component_type: hmm
       variants:
         - process_name: mess3
-          x: 0.15
-          a: 0.6
+          process_params:
+            x: 0.15
+            a: 0.6
         - process_name: mess3
-          x: 0.11
-          a: 0.79
+          process_params:
+            x: 0.11
+            a: 0.79
         - process_name: mess3
-          x: 0.5
-          a: 0.6
+          process_params:
+            x: 0.5
+            a: 0.6
         - process_name: mess3
-          x: 0.5
-          a: 0.21
+          process_params:
+            x: 0.5
+            a: 0.21
 
   # Control maps: define how other-tokens select variant
   # control_maps[i] has shape [prod(V_j for j!=i)]

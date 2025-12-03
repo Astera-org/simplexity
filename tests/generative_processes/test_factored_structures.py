@@ -3,13 +3,14 @@
 import chex
 import jax.numpy as jnp
 
-from simplexity.generative_processes.factored_generative_process import ComponentType
 from simplexity.generative_processes.structures import (
     ConditionalTransitions,
     FullyConditional,
+    IndependentStructure,
     SequentialConditional,
 )
 from simplexity.generative_processes.structures.protocol import ConditionalContext
+from simplexity.utils.factoring_utils import ComponentType
 
 
 def _tensor_from_probs(variant_probs):
@@ -19,7 +20,7 @@ def _tensor_from_probs(variant_probs):
 
 
 def _make_context(states, transition_matrices):
-    """Helper to build a ConditionalContext for HMM components."""
+    """Helper building a ConditionalContext for HMM components."""
     component_types: tuple[ComponentType, ...] = tuple("hmm" for _ in states)
     normalizing_eigenvectors = tuple(
         jnp.ones((tm.shape[0], tm.shape[-1]), dtype=jnp.float32) for tm in transition_matrices
@@ -135,3 +136,65 @@ def test_conditional_transitions_with_sequential_emissions():
     dist = structure.compute_joint_distribution(context)
     expected = jnp.array([0.18, 0.42, 0.36, 0.04], dtype=jnp.float32)
     chex.assert_trees_all_close(dist, expected)
+
+
+def test_independent_structure_joint_distribution():
+    """IndependentStructure should compute product of independent marginals."""
+    states = (jnp.array([1.0], dtype=jnp.float32), jnp.array([1.0], dtype=jnp.float32))
+    transition_matrices = (
+        _tensor_from_probs([[0.6, 0.4]]),
+        _tensor_from_probs([[0.7, 0.3]]),
+    )
+    context = _make_context(states, transition_matrices)
+    structure = IndependentStructure()
+
+    dist = structure.compute_joint_distribution(context)
+    expected = jnp.array([0.42, 0.18, 0.28, 0.12], dtype=jnp.float32)
+    chex.assert_trees_all_close(dist, expected)
+
+
+def test_independent_structure_select_variants_always_zero():
+    """IndependentStructure should always select variant 0 for all factors."""
+    states = (jnp.array([1.0], dtype=jnp.float32), jnp.array([1.0], dtype=jnp.float32))
+    transition_matrices = (
+        _tensor_from_probs([[0.6, 0.4], [0.1, 0.9]]),
+        _tensor_from_probs([[0.7, 0.3], [0.2, 0.8]]),
+    )
+    context = _make_context(states, transition_matrices)
+    structure = IndependentStructure()
+
+    variants = structure.select_variants(
+        (jnp.array(1, dtype=jnp.int32), jnp.array(0, dtype=jnp.int32)),
+        context,
+    )
+    chex.assert_trees_all_close(variants[0], jnp.array(0, dtype=jnp.int32))
+    chex.assert_trees_all_close(variants[1], jnp.array(0, dtype=jnp.int32))
+
+
+def test_independent_structure_get_required_params():
+    """IndependentStructure should have no required params."""
+    structure = IndependentStructure()
+    required_params = structure.get_required_params()
+    assert required_params == {}
+
+
+def test_independent_structure_with_three_factors():
+    """IndependentStructure should handle three or more factors."""
+    states = (
+        jnp.array([1.0], dtype=jnp.float32),
+        jnp.array([1.0], dtype=jnp.float32),
+        jnp.array([1.0], dtype=jnp.float32),
+    )
+    transition_matrices = (
+        _tensor_from_probs([[0.5, 0.5]]),
+        _tensor_from_probs([[0.6, 0.4]]),
+        _tensor_from_probs([[0.7, 0.3]]),
+    )
+    context = _make_context(states, transition_matrices)
+    structure = IndependentStructure()
+
+    dist = structure.compute_joint_distribution(context)
+    # Joint = P(t0) * P(t1) * P(t2)
+    # For (t0, t1, t2): 0.5 * 0.6 * 0.7 = 0.21 (for 000), etc.
+    expected = jnp.array([0.21, 0.09, 0.14, 0.06, 0.21, 0.09, 0.14, 0.06], dtype=jnp.float32)
+    chex.assert_trees_all_close(dist, expected, atol=1e-6)
