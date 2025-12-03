@@ -70,7 +70,7 @@ class ConditionalTransitions(eqx.Module):
         self.control_maps_transition = tuple(jnp.asarray(cm, dtype=jnp.int32) for cm in control_maps_transition)
         self.emission_variant_indices = jnp.asarray(emission_variant_indices, dtype=jnp.int32)
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
-        F = len(vocab_sizes)
+        num_factors = len(vocab_sizes)
 
         # Process emission control maps
         use_chain = False
@@ -84,20 +84,20 @@ class ConditionalTransitions(eqx.Module):
                     if i > 0:
                         use_chain = True
         else:
-            ecm_list = [None] * F
+            ecm_list = [None] * num_factors
         self.emission_control_maps = tuple(ecm_list)
         self.use_emission_chain = bool(use_chain)
 
         # Precompute multipliers for other-factor indexing (for transitions)
         other_multipliers: list[jnp.ndarray] = []
-        for i in range(F):
+        for i in range(num_factors):
             mult = []
-            for j in range(F):
+            for j in range(num_factors):
                 if j == i:
                     mult.append(0)  # Unused
                 else:
                     m = 1
-                    for k in range(j + 1, F):
+                    for k in range(j + 1, num_factors):
                         if k == i:
                             continue
                         m *= self.vocab_sizes_py[k]
@@ -107,9 +107,9 @@ class ConditionalTransitions(eqx.Module):
 
         # Precompute multipliers for prefix indexing (for sequential emissions)
         prefix_multipliers: list[jnp.ndarray] = []
-        for i in range(F):
+        for i in range(num_factors):
             pmult = []
-            for j in range(F):
+            for j in range(num_factors):
                 if j >= i:
                     pmult.append(0)  # Unused
                 else:
@@ -139,7 +139,7 @@ class ConditionalTransitions(eqx.Module):
         Returns:
             Flattened joint distribution of shape [prod(V_i)]
         """
-        F = len(context.vocab_sizes)
+        num_factors = len(context.vocab_sizes)
         states = context.states
         component_types = context.component_types
         transition_matrices = context.transition_matrices
@@ -149,35 +149,35 @@ class ConditionalTransitions(eqx.Module):
         if not self.use_emission_chain:
             # Independent emissions
             parts = []
-            for i in range(F):
+            for i in range(num_factors):
                 k_emit = self.emission_variant_indices[i]
-                T_k = transition_matrices[i][k_emit]
+                transition_matrix_k = transition_matrices[i][k_emit]
                 norm_k = normalizing_eigenvectors[i][k_emit] if component_types[i] == "ghmm" else None
-                p_i = compute_obs_dist_for_variant(component_types[i], states[i], T_k, norm_k)
+                p_i = compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
                 parts.append(p_i)
 
             # Product of independent factors
-            J = parts[0]
-            for i in range(1, F):
-                J = (J[..., None] * parts[i]).reshape(*J.shape, parts[i].shape[0])
-            return J.reshape(-1)
+            j_prod = parts[0]
+            for i in range(1, num_factors):
+                j_prod = (j_prod[..., None] * parts[i]).reshape(*j_prod.shape, parts[i].shape[0])
+            return j_prod.reshape(-1)
 
         # Sequential emissions
         k0 = self.emission_variant_indices[0]
-        T0 = transition_matrices[0][k0]
+        transition_matrix0 = transition_matrices[0][k0]
         norm0 = normalizing_eigenvectors[0][k0] if component_types[0] == "ghmm" else None
-        joint = compute_obs_dist_for_variant(component_types[0], states[0], T0, norm0)
+        joint = compute_obs_dist_for_variant(component_types[0], states[0], transition_matrix0, norm0)
         prev_prod = self.vocab_sizes_py[0]
 
-        for i in range(1, F):
-            K_i = num_variants[i]
-            ks = jnp.arange(K_i, dtype=jnp.int32)
+        for i in range(1, num_factors):
+            variant_k = num_variants[i]
+            ks = jnp.arange(variant_k, dtype=jnp.int32)
 
             # Compute all variant distributions
             def get_dist_i(k: jnp.ndarray) -> jnp.ndarray:
-                T_k = transition_matrices[i][k]
+                transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
-                return compute_obs_dist_for_variant(component_types[i], states[i], T_k, norm_k)
+                return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
 
             all_pi = jax.vmap(get_dist_i)(ks)  # [K_i, V_i]
 
@@ -201,7 +201,7 @@ class ConditionalTransitions(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: ConditionalContext,
+        context: ConditionalContext, # pylint: disable=unused-argument
     ) -> tuple[jnp.ndarray, ...]:
         """Select transition variants based on other factors' tokens.
 

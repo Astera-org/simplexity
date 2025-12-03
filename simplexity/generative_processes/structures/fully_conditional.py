@@ -52,7 +52,7 @@ class FullyConditional(eqx.Module):
         """
         self.control_maps = tuple(jnp.asarray(cm, dtype=jnp.int32) for cm in control_maps)
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
-        F = len(vocab_sizes)
+        num_factors = len(vocab_sizes)
 
         # Compute joint vocab size
         jv = 1
@@ -65,15 +65,15 @@ class FullyConditional(eqx.Module):
         other_shapes: list[tuple[int, ...]] = []
         perms_py: list[tuple[int, ...]] = []
 
-        for i in range(F):
+        for i in range(num_factors):
             # Compute radix multipliers for "other" factors (excluding i)
             mult = []
-            for j in range(F):
+            for j in range(num_factors):
                 if j == i:
                     mult.append(0)  # Unused
                 else:
                     m = 1
-                    for k in range(j + 1, F):
+                    for k in range(j + 1, num_factors):
                         if k == i:
                             continue
                         m *= self.vocab_sizes_py[k]
@@ -84,10 +84,10 @@ class FullyConditional(eqx.Module):
             other_shapes.append(tuple(self.vocab_sizes_py[j] for j in range(F) if j != i))
 
             # Permutation to align [*others, V_i] to [V_0, ..., V_{F-1}]
-            others = [j for j in range(F) if j != i]
+            others = [j for j in range(num_factors) if j != i]
             axis_pos = {j: pos for pos, j in enumerate(others)}
             perm = []
-            for j in range(F):
+            for j in range(num_factors):
                 if j == i:
                     perm.append(len(others))  # V_i is the last axis
                 else:
@@ -124,7 +124,7 @@ class FullyConditional(eqx.Module):
         Returns:
             Flattened joint distribution of shape [prod(V_i)]
         """
-        F = len(context.vocab_sizes)
+        num_factors = len(context.vocab_sizes)
         states = context.states
         component_types = context.component_types
         transition_matrices = context.transition_matrices
@@ -133,15 +133,15 @@ class FullyConditional(eqx.Module):
 
         # Compute per-factor conditionals
         parts = []
-        for i in range(F):
-            K_i = num_variants[i]
-            ks = jnp.arange(K_i, dtype=jnp.int32)
+        for i in range(num_factors):
+            variant_k = num_variants[i]
+            ks = jnp.arange(variant_k, dtype=jnp.int32)
 
             # Compute all variant distributions for factor i
             def get_dist_i(k: jnp.ndarray) -> jnp.ndarray:
-                T_k = transition_matrices[i][k]
+                transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
-                return compute_obs_dist_for_variant(component_types[i], states[i], T_k, norm_k)
+                return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
 
             all_pi = jax.vmap(get_dist_i)(ks)  # [K_i, V_i]
 
@@ -157,22 +157,22 @@ class FullyConditional(eqx.Module):
             parts.append(aligned)
 
         # Product of experts
-        J = parts[0]
+        prod_j = parts[0]
         for p in parts[1:]:
-            J = J * p
+            prod_j = prod_j * p
 
         # Normalize
-        Z = jnp.sum(J)
-        J_norm = jnp.where(Z > 0, J / Z, jnp.ones_like(J) / self.joint_vocab_size)
+        sum_j = jnp.sum(prod_j)
+        norm_j = jnp.where(sum_j > 0, prod_j / sum_j, jnp.ones_like(prod_j) / self.joint_vocab_size)
 
-        assert isinstance(J_norm, jnp.ndarray)
+        assert isinstance(norm_j, jnp.ndarray)
 
-        return J_norm.reshape(-1)
+        return norm_j.reshape(-1)
 
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: ConditionalContext,
+        context: ConditionalContext, # pylint: disable=unused-argument
     ) -> tuple[jnp.ndarray, ...]:
         """Select variants based on all other factors' tokens.
 

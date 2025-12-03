@@ -120,15 +120,14 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         # Validate shapes and compute derived sizes
         vocab_sizes = []
         num_variants = []
-        for i, T in enumerate(self.transition_matrices):
-            if T.ndim != 4:
-                raise ValueError(f"transition_matrices[{i}] must have shape [K, V, S, S], got {T.shape}")
-            K, V, S1, S2 = T.shape
-            if S1 != S2:
-                raise ValueError(f"transition_matrices[{i}] square mismatch: {S1} vs {S2}")
-            vocab_sizes.append(V)
-            num_variants.append(K)
-
+        for i, transition_matrix in enumerate(self.transition_matrices):
+            if transition_matrix.ndim != 4:
+                raise ValueError(f"transition_matrices[{i}] must have shape [K, V, S, S], got {transition_matrix.shape}")
+            num_var, vocab_size, state_dim1, state_dim2 = transition_matrix.shape
+            if state_dim1 != state_dim2:
+                raise ValueError(f"transition_matrices[{i}] square mismatch: {state_dim1} vs {state_dim2}")
+            vocab_sizes.append(vocab_size)
+            num_variants.append(num_var)
         self.num_variants = tuple(int(k) for k in num_variants)
         self.encoder = TokenEncoder(jnp.array(vocab_sizes))
 
@@ -217,9 +216,9 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         # Update each factor's state
         new_states: list[jnp.ndarray] = []
         for i, (s_i, t_i, k_i) in enumerate(zip(state, obs_tuple, variants, strict=True)):
-            T_k = self.transition_matrices[i][k_i]
+            transition_matrix_k = self.transition_matrices[i][k_i]
             norm_k = self.normalizing_eigenvectors[i][k_i] if self.component_types[i] == "ghmm" else None
-            new_state_i = transition_with_obs(self.component_types[i], s_i, T_k, t_i, norm_k)
+            new_state_i = transition_with_obs(self.component_types[i], s_i, transition_matrix_k, t_i, norm_k)
             new_states.append(new_state_i)
 
         return tuple(new_states)

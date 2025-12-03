@@ -52,7 +52,6 @@ class ConditionalStructure(Protocol):
             Flattened joint distribution of shape [prod(V_i)]
             Uses radix encoding: token = sum(t_i * prod(V_j for j>i))
         """
-        ...
 
     def select_variants(
         self,
@@ -68,7 +67,6 @@ class ConditionalStructure(Protocol):
         Returns:
             Tuple of F variant indices (one per factor)
         """
-        ...
 
     def get_required_params(self) -> dict[str, type]:
         """Return dictionary of structure-specific parameters and their types.
@@ -77,4 +75,3 @@ class ConditionalStructure(Protocol):
             Dict mapping parameter names to expected types
             (e.g., {"control_maps": tuple} for sequential conditional)
         """
-        ...

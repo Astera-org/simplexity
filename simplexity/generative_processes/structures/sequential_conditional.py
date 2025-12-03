@@ -61,7 +61,7 @@ class SequentialConditional(eqx.Module):
         Returns:
             Flattened joint distribution of shape [prod(V_i)]
         """
-        F = len(context.vocab_sizes)
+        num_factors = len(context.vocab_sizes)
         states = context.states
         component_types = context.component_types
         transition_matrices = context.transition_matrices
@@ -69,22 +69,22 @@ class SequentialConditional(eqx.Module):
         num_variants = context.num_variants
 
         # Root distribution (factor 0, variant 0)
-        T_root = transition_matrices[0][0]  # [V_0, S_0, S_0]
+        transition_matrix_root = transition_matrices[0][0]  # [V_0, S_0, S_0]
         norm_root = normalizing_eigenvectors[0][0] if component_types[0] == "ghmm" else None
-        p_root = compute_obs_dist_for_variant(component_types[0], states[0], T_root, norm_root)  # [V_0]
+        p_root = compute_obs_dist_for_variant(component_types[0], states[0], transition_matrix_root, norm_root)  # [V_0]
         joint = p_root
 
         # Iteratively extend with conditional factors
-        for i in range(1, F):
+        for i in range(1, num_factors):
             # Compute distributions for all variants of factor i
-            K_i = num_variants[i]
-            ks = jnp.arange(K_i, dtype=jnp.int32)
+            num_var_i = num_variants[i]
+            ks = jnp.arange(num_var_i, dtype=jnp.int32)
 
             # Vectorize over variants
             def get_dist_i(k: jnp.ndarray) -> jnp.ndarray:
-                T_k = transition_matrices[i][k]
+                transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
-                return compute_obs_dist_for_variant(component_types[i], states[i], T_k, norm_k)
+                return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
 
             all_pi = jax.vmap(get_dist_i)(ks)  # [K_i, V_i]
 
@@ -111,7 +111,7 @@ class SequentialConditional(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jnp.ndarray, ...],
-        context: ConditionalContext,
+        context: ConditionalContext, # pylint: disable=unused-argument
     ) -> tuple[jnp.ndarray, ...]:
         """Select variants based on parent tokens in chain.
 
