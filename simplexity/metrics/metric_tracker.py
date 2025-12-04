@@ -43,11 +43,12 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         optimizer: torch.optim.Optimizer | None = None,
         metric_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        self._metric_groups = self._get_metric_groups(metric_names)
         self.model = model
         self.optimizer = optimizer
-        self.context = Context()
+        self._metric_groups = self._get_metric_groups(metric_names)
         self._group_requirements = self._get_group_requirements()
+        self._warn_missing_context()
+        self.context = Context()
         metric_kwargs = {} if metric_kwargs is None else metric_kwargs
         self._metrics = self._get_metrics(metric_kwargs)
         self._cache: dict[str, Mapping[str, float]] = {}
@@ -114,6 +115,23 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
         return group_requirements
 
+    def _warn_missing_context(self) -> None:
+        """Warn if the context is missing required fields."""
+        for metric_name in self._metric_groups[self.all_group]:
+            requirements = ALL_METRICS[metric_name].requirements
+            if self.optimizer is None and requirements.context_field_required("learning_rates"):
+                SIMPLEXITY_LOGGER.warning(
+                    "[Metrics] %s requires learning rates, but optimizer is not set in MetricTracker", metric_name
+                )
+            if self.model is None and (
+                requirements.context_field_required("gradients")
+                or requirements.context_field_required("named_parameters")
+            ):
+                SIMPLEXITY_LOGGER.warning(
+                    "[Metrics] %s requires gradients or named parameters, but model is not set in MetricTracker",
+                    metric_name,
+                )
+
     def _get_metrics(self, metric_kwargs: dict[str, Any]) -> dict[str, Metric]:
         requirements = self._group_requirements[self.all_group].init
         self._update_context(requirements)
@@ -124,18 +142,17 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
     def _update_context(self, requirements: RequiredFields) -> None:
         """Update context with required fields for the given group."""
-        if getattr(requirements, "learning_rates", False) and not self.context.learning_rates:
-            if self.optimizer is None:
-                SIMPLEXITY_LOGGER.warning("Optimizer is not set, skipping learning rates")
-            else:
-                self.context.learning_rates = extract_learning_rates(self.optimizer)
-        if getattr(requirements, "gradients", False) and not self.context.gradients:
-            if self.model is None:
-                SIMPLEXITY_LOGGER.warning("Model is not set, skipping gradients")
-            else:
-                self.context.gradients = snapshot_gradients(self.model)
-        if getattr(requirements, "named_parameters", False) and not self.context.named_parameters:
-            if self.model is None:
-                SIMPLEXITY_LOGGER.warning("Model is not set, skipping named parameters")
-            else:
-                self.context.named_parameters = snapshot_named_parameters(self.model)
+        if (
+            self.optimizer is not None
+            and getattr(requirements, "learning_rates", False)
+            and not self.context.learning_rates
+        ):
+            self.context.learning_rates = extract_learning_rates(self.optimizer)
+        if self.model is not None and getattr(requirements, "gradients", False) and not self.context.gradients:
+            self.context.gradients = snapshot_gradients(self.model)
+        if (
+            self.model is not None
+            and getattr(requirements, "named_parameters", False)
+            and not self.context.named_parameters
+        ):
+            self.context.named_parameters = snapshot_named_parameters(self.model)

@@ -1,3 +1,7 @@
+"""Tests for the MetricTracker class."""
+
+from unittest.mock import patch
+
 import pytest
 import torch
 
@@ -21,6 +25,9 @@ def test_init_all_metrics(model: torch.nn.Module, optimizer: torch.optim.Optimiz
     """Test the MetricTracker class."""
     metric_tracker = MetricTracker(model=model, optimizer=optimizer)
     assert set(metric_tracker.metric_groups["all"]) == set(ALL_METRICS.keys())
+    assert metric_tracker.context.learning_rates == {}
+    assert metric_tracker.context.gradients == {}
+    assert metric_tracker.context.named_parameters == {}
 
 
 def test_init_metric_list():
@@ -43,3 +50,19 @@ def test_init_metric_dict(optimizer: torch.optim.Optimizer):
         "learning_rate",
         "learning_rate_weighted_tokens",
     }
+
+
+def test_warn_missing_context():
+    """Test the MetricTracker class."""
+    with patch("simplexity.metrics.metric_tracker.SIMPLEXITY_LOGGER.warning") as mock_warning:
+        MetricTracker(metric_names=["learning_rate"])
+        mock_warning.assert_called_once_with(
+            "[Metrics] %s requires learning rates, but optimizer is not set in MetricTracker", "learning_rate"
+        )
+
+    with patch("simplexity.metrics.metric_tracker.SIMPLEXITY_LOGGER.warning") as mock_warning:
+        MetricTracker(metric_names=["parameter_distance"])
+        mock_warning.assert_called_once_with(
+            "[Metrics] %s requires gradients or named parameters, but model is not set in MetricTracker",
+            "parameter_distance",
+        )
