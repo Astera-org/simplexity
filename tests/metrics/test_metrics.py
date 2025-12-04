@@ -9,6 +9,7 @@ from simplexity.metrics.metrics import (
     LearningRateMetric,
     LearningRateWeightedTokensMetric,
     LossMetric,
+    ParameterNormMetric,
     ParameterUpdateMetric,
     RequiredFields,
     Requirements,
@@ -211,3 +212,14 @@ def test_loss():
         "loss/ema": pytest.approx(1.397),  # 0.9 * 1.43 + 0.1 * 1.1
         "loss/progress_to_optimal": pytest.approx(0.1),
     }
+
+
+def test_parameter_norm():
+    """Test the ParameterNormMetric class."""
+    metric = ParameterNormMetric(Context())
+    metric.step(Context())
+
+    context = Context(
+        named_parameters={"param_1": torch.tensor([2.0, 4.0]), "param_2": torch.tensor([5.0, 6.0])}
+    )  # norm is 9.0
+    assert metric.compute(context) == {"model/params_norm": pytest.approx(9.0)}
