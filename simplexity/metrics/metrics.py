@@ -21,8 +21,8 @@ class Context:
     num_tokens: int = 0
     loss: float = float("inf")
     learning_rates: Mapping[str, float] = field(default_factory=dict)
-    gradients: Mapping[str, torch.Tensor] | None = None
-    named_parameters: Mapping[str, torch.Tensor] | None = None
+    gradients: Mapping[str, torch.Tensor] = field(default_factory=dict)
+    named_parameters: Mapping[str, torch.Tensor] = field(default_factory=dict)
 
 
 _RequiredFieldsBase = make_dataclass(
@@ -84,6 +84,12 @@ class Requirements:
     def compute_required(self) -> bool:
         """Check if any of the required context fields are required for computing."""
         return self.compute.any_required
+
+    def context_field_required(self, context_field_name: str) -> bool:
+        """Check if the given field is required."""
+        return any(
+            getattr(getattr(self, field.name, RequiredFields()), context_field_name, False) for field in fields(self)
+        )
 
 
 def combine_requirements(requirements_list: list[Requirements]) -> Requirements:
@@ -213,10 +219,8 @@ class GradientWeightedTokensMetric(Metric):
 
     def step(self, context: Context) -> None:
         """Step the gradient weighted tokens metric."""
-        assert context.gradients is not None, "Gradients are required for this metric"
-        assert context.learning_rates is not None, "Learning rates are required for this metric"
         lr = list(context.learning_rates.values())[0]
-        gradient_norm = tensor_stack_l2_norm(context.gradients.values())
+        gradient_norm = tensor_stack_l2_norm(list(context.gradients.values()))
         self.gradient_signal = lr * gradient_norm * float(context.num_tokens)
         self.cumulative_gradient_signal += self.gradient_signal
         self.fisher_proxy = gradient_norm**2 * float(context.num_tokens)
@@ -241,14 +245,12 @@ class ParameterUpdateMetric(Metric):
     )
 
     def __init__(self, context: Context, **_kwargs: Any) -> None:
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
         self.previous_named_parameters: Mapping[str, torch.Tensor] = context.named_parameters
         self.step_norm = 0.0
         self.cumulative = 0.0
 
     def step(self, context: Context) -> None:
         """Step the cumulative parameter update metric."""
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
         self.step_norm = named_tensor_distance(context.named_parameters, self.previous_named_parameters)
         self.cumulative += self.step_norm
         self.previous_named_parameters = context.named_parameters
@@ -323,8 +325,7 @@ class ParameterNormMetric(Metric):
 
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the parameter norm metric."""
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
-        norm = tensor_stack_l2_norm(context.named_parameters.values())
+        norm = tensor_stack_l2_norm(list(context.named_parameters.values()))
         return {
             "model/params_norm": norm,
         }
@@ -339,7 +340,6 @@ class ParameterDistanceMetric(Metric):
     )
 
     def __init__(self, context: Context, **_kwargs: Any) -> None:
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
         self.initial_named_parameters: Mapping[str, torch.Tensor] = context.named_parameters
         self.max_distance = 0.0
 
@@ -348,7 +348,6 @@ class ParameterDistanceMetric(Metric):
 
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the distance from initialization metric."""
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
         distance = named_tensor_distance(context.named_parameters, self.initial_named_parameters)
         self.max_distance = max(self.max_distance, distance)
         return {

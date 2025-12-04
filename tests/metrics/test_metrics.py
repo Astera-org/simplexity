@@ -28,6 +28,14 @@ def test_required_fields():
     assert not required_fields.named_parameters
 
 
+def test_context_field_any_required():
+    """Test the context_field_any_required method."""
+    required_fields = RequiredFields()
+    assert not required_fields.any_required
+    required_fields = RequiredFields(learning_rates=True)
+    assert required_fields.any_required
+
+
 def test_combine_required_fields():
     """Test the combine_required_fields function."""
     required_fields_list = [
@@ -47,6 +55,33 @@ def test_requirements():
     assert not requirements.init.gradients
     assert requirements.step.gradients
     assert not requirements.step.named_parameters
+
+
+def test_requirements_field_required():
+    """Test the requirements_field_required method."""
+    requirements = Requirements()
+    assert not requirements.init_required
+    assert not requirements.step_required
+    assert not requirements.compute_required
+
+    requirements = Requirements(init=RequiredFields(learning_rates=True))
+    assert requirements.init_required
+    assert not requirements.step_required
+
+    requirements = Requirements(step=RequiredFields(gradients=True))
+    assert requirements.step_required
+    assert not requirements.compute_required
+
+    requirements = Requirements(compute=RequiredFields(named_parameters=True))
+    assert requirements.compute_required
+    assert not requirements.init_required
+
+
+def test_requirements_context_field_required():
+    """Test the requirements_context_field_required method."""
+    requirements = Requirements(compute=RequiredFields(named_parameters=True))
+    assert requirements.context_field_required("named_parameters")
+    assert not requirements.context_field_required("gradients")
 
 
 def test_combine_requirements():
