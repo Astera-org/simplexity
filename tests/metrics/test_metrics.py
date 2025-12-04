@@ -1,7 +1,11 @@
 """Tests for the metrics module."""
 
+import pytest
+import torch
+
 from simplexity.metrics.metrics import (
     Context,
+    GradientWeightedTokensMetric,
     LearningRateMetric,
     LearningRateWeightedTokensMetric,
     RequiredFields,
@@ -107,4 +111,32 @@ def test_learning_rate_weighted_tokens():
     assert metric.compute(context) == {
         "step/lr_weighted_tokens": 0.6,
         "cum/lr_weighted_tokens": 0.8,
+    }
+
+
+def test_gradient_weighted_tokens():
+    """Test the GradientWeightedTokensMetric class."""
+    context = Context()
+    metric = GradientWeightedTokensMetric(context)
+
+    learning_rates = {"lr": 0.01}
+    gradients = {"grad_1": torch.tensor([2.0, 4.0]), "grad_2": torch.tensor([5.0, 6.0])}  # gradient norm is 9.0
+    context = Context(num_tokens=20, learning_rates=learning_rates, gradients=gradients)
+    metric.step(context)
+
+    context = Context()
+    assert metric.compute(context) == {
+        "step/gradient_signal": pytest.approx(1.8),  # 0.01 * 9.0 * 20
+        "cum/gradient_signal": pytest.approx(1.8),
+        "step/fisher_proxy": pytest.approx(1620.0),  # 9.0**2 * 20
+        "cum/fisher_proxy": pytest.approx(1620.0),
+    }
+
+    context = Context(num_tokens=30, learning_rates={"lr": 0.02}, gradients={"grad": torch.tensor([1.5])})
+    metric.step(context)
+    assert metric.compute(context) == {
+        "step/gradient_signal": pytest.approx(0.9),  # 0.02 * 1.5 * 30
+        "cum/gradient_signal": pytest.approx(2.7),  # 1.8 + 0.9
+        "step/fisher_proxy": pytest.approx(67.5),  # 1.5**2 * 30
+        "cum/fisher_proxy": pytest.approx(1687.5),  # 1620 + 67.5
     }
