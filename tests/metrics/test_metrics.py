@@ -8,6 +8,7 @@ from simplexity.metrics.metrics import (
     GradientWeightedTokensMetric,
     LearningRateMetric,
     LearningRateWeightedTokensMetric,
+    LossMetric,
     ParameterUpdateMetric,
     RequiredFields,
     Requirements,
@@ -173,4 +174,40 @@ def test_parameter_update():
     assert metric.compute(context) == {
         "step/param_update": pytest.approx(2.0),
         "cum/param_update": pytest.approx(11.0),
+    }
+
+
+def test_loss():
+    """Test the LossMetric class."""
+    context = Context(loss=2.0)
+    metric = LossMetric(context, optimal_loss=1.0, ma_window_size=2, ema_gamma=0.9)
+
+    context = Context(loss=1.4)
+    metric.step(context)
+    assert metric.compute(context) == {
+        "loss/step": pytest.approx(1.4),
+        "loss/min": pytest.approx(1.4),
+        "loss/ma": float("inf"),
+        "loss/ema": pytest.approx(1.4),
+        "loss/progress_to_optimal": pytest.approx(0.4),
+    }
+
+    context = Context(loss=1.7)
+    metric.step(context)
+    assert metric.compute(context) == {
+        "loss/step": pytest.approx(1.7),
+        "loss/min": pytest.approx(1.4),
+        "loss/ma": pytest.approx(1.55),  # (1.4 + 1.7) / 2
+        "loss/ema": pytest.approx(1.43),  # 0.9 * 1.4 + 0.1 * 1.7
+        "loss/progress_to_optimal": pytest.approx(0.7),
+    }
+
+    context = Context(loss=1.1)
+    metric.step(context)
+    assert metric.compute(context) == {
+        "loss/step": pytest.approx(1.1),
+        "loss/min": pytest.approx(1.1),
+        "loss/ma": pytest.approx(1.4),  # (1.7 + 1.1) / 2
+        "loss/ema": pytest.approx(1.397),  # 0.9 * 1.43 + 0.1 * 1.1
+        "loss/progress_to_optimal": pytest.approx(0.1),
     }
