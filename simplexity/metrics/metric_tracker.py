@@ -50,6 +50,11 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         self._metrics = self._get_metrics(metric_kwargs)
         self._cache: dict[str, Mapping[str, float]] = {}
 
+    @property
+    def metric_groups(self) -> dict[str, list[str]]:
+        """Get the metric groups."""
+        return self._metric_groups
+
     def step(self, *, tokens: int | torch.Tensor = 0, loss: float | torch.Tensor = float("inf")) -> None:
         """Advance the global step and update running counters."""
         num_tokens = tokens.numel() if isinstance(tokens, torch.Tensor) else tokens
