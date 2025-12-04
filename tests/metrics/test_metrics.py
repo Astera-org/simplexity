@@ -8,6 +8,7 @@ from simplexity.metrics.metrics import (
     GradientWeightedTokensMetric,
     LearningRateMetric,
     LearningRateWeightedTokensMetric,
+    ParameterUpdateMetric,
     RequiredFields,
     Requirements,
     TokensMetric,
@@ -60,10 +61,9 @@ def test_combine_requirements():
 
 def test_learning_rates():
     """Test the LearningRates class."""
-    context = Context()
-    metric = LearningRateMetric(context)
-    metric.step(context)
-    assert metric.compute(context) == {}
+    metric = LearningRateMetric(Context())
+    metric.step(Context())
+    assert metric.compute(Context()) == {}
 
     context = Context(learning_rates={"lr": 0.01})
     assert metric.compute(context) == {"step/learning_rate": 0.01}
@@ -74,8 +74,7 @@ def test_learning_rates():
 
 def test_tokens():
     """Test the TokensMetric class."""
-    context = Context()
-    metric = TokensMetric(context)
+    metric = TokensMetric(Context())
 
     context = Context(num_tokens=20)
     metric.step(context)
@@ -124,8 +123,7 @@ def test_gradient_weighted_tokens():
     context = Context(num_tokens=20, learning_rates=learning_rates, gradients=gradients)
     metric.step(context)
 
-    context = Context()
-    assert metric.compute(context) == {
+    assert metric.compute(Context()) == {
         "step/gradient_signal": pytest.approx(1.8),  # 0.01 * 9.0 * 20
         "cum/gradient_signal": pytest.approx(1.8),
         "step/fisher_proxy": pytest.approx(1620.0),  # 9.0**2 * 20
@@ -139,4 +137,40 @@ def test_gradient_weighted_tokens():
         "cum/gradient_signal": pytest.approx(2.7),  # 1.8 + 0.9
         "step/fisher_proxy": pytest.approx(67.5),  # 1.5**2 * 30
         "cum/fisher_proxy": pytest.approx(1687.5),  # 1620 + 67.5
+    }
+
+
+def test_parameter_update():
+    """Test the ParameterUpdateMetric class."""
+    context = Context(
+        named_parameters={
+            "param_1": torch.tensor([4.1, 3.2]),
+            "param_2": torch.tensor([2.3, 1.4]),
+        }
+    )
+    metric = ParameterUpdateMetric(context)
+
+    context = Context(
+        named_parameters={
+            "param_1": torch.tensor([6.1, 7.2]),  # delta is [2.0, 4.0]
+            "param_2": torch.tensor([7.3, 7.4]),  # delta is [5.0, 6.0]
+        }
+    )  # distance norm is sqrt(2.0**2 + 4.0**2 + 5.0**2 + 6.0**2) = 9.0
+    metric.step(context)
+
+    assert metric.compute(Context()) == {
+        "step/param_update": pytest.approx(9.0),
+        "cum/param_update": pytest.approx(9.0),
+    }
+
+    context = Context(
+        named_parameters={
+            "param_1": torch.tensor([7.1, 8.2]),  # delta is [1.0, 1.0]
+            "param_2": torch.tensor([8.3, 8.4]),  # delta is [1.0, 1.0]
+        }
+    )  # distance norm is sqrt(1.0**2 + 1.0**2 + 1.0**2 + 1.0**2) = 2.0
+    metric.step(context)
+    assert metric.compute(context) == {
+        "step/param_update": pytest.approx(2.0),
+        "cum/param_update": pytest.approx(11.0),
     }
