@@ -294,10 +294,11 @@ class LossMetric(Metric):
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the current loss metric."""
         # Avoid division by zero when initial_loss == optimal_loss
-        if self.initial_loss == self.optimal_loss:
-            progress = 0.0
-        else:
-            progress = (self.initial_loss - context.loss) / (self.initial_loss - self.optimal_loss)
+        progress = (
+            (context.loss - self.optimal_loss) / (self.initial_loss - self.optimal_loss)
+            if self.initial_loss > self.optimal_loss
+            else 0.0
+        )
         return {
             "loss/step": context.loss,
             "loss/min": self.min_loss,
