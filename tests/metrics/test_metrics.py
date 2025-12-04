@@ -9,6 +9,7 @@ from simplexity.metrics.metrics import (
     LearningRateMetric,
     LearningRateWeightedTokensMetric,
     LossMetric,
+    ParameterDistanceMetric,
     ParameterNormMetric,
     ParameterUpdateMetric,
     RequiredFields,
@@ -223,3 +224,34 @@ def test_parameter_norm():
         named_parameters={"param_1": torch.tensor([2.0, 4.0]), "param_2": torch.tensor([5.0, 6.0])}
     )  # norm is 9.0
     assert metric.compute(context) == {"model/params_norm": pytest.approx(9.0)}
+
+
+def test_parameter_distance():
+    """Test the ParameterDistanceMetric class."""
+    named_parameters = {
+        "param_1": torch.tensor([1.4, 2.3]),
+        "param_2": torch.tensor([3.2, 4.1]),
+    }
+    context = Context(named_parameters=named_parameters)
+    metric = ParameterDistanceMetric(context)
+    metric.step(Context())
+
+    named_parameters = {
+        "param_1": torch.tensor([3.4, 6.3]),  # delta is [2.0, 4.0]
+        "param_2": torch.tensor([8.2, 10.1]),  # delta is [5.0, 6.0]
+    }  # distance norm is sqrt(2.0**2 + 4.0**2 + 5.0**2 + 6.0**2) = 9.0
+    context = Context(named_parameters=named_parameters)
+    assert metric.compute(context) == {
+        "model/params_distance": pytest.approx(9.0),
+        "model/max_params_distance": pytest.approx(9.0),
+    }
+
+    named_parameters = {
+        "param_1": torch.tensor([2.4, 3.3]),  # delta is [1.0, 1.0]
+        "param_2": torch.tensor([4.2, 5.1]),  # delta is [1.0, 1.0]
+    }  # distance norm is sqrt(1.0**2 + 1.0**2 + 1.0**2 + 1.0**2) = 2.0
+    context = Context(named_parameters=named_parameters)
+    assert metric.compute(context) == {
+        "model/params_distance": pytest.approx(2.0),
+        "model/max_params_distance": pytest.approx(9.0),
+    }
