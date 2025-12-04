@@ -1,0 +1,57 @@
+# Unified API: Sequential Conditional Structure
+# Sequential conditional structure creates one-way conditional dependencies:
+# Factor 0 -> Factor 1 -> Factor 2 -> ...
+# Each factor i>0 selects its parameter variant based on factor i-1's token.
+
+name: unified_chain_example
+base_vocab_size: ???  # Will auto-infer as 3 * 2 * 2 = 12
+vocab_size: ???
+
+instance:
+  _target_: simplexity.generative_processes.builder.build_factored_process_from_spec
+
+  structure_type: chain
+
+  spec:
+    # Factor 0: mess3 (root, single variant)
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.15
+            a: 0.6
+
+    # Factor 1: mess3 (depends on Factor 0, 2 variants)
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.15
+            a: 0.6
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.6
+      control_map: [0, 1, 0]  # 3 parent tokens -> 2 variants
+
+    # Factor 2: mess3 (depends on Factor 1, 2 variants)
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.15
+            a: 0.6
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.6
+      control_map: [1, 0, 1]  # 3 parent tokens -> 2 variants
+
+bos_token: ???
+eos_token: null
+batch_size: 1024
+
+# Example interpretation:
+# - Factor 0 always uses variant 0
+# - Factor 1: parent_token 0->variant 0, token 1->variant 1, token 2->variant 0
+# - Factor 2: parent_token 0->variant 1, token 1->variant 0

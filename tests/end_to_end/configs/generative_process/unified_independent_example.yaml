@@ -1,0 +1,53 @@
+# Unified API: Independent Structure
+# Independent structure has no conditional dependencies:
+# Each factor operates independently, always using variant 0.
+# Joint distribution is simply the product of independent factor distributions.
+
+name: unified_independent_example
+base_vocab_size: ???  # Will auto-infer as 3 * 3 * 3 = 27
+vocab_size: ???
+
+instance:
+  _target_: simplexity.generative_processes.builder.build_factored_process_from_spec
+  
+  # Structure type - determines how factors interact
+  structure_type: independent
+  
+  # Component specifications
+  # Each factor has exactly one variant (independent factors don't need multiple variants)
+  spec:
+    # Factor 0: mess3 process
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.15
+            a: 0.6
+
+    # Factor 1: mess3 process
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.6
+
+    # Factor 2: mess3 process
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.2
+            a: 0.7
+
+bos_token: ???
+eos_token: null
+batch_size: 1024
+
+# Example interpretation:
+# - Each factor operates completely independently
+# - Factor 0 always emits from mess3(x=0.15, a=0.6)
+# - Factor 1 always emits from mess3(x=0.5, a=0.6)
+# - Factor 2 always emits from mess3(x=0.2, a=0.7)
+# - Joint distribution: P(t0,t1,t2) = P(t0) * P(t1) * P(t2)
+# - No control maps needed - factors don't depend on each other
