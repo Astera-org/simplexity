@@ -30,7 +30,7 @@ class SequentialConditional(eqx.Module):
     """
 
     control_maps: tuple[jax.Array | None, ...]
-    vocab_sizes_py: tuple[int, ...] | None
+    vocab_sizes_py: tuple[int, ...]
 
     def __init__(
         self,
@@ -43,11 +43,10 @@ class SequentialConditional(eqx.Module):
             control_maps: Control maps for variant selection. control_maps[0]
                 should be None (root factor). control_maps[i] for i>0 should
                 have shape [V_{i-1}] mapping parent token to variant index.
-            vocab_sizes: Optional vocab sizes for shape operations. If provided,
-                should be array of shape [F].
+            vocab_sizes: Vocab sizes for shape operations. Must be array of shape [F].
         """
         self.control_maps = tuple(control_maps)
-        self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes) if vocab_sizes is not None else None
+        self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
 
     def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
         """Compute joint distribution using sequential factorization.
@@ -96,12 +95,8 @@ class SequentialConditional(eqx.Module):
             # Current joint has shape [..., V_{i-1}]
             # We want to expand to [..., V_{i-1}, V_i]
             # Use precomputed Python ints for reshape (JIT-compatible)
-            if self.vocab_sizes_py is not None:
-                prev_vocab_size = self.vocab_sizes_py[i - 1]
-                curr_vocab_size = self.vocab_sizes_py[i]
-            else:
-                prev_vocab_size = int(context.vocab_sizes[i - 1])
-                curr_vocab_size = int(context.vocab_sizes[i])
+            prev_vocab_size = self.vocab_sizes_py[i - 1]
+            curr_vocab_size = self.vocab_sizes_py[i]
             left = joint.reshape(-1, prev_vocab_size)  # [P, V_{i-1}]
             extended = left[..., None] * cond[None, ...]  # [P, V_{i-1}, V_i]
             joint = extended.reshape(joint.shape + (curr_vocab_size,))
