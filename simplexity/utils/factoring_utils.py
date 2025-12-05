@@ -10,6 +10,7 @@ from typing import Literal
 
 import chex
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 
 ComponentType = Literal["hmm", "ghmm"]
@@ -17,10 +18,10 @@ ComponentType = Literal["hmm", "ghmm"]
 
 def compute_obs_dist_for_variant(
     component_type: ComponentType,
-    state: jnp.ndarray,
-    transition_matrix: jnp.ndarray,
-    normalizing_eigenvector: jnp.ndarray | None = None,
-) -> jnp.ndarray:
+    state: jax.Array,
+    transition_matrix: jax.Array,
+    normalizing_eigenvector: jax.Array | None = None,
+) -> jax.Array:
     """Compute observation distribution for a single factor variant.
 
     Args:
@@ -47,11 +48,11 @@ def compute_obs_dist_for_variant(
 
 def transition_with_obs(
     component_type: ComponentType,
-    state: jnp.ndarray,
-    transition_matrix: jnp.ndarray,
-    obs: jnp.ndarray,
-    normalizing_eigenvector: jnp.ndarray | None = None,
-) -> jnp.ndarray:
+    state: jax.Array,
+    transition_matrix: jax.Array,
+    obs: jax.Array,
+    normalizing_eigenvector: jax.Array | None = None,
+) -> jax.Array:
     """Update state after observing a token.
 
     Args:
@@ -88,10 +89,10 @@ class TokenEncoder(eqx.Module):
         radix_multipliers: Array of shape [F] with multipliers for encoding
     """
 
-    vocab_sizes: jnp.ndarray  # shape [F]
-    radix_multipliers: jnp.ndarray  # shape [F]
+    vocab_sizes: jax.Array  # shape [F]
+    radix_multipliers: jax.Array  # shape [F]
 
-    def __init__(self, vocab_sizes: jnp.ndarray):
+    def __init__(self, vocab_sizes: jax.Array):
         """Initialize encoder with vocab sizes.
 
         Args:
@@ -119,7 +120,7 @@ class TokenEncoder(eqx.Module):
         """Total vocabulary size of composite observation."""
         return int(jnp.prod(self.vocab_sizes))
 
-    def tuple_to_token(self, token_tuple: tuple[jnp.ndarray, ...]) -> jnp.ndarray:
+    def tuple_to_token(self, token_tuple: tuple[jax.Array, ...]) -> jax.Array:
         """Convert per-factor tokens to composite token.
 
         Args:
@@ -135,7 +136,7 @@ class TokenEncoder(eqx.Module):
             multiplier *= self.vocab_sizes[i]
         return token
 
-    def token_to_tuple(self, token: chex.Array) -> tuple[jnp.ndarray, ...]:
+    def token_to_tuple(self, token: chex.Array) -> tuple[jax.Array, ...]:
         """Convert composite token to per-factor tokens.
 
         Args:
@@ -153,7 +154,7 @@ class TokenEncoder(eqx.Module):
             remaining = remaining // v
         return tuple(reversed(result))
 
-    def extract_factors_vectorized(self, tokens: jnp.ndarray) -> jnp.ndarray:
+    def extract_factors_vectorized(self, tokens: jax.Array) -> jax.Array:
         """Extract per-factor tokens from batch of composite tokens.
 
         Args:

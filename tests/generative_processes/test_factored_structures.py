@@ -254,7 +254,7 @@ def test_fully_conditional_get_required_params():
     """FullyConditional should return required params."""
     structure = FullyConditional(control_maps=(jnp.array([0], dtype=jnp.int32),), vocab_sizes=jnp.array([2]))
     required_params = structure.get_required_params()
-    assert required_params == {"control_maps": tuple, "vocab_sizes": jnp.ndarray}
+    assert required_params == {"control_maps": tuple, "vocab_sizes": jax.Array}
 
 
 def test_fully_conditional_with_zero_normalization():

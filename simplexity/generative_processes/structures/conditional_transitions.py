@@ -41,20 +41,20 @@ class ConditionalTransitions(eqx.Module):
         vocab_sizes_py: Python int tuple of vocab sizes
     """
 
-    control_maps_transition: tuple[jnp.ndarray, ...]
-    emission_variant_indices: jnp.ndarray  # shape [F]
-    emission_control_maps: tuple[jnp.ndarray | None, ...]
+    control_maps_transition: tuple[jax.Array, ...]
+    emission_variant_indices: jax.Array  # shape [F]
+    emission_control_maps: tuple[jax.Array | None, ...]
     use_emission_chain: bool
-    other_multipliers: tuple[jnp.ndarray, ...]
-    prefix_multipliers: tuple[jnp.ndarray, ...]
+    other_multipliers: tuple[jax.Array, ...]
+    prefix_multipliers: tuple[jax.Array, ...]
     vocab_sizes_py: tuple[int, ...]
 
     def __init__(
         self,
-        control_maps_transition: tuple[jnp.ndarray, ...],
-        emission_variant_indices: jnp.ndarray | Sequence[int],
-        vocab_sizes: jnp.ndarray,
-        emission_control_maps: tuple[jnp.ndarray | None, ...] | None = None,
+        control_maps_transition: tuple[jax.Array, ...],
+        emission_variant_indices: jax.Array | Sequence[int],
+        vocab_sizes: jax.Array,
+        emission_control_maps: tuple[jax.Array | None, ...] | None = None,
     ):
         """Initialize conditional transitions structure.
 
@@ -74,7 +74,7 @@ class ConditionalTransitions(eqx.Module):
 
         # Process emission control maps
         use_chain = False
-        ecm_list: list[jnp.ndarray | None] = []
+        ecm_list: list[jax.Array | None] = []
         if emission_control_maps is not None:
             for i, cm_i in enumerate(emission_control_maps):
                 if cm_i is None:
@@ -89,7 +89,7 @@ class ConditionalTransitions(eqx.Module):
         self.use_emission_chain = bool(use_chain)
 
         # Precompute multipliers for other-factor indexing (for transitions)
-        other_multipliers: list[jnp.ndarray] = []
+        other_multipliers: list[jax.Array] = []
         for i in range(num_factors):
             mult = []
             for j in range(num_factors):
@@ -106,7 +106,7 @@ class ConditionalTransitions(eqx.Module):
         self.other_multipliers = tuple(other_multipliers)
 
         # Precompute multipliers for prefix indexing (for sequential emissions)
-        prefix_multipliers: list[jnp.ndarray] = []
+        prefix_multipliers: list[jax.Array] = []
         for i in range(num_factors):
             pmult = []
             for j in range(num_factors):
@@ -120,17 +120,17 @@ class ConditionalTransitions(eqx.Module):
             prefix_multipliers.append(jnp.array(pmult))
         self.prefix_multipliers = tuple(prefix_multipliers)
 
-    def _flatten_other_tokens_index(self, tokens: jnp.ndarray, i: int) -> jnp.ndarray:
+    def _flatten_other_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
         """Flatten other-factor tokens to transition control map index."""
         mult = self.other_multipliers[i]
         return jnp.sum(tokens * mult)
 
-    def _flatten_prev_tokens_index(self, tokens: jnp.ndarray, i: int) -> jnp.ndarray:
+    def _flatten_prev_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
         """Flatten prefix tokens to emission control map index."""
         mult = self.prefix_multipliers[i]
         return jnp.sum(tokens * mult)
 
-    def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
+    def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
         """Compute joint distribution based on emission mode.
 
         Args:
@@ -174,7 +174,7 @@ class ConditionalTransitions(eqx.Module):
             ks = jnp.arange(variant_k, dtype=jnp.int32)
 
             # Compute all variant distributions
-            def get_dist_i(k: jnp.ndarray, i: int = i) -> jnp.ndarray:
+            def get_dist_i(k: jax.Array, i: int = i) -> jax.Array:
                 transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
                 return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
@@ -200,9 +200,9 @@ class ConditionalTransitions(eqx.Module):
 
     def select_variants(
         self,
-        obs_tuple: tuple[jnp.ndarray, ...],
+        obs_tuple: tuple[jax.Array, ...],
         context: ConditionalContext,  # pylint: disable=unused-argument
-    ) -> tuple[jnp.ndarray, ...]:
+    ) -> tuple[jax.Array, ...]:
         """Select transition variants based on other factors' tokens.
 
         Note: This returns TRANSITION variants, not emission variants.
@@ -226,7 +226,7 @@ class ConditionalTransitions(eqx.Module):
         """Return required parameters for conditional transitions structure."""
         return {
             "control_maps_transition": tuple,
-            "emission_variant_indices": jnp.ndarray,
-            "vocab_sizes": jnp.ndarray,
+            "emission_variant_indices": jax.Array,
+            "vocab_sizes": jax.Array,
             "emission_control_maps": tuple,  # optional
         }

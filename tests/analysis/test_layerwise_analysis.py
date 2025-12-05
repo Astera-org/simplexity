@@ -1,5 +1,6 @@
 """Tests for the LayerwiseAnalysis orchestrator."""
 
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -7,7 +8,7 @@ from simplexity.analysis.layerwise_analysis import ANALYSIS_REGISTRY, LayerwiseA
 
 
 @pytest.fixture
-def analysis_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.ndarray]:
+def analysis_inputs() -> tuple[dict[str, jax.Array], jax.Array, jax.Array]:
     """Provides sample activations, weights, and belief states for analysis tests."""
     activations = {
         "layer_a": jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]),

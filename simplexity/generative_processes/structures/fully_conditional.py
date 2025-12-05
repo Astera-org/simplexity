@@ -30,8 +30,8 @@ class FullyConditional(eqx.Module):
         joint_vocab_size: Total vocabulary size (product of all V_i)
     """
 
-    control_maps: tuple[jnp.ndarray, ...]
-    other_multipliers: tuple[jnp.ndarray, ...]
+    control_maps: tuple[jax.Array, ...]
+    other_multipliers: tuple[jax.Array, ...]
     other_shapes: tuple[tuple[int, ...], ...]
     perms_py: tuple[tuple[int, ...], ...]
     vocab_sizes_py: tuple[int, ...]
@@ -39,8 +39,8 @@ class FullyConditional(eqx.Module):
 
     def __init__(
         self,
-        control_maps: tuple[jnp.ndarray, ...],
-        vocab_sizes: jnp.ndarray,
+        control_maps: tuple[jax.Array, ...],
+        vocab_sizes: jax.Array,
     ):
         """Initialize fully conditional structure.
 
@@ -61,7 +61,7 @@ class FullyConditional(eqx.Module):
         self.joint_vocab_size = jv
 
         # Precompute indexing helpers for each factor
-        other_multipliers: list[jnp.ndarray] = []
+        other_multipliers: list[jax.Array] = []
         other_shapes: list[tuple[int, ...]] = []
         perms_py: list[tuple[int, ...]] = []
 
@@ -98,7 +98,7 @@ class FullyConditional(eqx.Module):
         self.other_shapes = tuple(other_shapes)
         self.perms_py = tuple(perms_py)
 
-    def _flatten_other_tokens_index(self, tokens: jnp.ndarray, i: int) -> jnp.ndarray:
+    def _flatten_other_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
         """Flatten other-factor tokens to control map index.
 
         Args:
@@ -112,7 +112,7 @@ class FullyConditional(eqx.Module):
         # Multiply elementwise and sum (mult[i] == 0)
         return jnp.sum(tokens * mult)
 
-    def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
+    def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
         """Compute joint distribution using product-of-experts.
 
         For each factor i, computes conditional P(t_i | all other t_j),
@@ -138,7 +138,7 @@ class FullyConditional(eqx.Module):
             ks = jnp.arange(variant_k, dtype=jnp.int32)
 
             # Compute all variant distributions for factor i
-            def get_dist_i(k: jnp.ndarray, i: int = i) -> jnp.ndarray:
+            def get_dist_i(k: jax.Array, i: int = i) -> jax.Array:
                 transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
                 return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
@@ -165,15 +165,15 @@ class FullyConditional(eqx.Module):
         sum_j = jnp.sum(prod_j)
         norm_j = jnp.where(sum_j > 0, prod_j / sum_j, jnp.ones_like(prod_j) / self.joint_vocab_size)
 
-        assert isinstance(norm_j, jnp.ndarray)
+        assert isinstance(norm_j, jax.Array)
 
         return norm_j.reshape(-1)
 
     def select_variants(
         self,
-        obs_tuple: tuple[jnp.ndarray, ...],
+        obs_tuple: tuple[jax.Array, ...],
         context: ConditionalContext,  # pylint: disable=unused-argument
-    ) -> tuple[jnp.ndarray, ...]:
+    ) -> tuple[jax.Array, ...]:
         """Select variants based on all other factors' tokens.
 
         Args:
@@ -193,4 +193,4 @@ class FullyConditional(eqx.Module):
 
     def get_required_params(self) -> dict[str, type]:
         """Return required parameters for fully conditional structure."""
-        return {"control_maps": tuple, "vocab_sizes": jnp.ndarray}
+        return {"control_maps": tuple, "vocab_sizes": jax.Array}

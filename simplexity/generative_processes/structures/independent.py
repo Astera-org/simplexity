@@ -24,7 +24,7 @@ class IndependentStructure(eqx.Module):
     This is the simplest factored structure.
     """
 
-    def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
+    def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
         """Compute joint distribution as product of independent factors.
 
         Args:
@@ -54,9 +54,9 @@ class IndependentStructure(eqx.Module):
 
     def select_variants(
         self,
-        obs_tuple: tuple[jnp.ndarray, ...],
+        obs_tuple: tuple[jax.Array, ...],
         context: ConditionalContext,  # pylint: disable=unused-argument  # Required by protocol
-    ) -> tuple[jnp.ndarray, ...]:
+    ) -> tuple[jax.Array, ...]:
         """Select variants (always 0 for all factors).
 
         Args:
