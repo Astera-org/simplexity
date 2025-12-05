@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-import jax.numpy as jnp
+import jax
 
 ComponentType = Literal["hmm", "ghmm"]
 FactoredState = tuple[jax.Array, ...]
@@ -42,12 +42,18 @@ class ConditionalStructure(Protocol):
     to produce joint observation distributions and how variant selection works.
     """
 
-    def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array: ...
+    def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
+        """Compute the joint distribution of the conditional structure."""
+        ...  # pylint: disable=unnecessary-ellipsis
 
     def select_variants(
         self,
         obs_tuple: tuple[jax.Array, ...],
         context: ConditionalContext,
-    ) -> tuple[jax.Array, ...]: ...
+    ) -> tuple[jax.Array, ...]:
+        """Select the variants of the conditional structure."""
+        ...  # pylint: disable=unnecessary-ellipsis
 
-    def get_required_params(self) -> dict[str, type]: ...
+    def get_required_params(self) -> dict[str, type]:
+        """Get the required parameters for the conditional structure."""
+        ...  # pylint: disable=unnecessary-ellipsis
