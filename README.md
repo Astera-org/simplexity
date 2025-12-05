@@ -74,12 +74,12 @@ when writing custom training loops:
 
 ```python
 import torch
-from simplexity.metrics.metric_tracker import TrainingMetricTracker
+from simplexity.metrics.metric_tracker import MetricTracker
 
 model = build_model()
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 lr_schedule = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10_000)
-tracker = TrainingMetricTracker(
+tracker = MetricTracker(
     model,
     optimizer,
     optimal_loss=0.05,
