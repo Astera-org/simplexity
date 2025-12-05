@@ -9,6 +9,8 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import re
+
 import chex
 import jax.numpy as jnp
 import pytest
@@ -317,7 +319,7 @@ def test_build_chain_from_spec_returns_control_maps(chain_spec):
 
 def test_build_chain_from_spec_missing_control_map_raises(components_spec):
     """Every non-root node in a chain must provide a control map."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape("chain[1].control_map is required for i>0")):
         build_chain_from_spec(components_spec)
 
 
@@ -333,7 +335,7 @@ def test_build_symmetric_from_spec_validates_lengths(components_spec, symmetric_
     assert component_types == ["hmm", "hmm"]
     assert len(control_maps) == 2
     chex.assert_trees_all_close(control_maps[0], jnp.array([0, 1], dtype=jnp.int32))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape("control_maps[0] length 1 must equal prod(V_j for j!=[0]) = 2")):
         build_symmetric_from_spec(components_spec, [[0], [0, 1]])
 
 
