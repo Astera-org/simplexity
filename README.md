@@ -105,11 +105,9 @@ for step, batch in enumerate(train_loader, start=1):
     logger.log_metrics(step, metrics)
 ```
 
-Each call returns a flat dictionary with keys such as `loss`, `loss/avg`,
-`tokens/total`, `lr`, `lr/weighted_peak`, `grads/l2_norm`,
-`params/update_l2_norm/cumulative`, and `params/distance_from_init`, ready to be
-sent to any `Logger` implementation.
-
+Each call returns a flat dictionary with keys such as `step/tokens`, `cum/tokens`,
+`loss/step`, `loss/ma`, `lr/step`, `grads/l2_norm/step`, `params/update_l2_norm/cum`,
+and `params/distance_from_init`, ready to be sent to any `Logger` implementation.
 ### Model Checkpointing
 
 The `ModelPersister` class is responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket.
