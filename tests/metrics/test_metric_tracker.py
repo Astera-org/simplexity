@@ -107,13 +107,30 @@ def test_lazy_context_update(model: torch.nn.Module, optimizer: torch.optim.Opti
     assert metric_tracker.context.named_parameters != {}
 
 
+def test_step_only_steps_required_metrics(model: torch.nn.Module):
+    """Test the MetricTracker class."""
+    metric_tracker = MetricTracker(metric_names=["tokens", "parameter_norm"], model=model)
+    with (
+        patch("simplexity.metrics.metrics.TokensMetric.step") as mock_tokens_step,
+        patch("simplexity.metrics.metrics.ParameterNormMetric.step") as mock_parameter_norm_step,
+    ):
+        metric_tracker.step()
+
+        assert ALL_METRICS["tokens"].requirements.step_required
+        assert mock_tokens_step.assert_called_once
+
+        assert not ALL_METRICS["parameter_norm"].requirements.step_required
+        assert mock_parameter_norm_step.assert_not_called
+
+
 def test_cache_computed_metrics():
     """Test the MetricTracker class."""
     metric_tracker = MetricTracker(metric_names=["tokens"])
     with patch("simplexity.metrics.metrics.TokensMetric.compute") as mock_compute:
         num_steps = 3
-        for _ in range(num_steps):
-            metric_tracker.step(tokens=100)
-            metric_tracker.get_metrics()
-            metric_tracker.get_metrics()
+        for i in range(num_steps):
+            mock_compute.return_value = {"step": i}
+            metric_tracker.step()
+            assert metric_tracker.get_metrics() == {"step": i}
+            assert metric_tracker.get_metrics() == {"step": i}
         assert mock_compute.call_count == num_steps
