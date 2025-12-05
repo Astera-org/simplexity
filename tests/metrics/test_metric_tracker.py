@@ -95,3 +95,15 @@ def test_lazy_context_update(model: torch.nn.Module, optimizer: torch.optim.Opti
     assert metric_tracker.context.named_parameters == {}  # parameter_distance does not require params during step
     metric_tracker.get_metrics()
     assert metric_tracker.context.named_parameters != {}  # parameter_distance requires params during compute
+
+
+def test_cache_computed_metrics():
+    """Test the MetricTracker class."""
+    metric_tracker = MetricTracker(metric_names=["tokens"])
+    with patch("simplexity.metrics.metrics.TokensMetric.compute") as mock_compute:
+        num_steps = 3
+        for _ in range(num_steps):
+            metric_tracker.step(tokens=100)
+            metric_tracker.get_metrics()
+            metric_tracker.get_metrics()
+        assert mock_compute.call_count == num_steps
