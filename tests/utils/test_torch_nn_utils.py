@@ -22,7 +22,17 @@ def test_extract_learning_rates(optimizer: torch.optim.Optimizer):
     """Test extract_learning_rates function."""
     assert extract_learning_rates(optimizer) == {"group_0": 0.1}
 
-    # TODO: Add test for multiple param groups
+
+def test_extract_learning_rates_multiple_param_groups():
+    """Test extract_learning_rates function with multiple param groups."""
+    multi_model = torch.nn.Sequential(torch.nn.Linear(1, 1), torch.nn.Linear(1, 1))
+    multi_optimizer = torch.optim.Adam(
+        [
+            {"params": multi_model[0].parameters(), "lr": 0.01, "name": "first"},
+            {"params": multi_model[1].parameters(), "lr": 0.02},
+        ]
+    )
+    assert extract_learning_rates(multi_optimizer) == {"first": 0.01, "group_1": 0.02}
 
 
 def test_snapshot_gradients(model: torch.nn.Module):
