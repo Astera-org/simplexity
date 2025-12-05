@@ -54,4 +54,4 @@ batch_size: 1024
 # Example interpretation:
 # - Factor 0 always uses variant 0
 # - Factor 1: parent_token 0->variant 0, token 1->variant 1, token 2->variant 0
-# - Factor 2: parent_token 0->variant 1, token 1->variant 0
+# - Factor 2: parent_token 0->variant 1, token 1->variant 0, token 2->variant 1
