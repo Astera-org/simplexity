@@ -1,6 +1,6 @@
 """Stateful metric tracking for PyTorch training loops.
 
-This module provides a :class:`TrainingMetricTracker` that keeps track of
+This module provides a :class:`MetricTracker` that keeps track of
 instantaneous and cumulative metrics derived from optimizer state, running
 losses, and snapshots of the model parameters.
 """
