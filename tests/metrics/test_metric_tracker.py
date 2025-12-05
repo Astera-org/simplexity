@@ -107,6 +107,23 @@ def test_lazy_context_update(model: torch.nn.Module, optimizer: torch.optim.Opti
     assert metric_tracker.context.named_parameters != {}
 
 
+def test_step_args():
+    """Test the MetricTracker class."""
+    metric_tracker = MetricTracker(metric_names=["tokens"])
+    metric_tracker.step()
+    assert metric_tracker.context.num_tokens == 0
+    assert metric_tracker.context.loss == float("inf")
+
+    metric_tracker.step(tokens=100, loss=1.0)
+    assert metric_tracker.context.num_tokens == 100
+    assert metric_tracker.context.loss == 1.0
+
+    token_batch = torch.randint(0, 100, (4, 16))
+    metric_tracker.step(tokens=token_batch, loss=torch.tensor(2.0))
+    assert metric_tracker.context.num_tokens == 4 * 16
+    assert metric_tracker.context.loss == 2.0
+
+
 def test_step_only_steps_required_metrics(model: torch.nn.Module):
     """Test the MetricTracker class."""
     metric_tracker = MetricTracker(metric_names=["tokens", "parameter_norm"], model=model)
