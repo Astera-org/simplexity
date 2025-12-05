@@ -131,12 +131,6 @@ class LearningRateMetric(Metric):
         compute=RequiredFields(learning_rates=True),
     )
 
-    def __init__(self, _context: Context, **_kwargs: Any) -> None:
-        pass
-
-    def step(self, _context: Context) -> None:
-        """Step the learning rate metric."""
-
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the learning rate metric."""
         if len(context.learning_rates) == 1:
@@ -154,6 +148,7 @@ class TokensMetric(Metric):
     )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
+        super().__init__(_context, **_kwargs)
         self.cumulative = 0.0
         current_time = time.time()
         self._start_time = current_time
@@ -187,6 +182,7 @@ class LearningRateWeightedTokensMetric(Metric):
     )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
+        super().__init__(_context, **_kwargs)
         self.weighted_tokens = 0.0
         self.cumulative = 0.0
 
@@ -212,6 +208,7 @@ class GradientWeightedTokensMetric(Metric):
     )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
+        super().__init__(_context, **_kwargs)
         self.gradient_signal = 0.0
         self.cumulative_gradient_signal = 0.0
         self.fisher_proxy = 0.0
@@ -245,6 +242,7 @@ class ParameterUpdateMetric(Metric):
     )
 
     def __init__(self, context: Context, **_kwargs: Any) -> None:
+        super().__init__(context, **_kwargs)
         self.previous_named_parameters: Mapping[str, torch.Tensor] = context.named_parameters
         self.step_norm = 0.0
         self.cumulative = 0.0
@@ -273,6 +271,7 @@ class LossMetric(Metric):
     )
 
     def __init__(self, context: Context, **kwargs: Any) -> None:
+        super().__init__(context, **kwargs)
         self._step = 0
         self.initial_loss = context.loss
         self.optimal_loss = kwargs.get("optimal_loss", 0)
@@ -317,12 +316,6 @@ class ParameterNormMetric(Metric):
         compute=RequiredFields(named_parameters=True),
     )
 
-    def __init__(self, _context: Context, **_kwargs: Any) -> None:
-        pass
-
-    def step(self, _context: Context) -> None:
-        """Step the parameter norm metric."""
-
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the parameter norm metric."""
         norm = tensor_stack_l2_norm(list(context.named_parameters.values()))
@@ -340,11 +333,9 @@ class ParameterDistanceMetric(Metric):
     )
 
     def __init__(self, context: Context, **_kwargs: Any) -> None:
+        super().__init__(context, **_kwargs)
         self.initial_named_parameters: Mapping[str, torch.Tensor] = context.named_parameters
         self.max_distance = 0.0
-
-    def step(self, _context: Context) -> None:
-        """Step the distance from initialization metric."""
 
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the distance from initialization metric."""
