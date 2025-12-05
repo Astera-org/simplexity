@@ -21,6 +21,12 @@ def optimizer(model: torch.nn.Module) -> torch.optim.Optimizer:
     return torch.optim.Adam(model.parameters(), lr=0.01)
 
 
+def _induce_gradients(model: torch.nn.Module) -> None:
+    """Induce gradients in the model."""
+    for param in model.parameters():
+        param.grad = torch.randn_like(param)
+
+
 def test_init_all_metrics(model: torch.nn.Module, optimizer: torch.optim.Optimizer):
     """Test the MetricTracker class."""
     metric_tracker = MetricTracker(model=model, optimizer=optimizer)
@@ -66,3 +72,26 @@ def test_warn_missing_context():
             "[Metrics] %s requires gradients or named parameters, but model is not set in MetricTracker",
             "parameter_distance",
         )
+
+
+def test_lazy_context_update(model: torch.nn.Module, optimizer: torch.optim.Optimizer):
+    """Test the MetricTracker class."""
+    metric_tracker = MetricTracker(metric_names=["learning_rate"], optimizer=optimizer)
+    assert metric_tracker.context.learning_rates == {}  # learning_rate does not require lr during init
+    metric_tracker.step()
+    assert metric_tracker.context.learning_rates == {}  # learning_rate does not require lr during step
+    metric_tracker.get_metrics()
+    assert metric_tracker.context.learning_rates != {}  # learning_rate requires lr during compute
+
+    metric_tracker = MetricTracker(metric_names=["gradient_weighted_tokens"], model=model, optimizer=optimizer)
+    assert metric_tracker.context.gradients == {}  # gradient_weighted_tokens does not require gradients during init
+    _induce_gradients(model)
+    metric_tracker.step()
+    assert metric_tracker.context.gradients != {}  # gradient_weighted_tokens does requires gradients during step
+
+    metric_tracker = MetricTracker(metric_names=["parameter_distance"], model=model)
+    assert metric_tracker.context.named_parameters != {}  # parameter_distance requires params during init
+    metric_tracker.step()
+    assert metric_tracker.context.named_parameters == {}  # parameter_distance does not require params during step
+    metric_tracker.get_metrics()
+    assert metric_tracker.context.named_parameters != {}  # parameter_distance requires params during compute
