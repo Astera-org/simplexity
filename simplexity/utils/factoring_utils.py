@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Literal
 
 import chex
-import jax.numpy as jnp
 import equinox as eqx
 import jax.numpy as jnp
 
@@ -77,13 +76,6 @@ def transition_with_obs(
         return new_state / (new_state @ normalizing_eigenvector)
 
 
-"""Token encoding utilities for factored observations.
-
-Handles conversion between composite tokens and per-factor token tuples
-using radix/base conversion.
-"""
-
-
 class TokenEncoder(eqx.Module):
     """Encodes/decodes composite observations from per-factor tokens.
 
@@ -108,11 +100,11 @@ class TokenEncoder(eqx.Module):
         self.vocab_sizes = jnp.asarray(vocab_sizes)
 
         # Compute radix multipliers
-        F = len(vocab_sizes)
+        f = len(vocab_sizes)
         multipliers = []
-        for i in range(F):
+        for i in range(f):
             m = 1
-            for j in range(i + 1, F):
+            for j in range(i + 1, f):
                 m *= int(vocab_sizes[j])
             multipliers.append(m)
         self.radix_multipliers = jnp.array(multipliers)
@@ -131,7 +123,7 @@ class TokenEncoder(eqx.Module):
         """Convert per-factor tokens to composite token.
 
         Args:
-            token_tuple: Tuple of F scalar arrays, each in [0, V_i)
+            token_tuple: Tuple of f scalar arrays, each in [0, V_i)
 
         Returns:
             Scalar array with composite token in [0, prod(V_i))
@@ -150,7 +142,7 @@ class TokenEncoder(eqx.Module):
             token: Scalar array with composite token
 
         Returns:
-            Tuple of F scalar arrays with per-factor tokens
+            Tuple of f scalar arrays with per-factor tokens
         """
         result = []
         remaining = jnp.array(token)
@@ -165,10 +157,10 @@ class TokenEncoder(eqx.Module):
         """Extract per-factor tokens from batch of composite tokens.
 
         Args:
-            tokens: Array of shape [N] with composite tokens
+            tokens: Array of shape [n] with composite tokens
 
         Returns:
-            Array of shape [N, F] with per-factor tokens
+            Array of shape [n, f] with per-factor tokens
         """
         tokens = jnp.atleast_1d(tokens)
         return (tokens[:, None] // self.radix_multipliers[None, :]) % self.vocab_sizes[None, :]
