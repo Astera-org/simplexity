@@ -59,6 +59,10 @@ from simplexity.structured_configs.logging import (
     update_logging_instance_config,
     validate_logging_config,
 )
+from simplexity.structured_configs.metric_tracker import (
+    is_metric_tracker_target,
+    validate_metric_tracker_config,
+)
 from simplexity.structured_configs.mlflow import update_mlflow_config
 from simplexity.structured_configs.optimizer import (
     is_optimizer_target,
@@ -455,6 +459,16 @@ def _get_predictive_model(predictive_models: dict[str, Any] | None) -> Any | Non
     return None
 
 
+def _get_optimizer(optimizers: dict[str, Any] | None) -> Any | None:
+    if optimizers:
+        if len(optimizers) == 1:
+            return next(iter(optimizers.values()))
+        SIMPLEXITY_LOGGER.warning("Multiple optimizers found, any optimizer will be skipped")
+        return None
+    SIMPLEXITY_LOGGER.warning("No optimizer found")
+    return None
+
+
 def _instantiate_optimizer(cfg: DictConfig, instance_key: str, predictive_model: Any | None) -> Any:
     """Setup the optimizer."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
@@ -487,6 +501,44 @@ def _setup_optimizers(
         model = _get_predictive_model(predictive_models)
         return {instance_key: _instantiate_optimizer(cfg, instance_key, model) for instance_key in instance_keys}
     SIMPLEXITY_LOGGER.info("[optimizer] no optimizer configs found")
+    return None
+
+
+def _instantiate_metric_tracker(
+    cfg: DictConfig, instance_key: str, predictive_model: Any | None, optimizer: Any | None
+) -> Any:
+    """Setup the metric tracker."""
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        # Pass model and optimizer directly to Hydra instantiate
+        metric_tracker = hydra.utils.instantiate(instance_config, model=predictive_model, optimizer=optimizer)
+        SIMPLEXITY_LOGGER.info("[metric tracker] instantiated metric tracker: %s", metric_tracker.__class__.__name__)
+        return metric_tracker
+    raise KeyError
+
+
+def _setup_metric_trackers(
+    cfg: DictConfig,
+    instance_keys: list[str],
+    predictive_models: dict[str, Any] | None,
+    optimizers: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Setup the metric trackers."""
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_metric_tracker_target,
+        validate_fn=validate_metric_tracker_config,
+        component_name="metric tracker",
+    )
+    if instance_keys:
+        model = _get_predictive_model(predictive_models)
+        optimizer = _get_optimizer(optimizers)
+        return {
+            instance_key: _instantiate_metric_tracker(cfg, instance_key, model, optimizer)
+            for instance_key in instance_keys
+        }
+    SIMPLEXITY_LOGGER.info("[metric tracker] no metric tracker configs found")
     return None
 
 
@@ -556,6 +608,9 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.persisters = _setup_persisters(cfg, instance_keys)
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
+    components.metric_trackers = _setup_metric_trackers(
+        cfg, instance_keys, components.predictive_models, components.optimizers
+    )
     components.activation_trackers = _setup_activation_trackers(cfg, instance_keys)
     _do_logging(cfg, components.loggers, verbose=verbose)
     return components

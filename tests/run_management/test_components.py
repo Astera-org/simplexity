@@ -17,6 +17,7 @@ import pytest
 from simplexity.activations.activation_tracker import ActivationTracker
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
+from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.components import Components
 
@@ -87,24 +88,35 @@ def test_get_instance_with_ending_key_raises_error():
 
 
 def test_get_instance_with_ending_instance_key():
-    logger_1 = Mock(spec=Logger)
-    logger_2 = Mock(spec=Logger)
-    components = Components(loggers={"logger.mock_1.instance": logger_1, "logger.mock_2.instance": logger_2})
-    assert components.get_logger("mock_1") == logger_1
-    assert components.get_logger("mock_2") == logger_2
+    metric_tracker_1 = Mock(spec=MetricTracker)
+    metric_tracker_2 = Mock(spec=MetricTracker)
+    components = Components(
+        metric_trackers={
+            "metric_tracker.mock_1.instance": metric_tracker_1,
+            "metric_tracker.mock_2.instance": metric_tracker_2,
+        }
+    )
+    assert components.get_metric_tracker("mock_1") == metric_tracker_1
+    assert components.get_metric_tracker("mock_2") == metric_tracker_2
 
 
 def test_get_instance_with_ending_instance_key_raises_error():
-    logger_1 = Mock(spec=Logger)
-    logger_2 = Mock(spec=Logger)
-    components = Components(loggers={"logger_1.mock.instance": logger_1, "logger_2.mock.instance": logger_2})
+    metric_tracker_1 = Mock(spec=MetricTracker)
+    metric_tracker_2 = Mock(spec=MetricTracker)
+    components = Components(
+        metric_trackers={
+            "metric_tracker_1.mock.instance": metric_tracker_1,
+            "metric_tracker_2.mock.instance": metric_tracker_2,
+        }
+    )
     with pytest.raises(
         KeyError,
         match=re.escape(
-            "Multiple loggers with key 'mock.instance' found: ['logger_1.mock.instance', 'logger_2.mock.instance']"
+            "Multiple metric trackers with key 'mock.instance' found: "
+            "['metric_tracker_1.mock.instance', 'metric_tracker_2.mock.instance']"
         ),
     ):
-        components.get_logger("mock")
+        components.get_metric_tracker("mock")
 
 
 def test_get_instance_with_no_matching_key_raises_error():

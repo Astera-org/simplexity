@@ -9,8 +9,10 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import hydra
 import jax
@@ -24,9 +26,11 @@ import simplexity
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.logging.mlflow_logger import MLFlowLogger
+from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.structured_configs.generative_process import GenerativeProcessConfig
 from simplexity.structured_configs.logging import LoggingConfig
+from simplexity.structured_configs.metric_tracker import MetricTrackerConfig
 from simplexity.structured_configs.mlflow import MLFlowConfig
 from simplexity.structured_configs.optimizer import OptimizerConfig
 from simplexity.structured_configs.persistence import PersistenceConfig
@@ -34,6 +38,8 @@ from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
 CONFIG_NAME = "training_test.yaml"
+
+logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
 
 
 @dataclass
@@ -43,7 +49,8 @@ class TrainingConfig:
     num_steps: int
     batch_size: int
     sequence_len: int
-    log_every: int
+    log_cheap_every: int
+    log_expensive_every: int
     checkpoint_every: int
     evaluate_every: int
 
@@ -58,6 +65,8 @@ class TrainingRunConfig:
     persistence: PersistenceConfig
     predictive_model: PredictiveModelConfig
     optimizer: OptimizerConfig
+    training_metric_tracker: MetricTrackerConfig
+    eval_metric_tracker: MetricTrackerConfig
     training: TrainingConfig
 
     device: str
@@ -82,13 +91,22 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     assert isinstance(predictive_model, HookedTransformer)
     optimizer = components.get_optimizer()
     assert isinstance(optimizer, Adam)
+    training_metric_tracker = components.get_metric_tracker("training_metric_tracker")
+    assert isinstance(training_metric_tracker, MetricTracker)
+    eval_metric_tracker = components.get_metric_tracker("eval_metric_tracker")
+    assert isinstance(eval_metric_tracker, MetricTracker)
 
     gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
+
+    # Only need to specify device for MPS since JAX doesn't support it
+    # (JAX will use CPU while PyTorch model is on MPS)
+    model_device = next(predictive_model.parameters()).device
+    device_arg = model_device if model_device.type == "mps" else None
 
     def generate(step: int) -> tuple[torch.Tensor, torch.Tensor]:
         key = jax.random.key(step)
         _, inputs, labels = generate_data_batch(
-            gen_states, generative_process, cfg.training.batch_size, cfg.training.sequence_len, key
+            gen_states, generative_process, cfg.training.batch_size, cfg.training.sequence_len, key, device=device_arg
         )
         return inputs, labels
 
@@ -97,7 +115,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     def get_loss(outputs: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         return loss_fn(outputs.reshape(-1, outputs.shape[-1]), labels.reshape(-1).long())
 
-    def train_step(step: int) -> float:
+    def train_step(step: int):
         predictive_model.train()
         inputs, labels = generate(step)
         outputs = predictive_model(inputs)
@@ -105,10 +123,11 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        return loss.item()
+        training_metric_tracker.step(tokens=inputs, loss=loss)
 
-    def log_step(step: int, loss: float) -> None:
-        logger.log_metrics(step, {"train/loss": loss})
+    def log_step(step: int, group: str) -> None:
+        metrics = training_metric_tracker.get_metrics(group)
+        logger.log_metrics(step, metrics)
 
     eval_inputs, eval_labels = generate(cfg.training.num_steps)
 
@@ -116,19 +135,32 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         predictive_model.eval()
         outputs = predictive_model(eval_inputs)
         loss = get_loss(outputs, eval_labels)
-        return loss.item()
+        return float(loss.detach().item())
+
+    def add_key_prefix(d: dict[str, Any], prefix: str) -> dict[str, Any]:
+        return {f"{prefix}/{k}": v for k, v in d.items()}
 
     def eval_step(step: int) -> None:
         loss = evaluate()
-        logger.log_metrics(step, {"eval/loss": loss})
+        eval_metric_tracker.step(loss=loss)
+        metrics = eval_metric_tracker.get_metrics()
+        metrics = add_key_prefix(metrics, "eval")
+        logger.log_metrics(step, metrics)
 
     def checkpoint_step(step: int) -> None:
         persister.save_weights(predictive_model, step)
 
     for step in range(cfg.training.num_steps + 1):
-        loss = evaluate() if step == 0 else train_step(step)
-        if step % cfg.training.log_every == 0:
-            log_step(step, loss)
+        if step == 0:
+            initial_loss = evaluate()
+            training_metric_tracker.context.loss = initial_loss
+            eval_metric_tracker.context.loss = initial_loss
+        else:
+            train_step(step)
+        if step % cfg.training.log_cheap_every == 0:
+            log_step(step, "cheap")
+        if step % cfg.training.log_expensive_every == 0:
+            log_step(step, "expensive")
         if step % cfg.training.evaluate_every == 0:
             eval_step(step)
         if step % cfg.training.checkpoint_every == 0:
@@ -136,9 +168,11 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
 
     registered_model_name = cfg.predictive_model.name or "test_model"
     sample_inputs = generate(0)[0]
-    persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs)
+    # TODO(https://github.com/Astera-org/simplexity/issues/125): This is a hack
+    step += 1  # pyright: ignore[reportPossiblyUnboundVariable]
+    persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs, step=step)
 
 
 if __name__ == "__main__":
-    main = hydra.main(config_path=CONFIG_DIR, config_name=CONFIG_NAME, version_base="1.2")(train)
+    main = hydra.main(config_path=CONFIG_DIR, config_name="training.yaml", version_base="1.2")(train)
     main()

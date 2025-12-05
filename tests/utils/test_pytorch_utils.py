@@ -9,7 +9,14 @@ import pytest
 import torch
 
 from simplexity.exceptions import DeviceResolutionError
-from simplexity.utils.pytorch_utils import jax_to_torch, resolve_device, torch_to_jax
+from simplexity.utils.pytorch_utils import (
+    jax_to_torch,
+    named_tensor_distance,
+    resolve_device,
+    tensor_collection_l2_norm,
+    tensor_stack_l2_norm,
+    torch_to_jax,
+)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -98,3 +105,32 @@ def test_resolve_device_unknown():
     """Test resolving an unknown device specification."""
     with pytest.raises(DeviceResolutionError, match="Unknown device specification: invalid"):
         resolve_device("invalid")
+
+
+def test_tensor_collection_l2_norm():
+    """Test tensor collection L2 norm."""
+    tensors = [torch.tensor([0.0, 2.0]), torch.tensor([4.0, 5.0, 6.0]), torch.tensor([])]
+    assert tensor_collection_l2_norm(tensors) == pytest.approx(9.0)
+
+
+def test_tensor_stack_l2_norm():
+    """Test tensor stack L2 norm."""
+    tensors = [torch.tensor([2.0, 4.0]), torch.tensor([5.0, 6.0])]
+    assert tensor_stack_l2_norm(tensors) == pytest.approx(9.0)
+
+
+def test_named_tensor_distance():
+    """Test named tensor distance."""
+    current = {
+        "param_1": torch.tensor([1.0, 2.0]),
+        "param_2": torch.tensor([7.0]),
+        "param_3": torch.tensor([3.0, 9.0, 4.0]),
+        "not_in_reference": torch.tensor([5.0, 6.0]),
+    }
+    reference = {
+        "param_1": torch.tensor([3.0, 6.0]),
+        "param_2": torch.tensor([7.0]),
+        "param_3": torch.tensor([8.0, 9.0, 10.0]),
+        "not_in_current": torch.tensor([11.0, 12.0]),
+    }
+    assert named_tensor_distance(current, reference) == pytest.approx(9.0)

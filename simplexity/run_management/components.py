@@ -15,6 +15,7 @@ from typing import Any
 from simplexity.activations.activation_tracker import ActivationTracker
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
+from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.model_persister import ModelPersister
 
 
@@ -27,6 +28,7 @@ class Components:
     persisters: dict[str, ModelPersister] | None = None
     predictive_models: dict[str, Any] | None = None  # TODO: improve typing
     optimizers: dict[str, Any] | None = None  # TODO: improve typing
+    metric_trackers: dict[str, MetricTracker] | None = None
     activation_trackers: dict[str, ActivationTracker] | None = None
 
     def get_logger(self, key: str | None = None) -> Logger | None:
@@ -48,6 +50,10 @@ class Components:
     def get_optimizer(self, key: str | None = None) -> Any | None:
         """Get the optimizer."""
         return self._get_instance_by_key(self.optimizers, key, "optimizer")
+
+    def get_metric_tracker(self, key: str | None = None) -> MetricTracker | None:
+        """Get the metric tracker."""
+        return self._get_instance_by_key(self.metric_trackers, key, "metric tracker")
 
     def get_activation_tracker(self, key: str | None = None) -> ActivationTracker | None:
         """Get the activation tracker."""

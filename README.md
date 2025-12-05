@@ -62,6 +62,52 @@ An experiment comprised of several runs can be executed to perform a hyperparame
 uv run python simplexity/run_experiment.py --multirun
 ```
 
+#### Advanced Training Metrics (PyTorch)
+
+The `TrainingMetricTracker` under `simplexity.metrics.metric_tracker` keeps
+instantaneous (current loss, learning rate, parameter/gradient norms) and
+cumulative metrics (tokens processed, running average loss, distance from
+initialization, cumulative parameter-update norms) in sync with a PyTorch
+optimizer. The tracker is wired into
+`simplexity.training.train_pytorch_model.train`, but it can also be used directly
+when writing custom training loops:
+
+```python
+import torch
+from simplexity.metrics.metric_tracker import MetricTracker
+
+model = build_model()
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+lr_schedule = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10_000)
+tracker = MetricTracker(
+    model,
+    optimizer,
+    metric_kwargs={
+        "lr_schedule": lr_schedule,
+    },
+)
+
+for step, batch in enumerate(train_loader, start=1):
+    logits = model(batch["inputs"])
+    loss = criterion(logits, batch["labels"])
+
+    loss.backward()
+    optimizer.step()
+    lr_schedule.step()
+    optimizer.zero_grad(set_to_none=True)
+
+    tracker.step(
+        step=step,
+        loss=loss,
+        tokens_in_batch=int(batch["labels"].numel()),
+    )
+    metrics = tracker.get_metrics()
+    logger.log_metrics(step, metrics)
+```
+
+Each call returns a flat dictionary with keys such as `step/tokens`, `cum/tokens`,
+`loss/step`, `loss/ma`, `lr/step`, `grads/l2_norm/step`, `params/update_l2_norm/cum`,
+and `params/distance_from_init`, ready to be sent to any `Logger` implementation.
 ### Model Checkpointing
 
 The `ModelPersister` class is responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket.

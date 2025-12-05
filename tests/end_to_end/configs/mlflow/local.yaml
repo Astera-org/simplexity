@@ -1,0 +1,5 @@
+experiment_name: /Shared/${experiment_name}
+run_name: ${run_name}
+tracking_uri: sqlite:///tests/end_to_end/mlflow.db
+registry_uri: sqlite:///tests/end_to_end/mlflow.db
+downgrade_unity_catalog: true
