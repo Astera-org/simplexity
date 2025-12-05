@@ -82,26 +82,26 @@ lr_schedule = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10_000
 tracker = MetricTracker(
     model,
     optimizer,
-    optimal_loss=0.05,
-    lr_schedule_fn=lambda step: lr_schedule.get_last_lr()[0],
+    metric_kwargs={
+        "lr_schedule": lr_schedule,
+    },
 )
 
 for step, batch in enumerate(train_loader, start=1):
     logits = model(batch["inputs"])
     loss = criterion(logits, batch["labels"])
-    if tracker.initial_loss is None:
-        tracker.record_initial_loss(float(loss.detach().item()))
 
     loss.backward()
     optimizer.step()
     lr_schedule.step()
     optimizer.zero_grad(set_to_none=True)
 
-    metrics = tracker.update(
+    tracker.step(
         step=step,
         loss=loss,
         tokens_in_batch=int(batch["labels"].numel()),
     )
+    metrics = tracker.get_metrics()
     logger.log_metrics(step, metrics)
 ```
 
