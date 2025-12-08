@@ -35,7 +35,7 @@ class ActivationAnalysis(Protocol):
         self,
         activations: Mapping[str, jax.Array],
         weights: jax.Array,
-        belief_states: jax.Array | None = None,
+        belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Analyze activations and return scalar metrics and projections."""
         ...

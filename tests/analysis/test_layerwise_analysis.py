@@ -162,3 +162,30 @@ def test_layerwise_analysis_property_accessors() -> None:
     assert analysis.concat_layers
     assert not analysis.use_probs_as_weights
     assert not analysis.requires_belief_states
+
+
+def test_linear_regression_accepts_to_factors() -> None:
+    """linear_regression validator should accept to_factors parameter."""
+    validator = ANALYSIS_REGISTRY["linear_regression"].validator
+    params = validator({"fit_intercept": False, "to_factors": True})
+
+    assert params["fit_intercept"] is False
+    assert params["to_factors"] is True
+
+
+def test_linear_regression_svd_accepts_to_factors() -> None:
+    """linear_regression_svd validator should accept to_factors parameter."""
+    validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
+    params = validator({"fit_intercept": True, "to_factors": True, "rcond_values": [1e-3]})
+
+    assert params["fit_intercept"] is True
+    assert params["to_factors"] is True
+    assert params["rcond_values"] == (0.001,)
+
+
+def test_linear_regression_to_factors_defaults_false() -> None:
+    """to_factors should default to False when not provided."""
+    validator = ANALYSIS_REGISTRY["linear_regression"].validator
+    params = validator({"fit_intercept": True})
+
+    assert params["to_factors"] is False
