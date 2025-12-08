@@ -203,22 +203,22 @@ def test_layer_linear_regression_to_factors_basic() -> None:
     )
 
     # Should have separate metrics for each factor
-    assert "r2_factor_0" in scalars
-    assert "r2_factor_1" in scalars
-    assert "rmse_factor_0" in scalars
-    assert "rmse_factor_1" in scalars
-    assert "mae_factor_0" in scalars
-    assert "mae_factor_1" in scalars
-    assert "dist_factor_0" in scalars
-    assert "dist_factor_1" in scalars
+    assert "factor_0/r2" in scalars
+    assert "factor_1/r2" in scalars
+    assert "factor_0/rmse" in scalars
+    assert "factor_1/rmse" in scalars
+    assert "factor_0/mae" in scalars
+    assert "factor_1/mae" in scalars
+    assert "factor_0/dist" in scalars
+    assert "factor_1/dist" in scalars
 
     # Should have separate projections for each factor
-    assert "projected_factor_0" in projections
-    assert "projected_factor_1" in projections
+    assert "factor_0/projected" in projections
+    assert "factor_1/projected" in projections
 
     # Check shapes
-    assert projections["projected_factor_0"].shape == factor_0.shape
-    assert projections["projected_factor_1"].shape == factor_1.shape
+    assert projections["factor_0/projected"].shape == factor_0.shape
+    assert projections["factor_1/projected"].shape == factor_1.shape
 
 
 def test_layer_linear_regression_svd_to_factors_basic() -> None:
@@ -240,18 +240,18 @@ def test_layer_linear_regression_svd_to_factors_basic() -> None:
     )
 
     # Should have separate metrics for each factor including best_rcond
-    assert "r2_factor_0" in scalars
-    assert "r2_factor_1" in scalars
-    assert "best_rcond_factor_0" in scalars
-    assert "best_rcond_factor_1" in scalars
+    assert "factor_0/r2" in scalars
+    assert "factor_1/r2" in scalars
+    assert "factor_0/best_rcond" in scalars
+    assert "factor_1/best_rcond" in scalars
 
     # Should have separate projections for each factor
-    assert "projected_factor_0" in projections
-    assert "projected_factor_1" in projections
+    assert "factor_0/projected" in projections
+    assert "factor_1/projected" in projections
 
     # Check shapes
-    assert projections["projected_factor_0"].shape == factor_0.shape
-    assert projections["projected_factor_1"].shape == factor_1.shape
+    assert projections["factor_0/projected"].shape == factor_0.shape
+    assert projections["factor_1/projected"].shape == factor_1.shape
 
 
 def test_layer_linear_regression_to_factors_single_factor() -> None:
@@ -271,9 +271,9 @@ def test_layer_linear_regression_to_factors_single_factor() -> None:
     )
 
     # Should have metrics for single factor
-    assert "r2_factor_0" in scalars
-    assert "projected_factor_0" in projections
-    assert projections["projected_factor_0"].shape == factor_0.shape
+    assert "factor_0/r2" in scalars
+    assert "factor_0/projected" in projections
+    assert projections["factor_0/projected"].shape == factor_0.shape
 
 
 def test_layer_linear_regression_to_factors_requires_tuple() -> None:

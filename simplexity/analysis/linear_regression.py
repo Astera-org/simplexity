@@ -156,9 +156,9 @@ def layer_linear_regression(
                 raise ValueError("Each factor in belief_states must be a jax.Array")
             factor_scalars, factor_projections = linear_regression(layer_activations, factor, weights, **kwargs)
             for key, value in factor_scalars.items():
-                scalars[f"{key}_factor_{factor_idx}"] = value
+                scalars[f"factor_{factor_idx}/{key}"] = value
             for key, value in factor_projections.items():
-                projections[f"{key}_factor_{factor_idx}"] = value
+                projections[f"factor_{factor_idx}/{key}"] = value
         return scalars, projections
     else:
         if isinstance(belief_states, tuple):
@@ -186,9 +186,9 @@ def layer_linear_regression_svd(
                 raise ValueError("Each factor in belief_states must be a jax.Array")
             factor_scalars, factor_projections = linear_regression_svd(layer_activations, factor, weights, **kwargs)
             for key, value in factor_scalars.items():
-                scalars[f"{key}_factor_{factor_idx}"] = value
+                scalars[f"factor_{factor_idx}/{key}"] = value
             for key, value in factor_projections.items():
-                projections[f"{key}_factor_{factor_idx}"] = value
+                projections[f"factor_{factor_idx}/{key}"] = value
         return scalars, projections
     else:
         if isinstance(belief_states, tuple):
