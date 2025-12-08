@@ -5,6 +5,7 @@ instance:
   process_params:
     x: 0.15
     a: 0.6
+  device: ${device}
 
 base_vocab_size: ???
 bos_token: ???

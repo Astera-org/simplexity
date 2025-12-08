@@ -1,0 +1,18 @@
+name: simple
+
+instance:
+  _target_: simplexity.metrics.metric_tracker.MetricTracker
+  metric_names:
+    cheap:
+      - learning_rate
+      - tokens
+      - learning_rate_weighted_tokens
+      - loss
+    expensive:
+      - gradient_weighted_tokens
+      - parameter_update
+      - parameter_norm
+      - parameter_distance
+  metric_kwargs:
+    ma_window_size: 100
+    ema_gamma: 0.9
