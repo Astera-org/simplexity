@@ -49,11 +49,10 @@ def generate_data_batch_with_full_history(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+) -> dict[str, jax.Array | tuple[jax.Array, ...]]:
     """Generate sequences plus per-token belief states and prefix probabilities."""
     batch_keys = jax.random.split(key, batch_size)
     belief_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, True)
-    next_states = belief_states[:, -1, :]
 
     prefix_probs = _compute_prefix_probabilities(data_generator, gen_states, tokens)
 
@@ -74,7 +73,22 @@ def generate_data_batch_with_full_history(
     labels = tokens[:, 1:]
     prefix_probs = prefix_probs[:, : inputs.shape[1]]
 
-    return next_states, belief_states, prefix_probs, inputs, labels
+    result = {
+        "belief_states": (
+            jnp.concatenate(belief_states, axis=-1)
+            if isinstance(belief_states, tuple)
+            else belief_states
+        ),
+        "prefix_probabilities": prefix_probs,
+        "inputs": inputs,
+        "labels": labels,
+    }
+
+    if isinstance(belief_states, tuple):
+        result["belief_state_factors"] = belief_states
+
+    return result
+
 
 
 def _compute_prefix_probabilities(

@@ -52,9 +52,9 @@ def generate_data_batch_with_full_history(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array, jax.Array, jax.Array, torch.Tensor, torch.Tensor]:
+) -> dict[str, jax.Array | torch.Tensor | tuple[jax.Array, ...]]:
     """Generate data plus full belief/prefix histories."""
-    next_states, belief_states, prefix_probs, inputs, labels = generate_jax_data_batch_with_full_history(
+    result = generate_jax_data_batch_with_full_history(
         gen_states,
         data_generator,
         batch_size,
@@ -63,4 +63,10 @@ def generate_data_batch_with_full_history(
         bos_token,
         eos_token,
     )
-    return next_states, belief_states, prefix_probs, jax_to_torch(inputs), jax_to_torch(labels)
+    return {
+        "belief_states": result["belief_states"],
+        "prefix_probabilities": result["prefix_probabilities"],
+        "inputs": jax_to_torch(result["inputs"]),
+        "labels": jax_to_torch(result["labels"]),
+        **({k: v for k, v in result.items() if k not in ["belief_states", "prefix_probabilities", "inputs", "labels"]}),
+    }

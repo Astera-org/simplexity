@@ -1,6 +1,7 @@
 """Tests for factored generative process conditional structures."""
 
 import chex
+import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.structures import (
@@ -45,7 +46,9 @@ def test_sequential_conditional_joint_distribution_and_variants():
         _tensor_from_probs([[0.7, 0.3], [0.2, 0.8]]),
     )
     context = _make_context(states, transition_matrices)
-    structure = SequentialConditional(control_maps=(None, jnp.array([0, 1], dtype=jnp.int32)))
+    structure = SequentialConditional(
+        control_maps=(None, jnp.array([0, 1], dtype=jnp.int32)), vocab_sizes=context.vocab_sizes
+    )
 
     dist = structure.compute_joint_distribution(context)
     expected = jnp.array([0.42, 0.18, 0.08, 0.32], dtype=jnp.float32)
@@ -219,7 +222,7 @@ def test_sequential_conditional_with_three_factors():
             jnp.array([0, 1], dtype=jnp.int32),
             jnp.array([1, 0], dtype=jnp.int32),
         ),
-        vocab_sizes=jnp.array([2, 2, 2]),
+        vocab_sizes=context.vocab_sizes,
     )
 
     dist = structure.compute_joint_distribution(context)
@@ -228,15 +231,17 @@ def test_sequential_conditional_with_three_factors():
 
 
 def test_sequential_conditional_without_vocab_sizes():
-    """SequentialConditional should work without precomputed vocab_sizes_py."""
+    """SequentialConditional requires vocab_sizes to be provided."""
     states = (jnp.array([1.0], dtype=jnp.float32), jnp.array([1.0], dtype=jnp.float32))
     transition_matrices = (
         _tensor_from_probs([[0.6, 0.4]]),
         _tensor_from_probs([[0.7, 0.3], [0.2, 0.8]]),
     )
     context = _make_context(states, transition_matrices)
-    # Don't pass vocab_sizes to constructor
-    structure = SequentialConditional(control_maps=(None, jnp.array([0, 1], dtype=jnp.int32)))
+    # vocab_sizes must be provided
+    structure = SequentialConditional(
+        control_maps=(None, jnp.array([0, 1], dtype=jnp.int32)), vocab_sizes=context.vocab_sizes
+    )
 
     dist = structure.compute_joint_distribution(context)
     expected = jnp.array([0.42, 0.18, 0.08, 0.32], dtype=jnp.float32)
@@ -245,7 +250,7 @@ def test_sequential_conditional_without_vocab_sizes():
 
 def test_sequential_conditional_get_required_params():
     """SequentialConditional should return required params."""
-    structure = SequentialConditional(control_maps=(None,))
+    structure = SequentialConditional(control_maps=(None,), vocab_sizes=jnp.array([2]))
     required_params = structure.get_required_params()
     assert required_params == {"control_maps": tuple}
 

@@ -103,14 +103,13 @@ def test_generate_data_batch_with_full_history():
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
-    next_states, belief_states, prefix_probs, inputs, labels = generate_data_batch_with_full_history(
+    result = generate_data_batch_with_full_history(
         states,
         hmm,
         batch_size,
         sequence_len,
         key,
     )
-    assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
-    assert prefix_probs.shape == (batch_size, inputs.shape[1])
-    assert next_states.shape == (batch_size, gen_state.shape[0])
-    assert labels.shape == inputs.shape
+    assert result["belief_states"].shape == (batch_size, sequence_len, gen_state.shape[0])
+    assert result["prefix_probabilities"].shape == (batch_size, result["inputs"].shape[1])
+    assert result["labels"].shape == result["inputs"].shape

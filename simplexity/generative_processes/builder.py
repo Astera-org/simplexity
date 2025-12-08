@@ -563,7 +563,7 @@ def build_symmetric_from_spec(
                 expected *= vocab_sizes[j]
 
         if int(cm.shape[0]) != expected:
-            raise ValueError(f"control_maps[{i}] length {cm.shape[0]} must equal prod(V_j for j!={i}) = {expected}")
+            raise ValueError(f"control_maps[{i}] length {cm.shape[0]} must equal prod(V_j for j!=[{i}]) = {expected}")
 
     return component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps_arrays
 
