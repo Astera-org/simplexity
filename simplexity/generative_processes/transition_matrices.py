@@ -355,6 +355,29 @@ def zero_one_random(p: float) -> jax.Array:
         ]
     )
 
+def zero_random_random(p1: float, p2: float) -> jax.Array:
+    """Creates a transition matrix for the Zero Random Random (ZRR) Process.
+
+    Steady-state distribution = [1, 1, 1] / 3
+    """
+    assert 0 <= p1 <= 1
+    assert 0 <= p2 <= 1
+    q1 = 1 - p1
+    q2 = 1 - p2
+    return jnp.array(
+        [
+            [
+                [0,  1,  0],
+                [0,  0, q1],
+                [q2, 0,  0],
+            ],
+            [
+                [0,  0,  0],
+                [0,  0, p1],
+                [p2, 0,  0],
+            ],
+        ]
+    )
 
 HMM_MATRIX_FUNCTIONS = {
     "coin": coin,
@@ -367,6 +390,7 @@ HMM_MATRIX_FUNCTIONS = {
     "rrxor": rrxor,
     "sns": sns,
     "zero_one_random": zero_one_random,
+    "zero_random_random": zero_random_random,
 }
 
 GHMM_MATRIX_FUNCTIONS = HMM_MATRIX_FUNCTIONS | {
