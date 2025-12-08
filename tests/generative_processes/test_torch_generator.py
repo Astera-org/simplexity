@@ -119,5 +119,14 @@ def test_generate_data_batch_with_full_history():
         sequence_len,
         key,
     )
-    assert result["belief_states"].shape == (batch_size, sequence_len, gen_state.shape[0])
-    assert result["prefix_probabilities"].shape == (batch_size, result["inputs"].shape[1])
+    # Extract and type-check all fields
+    belief_states = result["belief_states"]
+    prefix_probs = result["prefix_probabilities"]
+    inputs = result["inputs"]
+
+    assert isinstance(belief_states, jax.Array)
+    assert isinstance(prefix_probs, jax.Array)
+    assert isinstance(inputs, torch.Tensor)
+
+    assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
+    assert prefix_probs.shape == (batch_size, inputs.shape[1])

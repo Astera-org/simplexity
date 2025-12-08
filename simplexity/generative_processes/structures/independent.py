@@ -7,6 +7,7 @@ Joint distribution is the product of independent factor distributions.
 from __future__ import annotations
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.structures.protocol import ConditionalContext

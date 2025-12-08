@@ -144,7 +144,6 @@ def layer_linear_regression(
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Layer-wise regression helper that wraps :func:`linear_regression`."""
-
     if belief_states is None:
         raise ValueError("linear_regression requires belief_states")
 
@@ -167,18 +166,17 @@ def layer_linear_regression(
         return linear_regression(layer_activations, belief_states, weights, **kwargs)
 
 
-
 def layer_linear_regression_svd(
     layer_activations: jax.Array,
     weights: jax.Array,
-    belief_states: jax.Array | None,
+    belief_states: jax.Array | tuple[jax.Array, ...] | None,
     to_factors: bool = False,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Layer-wise regression helper that wraps :func:`linear_regression_svd`."""
     if belief_states is None:
         raise ValueError("linear_regression_svd requires belief_states")
-    
+
     if to_factors:
         scalars, projections = {}, {}
         if not isinstance(belief_states, tuple):
@@ -186,9 +184,7 @@ def layer_linear_regression_svd(
         for factor_idx, factor in enumerate(belief_states):
             if not isinstance(factor, jax.Array):
                 raise ValueError("Each factor in belief_states must be a jax.Array")
-            factor_scalars, factor_projections = linear_regression_svd(
-                layer_activations, factor, weights, **kwargs
-            )
+            factor_scalars, factor_projections = linear_regression_svd(layer_activations, factor, weights, **kwargs)
             for key, value in factor_scalars.items():
                 scalars[f"{key}_factor_{factor_idx}"] = value
             for key, value in factor_projections.items():

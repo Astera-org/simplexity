@@ -295,13 +295,13 @@ def test_layer_linear_regression_to_factors_validates_tuple_contents() -> None:
     weights = jnp.ones(3) / 3.0
 
     # Invalid: tuple contains non-array
-    invalid_beliefs = (jnp.ones((3, 2)), "not an array")
+    invalid_beliefs = (jnp.ones((3, 2)), "not an array")  # type: ignore
 
     with pytest.raises(ValueError, match="Each factor in belief_states must be a jax.Array"):
-        layer_linear_regression(x, weights, invalid_beliefs, to_factors=True)
+        layer_linear_regression(x, weights, invalid_beliefs, to_factors=True)  # type: ignore
 
     with pytest.raises(ValueError, match="Each factor in belief_states must be a jax.Array"):
-        layer_linear_regression_svd(x, weights, invalid_beliefs, to_factors=True)
+        layer_linear_regression_svd(x, weights, invalid_beliefs, to_factors=True)  # type: ignore
 
 
 def test_layer_linear_regression_to_factors_false_requires_array() -> None:

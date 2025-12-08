@@ -63,10 +63,16 @@ def generate_data_batch_with_full_history(
         bos_token,
         eos_token,
     )
+    # Extract inputs and labels (these are always jax.Arrays)
+    inputs = result["inputs"]
+    labels = result["labels"]
+    assert isinstance(inputs, jax.Array)
+    assert isinstance(labels, jax.Array)
+
     return {
         "belief_states": result["belief_states"],
         "prefix_probabilities": result["prefix_probabilities"],
-        "inputs": jax_to_torch(result["inputs"]),
-        "labels": jax_to_torch(result["labels"]),
+        "inputs": jax_to_torch(inputs),
+        "labels": jax_to_torch(labels),
         **({k: v for k, v in result.items() if k not in ["belief_states", "prefix_probabilities", "inputs", "labels"]}),
     }

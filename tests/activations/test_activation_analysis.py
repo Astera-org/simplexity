@@ -9,7 +9,7 @@ from simplexity.activations.activation_analyses import (
     LinearRegressionSVDAnalysis,
     PcaAnalysis,
 )
-from simplexity.activations.activation_tracker import ActivationTracker, prepare_activations, PrepareOptions
+from simplexity.activations.activation_tracker import ActivationTracker, PrepareOptions, prepare_activations
 
 
 @pytest.fixture

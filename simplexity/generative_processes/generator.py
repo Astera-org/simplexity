@@ -75,9 +75,7 @@ def generate_data_batch_with_full_history(
 
     result = {
         "belief_states": (
-            jnp.concatenate(belief_states, axis=-1)
-            if isinstance(belief_states, tuple)
-            else belief_states
+            jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
         ),
         "prefix_probabilities": prefix_probs,
         "inputs": inputs,
@@ -88,7 +86,6 @@ def generate_data_batch_with_full_history(
         result["belief_state_factors"] = belief_states
 
     return result
-
 
 
 def _compute_prefix_probabilities(
