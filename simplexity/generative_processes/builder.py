@@ -152,7 +152,7 @@ def build_nonergodic_hidden_markov_model(
         num_states = composite_transition_matrix.shape[1]
         initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
         initial_state = initial_state.at[num_states - 1].set(1)
-    return HiddenMarkovModel(composite_transition_matrix, initial_state)
+    return HiddenMarkovModel(composite_transition_matrix, initial_state, device=device)
 
 
 def build_factored_process(
