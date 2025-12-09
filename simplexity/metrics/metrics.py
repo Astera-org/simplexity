@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import time
+from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields, make_dataclass
 from typing import Any
 
 import torch
 
+from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.utils.pytorch_utils import named_tensor_distance, tensor_stack_l2_norm
 
 # pylint: disable=too-few-public-methods
@@ -21,8 +23,8 @@ class Context:
     num_tokens: int = 0
     loss: float = float("inf")
     learning_rates: Mapping[str, float] = field(default_factory=dict)
-    gradients: Mapping[str, torch.Tensor] | None = None
-    named_parameters: Mapping[str, torch.Tensor] | None = None
+    gradients: Mapping[str, torch.Tensor] = field(default_factory=dict)
+    named_parameters: Mapping[str, torch.Tensor] = field(default_factory=dict)
 
 
 _RequiredFieldsBase = make_dataclass(
@@ -85,6 +87,12 @@ class Requirements:
         """Check if any of the required context fields are required for computing."""
         return self.compute.any_required
 
+    def context_field_required(self, context_field_name: str) -> bool:
+        """Check if the given field is required."""
+        return any(
+            getattr(getattr(self, field.name, RequiredFields()), context_field_name, False) for field in fields(self)
+        )
+
 
 def combine_requirements(requirements_list: list[Requirements]) -> Requirements:
     """Combine multiple Requirements using OR logic for each phase.
@@ -102,20 +110,20 @@ def combine_requirements(requirements_list: list[Requirements]) -> Requirements:
     return Requirements(**combined_dict)
 
 
-class Metric:
+class Metric(ABC):
     """Base class for metrics that provides default requirements attribute."""
 
     requirements: Requirements = Requirements()
 
-    def __init__(self, _context: Context, **kwargs: Any) -> None:
+    def __init__(self, _context: Context, **_kwargs: Any) -> None:  # noqa: B027
         """Initialize the metric."""
 
-    def step(self, _context: Context) -> None:
+    def step(self, _context: Context) -> None:  # noqa: B027
         """Step the metric state."""
 
+    @abstractmethod
     def compute(self, _context: Context) -> dict[str, float]:
         """Return the latest scalar(s)."""
-        return {}  # pragma: no cover
 
 
 class LearningRateMetric(Metric):
@@ -124,12 +132,6 @@ class LearningRateMetric(Metric):
     requirements = Requirements(
         compute=RequiredFields(learning_rates=True),
     )
-
-    def __init__(self, _context: Context, **_kwargs: Any) -> None:
-        pass
-
-    def step(self, _context: Context) -> None:
-        """Step the learning rate metric."""
 
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the learning rate metric."""
@@ -148,6 +150,7 @@ class TokensMetric(Metric):
     )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
+        super().__init__(_context, **_kwargs)
         self.cumulative = 0.0
         current_time = time.time()
         self._start_time = current_time
@@ -181,6 +184,7 @@ class LearningRateWeightedTokensMetric(Metric):
     )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
+        super().__init__(_context, **_kwargs)
         self.weighted_tokens = 0.0
         self.cumulative = 0.0
 
@@ -206,6 +210,7 @@ class GradientWeightedTokensMetric(Metric):
     )
 
     def __init__(self, _context: Context, **_kwargs: Any) -> None:
+        super().__init__(_context, **_kwargs)
         self.gradient_signal = 0.0
         self.cumulative_gradient_signal = 0.0
         self.fisher_proxy = 0.0
@@ -213,10 +218,8 @@ class GradientWeightedTokensMetric(Metric):
 
     def step(self, context: Context) -> None:
         """Step the gradient weighted tokens metric."""
-        assert context.gradients is not None, "Gradients are required for this metric"
-        assert context.learning_rates is not None, "Learning rates are required for this metric"
         lr = list(context.learning_rates.values())[0]
-        gradient_norm = tensor_stack_l2_norm(context.gradients.values())
+        gradient_norm = tensor_stack_l2_norm(list(context.gradients.values()))
         self.gradient_signal = lr * gradient_norm * float(context.num_tokens)
         self.cumulative_gradient_signal += self.gradient_signal
         self.fisher_proxy = gradient_norm**2 * float(context.num_tokens)
@@ -241,14 +244,13 @@ class ParameterUpdateMetric(Metric):
     )
 
     def __init__(self, context: Context, **_kwargs: Any) -> None:
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
+        super().__init__(context, **_kwargs)
         self.previous_named_parameters: Mapping[str, torch.Tensor] = context.named_parameters
         self.step_norm = 0.0
         self.cumulative = 0.0
 
     def step(self, context: Context) -> None:
         """Step the cumulative parameter update metric."""
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
         self.step_norm = named_tensor_distance(context.named_parameters, self.previous_named_parameters)
         self.cumulative += self.step_norm
         self.previous_named_parameters = context.named_parameters
@@ -271,6 +273,7 @@ class LossMetric(Metric):
     )
 
     def __init__(self, context: Context, **kwargs: Any) -> None:
+        super().__init__(context, **kwargs)
         self._step = 0
         self.initial_loss = context.loss
         self.optimal_loss = kwargs.get("optimal_loss", 0)
@@ -315,16 +318,9 @@ class ParameterNormMetric(Metric):
         compute=RequiredFields(named_parameters=True),
     )
 
-    def __init__(self, _context: Context, **_kwargs: Any) -> None:
-        pass
-
-    def step(self, _context: Context) -> None:
-        """Step the parameter norm metric."""
-
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the parameter norm metric."""
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
-        norm = tensor_stack_l2_norm(context.named_parameters.values())
+        norm = tensor_stack_l2_norm(list(context.named_parameters.values()))
         return {
             "model/params_norm": norm,
         }
@@ -339,16 +335,12 @@ class ParameterDistanceMetric(Metric):
     )
 
     def __init__(self, context: Context, **_kwargs: Any) -> None:
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
+        super().__init__(context, **_kwargs)
         self.initial_named_parameters: Mapping[str, torch.Tensor] = context.named_parameters
         self.max_distance = 0.0
 
-    def step(self, _context: Context) -> None:
-        """Step the distance from initialization metric."""
-
     def compute(self, context: Context) -> dict[str, float]:
         """Compute the distance from initialization metric."""
-        assert context.named_parameters is not None, "Named parameters are required for this metric"
         distance = named_tensor_distance(context.named_parameters, self.initial_named_parameters)
         self.max_distance = max(self.max_distance, distance)
         return {
@@ -367,3 +359,78 @@ ALL_METRICS: dict[str, type[Metric]] = {
     "parameter_norm": ParameterNormMetric,
     "parameter_distance": ParameterDistanceMetric,
 }
+
+
+def register_metric(name: str, metric_class: type[Metric], *, overwrite: bool = False) -> None:
+    """Register a custom metric class.
+
+    This function allows end users to register their own custom metric classes
+    that can be used with the MetricTracker. The registered metric will be
+    available for use by name in the same way as built-in metrics.
+
+    Args:
+        name: The name to register the metric under. This name will be used
+            to reference the metric when creating a MetricTracker.
+        metric_class: The metric class to register. Must be a subclass of Metric.
+        overwrite: If True, allow overwriting an existing metric with the same name.
+            If False (default), raise ValueError if the name already exists.
+
+    Raises:
+        TypeError: If metric_class is not a subclass of Metric.
+        ValueError: If the name already exists in ALL_METRICS and overwrite is False.
+
+    Example:
+        >>> class MyCustomMetric(Metric):
+        ...     def compute(self, context: Context) -> dict[str, float]:
+        ...         return {"custom/value": 42.0}
+        ...
+        >>> register_metric("my_custom", MyCustomMetric)
+        >>> # Now "my_custom" can be used in MetricTracker
+    """
+    if not isinstance(metric_class, type):
+        raise TypeError(f"metric_class must be a class (type), got {type(metric_class)}")
+    if not issubclass(metric_class, Metric):
+        raise TypeError(f"metric_class must be a subclass of Metric, got {metric_class}")
+
+    if name in ALL_METRICS:
+        if overwrite:
+            old_metric_class = ALL_METRICS[name]
+            SIMPLEXITY_LOGGER.warning(
+                "[Metrics] '%s' of type '%s' is already registered. Overwriting it with type '%s'.",
+                name,
+                old_metric_class.__name__,
+                metric_class.__name__,
+            )
+            ALL_METRICS[name] = metric_class
+        else:
+            raise ValueError(f"[Metrics] '{name}' is already registered. Use overwrite=True to replace it.")
+
+    ALL_METRICS[name] = metric_class
+
+
+def unregister_metric(name: str, *, ignore_missing: bool = False) -> type[Metric] | None:
+    """Unregister a metric by name.
+
+    This function removes a metric from the registry. Built-in metrics can be
+    unregistered, but this is generally not recommended.
+
+    Args:
+        name: The name of the metric to unregister.
+        ignore_missing: If True, ignore if the metric is not registered.
+
+    Returns:
+        The metric class that was unregistered.
+
+    Raises:
+        KeyError: If the metric name is not found in the registry.
+
+    Example:
+        >>> metric_class = unregister_metric("my_custom")
+        >>> # The metric is no longer available for use
+    """
+    if name not in ALL_METRICS:
+        if ignore_missing:
+            SIMPLEXITY_LOGGER.warning("[Metrics] '%s' is not registered. Ignoring.", name)
+            return
+        raise KeyError(f"[Metrics] '{name}' is not registered. Use ignore_missing=True to ignore.")
+    return ALL_METRICS.pop(name)

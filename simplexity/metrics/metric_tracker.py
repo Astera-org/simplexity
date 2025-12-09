@@ -1,6 +1,6 @@
 """Stateful metric tracking for PyTorch training loops.
 
-This module provides a :class:`TrainingMetricTracker` that keeps track of
+This module provides a :class:`MetricTracker` that keeps track of
 instantaneous and cumulative metrics derived from optimizer state, running
 losses, and snapshots of the model parameters.
 """
@@ -17,9 +17,11 @@ from simplexity.metrics.metrics import (
     ALL_METRICS,
     Context,
     Metric,
+    RequiredFields,
     Requirements,
     combine_requirements,
 )
+from simplexity.utils.torch_nn_utils import extract_learning_rates, snapshot_gradients, snapshot_named_parameters
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
@@ -41,11 +43,12 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
         optimizer: torch.optim.Optimizer | None = None,
         metric_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        self._metric_groups = self._get_metric_groups(metric_names)
         self.model = model
         self.optimizer = optimizer
-        self.context = Context()
+        self._metric_groups = self._get_metric_groups(metric_names)
         self._group_requirements = self._get_group_requirements()
+        self._warn_missing_context()
+        self.context = Context()
         metric_kwargs = {} if metric_kwargs is None else metric_kwargs
         self._metrics = self._get_metrics(metric_kwargs)
         self._cache: dict[str, Mapping[str, float]] = {}
@@ -112,6 +115,23 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
 
         return group_requirements
 
+    def _warn_missing_context(self) -> None:
+        """Warn if the context is missing required fields."""
+        for metric_name in self._metric_groups[self.all_group]:
+            requirements = ALL_METRICS[metric_name].requirements
+            if self.optimizer is None and requirements.context_field_required("learning_rates"):
+                SIMPLEXITY_LOGGER.warning(
+                    "[Metrics] %s requires learning rates, but optimizer is not set in MetricTracker", metric_name
+                )
+            if self.model is None and (
+                requirements.context_field_required("gradients")
+                or requirements.context_field_required("named_parameters")
+            ):
+                SIMPLEXITY_LOGGER.warning(
+                    "[Metrics] %s requires gradients or named parameters, but model is not set in MetricTracker",
+                    metric_name,
+                )
+
     def _get_metrics(self, metric_kwargs: dict[str, Any]) -> dict[str, Metric]:
         requirements = self._group_requirements[self.all_group].init
         self._update_context(requirements)
@@ -120,32 +140,19 @@ class MetricTracker:  # pylint: disable=too-many-instance-attributes
             for metric_name in self._metric_groups[self.all_group]
         }
 
-    def _update_context(self, requirements: Requirements) -> None:
+    def _update_context(self, requirements: RequiredFields) -> None:
         """Update context with required fields for the given group."""
-        if not self.context.learning_rates and getattr(requirements, "learning_rates", False):
-            self.context.learning_rates = self._extract_learning_rates()
-        if self.context.gradients is None and getattr(requirements, "gradients", False):
-            self.context.gradients = self._snapshot_gradients()
-        if self.context.named_parameters is None and getattr(requirements, "named_parameters", False):
-            self.context.named_parameters = self._snapshot_named_parameters()
-
-    def _extract_learning_rates(self) -> Mapping[str, float]:
-        assert self.optimizer is not None, "Optimizer is required for metrics that require learning rates"
-        rates: dict[str, float] = {}
-        for idx, group in enumerate(self.optimizer.param_groups):
-            name = group.get("name", f"group_{idx}")
-            lr = float(group.get("lr", 0.0))
-            rates[name] = lr
-        return rates
-
-    def _snapshot_gradients(self) -> Mapping[str, torch.Tensor]:
-        assert self.model is not None, "Model is required for metrics that require gradients"
-        gradients: dict[str, torch.Tensor] = {}
-        for name, param in self.model.named_parameters():
-            if param.grad is not None:
-                gradients[name] = param.grad.detach().clone()
-        return gradients
-
-    def _snapshot_named_parameters(self) -> Mapping[str, torch.Tensor]:
-        assert self.model is not None, "Model is required for metrics that require named parameters"
-        return {name: param.detach().clone() for name, param in self.model.named_parameters()}
+        if (
+            self.optimizer is not None
+            and getattr(requirements, "learning_rates", False)
+            and not self.context.learning_rates
+        ):
+            self.context.learning_rates = extract_learning_rates(self.optimizer)
+        if self.model is not None and getattr(requirements, "gradients", False) and not self.context.gradients:
+            self.context.gradients = snapshot_gradients(self.model)
+        if (
+            self.model is not None
+            and getattr(requirements, "named_parameters", False)
+            and not self.context.named_parameters
+        ):
+            self.context.named_parameters = snapshot_named_parameters(self.model)

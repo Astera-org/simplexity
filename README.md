@@ -74,42 +74,40 @@ when writing custom training loops:
 
 ```python
 import torch
-from simplexity.metrics.metric_tracker import TrainingMetricTracker
+from simplexity.metrics.metric_tracker import MetricTracker
 
 model = build_model()
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 lr_schedule = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10_000)
-tracker = TrainingMetricTracker(
+tracker = MetricTracker(
     model,
     optimizer,
-    optimal_loss=0.05,
-    lr_schedule_fn=lambda step: lr_schedule.get_last_lr()[0],
+    metric_kwargs={
+        "lr_schedule": lr_schedule,
+    },
 )
 
 for step, batch in enumerate(train_loader, start=1):
     logits = model(batch["inputs"])
     loss = criterion(logits, batch["labels"])
-    if tracker.initial_loss is None:
-        tracker.record_initial_loss(float(loss.detach().item()))
 
     loss.backward()
     optimizer.step()
     lr_schedule.step()
     optimizer.zero_grad(set_to_none=True)
 
-    metrics = tracker.update(
+    tracker.step(
         step=step,
         loss=loss,
         tokens_in_batch=int(batch["labels"].numel()),
     )
+    metrics = tracker.get_metrics()
     logger.log_metrics(step, metrics)
 ```
 
-Each call returns a flat dictionary with keys such as `loss`, `loss/avg`,
-`tokens/total`, `lr`, `lr/weighted_peak`, `grads/l2_norm`,
-`params/update_l2_norm/cumulative`, and `params/distance_from_init`, ready to be
-sent to any `Logger` implementation.
-
+Each call returns a flat dictionary with keys such as `step/tokens`, `cum/tokens`,
+`loss/step`, `loss/ma`, `lr/step`, `grads/l2_norm/step`, `params/update_l2_norm/cum`,
+and `params/distance_from_init`, ready to be sent to any `Logger` implementation.
 ### Model Checkpointing
 
 The `ModelPersister` class is responsible for saving and loading model checkpoints. The `LocalPersister` class saves checkpoints to the local file system, while the `S3Persister` class saves checkpoints to an S3 bucket.

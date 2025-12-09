@@ -95,6 +95,18 @@ def fanizza(alpha: float, lamb: float) -> jax.Array:
     return jnp.stack([da, db], axis=0)
 
 
+def leaky_rrxor(p1: float, p2: float, epsilon: float) -> jax.Array:
+    """Creates a transition matrix for the leaky RRXOR Process."""
+    assert 0 <= epsilon <= 1
+
+    transition_matrices_base = rrxor(p1, p2)
+    leak = jnp.ones((2, 5, 5))
+
+    transition_matrices = (1 - epsilon) * transition_matrices_base + (epsilon / 10) * leak
+
+    return transition_matrices
+
+
 def matching_parens(open_probs: list[float]) -> jax.Array:
     """Creates a model for generating Matching Parentheses."""
     if len(open_probs) < 1:
@@ -357,6 +369,7 @@ HMM_MATRIX_FUNCTIONS = {
     "coin": coin,
     "days_of_week": days_of_week,
     "even_ones": even_ones,
+    "leaky_rrxor": leaky_rrxor,
     "matching_parens": matching_parens,
     "mess3": mess3,
     "mr_name": mr_name,
