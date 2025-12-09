@@ -722,7 +722,7 @@ def validate_metric_tracker_instance_config(cfg: DictConfig) -> None:
                     for item in value:
                         if not isinstance(item, str):
                             raise ConfigValidationError(
-                                f"MetricTrackerInstanceConfig.metric_names['{key}'] " \
+                                f"MetricTrackerInstanceConfig.metric_names['{key}'] "
                                 f"items must be strings, got {type(item)}"
                             )
         elif isinstance(metric_names, (list, DictConfig)):

@@ -42,6 +42,7 @@ def _simple_plot_config() -> PlotConfig:
 
 
 def test_plot_config_signature_changes_with_config_mutation():
+    """Test that plot config signature changes when config is mutated."""
     cfg = _simple_plot_config()
     clone = copy.deepcopy(cfg)
     clone.size.width = 800
@@ -50,6 +51,7 @@ def test_plot_config_signature_changes_with_config_mutation():
 
 
 def test_history_round_trip(tmp_path):
+    """Test saving and loading history dataframe preserves data."""
     cfg = _simple_plot_config()
     signature = plot_config_signature(cfg)
     data_path, meta_path = history_paths(tmp_path, "demo")

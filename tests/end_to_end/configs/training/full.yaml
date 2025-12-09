@@ -1,7 +1,7 @@
 num_steps: 100000
 batch_size: 64
-sequence_len: 65
+sequence_len: 10
 log_cheap_every: 10
-log_expensive_every: 1000
+log_expensive_every: 5000
 evaluate_every: 100
 checkpoint_every: 20000

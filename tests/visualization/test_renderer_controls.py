@@ -73,6 +73,7 @@ def test_altair_renderer_adds_dropdown_selection():
 
 
 def test_altair_renderer_adds_slider_binding():
+    """Test that Altair renderer adds slider binding from controls."""
     df = pd.DataFrame(
         {
             "x": [0, 1, 0, 1],
@@ -93,6 +94,7 @@ def test_altair_renderer_adds_slider_binding():
 
 
 def test_altair_renderer_skips_slider_when_accumulating():
+    """Test that slider binding is skipped when accumulate_steps is enabled."""
     df = pd.DataFrame(
         {
             "x": [0, 1, 0, 1],
@@ -114,6 +116,7 @@ def test_altair_renderer_skips_slider_when_accumulating():
 
 
 def test_altair_renderer_injects_detail_when_accumulating():
+    """Test that detail encoding is added when accumulate_steps is enabled."""
     df = pd.DataFrame(
         {
             "x": [0, 1, 0, 1],
@@ -136,6 +139,7 @@ def test_altair_renderer_injects_detail_when_accumulating():
 
 
 def test_altair_renderer_skips_detail_when_step_axis_used():
+    """Test that detail encoding is skipped when step is already used as an axis."""
     df = pd.DataFrame(
         {
             "step": [0, 1, 2, 3],
@@ -182,6 +186,7 @@ def test_plotly_renderer_adds_layer_dropdown_menu():
 
 
 def test_plotly_renderer_adds_step_slider():
+    """Test that Plotly renderer adds a slider for step-based animation."""
     df = pd.DataFrame(
         {
             "layer": ["layer_0"] * 6 + ["layer_1"] * 6,
@@ -205,6 +210,7 @@ def test_plotly_renderer_adds_step_slider():
 
 
 def test_plotly_renderer_preserves_literal_colors():
+    """Test that Plotly renderer preserves literal color values from data."""
     df = pd.DataFrame(
         {
             "x": [0, 1],

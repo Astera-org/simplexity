@@ -63,6 +63,7 @@ def _payload(dataframe: pd.DataFrame) -> ActivationVisualizationPayload:
 
 
 def test_save_visualization_payloads_accumulates_step_history(tmp_path):
+    """Test that visualization payloads accumulate history across steps."""
     df_first = pd.DataFrame({"step": [0, 0], "value": [0.1, 0.2]})
     payload_one = _payload(df_first)
 

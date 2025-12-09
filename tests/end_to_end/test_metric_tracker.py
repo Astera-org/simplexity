@@ -6,32 +6,34 @@ from pathlib import Path
 
 import hydra
 import torch
-import torch.nn as nn
 from omegaconf import DictConfig
+from torch import nn
 
 # Add simplexity to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import simplexity
+import simplexity  # pylint: disable=wrong-import-position
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
 
 
-# Simple model for testing
 class SimpleModel(nn.Module):
-    def __init__(self, vocab_size=100, hidden_size=64):
+    """Simple model for testing metric tracker."""
+
+    def __init__(self, vocab_size: int = 100, hidden_size: int = 64):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, hidden_size)
         self.linear = nn.Linear(hidden_size, vocab_size)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass."""
         x = self.embedding(x)
         return self.linear(x)
 
 
 @hydra.main(config_path="configs", config_name="test_metric_tracker.yaml", version_base="1.2")
 @simplexity.managed_run(strict=False, verbose=False)
-def test_metric_tracker(cfg: DictConfig, components: simplexity.Components) -> None:
+def test_metric_tracker(_cfg: DictConfig, components: simplexity.Components) -> None:
     """Test the metric tracker integration."""
     SIMPLEXITY_LOGGER.info("Testing metric tracker integration")
 
@@ -40,7 +42,7 @@ def test_metric_tracker(cfg: DictConfig, components: simplexity.Components) -> N
     metric_tracker = components.get_metric_tracker()
     assert metric_tracker is not None, "Metric tracker should be available"
 
-    SIMPLEXITY_LOGGER.info(f"Metric tracker type: {type(metric_tracker)}")
+    SIMPLEXITY_LOGGER.info("Metric tracker type: %s", type(metric_tracker))
 
     # Create simple model and optimizer for testing
     model = SimpleModel()
@@ -72,13 +74,13 @@ def test_metric_tracker(cfg: DictConfig, components: simplexity.Components) -> N
 
         # Get metrics
         metrics = metric_tracker.get_metrics(group="all")
-        SIMPLEXITY_LOGGER.info(
-            f"Step {step} metrics: loss={metrics.get('loss', 'N/A'):.4f}, tokens={metrics.get('tokens/raw', 'N/A')}"
-        )
+        loss_val = metrics.get("loss", 0.0)
+        tokens_val = metrics.get("tokens/raw", "N/A")
+        SIMPLEXITY_LOGGER.info("Step %d metrics: loss=%.4f, tokens=%s", step, loss_val, tokens_val)
 
     SIMPLEXITY_LOGGER.info("✅ Metric tracker integration test PASSED")
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    test_metric_tracker()
+    test_metric_tracker()  # pylint: disable=no-value-for-parameter

@@ -275,6 +275,186 @@ def _build_metadata_columns(
     return base
 
 
+def _has_key_pattern(key: str | None) -> bool:
+    """Check if key contains * or range pattern (e.g., factor_*/projected)."""
+    if key is None:
+        return False
+    star_count = key.count("*")
+    range_count = len(re.findall(r"\d+\.\.\.\d+", key))
+    if star_count + range_count > 1:
+        raise ConfigValidationError(f"Key cannot have multiple patterns: {key}")
+    return star_count + range_count == 1
+
+
+def _expand_projection_key_pattern(
+    key_pattern: str,
+    layer_name: str,
+    projections: Mapping[str, np.ndarray],
+    analysis_concat_layers: bool,
+) -> dict[str, str]:
+    """Expand projection key patterns against available keys.
+
+    Args:
+        key_pattern: Pattern like "factor_*/projected" or "factor_0...3/projected"
+        layer_name: Current layer name for matching
+        projections: Available projection arrays
+        analysis_concat_layers: Whether layers were concatenated
+
+    Returns:
+        Dict mapping extracted index (as string) to the concrete key suffix.
+        E.g., {"0": "factor_0/projected", "1": "factor_1/projected"}
+    """
+    # Build regex from pattern
+    if "*" in key_pattern:
+        # Escape special regex chars except *, then replace * with capture group
+        escaped = re.escape(key_pattern).replace(r"\*", r"(\d+)")
+        regex_pattern = re.compile(f"^{escaped}$")
+    else:
+        # Range pattern like "factor_0...3/projected"
+        range_match = re.search(r"(\d+)\.\.\.(\d+)", key_pattern)
+        if not range_match:
+            raise ConfigValidationError(f"Invalid key pattern: {key_pattern}")
+        start_idx = int(range_match.group(1))
+        end_idx = int(range_match.group(2))
+        if start_idx >= end_idx:
+            raise ConfigValidationError(f"Invalid range in key pattern: {key_pattern}")
+        # Return explicit range without matching
+        result = {}
+        for idx in range(start_idx, end_idx):
+            concrete_key = re.sub(r"\d+\.\.\.\d+", str(idx), key_pattern)
+            result[str(idx)] = concrete_key
+        return result
+
+    # Match against available projection keys
+    result: dict[str, str] = {}
+    for full_key in projections:
+        # Extract the key suffix (part after layer name)
+        if analysis_concat_layers:
+            # Keys are like "factor_0/projected" directly
+            key_suffix = full_key
+        else:
+            # Keys are like "layer_name_factor_0/projected"
+            prefix = f"{layer_name}_"
+            if not full_key.startswith(prefix):
+                continue
+            key_suffix = full_key[len(prefix) :]
+
+        match = regex_pattern.match(key_suffix)
+        if match:
+            extracted_idx = match.group(1)
+            if extracted_idx not in result:
+                result[extracted_idx] = key_suffix
+
+    if not result:
+        raise ConfigValidationError(
+            f"No projection keys found matching pattern '{key_pattern}' for layer '{layer_name}'. "
+            f"Available keys: {list(projections.keys())}"
+        )
+
+    return result
+
+
+def _expand_projection_key_mapping(
+    field_name: str,
+    ref: ActivationVisualizationFieldRef,
+    layer_name: str,
+    projections: Mapping[str, np.ndarray],
+    belief_states: np.ndarray | None,
+    analysis_concat_layers: bool,
+) -> dict[str, ActivationVisualizationFieldRef]:
+    """Expand projection key patterns, optionally combined with component patterns.
+
+    Handles cross-product expansion when both key and component patterns are present.
+    Sets _group_value on expanded refs for DataFrame construction.
+    """
+    assert ref.key is not None, "Key must be provided for projection key pattern expansion"
+
+    # Expand key pattern to get concrete keys
+    key_expansions = _expand_projection_key_pattern(ref.key, layer_name, projections, analysis_concat_layers)
+
+    # Check if component expansion is also needed
+    spec_type, start_idx, end_idx = _parse_component_spec(ref.component)
+    needs_component_expansion = spec_type in ("wildcard", "range")
+
+    expanded: dict[str, ActivationVisualizationFieldRef] = {}
+
+    # Count patterns in field name to handle cross-product correctly
+    field_star_count = field_name.count("*")
+    field_range_count = len(re.findall(r"\d+\.\.\.\d+", field_name))
+    total_field_patterns = field_star_count + field_range_count
+
+    for group_idx, concrete_key in sorted(key_expansions.items(), key=lambda x: int(x[0])):
+        if needs_component_expansion:
+            # Get component count for this specific key
+            array = _lookup_projection_array(projections, layer_name, concrete_key, analysis_concat_layers)
+            np_array = np.asarray(array)
+            if np_array.ndim != 2:
+                raise ConfigValidationError(
+                    f"Component expansion requires 2D projection, got {np_array.ndim}D for key '{concrete_key}'"
+                )
+            max_components = np_array.shape[1]
+
+            if spec_type == "wildcard":
+                components = list(range(max_components))
+            else:
+                assert start_idx is not None
+                assert end_idx is not None
+                if end_idx > max_components:
+                    raise ConfigValidationError(
+                        f"Range {start_idx}...{end_idx} exceeds components ({max_components}) for key '{concrete_key}'"
+                    )
+                components = list(range(start_idx, end_idx))
+
+            # Cross-product: expand both key and component
+            for comp_idx in components:
+                # Replace patterns in field name (key pattern first, then component)
+                if total_field_patterns == 2:
+                    # Two patterns: first for key, second for component
+                    if "*" in field_name:
+                        expanded_name = field_name.replace("*", str(group_idx), 1)
+                        expanded_name = expanded_name.replace("*", str(comp_idx), 1)
+                    else:
+                        # Range patterns
+                        expanded_name = re.sub(r"\d+\.\.\.\d+", str(group_idx), field_name, count=1)
+                        expanded_name = re.sub(r"\d+\.\.\.\d+", str(comp_idx), expanded_name, count=1)
+                elif total_field_patterns == 1:
+                    # Only one pattern in field name - use for component, append group index
+                    if "*" in field_name:
+                        expanded_name = field_name.replace("*", str(comp_idx))
+                    else:
+                        expanded_name = re.sub(r"\d+\.\.\.\d+", str(comp_idx), field_name)
+                else:
+                    raise ConfigValidationError(
+                        f"Field '{field_name}' must have 1-2 patterns for key+component expansion"
+                    )
+
+                expanded[expanded_name] = ActivationVisualizationFieldRef(
+                    source="projections",
+                    key=concrete_key,
+                    component=comp_idx,
+                    reducer=ref.reducer,
+                    group_as=ref.group_as,
+                    _group_value=str(group_idx),
+                )
+        else:
+            # Only key pattern, no component expansion
+            if "*" in field_name:
+                expanded_name = field_name.replace("*", str(group_idx))
+            else:
+                expanded_name = re.sub(r"\d+\.\.\.\d+", str(group_idx), field_name)
+
+            expanded[expanded_name] = ActivationVisualizationFieldRef(
+                source="projections",
+                key=concrete_key,
+                component=ref.component,  # Keep original (could be None or int)
+                reducer=ref.reducer,
+                group_as=ref.group_as,
+                _group_value=str(group_idx),
+            )
+
+    return expanded
+
+
 def _parse_component_spec(component: int | str | None) -> tuple[str, int | None, int | None]:
     """Parse component into (type, start, end).
 
@@ -424,6 +604,113 @@ def _expand_scalar_keys(
     return expanded
 
 
+def _expand_belief_factor_mapping(
+    field_name: str,
+    ref: ActivationVisualizationFieldRef,
+    belief_states: np.ndarray,
+) -> dict[str, ActivationVisualizationFieldRef]:
+    """Expand belief state factor patterns, optionally combined with component patterns.
+
+    Handles cross-product expansion when both factor and component patterns are present.
+    Sets _group_value on expanded refs for DataFrame construction.
+    """
+    np_beliefs = np.asarray(belief_states)
+    if np_beliefs.ndim != 3:
+        raise ConfigValidationError(
+            f"Belief state factor patterns require 3D beliefs (samples, factors, states), got {np_beliefs.ndim}D"
+        )
+
+    n_factors = np_beliefs.shape[1]
+    n_states = np_beliefs.shape[2]
+
+    # Parse factor pattern
+    factor_spec = ref.factor
+    assert isinstance(factor_spec, str), "Factor should be a pattern string"
+
+    if factor_spec == "*":
+        factors = list(range(n_factors))
+    elif "..." in factor_spec:
+        parts = factor_spec.split("...")
+        start_idx, end_idx = int(parts[0]), int(parts[1])
+        if end_idx > n_factors:
+            raise ConfigValidationError(f"Factor range {start_idx}...{end_idx} exceeds available factors ({n_factors})")
+        factors = list(range(start_idx, end_idx))
+    else:
+        raise ConfigValidationError(f"Invalid factor pattern: {factor_spec}")
+
+    # Check if component expansion is also needed
+    spec_type, start_idx, end_idx = _parse_component_spec(ref.component)
+    needs_component_expansion = spec_type in ("wildcard", "range")
+
+    expanded: dict[str, ActivationVisualizationFieldRef] = {}
+
+    # Count patterns in field name
+    field_star_count = field_name.count("*")
+    field_range_count = len(re.findall(r"\d+\.\.\.\d+", field_name))
+    total_field_patterns = field_star_count + field_range_count
+
+    for factor_idx in factors:
+        if needs_component_expansion:
+            # Get component range
+            if spec_type == "wildcard":
+                components = list(range(n_states))
+            else:
+                assert start_idx is not None
+                assert end_idx is not None
+                if end_idx > n_states:
+                    raise ConfigValidationError(f"Component range {start_idx}...{end_idx} exceeds states ({n_states})")
+                components = list(range(start_idx, end_idx))
+
+            # Cross-product: expand both factor and component
+            for comp_idx in components:
+                if total_field_patterns == 2:
+                    # Two patterns: first for factor, second for component
+                    if "*" in field_name:
+                        expanded_name = field_name.replace("*", str(factor_idx), 1)
+                        expanded_name = expanded_name.replace("*", str(comp_idx), 1)
+                    else:
+                        expanded_name = re.sub(r"\d+\.\.\.\d+", str(factor_idx), field_name, count=1)
+                        expanded_name = re.sub(r"\d+\.\.\.\d+", str(comp_idx), expanded_name, count=1)
+                elif total_field_patterns == 1:
+                    # Only one pattern - use for component, append factor index
+                    if "*" in field_name:
+                        expanded_name = field_name.replace("*", str(comp_idx))
+                    else:
+                        expanded_name = re.sub(r"\d+\.\.\.\d+", str(comp_idx), field_name)
+                else:
+                    raise ConfigValidationError(
+                        f"Field '{field_name}' must have 1-2 patterns for factor+component expansion"
+                    )
+
+                expanded[expanded_name] = ActivationVisualizationFieldRef(
+                    source="belief_states",
+                    key=ref.key,
+                    component=comp_idx,
+                    reducer=ref.reducer,
+                    group_as=ref.group_as,
+                    factor=factor_idx,
+                    _group_value=str(factor_idx),
+                )
+        else:
+            # Only factor pattern, no component expansion
+            if "*" in field_name:
+                expanded_name = field_name.replace("*", str(factor_idx))
+            else:
+                expanded_name = re.sub(r"\d+\.\.\.\d+", str(factor_idx), field_name)
+
+            expanded[expanded_name] = ActivationVisualizationFieldRef(
+                source="belief_states",
+                key=ref.key,
+                component=ref.component,
+                reducer=ref.reducer,
+                group_as=ref.group_as,
+                factor=factor_idx,
+                _group_value=str(factor_idx),
+            )
+
+    return expanded
+
+
 def _expand_field_mapping(
     field_name: str,
     ref: ActivationVisualizationFieldRef,
@@ -437,6 +724,44 @@ def _expand_field_mapping(
 
     Returns dict of expanded field_name → FieldRef with concrete component/key values.
     """
+    # Check for projection key patterns FIRST (allows multiple field patterns for key+component)
+    if ref.source == "projections" and ref.key and _has_key_pattern(ref.key):
+        # For key pattern expansion, we allow up to 2 patterns in field name
+        # (one for key expansion, one for component expansion)
+        field_star_count = field_name.count("*")
+        field_range_count = len(re.findall(r"\d+\.\.\.\d+", field_name))
+        total_field_patterns = field_star_count + field_range_count
+
+        if total_field_patterns == 0:
+            raise ConfigValidationError(f"Projection key pattern '{ref.key}' requires field name pattern")
+        if total_field_patterns > 2:
+            raise ConfigValidationError(
+                f"Field name '{field_name}' has too many patterns (max 2 for key+component expansion)"
+            )
+
+        return _expand_projection_key_mapping(
+            field_name, ref, layer_name, projections, belief_states, analysis_concat_layers
+        )
+
+    # Check for belief state factor patterns
+    if ref.source == "belief_states" and ref.factor is not None and isinstance(ref.factor, str):
+        has_factor_pattern = ref.factor == "*" or "..." in ref.factor
+        if has_factor_pattern:
+            if belief_states is None:
+                raise ConfigValidationError("Belief state factor patterns require belief_states to be provided")
+            field_star_count = field_name.count("*")
+            field_range_count = len(re.findall(r"\d+\.\.\.\d+", field_name))
+            total_field_patterns = field_star_count + field_range_count
+
+            if total_field_patterns == 0:
+                raise ConfigValidationError(f"Belief state factor pattern '{ref.factor}' requires field name pattern")
+            if total_field_patterns > 2:
+                raise ConfigValidationError(
+                    f"Field name '{field_name}' has too many patterns (max 2 for factor+component expansion)"
+                )
+
+            return _expand_belief_factor_mapping(field_name, ref, belief_states)
+
     has_pattern = _has_field_pattern(field_name)
 
     if ref.source == "scalars":
@@ -638,6 +963,141 @@ def _scalar_pattern_label(full_key: str) -> str:
     return suffix
 
 
+def _extract_base_column_name(column: str, group_value: str, original_field_pattern: str | None) -> str:
+    """Extract base column name by removing group index from expanded column name.
+
+    For column='factor_0_prob_0' with group_value='0', returns 'prob_0'.
+    Uses the group_value to identify and remove the group-related part.
+
+    In practice, key-expanded columns will have format prefix_N_suffix where prefix
+    is the group name (e.g., 'factor') and suffix is the base column (e.g., 'prob_0').
+    Columns like 'prob_0' without a clear group prefix are returned unchanged.
+    """
+    # Pattern: prefix_N_suffix (e.g., factor_0_prob_0 -> prob_0)
+    # Must have alphabetic suffix after the group value underscore to ensure
+    # we're stripping a real group prefix, not just matching any column ending in _N
+    pattern = re.compile(rf"^([a-zA-Z][a-zA-Z0-9_]*)_{re.escape(group_value)}_([a-zA-Z].*)$")
+    match = pattern.match(column)
+    if match:
+        return match.group(2)
+
+    # No match - return original column unchanged
+    # This handles cases like 'prob_0' where there's no group prefix to strip
+    return column
+
+
+def _build_dataframe_for_mappings(
+    mappings: dict[str, ActivationVisualizationFieldRef],
+    metadata_columns: Mapping[str, Any],
+    projections: Mapping[str, np.ndarray],
+    scalars: Mapping[str, float],
+    belief_states: np.ndarray | None,
+    analysis_concat_layers: bool,
+    layer_names: list[str],
+) -> pd.DataFrame:
+    """Build a DataFrame from a single set of mappings (used by both regular and combined modes)."""
+    base_rows = len(metadata_columns["step"])
+    frames: list[pd.DataFrame] = []
+
+    # Check if mappings are belief-state-only (don't need layer iteration)
+    all_belief_states = all(ref.source == "belief_states" for ref in mappings.values())
+    effective_layer_names = ["_no_layer_"] if all_belief_states else layer_names
+
+    for layer_name in effective_layer_names:
+        # Expand all mappings first
+        expanded_mappings: dict[str, ActivationVisualizationFieldRef] = {}
+        for field_name, ref in mappings.items():
+            try:
+                expanded = _expand_field_mapping(
+                    field_name, ref, layer_name, projections, scalars, belief_states, analysis_concat_layers
+                )
+                expanded_mappings.update(expanded)
+            except ConfigValidationError as e:
+                raise ConfigValidationError(f"Error expanding '{field_name}' for layer '{layer_name}': {e}") from e
+
+        # Check if any refs have group expansion (_group_value set)
+        group_refs = {col: ref for col, ref in expanded_mappings.items() if ref._group_value is not None}
+        non_group_refs = {col: ref for col, ref in expanded_mappings.items() if ref._group_value is None}
+
+        if group_refs:
+            # Group expansion: restructure to long format
+            # Group refs by _group_value
+            groups: dict[str, dict[str, ActivationVisualizationFieldRef]] = {}
+            group_column_name: str | None = None
+
+            for col, ref in group_refs.items():
+                group_val = ref._group_value
+                assert group_val is not None
+                if group_val not in groups:
+                    groups[group_val] = {}
+                groups[group_val][col] = ref
+
+                # Extract group column name from group_as
+                if ref.group_as is not None:
+                    if isinstance(ref.group_as, str):
+                        group_column_name = ref.group_as
+                    elif isinstance(ref.group_as, list) and len(ref.group_as) > 0:
+                        group_column_name = ref.group_as[0]
+
+            if group_column_name is None:
+                group_column_name = "group"  # Default fallback
+
+            # Build DataFrame chunks for each group value
+            for group_val, group_col_refs in sorted(groups.items(), key=lambda x: int(x[0])):
+                group_data = {key: np.copy(value) for key, value in metadata_columns.items()}
+                group_data["layer"] = np.repeat(layer_name, base_rows)
+                # Ensure group value is always string for consistent faceting
+                group_data[group_column_name] = np.repeat(str(group_val), base_rows)
+
+                # Add non-group columns (same for all groups)
+                for column, ref in non_group_refs.items():
+                    group_data[column] = _resolve_field(
+                        ref,
+                        layer_name,
+                        projections,
+                        scalars,
+                        belief_states,
+                        analysis_concat_layers,
+                        base_rows,
+                        metadata_columns,
+                    )
+
+                # Add group-specific columns with base names (strip group index)
+                for column, ref in group_col_refs.items():
+                    base_col_name = _extract_base_column_name(column, group_val, None)
+                    group_data[base_col_name] = _resolve_field(
+                        ref,
+                        layer_name,
+                        projections,
+                        scalars,
+                        belief_states,
+                        analysis_concat_layers,
+                        base_rows,
+                        metadata_columns,
+                    )
+
+                frames.append(pd.DataFrame(group_data))
+        else:
+            # No group expansion: standard DataFrame construction
+            layer_data = {key: np.copy(value) for key, value in metadata_columns.items()}
+            layer_data["layer"] = np.repeat(layer_name, base_rows)
+
+            for column, ref in expanded_mappings.items():
+                layer_data[column] = _resolve_field(
+                    ref,
+                    layer_name,
+                    projections,
+                    scalars,
+                    belief_states,
+                    analysis_concat_layers,
+                    base_rows,
+                    metadata_columns,
+                )
+            frames.append(pd.DataFrame(layer_data))
+
+    return pd.concat(frames, ignore_index=True)
+
+
 def _build_dataframe(
     viz_cfg: ActivationVisualizationConfig,
     metadata_columns: Mapping[str, Any],
@@ -649,6 +1109,27 @@ def _build_dataframe(
     analysis_concat_layers: bool,
     layer_names: list[str],
 ) -> pd.DataFrame:
+    # Handle combined mappings (multiple data sources with labels)
+    if viz_cfg.data_mapping.combined is not None:
+        combined_frames: list[pd.DataFrame] = []
+        combine_column = viz_cfg.data_mapping.combine_as
+        assert combine_column is not None, "combine_as should be validated in config"
+
+        for section in viz_cfg.data_mapping.combined:
+            section_df = _build_dataframe_for_mappings(
+                section.mappings,
+                metadata_columns,
+                projections,
+                scalars,
+                belief_states,
+                analysis_concat_layers,
+                layer_names,
+            )
+            section_df[combine_column] = section.label
+            combined_frames.append(section_df)
+
+        return pd.concat(combined_frames, ignore_index=True)
+
     # Check if this is a scalar_pattern or scalar_history visualization
     has_scalar_pattern = any(ref.source == "scalar_pattern" for ref in viz_cfg.data_mapping.mappings.values())
     has_scalar_history = any(ref.source == "scalar_history" for ref in viz_cfg.data_mapping.mappings.values())
@@ -656,7 +1137,7 @@ def _build_dataframe(
     if has_scalar_pattern or has_scalar_history:
         if scalar_history_step is None:
             raise ConfigValidationError(
-                "Visualization uses scalar_pattern/scalar_history " \
+                "Visualization uses scalar_pattern/scalar_history "
                 "source but analyze() was called without the `step` parameter."
             )
         # Extract analysis name from metadata
@@ -676,35 +1157,17 @@ def _build_dataframe(
             scalars,
             layer_names,
         )
-    base_rows = len(metadata_columns["step"])
-    frames: list[pd.DataFrame] = []
-    for layer_name in layer_names:
-        layer_data = {key: np.copy(value) for key, value in metadata_columns.items()}
-        layer_data["layer"] = np.repeat(layer_name, base_rows)
 
-        expanded_mappings: dict[str, ActivationVisualizationFieldRef] = {}
-        for field_name, ref in viz_cfg.data_mapping.mappings.items():
-            try:
-                expanded = _expand_field_mapping(
-                    field_name, ref, layer_name, projections, scalars, belief_states, analysis_concat_layers
-                )
-                expanded_mappings.update(expanded)
-            except ConfigValidationError as e:
-                raise ConfigValidationError(f"Error expanding '{field_name}' for layer '{layer_name}': {e}") from e
-
-        for column, ref in expanded_mappings.items():
-            layer_data[column] = _resolve_field(
-                ref,
-                layer_name,
-                projections,
-                scalars,
-                belief_states,
-                analysis_concat_layers,
-                base_rows,
-                metadata_columns,
-            )
-        frames.append(pd.DataFrame(layer_data))
-    return pd.concat(frames, ignore_index=True)
+    # Standard mappings mode - delegate to helper
+    return _build_dataframe_for_mappings(
+        viz_cfg.data_mapping.mappings,
+        metadata_columns,
+        projections,
+        scalars,
+        belief_states,
+        analysis_concat_layers,
+        layer_names,
+    )
 
 
 def _resolve_field(
@@ -805,7 +1268,7 @@ def _infer_scalar_series_indices(
             continue
     if not inferred:
         raise ConfigValidationError(
-            f"Scalar series could not infer indices for layer '{layer_name}' " \
+            f"Scalar series could not infer indices for layer '{layer_name}' "
             f"using key_template '{mapping.key_template}'."
         )
     return sorted(inferred)
@@ -873,6 +1336,31 @@ def _maybe_component(array: np.ndarray, component: int | None) -> np.ndarray:
 
 def _resolve_belief_states(belief_states: np.ndarray, ref: ActivationVisualizationFieldRef) -> np.ndarray:
     np_array = np.asarray(belief_states)
+
+    # Handle factor dimension for 3D belief states (samples, factors, states)
+    if np_array.ndim == 3:
+        if ref.factor is None:
+            raise ConfigValidationError(
+                f"Belief states have 3 dimensions (samples, factors, states) but no `factor` was specified. "
+                f"Shape: {np_array.shape}"
+            )
+        assert not isinstance(ref.factor, str), "Factor patterns should be expanded before resolution"
+        factor_idx = ref.factor
+        if factor_idx < 0 or factor_idx >= np_array.shape[1]:
+            raise ConfigValidationError(
+                f"Belief state factor {factor_idx} is out of bounds for dimension {np_array.shape[1]}"
+            )
+        np_array = np_array[:, factor_idx, :]  # Now 2D: (samples, states)
+    elif np_array.ndim == 2:
+        if ref.factor is not None:
+            raise ConfigValidationError(
+                f"Belief states are 2D but `factor={ref.factor}` was specified. "
+                f"Factor selection requires 3D belief states (samples, factors, states)."
+            )
+    else:
+        raise ConfigValidationError(f"Belief states must be 2D or 3D, got {np_array.ndim}D")
+
+    # Now np_array is 2D: (samples, states)
     if ref.reducer == "argmax":
         return np.argmax(np_array, axis=1)
     if ref.reducer == "l2_norm":
@@ -1099,6 +1587,9 @@ def _build_control_detail(
     if field not in dataframe:
         raise ConfigValidationError(f"Control field '{field}' is not present in visualization dataframe.")
     options = list(pd.unique(dataframe[field]))
+    # Filter out "_no_layer_" placeholder used for layer-independent data (e.g., ground truth)
+    if field == "layer":
+        options = [opt for opt in options if opt != "_no_layer_"]
     return VisualizationControlDetail(type=control_type, field=field, options=options, cumulative=cumulative)
 
 

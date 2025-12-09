@@ -2,12 +2,13 @@ defaults:
   - _self_
   - mlflow: databricks
   - logging: mlflow_logger
-  - generative_process: mess3
+  - generative_process: unified_independent_example
   - persistence: mlflow_persister
   - predictive_model: transformer
   - optimizer: pytorch_adam
   - metric_tracker@training_metric_tracker: default
   - metric_tracker@eval_metric_tracker: loss_only
+  - activation_tracker: with_factor_visuals
   - training: full
 
 experiment_name: training_test

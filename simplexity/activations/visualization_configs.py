@@ -55,6 +55,9 @@ class ActivationVisualizationFieldRef:
     key: str | None = None
     component: int | str | None = None
     reducer: ReducerType | None = None
+    group_as: str | list[str] | None = None
+    factor: int | str | None = None  # For selecting factor in factored belief states (3D arrays)
+    _group_value: str | None = None  # Internal: populated during key/factor pattern expansion
 
     def __post_init__(self) -> None:
         if self.source == "projections" and not self.key:
@@ -76,6 +79,32 @@ class ActivationVisualizationFieldRef:
                     f"Component patterns only supported for projections/belief_states, not '{self.source}'"
                 )
 
+        # Validate key patterns for projections
+        if self.source == "projections" and self.key:
+            has_key_pattern = "*" in self.key or self._is_valid_range(self.key)
+            # Key patterns require group_as to name the resulting column(s)
+            if has_key_pattern and self.group_as is None:
+                raise ConfigValidationError(
+                    f"Projection key pattern '{self.key}' requires `group_as` to name the expanded column(s)"
+                )
+
+        # Validate factor field (only for belief_states)
+        if self.factor is not None:
+            if self.source != "belief_states":
+                raise ConfigValidationError(f"`factor` is only supported for belief_states, not '{self.source}'")
+            if isinstance(self.factor, str):
+                has_factor_pattern = self.factor == "*" or self._is_valid_range(self.factor)
+                if has_factor_pattern and self.group_as is None:
+                    raise ConfigValidationError(
+                        f"Factor pattern '{self.factor}' requires `group_as` to name the expanded column(s)"
+                    )
+
+        # Validate group_as
+        if self.group_as is not None and self.source not in ("projections", "belief_states"):
+            raise ConfigValidationError(
+                f"`group_as` is only supported for projections/belief_states, not '{self.source}'"
+            )
+
     @staticmethod
     def _is_valid_range(component: str) -> bool:
         """Check if string matches 'N...M' range pattern."""
@@ -92,17 +121,51 @@ class ActivationVisualizationFieldRef:
 
 
 @dataclass
+class CombinedMappingSection:
+    """A labeled section of field mappings for combining multiple data sources.
+
+    Used to combine projections and ground truth belief states into a single
+    DataFrame with a label column for faceting (e.g., row faceting by data_type).
+    """
+
+    label: str
+    mappings: dict[str, ActivationVisualizationFieldRef] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.mappings:
+            raise ConfigValidationError(f"Combined mapping section '{self.label}' must have at least one mapping.")
+
+
+@dataclass
 class ActivationVisualizationDataMapping:
     """Describe how to build the pandas DataFrame prior to rendering."""
 
     mappings: dict[str, ActivationVisualizationFieldRef] = field(default_factory=dict)
     scalar_series: ScalarSeriesMapping | None = None
+    combined: list[CombinedMappingSection] | None = None  # For combining multiple data sources
+    combine_as: str | None = None  # Column name for section labels (e.g., "data_type")
 
     def __post_init__(self) -> None:
-        if not self.mappings and self.scalar_series is None:
+        has_mappings = bool(self.mappings)
+        has_scalar_series = self.scalar_series is not None
+        has_combined = self.combined is not None and len(self.combined) > 0
+
+        if not has_mappings and not has_scalar_series and not has_combined:
             raise ConfigValidationError(
-                "Activation visualization data mapping must include at least one field or a scalar_series definition."
+                "Activation visualization data mapping must include at least one of: "
+                "mappings, scalar_series, or combined sections."
             )
+
+        if has_combined:
+            if has_mappings:
+                raise ConfigValidationError(
+                    "Cannot use both 'mappings' and 'combined' in the same data_mapping. "
+                    "Use 'combined' for multi-source visualizations."
+                )
+            if self.combine_as is None:
+                raise ConfigValidationError(
+                    "'combine_as' is required when using 'combined' sections to specify the label column name."
+                )
 
 
 @dataclass
@@ -197,7 +260,11 @@ def build_activation_visualization_config(raw_cfg: Mapping[str, Any]) -> Activat
     if isinstance(raw_cfg, ActivationVisualizationConfig):
         return raw_cfg
 
-    container = OmegaConf.to_container(raw_cfg, resolve=False)
+    # Handle both plain dicts and OmegaConf configs
+    if isinstance(raw_cfg, dict):
+        container = raw_cfg
+    else:
+        container = OmegaConf.to_container(raw_cfg, resolve=False)
     if isinstance(container, dict):
         config_dict = cast(dict[str, Any], container)
     else:
@@ -212,6 +279,16 @@ def build_activation_visualization_config(raw_cfg: Mapping[str, Any]) -> Activat
             key: convert_to_dataclass(value, ActivationVisualizationFieldRef)
             for key, value in data_mapping_cfg["mappings"].items()
         }
+    if "combined" in data_mapping_cfg and data_mapping_cfg["combined"] is not None:
+        converted_sections = []
+        for section in data_mapping_cfg["combined"]:
+            section_mappings = section.get("mappings", {})
+            converted_mappings = {
+                key: convert_to_dataclass(value, ActivationVisualizationFieldRef)
+                for key, value in section_mappings.items()
+            }
+            converted_sections.append(CombinedMappingSection(label=section["label"], mappings=converted_mappings))
+        data_mapping_cfg["combined"] = converted_sections
     config_dict["data_mapping"] = convert_to_dataclass(data_mapping_cfg, ActivationVisualizationDataMapping)
     if "preprocessing" in config_dict:
         config_dict["preprocessing"] = [
@@ -237,6 +314,7 @@ __all__ = [
     "ActivationVisualizationDataMapping",
     "ActivationVisualizationFieldRef",
     "ActivationVisualizationPreprocessStep",
+    "CombinedMappingSection",
     "ScalarSeriesMapping",
     "build_activation_visualization_config",
 ]

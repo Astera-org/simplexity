@@ -266,6 +266,7 @@ class TestScalarHistoryVisualizations:
         }
 
     def test_scalar_history_dataframe_requires_step(self):
+        """Test that scalar_history source requires step parameter in analyze()."""
         viz_cfg = self._viz_cfg()
         with pytest.raises(
             ConfigValidationError,
@@ -284,6 +285,7 @@ class TestScalarHistoryVisualizations:
             )
 
     def test_scalar_history_dataframe_uses_current_step(self):
+        """Test that scalar_history dataframe uses the current step value."""
         viz_cfg = self._viz_cfg()
         df = _build_dataframe(
             viz_cfg,
@@ -303,6 +305,7 @@ class TestScalarHistoryVisualizations:
         assert list(df["metric"]) == ["analysis/layer_0_rmse"]
 
     def test_scalar_history_pattern_matches_complex_keys(self):
+        """Test that scalar_pattern matches complex layer hook keys."""
         viz_cfg = ActivationVisualizationConfig(
             name="history",
             data_mapping=ActivationVisualizationDataMapping(
@@ -343,6 +346,7 @@ class TestScalarHistoryVisualizations:
         ]
 
     def test_scalar_history_pattern_matches_without_prefix(self):
+        """Test that scalar_pattern matches keys without analysis prefix."""
         viz_cfg = ActivationVisualizationConfig(
             name="history",
             data_mapping=ActivationVisualizationDataMapping(
@@ -374,6 +378,7 @@ class TestScalarHistoryVisualizations:
         assert sorted(df["metric"]) == sorted(scalars.keys())
 
     def test_scalar_history_pattern_requires_match(self):
+        """Test that scalar_pattern raises error when no scalars match."""
         viz_cfg = ActivationVisualizationConfig(
             name="history",
             data_mapping=ActivationVisualizationDataMapping(

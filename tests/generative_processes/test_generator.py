@@ -36,6 +36,7 @@ def test_generate_data_batch():
     assert jnp.all(labels >= 0)
     assert jnp.all(labels < hmm.vocab_size)
     chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
+    assert isinstance(gen_states, jax.Array)
     assert gen_states.shape == (batch_size, *gen_state.shape)
 
 
@@ -64,6 +65,7 @@ def test_generate_data_batch_with_bos_token():
     assert jnp.all(labels >= 0)
     assert jnp.all(labels < bos_token)
     chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
+    assert isinstance(gen_states, jax.Array)
     assert gen_states.shape == (batch_size, *gen_state.shape)
 
 
@@ -92,6 +94,7 @@ def test_generate_data_batch_with_eos_token():
     assert jnp.all(labels[:, :-1] < eos_token)
     assert jnp.all(labels[:, -1] == eos_token)
     chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
+    assert isinstance(gen_states, jax.Array)
     assert gen_states.shape == (batch_size, *gen_state.shape)
 
 

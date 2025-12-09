@@ -11,6 +11,7 @@ from typing import Any, Literal
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.colors import qualitative as qualitative_colors
+from plotly.subplots import make_subplots
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.visualization.data_pipeline import (
@@ -21,6 +22,7 @@ from simplexity.visualization.data_registry import DataRegistry
 from simplexity.visualization.structured_configs import (
     AestheticsConfig,
     ChannelAestheticsConfig,
+    FacetConfig,
     LayerConfig,
     PlotConfig,
     PlotLevelGuideConfig,
@@ -50,6 +52,16 @@ def build_plotly_figure(
     plot_df = build_plot_level_dataframe(plot_cfg.data, plot_cfg.transforms, data_registry)
     layer_df = resolve_layer_dataframe(layer, plot_df, data_registry)
 
+    # Handle faceting
+    if plot_cfg.facet:
+        figure = _build_faceted_figure(layer, layer_df, plot_cfg.facet, plot_cfg.size, controls)
+        # Use empty size config to avoid overwriting the computed facet dimensions
+        empty_size = PlotSizeConfig(width=None, height=None)
+        figure = _apply_plot_level_properties(
+            figure, plot_cfg.guides, empty_size, plot_cfg.background, layer.aesthetics
+        )
+        return figure
+
     has_z = bool(layer.aesthetics and layer.aesthetics.z and layer.aesthetics.z.field)
     if has_z:
         figure = _build_scatter3d(layer, layer_df, controls)
@@ -57,6 +69,457 @@ def build_plotly_figure(
         figure = _build_scatter2d(layer, layer_df, controls)
     figure = _apply_plot_level_properties(figure, plot_cfg.guides, plot_cfg.size, plot_cfg.background, layer.aesthetics)
     return figure
+
+
+def _build_faceted_figure(
+    layer: LayerConfig,
+    df: pd.DataFrame,
+    facet_cfg: FacetConfig,
+    size_cfg: PlotSizeConfig,
+    controls: Any | None,
+):
+    """Build a faceted subplot figure."""
+    aes = layer.aesthetics
+    x_field = _require_field(aes.x, "x")
+    y_field = _require_field(aes.y, "y")
+    has_z = bool(aes.z and aes.z.field)
+    z_field = _require_field(aes.z, "z") if has_z else None
+
+    row_field = facet_cfg.row
+    col_field = facet_cfg.column
+
+    # Resolve controls
+    dropdown = _resolve_layer_dropdown(df, controls)
+    slider_enabled = not (getattr(controls, "accumulate_steps", False))
+    slider = _resolve_slider_control(df, controls if slider_enabled else None)
+
+    # Filter by initial layer if dropdown is active
+    # Keep rows that don't depend on layer (e.g., ground truth from belief states with layer="_no_layer_")
+    layer_field, layer_options = dropdown if dropdown else (None, [None])
+    working_df: pd.DataFrame
+    if layer_field is None:
+        working_df = df
+    else:
+        layer_independent_filter = df[df[layer_field] == "_no_layer_"]
+        layer_dependent_filter = df[(df[layer_field] != "_no_layer_") & (df[layer_field] == layer_options[0])]
+        assert isinstance(layer_independent_filter, pd.DataFrame)
+        assert isinstance(layer_dependent_filter, pd.DataFrame)
+        working_df = pd.concat([layer_dependent_filter, layer_independent_filter], ignore_index=True)
+
+    # Get unique values for faceting dimensions
+    # Use dict.fromkeys to deduplicate by string representation (handles mixed int/str types)
+    row_values: list[str | None]
+    col_values: list[str | None]
+    if row_field:
+        raw_row = list(pd.unique(working_df[row_field]))
+        row_values = list(dict.fromkeys(str(v) for v in sorted(raw_row, key=str)))
+    else:
+        row_values = [None]
+    if col_field:
+        raw_col = list(pd.unique(working_df[col_field]))
+        col_values = list(dict.fromkeys(str(v) for v in sorted(raw_col, key=str)))
+    else:
+        col_values = [None]
+
+    n_rows = len(row_values)
+    n_cols = len(col_values)
+
+    # Build subplot titles
+    subplot_titles = []
+    for row_val in row_values:
+        for col_val in col_values:
+            if row_val is not None and col_val is not None:
+                subplot_titles.append(f"{col_val}")
+            elif col_val is not None:
+                subplot_titles.append(str(col_val))
+            elif row_val is not None:
+                subplot_titles.append(str(row_val))
+            else:
+                subplot_titles.append("")
+
+    # Create subplot grid with appropriate specs for 2D or 3D
+    if has_z:
+        specs = [[{"type": "scene"} for _ in range(n_cols)] for _ in range(n_rows)]
+        fig = make_subplots(
+            rows=n_rows,
+            cols=n_cols,
+            subplot_titles=subplot_titles,
+            horizontal_spacing=0.02,
+            vertical_spacing=0.05,
+            specs=specs,
+            row_titles=[str(v) for v in row_values] if row_field else None,
+        )
+    else:
+        fig = make_subplots(
+            rows=n_rows,
+            cols=n_cols,
+            subplot_titles=subplot_titles,
+            horizontal_spacing=0.05,
+            vertical_spacing=0.08,
+            row_titles=[str(v) for v in row_values] if row_field else None,
+        )
+
+    color_field = _optional_field(aes.color)
+    size_field_name = _optional_field(aes.size)
+    opacity_value = _resolve_opacity(aes.opacity)
+    hover_fields = _collect_tooltip_fields(aes.tooltip)
+    color_map = _build_color_discrete_map(df, color_field, aes.color)
+    color_specs = _build_color_group_specs(df, color_field, aes.color, color_map)
+
+    # Helper to build traces for a given filtered dataframe
+    def build_facet_traces(source_df: pd.DataFrame, show_legend: bool = True):
+        traces_by_cell: dict[tuple[int, int], list[Any]] = {}
+        for row_idx, row_val in enumerate(row_values, start=1):
+            for col_idx, col_val in enumerate(col_values, start=1):
+                cell_df = source_df.copy()
+                if row_field:
+                    filtered = cell_df[cell_df[row_field].astype(str) == row_val]
+                    assert isinstance(filtered, pd.DataFrame)
+                    cell_df = filtered
+                if col_field:
+                    filtered = cell_df[cell_df[col_field].astype(str) == col_val]
+                    assert isinstance(filtered, pd.DataFrame)
+                    cell_df = filtered
+
+                if cell_df.empty:
+                    traces_by_cell[(row_idx, col_idx)] = []
+                    continue
+
+                if has_z:
+                    assert z_field is not None
+                    traces = _scatter3d_traces(
+                        cell_df,
+                        x_field,
+                        y_field,
+                        z_field,
+                        color_field,
+                        size_field_name,
+                        hover_fields,
+                        opacity_value,
+                        color_specs,
+                        layer_name=layer.name,
+                    )
+                    scene_idx = (row_idx - 1) * n_cols + col_idx
+                    scene_name = "scene" if scene_idx == 1 else f"scene{scene_idx}"
+                    for trace in traces:
+                        trace.scene = scene_name
+                else:
+                    traces = _scatter2d_traces(
+                        cell_df,
+                        x_field,
+                        y_field,
+                        color_field,
+                        size_field_name,
+                        hover_fields,
+                        opacity_value,
+                        color_specs,
+                        layer_name=layer.name,
+                    )
+
+                # Control legend visibility
+                for trace in traces:
+                    if not show_legend or row_idx > 1 or col_idx > 1:
+                        trace.showlegend = False
+
+                traces_by_cell[(row_idx, col_idx)] = traces
+        return traces_by_cell
+
+    # Get slider values if slider is active
+    slider_field, slider_values = slider if slider else (None, [None])
+
+    if slider and layer_field:
+        assert slider_field is not None
+        # Both slider and dropdown: complex case with frames per (layer, step)
+        # For simplicity, build frames for current layer only
+        initial_step = slider_values[0] if slider_values else None
+        initial_df = working_df
+        if initial_step is not None and slider_field in working_df.columns:
+            filtered = working_df[working_df[slider_field] == initial_step]
+            assert isinstance(filtered, pd.DataFrame)
+            initial_df = filtered
+
+        traces_by_cell = build_facet_traces(initial_df)
+        for (row_idx, col_idx), traces in traces_by_cell.items():
+            for trace in traces:
+                if has_z:
+                    fig.add_trace(trace)
+                else:
+                    fig.add_trace(trace, row=row_idx, col=col_idx)
+
+        # Build frames for slider animation
+        frames = []
+        for step_val in slider_values:
+            step_filtered = working_df[working_df[slider_field] == step_val]
+            assert isinstance(step_filtered, pd.DataFrame)
+            frame_traces_by_cell = build_facet_traces(step_filtered, show_legend=False)
+            frame_traces: list[Any] = []
+            for row_idx, col_idx in sorted(frame_traces_by_cell.keys()):
+                frame_traces.extend(frame_traces_by_cell[(row_idx, col_idx)])
+            frames.append(go.Frame(name=str(step_val), data=frame_traces))
+        fig.frames = frames
+        _add_slider_layout(fig, slider_field, slider_values)
+
+        # Add layer dropdown
+        if len(layer_options) > 1:
+            _add_faceted_layer_dropdown(
+                fig,
+                df,
+                layer_field,
+                layer_options,
+                slider_field,
+                slider_values,
+                row_values,
+                col_values,
+                row_field,
+                col_field,
+                x_field,
+                y_field,
+                z_field,
+                color_field,
+                size_field_name,
+                hover_fields,
+                opacity_value,
+                color_specs,
+                layer,
+                has_z,
+                n_cols,
+            )
+
+    elif slider:
+        assert slider_field is not None
+        # Slider only
+        initial_step = slider_values[0] if slider_values else None
+        initial_df = working_df
+        if initial_step is not None and slider_field in working_df.columns:
+            filtered = working_df[working_df[slider_field] == initial_step]
+            assert isinstance(filtered, pd.DataFrame)
+            initial_df = filtered
+
+        traces_by_cell = build_facet_traces(initial_df)
+        for (row_idx, col_idx), traces in traces_by_cell.items():
+            for trace in traces:
+                if has_z:
+                    fig.add_trace(trace)
+                else:
+                    fig.add_trace(trace, row=row_idx, col=col_idx)
+
+        # Build frames for slider animation
+        frames = []
+        for step_val in slider_values:
+            step_filtered = working_df[working_df[slider_field] == step_val]
+            assert isinstance(step_filtered, pd.DataFrame)
+            frame_traces_by_cell = build_facet_traces(step_filtered, show_legend=False)
+            frame_traces: list[Any] = []
+            for row_idx, col_idx in sorted(frame_traces_by_cell.keys()):
+                frame_traces.extend(frame_traces_by_cell[(row_idx, col_idx)])
+            frames.append(go.Frame(name=str(step_val), data=frame_traces))
+        fig.frames = frames
+        _add_slider_layout(fig, slider_field, slider_values)
+
+    elif dropdown and len(layer_options) > 1:
+        assert layer_field is not None
+        # Dropdown only
+        traces_by_cell = build_facet_traces(working_df)
+        for (row_idx, col_idx), traces in traces_by_cell.items():
+            for trace in traces:
+                if has_z:
+                    fig.add_trace(trace)
+                else:
+                    fig.add_trace(trace, row=row_idx, col=col_idx)
+
+        _add_faceted_layer_dropdown(
+            fig,
+            df,
+            layer_field,
+            layer_options,
+            None,
+            [],
+            row_values,
+            col_values,
+            row_field,
+            col_field,
+            x_field,
+            y_field,
+            z_field,
+            color_field,
+            size_field_name,
+            hover_fields,
+            opacity_value,
+            color_specs,
+            layer,
+            has_z,
+            n_cols,
+        )
+    else:
+        # No controls
+        traces_by_cell = build_facet_traces(working_df)
+        for (row_idx, col_idx), traces in traces_by_cell.items():
+            for trace in traces:
+                if has_z:
+                    fig.add_trace(trace)
+                else:
+                    fig.add_trace(trace, row=row_idx, col=col_idx)
+
+    # Apply size to individual subplots if specified
+    subplot_width = size_cfg.width or 200
+    subplot_height = size_cfg.height or 200
+    total_width = subplot_width * n_cols + 100  # Extra space for margins
+    total_height = subplot_height * n_rows + 100
+
+    fig.update_layout(
+        width=total_width,
+        height=total_height,
+        showlegend=True,
+    )
+
+    # For 3D, set axis titles on each scene
+    if has_z:
+        x_title = _axis_title(aes.x)
+        y_title = _axis_title(aes.y)
+        z_title = _axis_title(aes.z)
+        for row_idx in range(1, n_rows + 1):
+            for col_idx in range(1, n_cols + 1):
+                scene_idx = (row_idx - 1) * n_cols + col_idx
+                scene_key = "scene" if scene_idx == 1 else f"scene{scene_idx}"
+                scene_update: dict[str, Any] = {}
+                if x_title:
+                    scene_update["xaxis_title"] = x_title
+                if y_title:
+                    scene_update["yaxis_title"] = y_title
+                if z_title:
+                    scene_update["zaxis_title"] = z_title
+                if scene_update:
+                    layout_update: dict[str, Any] = {scene_key: scene_update}
+                    fig.update_layout(**layout_update)
+
+    return fig
+
+
+def _add_faceted_layer_dropdown(
+    fig: go.Figure,
+    df: pd.DataFrame,
+    layer_field: str,
+    layer_options: list[Any],
+    slider_field: str | None,
+    slider_values: list[Any],
+    row_values: list[str | None],
+    col_values: list[str | None],
+    row_field: str | None,
+    col_field: str | None,
+    x_field: str,
+    y_field: str,
+    z_field: str | None,
+    color_field: str | None,
+    size_field: str | None,
+    hover_fields: list[str],
+    opacity_value: float | None,
+    color_specs: list[ColorGroupSpec],
+    layer: LayerConfig,
+    has_z: bool,
+    n_cols: int,
+) -> None:
+    """Add a layer dropdown menu that rebuilds traces for faceted figures."""
+    # Get layer-independent rows (e.g., ground truth from belief states)
+    layer_independent_filtered = df[df[layer_field] == "_no_layer_"]
+    assert isinstance(layer_independent_filtered, pd.DataFrame)
+    layer_independent = layer_independent_filtered
+
+    buttons = []
+    for layer_opt in layer_options:
+        # Combine layer-specific rows with layer-independent rows
+        layer_specific_filtered = df[(df[layer_field] != "_no_layer_") & (df[layer_field] == layer_opt)]
+        assert isinstance(layer_specific_filtered, pd.DataFrame)
+        layer_df = pd.concat([layer_specific_filtered, layer_independent], ignore_index=True)
+
+        # If there's a slider, filter to initial step
+        if slider_field and slider_values:
+            filtered = layer_df[layer_df[slider_field] == slider_values[0]]
+            assert isinstance(filtered, pd.DataFrame)
+            layer_df = filtered
+
+        # Build traces for this layer
+        all_traces: list[Any] = []
+        for row_idx, row_val in enumerate(row_values, start=1):
+            for col_idx, col_val in enumerate(col_values, start=1):
+                cell_df = layer_df.copy()
+                if row_field:
+                    filtered = cell_df[cell_df[row_field].astype(str) == row_val]
+                    assert isinstance(filtered, pd.DataFrame)
+                    cell_df = filtered
+                if col_field:
+                    filtered = cell_df[cell_df[col_field].astype(str) == col_val]
+                    assert isinstance(filtered, pd.DataFrame)
+                    cell_df = filtered
+
+                if cell_df.empty:
+                    continue
+
+                if has_z:
+                    assert z_field is not None
+                    traces = _scatter3d_traces(
+                        cell_df,
+                        x_field,
+                        y_field,
+                        z_field,
+                        color_field,
+                        size_field,
+                        hover_fields,
+                        opacity_value,
+                        color_specs,
+                        layer_name=layer.name,
+                    )
+                    scene_idx = (row_idx - 1) * n_cols + col_idx
+                    scene_name = "scene" if scene_idx == 1 else f"scene{scene_idx}"
+                    for trace in traces:
+                        trace.scene = scene_name
+                        trace.showlegend = False
+                else:
+                    traces = _scatter2d_traces(
+                        cell_df,
+                        x_field,
+                        y_field,
+                        color_field,
+                        size_field,
+                        hover_fields,
+                        opacity_value,
+                        color_specs,
+                        layer_name=layer.name,
+                    )
+                    for trace in traces:
+                        trace.showlegend = False
+
+                all_traces.extend(traces)
+
+        # Create button that replaces all trace data
+        button = {
+            "label": str(layer_opt),
+            "method": "restyle",
+            "args": [
+                {
+                    "x": [list(t.x) if hasattr(t, "x") else [] for t in all_traces],
+                    "y": [list(t.y) if hasattr(t, "y") else [] for t in all_traces],
+                }
+            ],
+        }
+        if has_z:
+            button["args"][0]["z"] = [list(t.z) if hasattr(t, "z") else [] for t in all_traces]
+
+        buttons.append(button)
+
+    fig.update_layout(
+        updatemenus=[
+            {
+                "buttons": buttons,
+                "direction": "down",
+                "showactive": True,
+                "x": 1.05,
+                "xanchor": "left",
+                "y": 1,
+                "yanchor": "top",
+                "pad": {"l": 10, "r": 10, "t": 0, "b": 0},
+            }
+        ]
+    )
 
 
 def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None):
@@ -333,7 +796,8 @@ def _resolve_layer_dropdown(df: pd.DataFrame, controls: Any | None) -> tuple[str
         return None
     raw_options = getattr(dropdown, "options", None) or []
     options = [_normalize_option(value) for value in raw_options]
-    valid_values = [value for value in options if value in set(df[field_name])]
+    # Filter out "_no_layer_" placeholder used for layer-independent data
+    valid_values = [value for value in options if value in set(df[field_name]) and value != "_no_layer_"]
     if len(valid_values) <= 1:
         return None
     return field_name, valid_values
@@ -739,6 +1203,7 @@ def _add_slider_layout(figure, field_name: str, slider_values: list[Any]):
 @dataclass
 class ColorGroupSpec:
     """Specification for a color grouping in Plotly rendering."""
+
     label: str | None
     value: Any | None
     constant_color: str | None

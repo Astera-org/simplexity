@@ -19,15 +19,18 @@ import jax
 import jax.numpy as jnp
 import mlflow
 import torch
+import tqdm
 from torch.optim import Adam
 from transformer_lens import HookedTransformer
 
 import simplexity
-from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
-from simplexity.generative_processes.torch_generator import generate_data_batch
+from simplexity.generative_processes.factored_generative_process import FactoredGenerativeProcess
+from simplexity.generative_processes.hidden_markov_model import GeneralizedHiddenMarkovModel, HiddenMarkovModel
+from simplexity.generative_processes.torch_generator import generate_data_batch, generate_data_batch_with_full_history
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.mlflow_persister import MLFlowPersister
+from simplexity.run_management.structured_configs import ActivationTrackerConfig
 from simplexity.structured_configs.generative_process import GenerativeProcessConfig
 from simplexity.structured_configs.logging import LoggingConfig
 from simplexity.structured_configs.metric_tracker import MetricTrackerConfig
@@ -37,7 +40,7 @@ from simplexity.structured_configs.persistence import PersistenceConfig
 from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
-CONFIG_NAME = "training_test.yaml"
+CONFIG_NAME = "training.yaml"
 
 logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
 
@@ -68,6 +71,7 @@ class TrainingRunConfig:
     training_metric_tracker: MetricTrackerConfig
     eval_metric_tracker: MetricTrackerConfig
     training: TrainingConfig
+    activation_tracker: ActivationTrackerConfig
 
     device: str
     experiment_name: str
@@ -84,7 +88,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     logger = components.get_logger()
     assert isinstance(logger, MLFlowLogger)
     generative_process = components.get_generative_process()
-    assert isinstance(generative_process, HiddenMarkovModel)
+    assert isinstance(generative_process, (HiddenMarkovModel, GeneralizedHiddenMarkovModel, FactoredGenerativeProcess))
     persister = components.get_persister()
     assert isinstance(persister, MLFlowPersister)
     predictive_model = components.get_predictive_model()
@@ -95,8 +99,13 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     assert isinstance(training_metric_tracker, MetricTracker)
     eval_metric_tracker = components.get_metric_tracker("eval_metric_tracker")
     assert isinstance(eval_metric_tracker, MetricTracker)
+    activation_tracker = components.get_activation_tracker()
+    assert activation_tracker is not None
 
-    gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
+    # gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
+    gen_states = tuple(
+        jnp.repeat(s[None, :], cfg.training.batch_size, axis=0) for s in generative_process.initial_state
+    )
 
     # Only need to specify device for MPS since JAX doesn't support it
     # (JAX will use CPU while PyTorch model is on MPS)
@@ -147,10 +156,39 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         metrics = add_key_prefix(metrics, "eval")
         logger.log_metrics(step, metrics)
 
+    def activation_tracker_step(step: int) -> None:
+        predictive_model.eval()
+        outs = generate_data_batch_with_full_history(
+            gen_states,
+            generative_process,
+            cfg.training.batch_size,
+            cfg.training.sequence_len,
+            jax.random.key(step),
+            device=device_arg,
+        )
+        inputs = outs["inputs"]
+        assert isinstance(inputs, (jax.Array, torch.Tensor))
+        prefix_probs = outs["prefix_probabilities"]
+        assert isinstance(prefix_probs, (jax.Array, torch.Tensor))
+        _, act_cache = predictive_model.run_with_cache(inputs)
+        act_cache = {k: v.detach().cpu() for k, v in act_cache.items() if "resid_post" in k}
+        scalars, projections, visualizations = activation_tracker.analyze(
+            inputs=inputs,
+            beliefs=outs["belief_states"],
+            probs=prefix_probs,
+            activations=act_cache,
+            step=step,
+        )
+        visualization_paths = activation_tracker.save_visualizations(
+            visualizations, Path("activation_visualizations"), step
+        )
+        for key, path in visualization_paths.items():
+            logger.log_artifact(str(path), artifact_path=f"activation_plots/{key.split('/')[0]}")
+
     def checkpoint_step(step: int) -> None:
         persister.save_weights(predictive_model, step)
 
-    for step in range(cfg.training.num_steps + 1):
+    for step in tqdm.tqdm(range(cfg.training.num_steps + 1)):
         if step == 0:
             initial_loss = evaluate()
             training_metric_tracker.context.loss = initial_loss
@@ -161,6 +199,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
             log_step(step, "cheap")
         if step % cfg.training.log_expensive_every == 0:
             log_step(step, "expensive")
+            activation_tracker_step(step)
         if step % cfg.training.evaluate_every == 0:
             eval_step(step)
         if step % cfg.training.checkpoint_every == 0:

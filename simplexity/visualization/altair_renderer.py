@@ -70,6 +70,9 @@ def build_altair_chart(
     if plot_cfg.selections:
         chart = chart.add_params(*[_build_selection_param(sel) for sel in plot_cfg.selections])
 
+    # Apply size before faceting (FacetChart doesn't support width/height properties)
+    chart = _apply_chart_size(chart, plot_cfg.size)
+
     if plot_cfg.facet:
         chart = _apply_facet(chart, plot_cfg.facet)
 
@@ -208,14 +211,19 @@ def _apply_facet(chart, facet_cfg: FacetConfig):
     return chart.facet(**facet_args)
 
 
-def _apply_plot_level_properties(chart, guides: PlotLevelGuideConfig, size: PlotSizeConfig, background: str | None):
-    title_params = _build_title_params(guides)
-    if title_params is not None:
-        chart = chart.properties(title=title_params)
+def _apply_chart_size(chart, size: PlotSizeConfig):
+    """Apply width/height to chart. Must be called before faceting."""
     width = size.width
     height = size.height
     if width is not None or height is not None:
         chart = chart.properties(width=width, height=height)
+    return chart
+
+
+def _apply_plot_level_properties(chart, guides: PlotLevelGuideConfig, size: PlotSizeConfig, background: str | None):
+    title_params = _build_title_params(guides)
+    if title_params is not None:
+        chart = chart.properties(title=title_params)
     if size.autosize:
         chart.autosize = size.autosize
     if background:
@@ -241,7 +249,9 @@ def _apply_dropdown_control(chart, dropdown):
         if len(options) > 1:
             binding = alt.binding_select(options=options, name="Layer: ")
             param = alt.param(name=f"{field_name}_dropdown", bind=binding, value=options[0])
-            return chart.add_params(param).transform_filter(f"datum.{field_name} == {param.name}")
+            # Include layer-independent rows (layer == "_no_layer_") along with selected layer
+            filter_expr = f"(datum.{field_name} == {param.name}) || (datum.{field_name} == '_no_layer_')"
+            return chart.add_params(param).transform_filter(filter_expr)
     return chart
 
 
@@ -267,6 +277,9 @@ def _apply_slider_control(chart, slider):
 
 def _apply_default_legend_interactivity(chart, layers: list[LayerConfig]):
     if not layers:
+        return chart
+    # FacetChart doesn't support encode() - skip legend interactivity for faceted charts
+    if isinstance(chart, alt.FacetChart):
         return chart
     color_fields: set[str] = set()
     for layer in layers:

@@ -105,7 +105,7 @@ def _convert_value_by_type(value: Any, field_type: Any) -> Any:
                 ]
         return value
     # Handle dataclass types
-    elif isinstance(value, dict) and is_dataclass(field_type):
+    if isinstance(value, dict) and is_dataclass(field_type):
         return _dict_to_dataclass(value, field_type)  # type: ignore[arg-type]
 
     return value
@@ -140,11 +140,11 @@ def _dict_to_dataclass(data: dict[str, Any] | Any, schema: type[Any]) -> Any:
         if origin is Union or origin is types.UnionType:
             args = get_args(field_type)
             # Handle Optional[X] -> Union[X, None]
-            if args and len(args) == 2 and type(None) in args:
+            if args and len(args) == 2 and types.NoneType in args:
                 if value is None:
                     converted[key] = None
                 else:
-                    non_none_type = next((t for t in args if t is not type(None)), None)
+                    non_none_type = next((t for t in args if t is not types.NoneType), None)
                     if non_none_type:
                         # Recursively handle the non-None type (could be a list, dict, etc.)
                         converted[key] = _convert_value_by_type(value, non_none_type)
@@ -159,7 +159,7 @@ def _dict_to_dataclass(data: dict[str, Any] | Any, schema: type[Any]) -> Any:
                     converted[key] = value
             else:
                 # For other Union types, try to convert based on the first non-None type
-                non_none_types = [t for t in args if t is not type(None)] if args else []
+                non_none_types = [t for t in args if t is not types.NoneType] if args else []
                 if non_none_types and value is not None:
                     converted[key] = _convert_value_by_type(value, non_none_types[0])
                 else:

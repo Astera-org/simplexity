@@ -209,7 +209,14 @@ class ActivationTracker:
             viz_configs = self._visualization_specs.get(analysis_name)
             if viz_configs:
                 np_weights = np.asarray(prepared_weights)
-                np_beliefs = None if prepared_beliefs is None else np.asarray(prepared_beliefs)
+                # Handle tuple belief states (factored processes) by stacking to (samples, factors, states)
+                if prepared_beliefs is None:
+                    np_beliefs = None
+                elif isinstance(prepared_beliefs, tuple):
+                    # Stack tuple of (samples, states) arrays into (samples, factors, states)
+                    np_beliefs = np.stack([np.asarray(b) for b in prepared_beliefs], axis=1)
+                else:
+                    np_beliefs = np.asarray(prepared_beliefs)
                 np_projections = {key: np.asarray(value) for key, value in projections.items()}
                 payloads = build_visualization_payloads(
                     analysis_name,
