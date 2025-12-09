@@ -8,6 +8,7 @@ defaults:
   - optimizer: pytorch_adam
   - metric_tracker@training_metric_tracker: default
   - metric_tracker@eval_metric_tracker: loss_only
+  - activation_tracker: with_visuals
   - training: minimal
 
 experiment_name: training_test
