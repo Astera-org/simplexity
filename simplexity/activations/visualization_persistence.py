@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping
 
 import pandas as pd
 
@@ -25,7 +25,6 @@ def save_visualization_payloads(
     step: int,
 ) -> Mapping[str, str]:
     """Persist visualization payloads, accumulating history for slider controls."""
-
     if not visualizations:
         return {}
 
@@ -47,6 +46,7 @@ def save_visualization_payloads(
         figure_names_to_paths[key] = str(output_path)
 
     return figure_names_to_paths
+
 
 def _maybe_accumulate_history(
     payload: ActivationVisualizationPayload,

@@ -19,8 +19,8 @@ from simplexity.activations.activation_visualizations import (
     PreparedMetadata,
     build_visualization_payloads,
 )
-from simplexity.activations.visualization_persistence import save_visualization_payloads
 from simplexity.activations.visualization_configs import build_activation_visualization_config
+from simplexity.activations.visualization_persistence import save_visualization_payloads
 from simplexity.utils.analysis_utils import build_deduplicated_dataset
 from simplexity.utils.pytorch_utils import torch_to_jax
 
@@ -30,7 +30,7 @@ class PreparedActivations:
     """Prepared activations with belief states and sample weights."""
 
     activations: Mapping[str, jax.Array]
-    belief_states: jax.Array | None
+    belief_states: jax.Array | tuple[jax.Array, ...] | None
     weights: jax.Array
     metadata: PreparedMetadata
 
@@ -147,7 +147,7 @@ class ActivationTracker:
         probs: jax.Array | torch.Tensor | np.ndarray,
         activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
         step: int | None = None,
-    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+    ) -> tuple[Mapping[str, float], Mapping[str, jax.Array], Mapping[str, ActivationVisualizationPayload]]:
         """Run all analyses and return namespaced results."""
         preprocessing_cache: dict[PrepareOptions, PreparedActivations] = {}
 
@@ -225,9 +225,7 @@ class ActivationTracker:
                     analysis_concat_layers=analysis.concat_layers,
                     layer_names=list(prepared.activations.keys()),
                 )
-                all_visualizations.update(
-                    {f"{analysis_name}/{payload.name}": payload for payload in payloads}
-                )
+                all_visualizations.update({f"{analysis_name}/{payload.name}": payload for payload in payloads})
 
         return all_scalars, all_projections, all_visualizations
 
@@ -238,7 +236,6 @@ class ActivationTracker:
         step: int,
     ) -> Mapping[str, str]:
         """Persist visualization payloads to disk with history accumulation."""
-
         return save_visualization_payloads(visualizations, root, step)
 
     def get_scalar_history(
@@ -302,7 +299,7 @@ class ActivationTracker:
             DataFrame with columns: metric, step, value
         """
         if not self._scalar_history:
-            return pd.DataFrame(columns=["metric", "step", "value"])
+            return pd.DataFrame({"metric": [], "step": [], "value": []})
 
         rows = []
         for metric_name, history in self._scalar_history.items():

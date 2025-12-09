@@ -19,22 +19,13 @@ from simplexity.activations.activation_analyses import (
     LinearRegressionSVDAnalysis,
     PcaAnalysis,
 )
-from simplexity.activations.activation_tracker import ActivationTracker, prepare_activations, PrepareOptions
+from simplexity.activations.activation_tracker import ActivationTracker, PrepareOptions, prepare_activations
 from simplexity.activations.activation_visualizations import _build_scalar_series_dataframe
 from simplexity.activations.visualization_configs import (
-    ActivationVisualizationConfig,
     ActivationVisualizationControlsConfig,
-    ActivationVisualizationDataMapping,
-    ActivationVisualizationFieldRef,
     ScalarSeriesMapping,
 )
 from simplexity.exceptions import ConfigValidationError
-from simplexity.visualization.structured_configs import (
-    AestheticsConfig,
-    ChannelAestheticsConfig,
-    GeometryConfig,
-    LayerConfig,
-)
 
 
 @pytest.fixture
@@ -101,6 +92,7 @@ class TestPrepareActivations:
         assert "layer_1" in result.activations
 
         assert result.belief_states is not None
+        assert isinstance(result.belief_states, jax.Array)
         n_prefixes = result.belief_states.shape[0]
         assert result.activations["layer_0"].shape == (n_prefixes, synthetic_data["d_layer0"])
         assert result.activations["layer_1"].shape == (n_prefixes, synthetic_data["d_layer1"])
@@ -126,6 +118,7 @@ class TestPrepareActivations:
         assert "layer_1" not in result.activations
 
         assert result.belief_states is not None
+        assert isinstance(result.belief_states, jax.Array)
         n_prefixes = result.belief_states.shape[0]
         expected_d = synthetic_data["d_layer0"] + synthetic_data["d_layer1"]
         assert result.activations["concatenated"].shape == (n_prefixes, expected_d)
@@ -148,6 +141,7 @@ class TestPrepareActivations:
         assert "layer_1" in result.activations
 
         assert result.belief_states is not None
+        assert isinstance(result.belief_states, jax.Array)
         batch_size = synthetic_data["batch_size"]
         assert result.activations["layer_0"].shape == (batch_size, synthetic_data["d_layer0"])
         assert result.activations["layer_1"].shape == (batch_size, synthetic_data["d_layer1"])
@@ -253,6 +247,7 @@ class TestLinearRegressionAnalysis:
         assert "layer_1_projected" in projections
 
         assert prepared.belief_states is not None
+        assert isinstance(prepared.belief_states, jax.Array)
         assert projections["layer_0_projected"].shape == prepared.belief_states.shape
         assert projections["layer_1_projected"].shape == prepared.belief_states.shape
 
@@ -344,6 +339,7 @@ class TestLinearRegressionSVDAnalysis:
         assert "layer_1_projected" in projections
 
         assert prepared.belief_states is not None
+        assert isinstance(prepared.belief_states, jax.Array)
         assert projections["layer_0_projected"].shape == prepared.belief_states.shape
         assert projections["layer_1_projected"].shape == prepared.belief_states.shape
 
@@ -694,26 +690,23 @@ class TestActivationTracker:
                 "layers": len(plot_cfg.layers),
             },
         )
-        viz_cfg = ActivationVisualizationConfig(
-            name="pca_projection",
-            data_mapping=ActivationVisualizationDataMapping(
-                mappings={
-                    "pc0": ActivationVisualizationFieldRef(source="projections", key="pca", component=0),
-                    "belief_state": ActivationVisualizationFieldRef(
-                        source="belief_states",
-                        reducer="argmax",
-                    ),
+        viz_cfg = {
+            "name": "pca_projection",
+            "data_mapping": {
+                "mappings": {
+                    "pc0": {"source": "projections", "key": "pca", "component": 0},
+                    "belief_state": {"source": "belief_states", "reducer": "argmax"},
                 }
-            ),
-            controls=ActivationVisualizationControlsConfig(slider="step", dropdown="layer"),
-            layer=LayerConfig(
-                geometry=GeometryConfig(type="point"),
-                aesthetics=AestheticsConfig(
-                    x=ChannelAestheticsConfig(field="pc0", type="quantitative"),
-                    color=ChannelAestheticsConfig(field="belief_state", type="nominal"),
-                ),
-            ),
-        )
+            },
+            "controls": {"slider": "step", "dropdown": "layer"},
+            "layer": {
+                "geometry": {"type": "point"},
+                "aesthetics": {
+                    "x": {"field": "pc0", "type": "quantitative"},
+                    "color": {"field": "belief_state", "type": "nominal"},
+                },
+            },
+        }
         tracker = ActivationTracker(
             {
                 "pca": PcaAnalysis(

@@ -283,107 +283,6 @@ def _axis_title(channel: ChannelAestheticsConfig | None) -> str | None:
     return channel.title or channel.field
 
 
-def _scatter3d_figure(
-    df: pd.DataFrame,
-    x_field: str,
-    y_field: str,
-    z_field: str,
-    color_field: str | None,
-    size_field: str | None,
-    hover_fields: list[str],
-    opacity_value: float | None,
-    color_map: dict[str, str] | None,
-    *,
-    animation_frame: str | None = None,
-    animation_order: list[Any] | None = None,
-): 
-    kwargs: dict[str, Any] = {
-        "data_frame": df,
-        "x": x_field,
-        "y": y_field,
-        "z": z_field,
-        "hover_data": hover_fields or None,
-        "opacity": opacity_value,
-    }
-    if color_field:
-        kwargs["color"] = color_field
-        if color_map:
-            kwargs["color_discrete_map"] = color_map
-    if size_field:
-        kwargs["size"] = size_field
-    if animation_frame:
-        kwargs["animation_frame"] = animation_frame
-        if animation_order:
-            kwargs.setdefault("category_orders", {})[animation_frame] = animation_order
-    return px.scatter_3d(**kwargs)
-
-
-def _scatter2d_figure(
-    df: pd.DataFrame,
-    x_field: str,
-    y_field: str,
-    color_field: str | None,
-    size_field: str | None,
-    hover_fields: list[str],
-    opacity_value: float | None,
-    color_map: dict[str, str] | None,
-    *,
-    animation_frame: str | None = None,
-    animation_order: list[Any] | None = None,
-):
-    kwargs: dict[str, Any] = {
-        "data_frame": df,
-        "x": x_field,
-        "y": y_field,
-        "hover_data": hover_fields or None,
-        "opacity": opacity_value,
-    }
-    if color_field:
-        kwargs["color"] = color_field
-        if color_map:
-            kwargs["color_discrete_map"] = color_map
-    if size_field:
-        kwargs["size"] = size_field
-    if animation_frame:
-        kwargs["animation_frame"] = animation_frame
-        if animation_order:
-            kwargs.setdefault("category_orders", {})[animation_frame] = animation_order
-    return px.scatter(**kwargs)
-
-
-def _scatter2d_figure(
-    df: pd.DataFrame,
-    x_field: str,
-    y_field: str,
-    color_field: str | None,
-    size_field: str | None,
-    hover_fields: list[str],
-    opacity_value: float | None,
-    color_map: dict[str, str] | None,
-    *,
-    animation_frame: str | None = None,
-    animation_order: list[Any] | None = None,
-):
-    kwargs: dict[str, Any] = {
-        "data_frame": df,
-        "x": x_field,
-        "y": y_field,
-        "hover_data": hover_fields or None,
-        "opacity": opacity_value,
-    }
-    if color_field:
-        kwargs["color"] = color_field
-        if color_map:
-            kwargs["color_discrete_map"] = color_map
-    if size_field:
-        kwargs["size"] = size_field
-    if animation_frame:
-        kwargs["animation_frame"] = animation_frame
-        if animation_order:
-            kwargs.setdefault("category_orders", {})[animation_frame] = animation_order
-    return px.scatter(**kwargs)
-
-
 def _apply_constant_channels(figure, aes: AestheticsConfig):
     if aes.color and aes.color.value is not None:
         figure.update_traces(marker={"color": aes.color.value}, selector={"type": "scatter3d"})
@@ -470,7 +369,7 @@ def _build_layer_filtered_scatter3d(
     size_field: str | None,
     hover_fields: list[str],
     opacity_value: float | None,
-    color_specs: list["ColorGroupSpec"],
+    color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
 ):
@@ -481,6 +380,7 @@ def _build_layer_filtered_scatter3d(
 
     for option in options:
         subset = df[df[field_name] == option]
+        assert isinstance(subset, pd.DataFrame)
         if subset.empty:
             continue
         layer_index = len(available)
@@ -537,7 +437,7 @@ def _build_layer_filtered_scatter2d(
     size_field: str | None,
     hover_fields: list[str],
     opacity_value: float | None,
-    color_specs: list["ColorGroupSpec"],
+    color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
 ):
@@ -548,6 +448,7 @@ def _build_layer_filtered_scatter2d(
 
     for option in options:
         subset = df[df[field_name] == option]
+        assert isinstance(subset, pd.DataFrame)
         if subset.empty:
             continue
         layer_index = len(available)
@@ -604,7 +505,7 @@ def _build_slider_scatter3d(
     size_field: str | None,
     hover_fields: list[str],
     opacity_value: float | None,
-    color_specs: list["ColorGroupSpec"],
+    color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
 ):
@@ -626,6 +527,7 @@ def _build_slider_scatter3d(
         layer_label = str(option) if option is not None else layer.name
 
         initial_subset = subset[subset[slider_field] == slider_values[0]]
+        assert isinstance(initial_subset, pd.DataFrame)
         subset_traces = _scatter3d_traces(
             initial_subset,
             x_field,
@@ -648,6 +550,7 @@ def _build_slider_scatter3d(
 
         for slider_value in slider_values:
             slider_subset = subset[subset[slider_field] == slider_value]
+            assert isinstance(slider_subset, pd.DataFrame)
             frame_traces = _scatter3d_traces(
                 slider_subset,
                 x_field,
@@ -686,7 +589,7 @@ def _build_slider_scatter2d(
     size_field: str | None,
     hover_fields: list[str],
     opacity_value: float | None,
-    color_specs: list["ColorGroupSpec"],
+    color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
 ):
@@ -708,6 +611,7 @@ def _build_slider_scatter2d(
         layer_label = str(option) if option is not None else layer.name
 
         initial_subset = subset[subset[slider_field] == slider_values[0]]
+        assert isinstance(initial_subset, pd.DataFrame)
         subset_traces = _scatter2d_traces(
             initial_subset,
             x_field,
@@ -728,6 +632,7 @@ def _build_slider_scatter2d(
 
         for slider_value in slider_values:
             slider_subset = subset[subset[slider_field] == slider_value]
+            assert isinstance(slider_subset, pd.DataFrame)
             frame_traces = _scatter2d_traces(
                 slider_subset,
                 x_field,
@@ -762,7 +667,7 @@ def _add_layer_dropdown_menu(
 ):
     total_traces = len(figure.data)
     buttons = []
-    for option, (start, end) in zip(options, trace_ranges):
+    for option, (start, end) in zip(options, trace_ranges, strict=False):
         visible = [False] * total_traces
         for idx in range(start, end):
             visible[idx] = True
@@ -833,6 +738,7 @@ def _add_slider_layout(figure, field_name: str, slider_values: list[Any]):
 
 @dataclass
 class ColorGroupSpec:
+    """Specification for a color grouping in Plotly rendering."""
     label: str | None
     value: Any | None
     constant_color: str | None
@@ -928,7 +834,9 @@ def _scatter2d_traces(
 def _subset_for_spec(df: pd.DataFrame, color_field: str | None, spec: ColorGroupSpec) -> pd.DataFrame:
     if spec.mode != "discrete" or color_field is None:
         return df
-    return df[df[color_field] == spec.value]
+    result = df[df[color_field] == spec.value]
+    assert isinstance(result, pd.DataFrame)
+    return result
 
 
 def _build_marker(
@@ -975,7 +883,6 @@ def _derive_trace_name(layer_name: str | None, spec: ColorGroupSpec, idx: int) -
     return f"series_{idx + 1}"
 
 
-
 def _build_color_discrete_map(
     df: pd.DataFrame, color_field: str | None, color_cfg: ChannelAestheticsConfig | None
 ) -> dict[str, str] | None:
@@ -986,13 +893,11 @@ def _build_color_discrete_map(
     if color_field not in df.columns:
         return None
     series = df[color_field]
+    assert isinstance(series, pd.Series)
     if _series_is_literal_color(series):
         return None
     palette = qualitative_colors.Plotly
-    values = [
-        _normalize_option(value)
-        for value in pd.unique(series)
-    ]
+    values = [_normalize_option(value) for value in pd.unique(series)]
     return {value: palette[idx % len(palette)] for idx, value in enumerate(values)}
 
 
@@ -1005,6 +910,7 @@ def _build_color_group_specs(
     if color_field is None or color_field not in df.columns:
         return [ColorGroupSpec(label=None, value=None, constant_color=None, mode="none")]
     series = df[color_field]
+    assert isinstance(series, pd.Series)
     if _series_is_literal_color(series):
         return [ColorGroupSpec(label=None, value=None, constant_color=None, mode="literal")]
     if color_cfg and color_cfg.type in {"nominal", "ordinal"}:

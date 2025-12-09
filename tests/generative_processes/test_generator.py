@@ -97,32 +97,19 @@ def test_generate_data_batch_with_eos_token():
 
 def test_generate_data_batch_with_full_history():
     """Ensure belief states and prefix probabilities can be returned."""
-<<<<<<< HEAD
-    hmm = build_hidden_markov_model("zero_one_random", p=0.5)
-=======
     hmm = build_hidden_markov_model("zero_one_random", process_params={"p": 0.5})
->>>>>>> origin/dev
     batch_size = 4
     sequence_len = 6
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
-<<<<<<< HEAD
-    next_states, belief_states, prefix_probs, inputs, labels = generate_data_batch_with_full_history(
-=======
     result = generate_data_batch_with_full_history(
->>>>>>> origin/dev
         states,
         hmm,
         batch_size,
         sequence_len,
         key,
     )
-<<<<<<< HEAD
-    assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
-    assert prefix_probs.shape == (batch_size, inputs.shape[1])
-    assert next_states.shape == (batch_size, gen_state.shape[0])
-=======
     # Extract and type-check all fields
     belief_states = result["belief_states"]
     prefix_probs = result["prefix_probabilities"]
@@ -136,5 +123,4 @@ def test_generate_data_batch_with_full_history():
 
     assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
     assert prefix_probs.shape == (batch_size, inputs.shape[1])
->>>>>>> origin/dev
     assert labels.shape == inputs.shape

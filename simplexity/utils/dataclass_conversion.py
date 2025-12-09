@@ -3,32 +3,36 @@
 from __future__ import annotations
 
 import types
+from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
-from typing import Any, Mapping, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, TypeVar, Union, cast, get_args, get_origin, get_type_hints
 
 from omegaconf import DictConfig, OmegaConf
 
 T = TypeVar("T")
 
 
-def convert_to_dataclass(cfg_section: DictConfig | dict[str, Any] | Any, schema: type[T]) -> T:
+def convert_to_dataclass[T](cfg_section: DictConfig | dict[str, Any] | Any, schema: type[T]) -> T:
     """Convert a nested DictConfig/dict payload into a dataclass instance."""
-
     if isinstance(cfg_section, schema):
         return cfg_section
 
+    data: dict[str, Any]
     if isinstance(cfg_section, DictConfig):
-        data = OmegaConf.to_container(cfg_section, resolve=True) or {}
-    else:
+        container = OmegaConf.to_container(cfg_section, resolve=True)
+        if isinstance(container, dict):
+            data = cast(dict[str, Any], container)
+        else:
+            data = {}
+    elif isinstance(cfg_section, dict):
         data = cfg_section
-
-    if not isinstance(data, dict):
-        return data  # type: ignore[return-value]
+    else:
+        return cfg_section  # type: ignore[return-value]
 
     return _dict_to_dataclass(data, schema)
 
 
-def _dict_to_dataclass(data: dict[str, Any], schema: type[T]) -> T:
+def _dict_to_dataclass[T](data: dict[str, Any], schema: type[T]) -> T:
     if not is_dataclass(schema):
         return data  # type: ignore[return-value]
 
@@ -54,7 +58,7 @@ def _convert_value_by_type(value: Any, field_type: Any) -> Any:
         if value is None:
             return [] if origin is list else tuple()
         item_type = get_args(field_type)[0] if get_args(field_type) else Any
-        if is_dataclass(item_type):
+        if is_dataclass(item_type) and isinstance(item_type, type):
             converted = [convert_to_dataclass(item, item_type) for item in value]
         else:
             converted = list(value)
@@ -64,7 +68,7 @@ def _convert_value_by_type(value: Any, field_type: Any) -> Any:
         if value is None:
             return {}
         key_type, value_type = get_args(field_type) if get_args(field_type) else (Any, Any)
-        if is_dataclass(value_type):
+        if is_dataclass(value_type) and isinstance(value_type, type):
             return {key: convert_to_dataclass(val, value_type) for key, val in value.items()}
         return dict(value)
 
@@ -77,7 +81,7 @@ def _convert_value_by_type(value: Any, field_type: Any) -> Any:
             return None
         return _convert_value_by_type(value, target_type)
 
-    if is_dataclass(field_type):
+    if is_dataclass(field_type) and isinstance(field_type, type):
         return convert_to_dataclass(value, field_type)
 
     return value

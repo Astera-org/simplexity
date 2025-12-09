@@ -328,11 +328,7 @@ class TestBuildPrefixDataset:
         assert jnp.allclose(jnp.sum(dataset.probs), 1.0)
 
         # Check shapes are consistent
-<<<<<<< HEAD
-=======
-
         assert isinstance(dataset.beliefs, jax.Array)
->>>>>>> origin/dev
         n_prefixes = dataset.beliefs.shape[0]
         assert dataset.probs.shape[0] == n_prefixes
         for layer_acts in dataset.activations_by_layer.values():
@@ -353,6 +349,7 @@ class TestBuildPrefixDataset:
         dataset = build_prefix_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Beliefs should have 2 dimensions (from fixture)
+        assert isinstance(dataset.beliefs, jax.Array)
         assert dataset.beliefs.shape[1] == 2
 
 

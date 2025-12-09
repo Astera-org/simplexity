@@ -261,9 +261,7 @@ def test_instantiate_activation_tracker_builds_analysis_objects(tracker_cfg: Dic
     assert visualizations == {}
 
 
-def test_instantiate_activation_tracker_with_visuals(
-    tracker_cfg: DictConfig, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_instantiate_activation_tracker_with_visuals(tracker_cfg: DictConfig, monkeypatch: pytest.MonkeyPatch) -> None:
     """Tracker instantiation should preserve visualization configs."""
 
     monkeypatch.setattr(

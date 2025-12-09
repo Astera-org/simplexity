@@ -23,7 +23,6 @@ HISTORY_META_SUFFIX = ".meta.json"
 
 def history_paths(root: Path, safe_name: str) -> tuple[Path, Path]:
     """Return the data and metadata file paths for a visualization history entry."""
-
     history_dir = root / HISTORY_DIRNAME
     data_path = history_dir / f"{safe_name}{HISTORY_DATA_SUFFIX}"
     meta_path = history_dir / f"{safe_name}{HISTORY_META_SUFFIX}"
@@ -32,7 +31,6 @@ def history_paths(root: Path, safe_name: str) -> tuple[Path, Path]:
 
 def plot_config_signature(plot_cfg: PlotConfig) -> str:
     """Create a stable hash of a PlotConfig to detect incompatible history files."""
-
     serialized = json.dumps(
         dataclasses.asdict(plot_cfg),
         sort_keys=True,
@@ -43,7 +41,6 @@ def plot_config_signature(plot_cfg: PlotConfig) -> str:
 
 def load_history_dataframe(data_path: Path, meta_path: Path, *, expected_signature: str) -> pd.DataFrame:
     """Load previously saved visualization dataframe if metadata matches signature."""
-
     if not data_path.exists() or not meta_path.exists():
         return pd.DataFrame()
 
@@ -76,7 +73,6 @@ def save_history_dataframe(
     backend: str,
 ) -> None:
     """Persist visualization dataframe and metadata for future accumulation."""
-
     data_path.parent.mkdir(parents=True, exist_ok=True)
     dataframe.to_json(data_path, orient="records", lines=True)
     metadata = {
@@ -93,7 +89,6 @@ def save_history_dataframe(
 
 def _serialize_unknown(value: Any) -> str:
     """Best-effort serialization hook for dataclasses.asdict JSON dumps."""
-
     if isinstance(value, Path):
         return str(value)
     return str(value)

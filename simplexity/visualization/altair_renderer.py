@@ -314,7 +314,7 @@ def _apply_accumulation_detail(layer_charts, layers, plot_cfg, plot_df: pd.DataF
     if "step" not in plot_df.columns:
         return layer_charts
     updated = []
-    for chart, layer_cfg in zip(layer_charts, layers):
+    for chart, layer_cfg in zip(layer_charts, layers, strict=False):
         aesthetics = layer_cfg.aesthetics
         if aesthetics and aesthetics.detail is not None:
             updated.append(chart)

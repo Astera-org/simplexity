@@ -9,7 +9,10 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import hydra
 import jax
@@ -17,17 +20,22 @@ import jax.numpy as jnp
 import torch
 import tqdm.auto as tqdm
 import yaml
-from tempfile import TemporaryDirectory
 from torch.nn import Module as PytorchModel
 from torch.nn import functional as F
 
 import simplexity
-from examples.configs.demo_config_with_visuals import Config
 from simplexity.activations.activation_tracker import ActivationTracker
 from simplexity.generative_processes.torch_generator import (
     generate_data_batch,
     generate_data_batch_with_full_history,
 )
+from simplexity.structured_configs.generative_process import GenerativeProcessConfig
+from simplexity.structured_configs.logging import LoggingConfig
+from simplexity.structured_configs.metric_tracker import MetricTrackerConfig
+from simplexity.structured_configs.mlflow import MLFlowConfig
+from simplexity.structured_configs.optimizer import OptimizerConfig
+from simplexity.structured_configs.persistence import PersistenceConfig
+from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 DEMO_DIR = Path(__file__).parent
 
@@ -46,20 +54,58 @@ def _configure_logging() -> None:
         logging.basicConfig(level=logging.INFO)
 
 
+@dataclass
+class TrainingConfig:
+    """Configuration for training."""
+
+    num_steps: int
+    batch_size: int
+    sequence_len: int
+    log_cheap_every: int
+    log_expensive_every: int
+    checkpoint_every: int
+    evaluate_every: int
+    validate_every: int
+    visualization_dir: str | None = None
+
+
+@dataclass
+class TrainingRunConfig:
+    """Configuration for the managed run demo."""
+
+    mlflow: MLFlowConfig
+    logging: LoggingConfig
+    generative_process: GenerativeProcessConfig
+    persistence: PersistenceConfig
+    predictive_model: PredictiveModelConfig
+    optimizer: OptimizerConfig
+    training_metric_tracker: MetricTrackerConfig
+    eval_metric_tracker: MetricTrackerConfig
+    training: TrainingConfig
+
+    device: str
+    experiment_name: str
+    run_name: str
+    seed: int
+    tags: dict[str, str]
+
+
 @hydra.main(config_path=str(DEMO_DIR / "configs"), config_name="demo_config_with_visuals.yaml", version_base="1.2")
 @simplexity.managed_run(strict=False, verbose=True)
-def main(cfg: Config, components: simplexity.Components) -> None:
+def main(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
+    """Demo function that trains a tiny model and logs activation visualizations."""
     tracker = components.get_activation_tracker()
     logger = components.get_logger()
     generative_process = components.get_generative_process()
-    initial_state = components.get_initial_state()
     model = components.get_predictive_model()
     optimizer = components.get_optimizer()
 
     if tracker is None or not isinstance(tracker, ActivationTracker):
         raise RuntimeError("Activation tracker component is required for this demo.")
-    if generative_process is None or initial_state is None:
-        raise RuntimeError("Generative process and initial state must be configured.")
+    if generative_process is None:
+        raise RuntimeError("Generative process must be configured.")
+
+    initial_state = generative_process.initial_state
     if model is None or not isinstance(model, PytorchModel):
         raise RuntimeError("Demo requires a PyTorch predictive model.")
     if optimizer is None:
@@ -68,23 +114,21 @@ def main(cfg: Config, components: simplexity.Components) -> None:
         raise RuntimeError("Predictive model must expose a run_with_cache method.")
 
     device = torch.device(
-        "cuda"
-        if torch.cuda.is_available()
-        else ("mps" if torch.backends.mps.is_available() else "cpu")
+        "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
     )
-    model = model.to(device)
+    model = model
 
-    batch_size = cfg.generative_process.batch_size or 16
-    sequence_len = cfg.generative_process.sequence_len or 8
-    training_steps = max(1, cfg.training_steps)
-    validate_every = max(1, cfg.validate_every)
+    batch_size = cfg.training.batch_size
+    sequence_len = cfg.training.sequence_len
+    training_steps = max(1, cfg.training.num_steps)
+    validate_every = max(1, cfg.training.validate_every)
     if logger is not None:
         # Use a temporary directory for visualization logging
         visualization_root = Path(TemporaryDirectory().name)
     else:
-        if cfg.visualization_dir is None:
+        if cfg.training.visualization_dir is None:
             raise ValueError("Visualizations requested but no logger or visualization_dir configured.")
-        visualization_root = Path(cfg.visualization_dir)
+        visualization_root = Path(cfg.training.visualization_dir)
         visualization_root.mkdir(parents=True, exist_ok=True)
 
     batched_state = _prepare_initial_states(initial_state, batch_size)
@@ -92,7 +136,6 @@ def main(cfg: Config, components: simplexity.Components) -> None:
     val_loss = float("nan")
 
     for step in range(0, training_steps + 1):
-
         if step % validate_every == 0:
             val_loss = _run_validation(
                 tracker,
@@ -105,7 +148,7 @@ def main(cfg: Config, components: simplexity.Components) -> None:
                 device=device,
                 visualization_root=visualization_root,
             )
-        
+
         key = jax.random.key(cfg.seed + step)
         batched_state, inputs_torch, labels = generate_data_batch(
             batched_state,
@@ -117,15 +160,14 @@ def main(cfg: Config, components: simplexity.Components) -> None:
             eos_token=cfg.generative_process.eos_token,
         )
 
-        logits = model(inputs_torch.to(device))
+        logits = model(inputs_torch)
         loss = F.cross_entropy(
             logits.view(-1, logits.size(-1)),
-            labels.view(-1).long().to(device),
+            labels.view(-1).long(),
         )
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
 
         if logger and hasattr(logger, "log_metrics"):
             logger.log_metrics(step=step, metric_dict={"train/loss": float(loss.detach().cpu().item())})
@@ -149,19 +191,19 @@ def _run_validation(
     model,
     logger,
     initial_state,
-    cfg: Config,
+    cfg: TrainingRunConfig,
     *,
     metadata_step: int,
     device,
     visualization_root: Path,
 ) -> float:
-    batch_size = cfg.generative_process.batch_size or 1
-    sequence_len = cfg.generative_process.sequence_len or 1
+    batch_size = cfg.training.batch_size
+    sequence_len = cfg.training.sequence_len
     batched_state = _prepare_initial_states(initial_state, batch_size)
     key = jax.random.key(cfg.seed + metadata_step)
 
     with torch.no_grad():
-        _, belief_states, prefix_probs, inputs_torch, labels = generate_data_batch_with_full_history(
+        result = generate_data_batch_with_full_history(
             batched_state,
             generative_process,
             batch_size,
@@ -170,17 +212,29 @@ def _run_validation(
             bos_token=cfg.generative_process.bos_token,
             eos_token=cfg.generative_process.eos_token,
         )
+        inputs_torch = result["inputs"]
+        labels = result["labels"]
+        belief_states_raw = result["belief_states"]
+        prefix_probs_raw = result["prefix_probabilities"]
+
+        assert isinstance(inputs_torch, torch.Tensor)
+        assert isinstance(labels, torch.Tensor)
+
         tokens_len = inputs_torch.shape[1]
         tokens = jnp.array(inputs_torch.cpu().numpy())
-        belief_states = jnp.array(belief_states)[:, :tokens_len]
-        prefix_probs = jnp.array(prefix_probs)[:, :tokens_len]
+        belief_states = (
+            jnp.array(belief_states_raw)[:, :tokens_len]
+            if isinstance(belief_states_raw, jax.Array)
+            else tuple(jnp.array(bs)[:, :tokens_len] for bs in belief_states_raw)
+        )
+        prefix_probs = jnp.array(prefix_probs_raw)[:, :tokens_len]
 
-        logits, cache = model.run_with_cache(inputs_torch.to(device))
+        logits, cache = model.run_with_cache(inputs_torch)
         activations = _collect_layer_activations(cache, model)
 
         loss = F.cross_entropy(
             logits.view(-1, logits.size(-1)),
-            labels.view(-1).long().to(device),
+            labels.view(-1).long(),
         )
         val_loss = float(loss.detach().cpu().item())
 
@@ -207,12 +261,14 @@ def _collect_layer_activations(cache, model) -> dict[str, jax.Array]:
     return activations
 
 
-def _log_validation_metrics(logger, scalars: dict[str, float], val_loss: float, step: int) -> None:
+def _log_validation_metrics(logger, scalars: Mapping[str, float], val_loss: float, step: int) -> None:
     if logger is None or not hasattr(logger, "log_metrics"):
         return
     metric_dict = {f"val/{key}": value for key, value in scalars.items()}
     metric_dict["val/loss"] = val_loss
     logger.log_metrics(step=step, metric_dict=metric_dict)
+
+
 if __name__ == "__main__":
     _configure_logging()
     main()

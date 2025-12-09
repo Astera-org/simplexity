@@ -214,9 +214,9 @@ class TestScalarHistory:
         assert df["value"].dtype in [float, "float64", "float32"]
 
         # Check no null values
-        assert not df["metric"].isnull().any()
-        assert not df["step"].isnull().any()
-        assert not df["value"].isnull().any()
+        assert bool(df["metric"].notnull().all())
+        assert bool(df["step"].notnull().all())
+        assert bool(df["value"].notnull().all())
 
     def test_scalar_history_preserves_order(self, synthetic_data):
         """Scalar history should preserve the order of steps."""

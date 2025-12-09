@@ -143,6 +143,8 @@ def test_altair_renderer_skips_detail_when_step_axis_used():
         }
     )
     plot_cfg = _base_plot_config(backend="altair")
+    assert plot_cfg.layers[0].aesthetics.x is not None
+    assert plot_cfg.layers[0].aesthetics.y is not None
     plot_cfg.layers[0].aesthetics.x.field = "step"
     plot_cfg.layers[0].aesthetics.y.field = "y"
     registry = DictDataRegistry({"main": df})

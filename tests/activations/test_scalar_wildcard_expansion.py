@@ -1,6 +1,5 @@
 """Tests for scalar wildcard expansion in activation visualizations."""
 
-import numpy as np
 import pytest
 
 from simplexity.activations.activation_visualizations import _expand_scalar_keys

@@ -651,6 +651,7 @@ def validate_optimizer_config(cfg: DictConfig) -> None:
         raise ConfigValidationError(f"OptimizerConfig.instance._target_ must be an optimizer target, got {target}")
     _validate_nonempty_str(cfg.get("name"), "OptimizerConfig.name", is_none_allowed=True)
 
+
 # ============================================================================
 # Metric Tracker Config
 # ============================================================================
@@ -702,7 +703,7 @@ def validate_metric_tracker_instance_config(cfg: DictConfig) -> None:
         cfg: A DictConfig with _target_, metric_names, and metric_kwargs fields (from Hydra).
     """
     _validate_instance_config(cfg)
-    
+
     # Validate metric_names if provided
     metric_names = cfg.get("metric_names")
     if metric_names is not None:
@@ -721,7 +722,8 @@ def validate_metric_tracker_instance_config(cfg: DictConfig) -> None:
                     for item in value:
                         if not isinstance(item, str):
                             raise ConfigValidationError(
-                                f"MetricTrackerInstanceConfig.metric_names['{key}'] items must be strings, got {type(item)}"
+                                f"MetricTrackerInstanceConfig.metric_names['{key}'] " \
+                                f"items must be strings, got {type(item)}"
                             )
         elif isinstance(metric_names, (list, DictConfig)):
             # Validate list format: [metric1, metric2, ...]
@@ -735,7 +737,7 @@ def validate_metric_tracker_instance_config(cfg: DictConfig) -> None:
             raise ConfigValidationError(
                 f"MetricTrackerInstanceConfig.metric_names must be a dict or list, got {type(metric_names)}"
             )
-    
+
     # Validate metric_kwargs if provided
     metric_kwargs = cfg.get("metric_kwargs")
     if metric_kwargs is not None and not isinstance(metric_kwargs, DictConfig):
@@ -753,16 +755,16 @@ def validate_metric_tracker_config(cfg: DictConfig) -> None:
     instance = cfg.get("instance")
     if instance is None:
         raise ConfigValidationError("MetricTrackerConfig.instance is required")
-    
+
     target = instance.get("_target_", None)
     if not is_metric_tracker_target(target):
         raise ConfigValidationError(
             f"MetricTrackerConfig.instance._target_ must be a metric tracker target, got {target}"
         )
-    
+
     # Validate the instance config
     validate_metric_tracker_instance_config(instance)
-    
+
     _validate_nonempty_str(cfg.get("name"), "MetricTrackerConfig.name", is_none_allowed=True)
 
 

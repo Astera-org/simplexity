@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 import numpy as np
 import pandas as pd
-import re
 
-from simplexity.analysis.pca import compute_weighted_pca
 from simplexity.activations.visualization_configs import (
     ActivationVisualizationConfig,
     ActivationVisualizationControlsConfig,
@@ -17,6 +17,7 @@ from simplexity.activations.visualization_configs import (
     ActivationVisualizationPreprocessStep,
     ScalarSeriesMapping,
 )
+from simplexity.analysis.pca import compute_weighted_pca
 from simplexity.exceptions import ConfigValidationError
 from simplexity.visualization.altair_renderer import build_altair_chart
 from simplexity.visualization.data_registry import DictDataRegistry
@@ -42,7 +43,7 @@ class ActivationVisualizationPayload:
     backend: str
     figure: Any
     dataframe: pd.DataFrame
-    controls: "VisualizationControlsState | None"
+    controls: VisualizationControlsState | None
     plot_config: PlotConfig
 
 
@@ -193,7 +194,6 @@ def build_visualization_payloads(
     layer_names: list[str],
 ) -> list[ActivationVisualizationPayload]:
     """Materialize and render the configured visualizations for one analysis."""
-
     payloads: list[ActivationVisualizationPayload] = []
     metadata_columns = _build_metadata_columns(analysis_name, prepared_metadata, weights)
     for viz_cfg in viz_cfgs:
@@ -241,6 +241,7 @@ def render_visualization(
     dataframe: pd.DataFrame,
     controls: VisualizationControlsState | None,
 ) -> Any:
+    """Render a visualization figure from plot configuration and dataframe."""
     registry = DictDataRegistry({plot_cfg.data.source: dataframe})
     return _render_plot(plot_cfg, registry, controls)
 
@@ -275,8 +276,7 @@ def _build_metadata_columns(
 
 
 def _parse_component_spec(component: int | str | None) -> tuple[str, int | None, int | None]:
-    """
-    Parse component into (type, start, end).
+    """Parse component into (type, start, end).
 
     Returns:
         - ("single", val, None) for int component
@@ -329,9 +329,7 @@ def _get_component_count(
         array = _lookup_projection_array(projections, layer_name, ref.key, analysis_concat_layers)
         np_array = np.asarray(array)
         if np_array.ndim == 1:
-            raise ConfigValidationError(
-                f"Cannot expand 1D projection '{ref.key}'. Patterns require 2D arrays."
-            )
+            raise ConfigValidationError(f"Cannot expand 1D projection '{ref.key}'. Patterns require 2D arrays.")
         if np_array.ndim != 2:
             raise ConfigValidationError(f"Projection must be 1D or 2D, got {np_array.ndim}D")
         return np_array.shape[1]
@@ -352,8 +350,7 @@ def _expand_pattern_to_indices(
     pattern: str,
     available_keys: Iterable[str],
 ) -> list[int]:
-    """
-    Extract numeric indices from keys matching a wildcard or range pattern.
+    """Extract numeric indices from keys matching a wildcard or range pattern.
 
     Args:
         pattern: Pattern with * or N...M
@@ -397,12 +394,10 @@ def _expand_scalar_keys(
     layer_name: str,
     scalars: Mapping[str, float],
 ) -> dict[str, str]:
-    """
-    Expand scalar field patterns by matching available scalar keys.
+    """Expand scalar field patterns by matching available scalar keys.
 
     Returns dict of expanded field_name → scalar_key.
     """
-
     if key_pattern is None:
         raise ConfigValidationError("Scalar wildcard expansion requires a key pattern")
 
@@ -438,8 +433,7 @@ def _expand_field_mapping(
     belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
 ) -> dict[str, ActivationVisualizationFieldRef]:
-    """
-    Expand pattern-based mapping into concrete mappings.
+    """Expand pattern-based mapping into concrete mappings.
 
     Returns dict of expanded field_name → FieldRef with concrete component/key values.
     """
@@ -478,6 +472,8 @@ def _expand_field_mapping(
     if spec_type == "wildcard":
         components = list(range(max_components))
     else:
+        assert start_idx is not None, "Range spec must have start index"
+        assert end_idx is not None, "Range spec must have end index"
         if end_idx > max_components:
             raise ConfigValidationError(
                 f"Range {start_idx}...{end_idx} exceeds available components (max: {max_components})"
@@ -579,7 +575,6 @@ def _expand_scalar_pattern_keys(
     analysis_name: str,
 ) -> list[str]:
     """Expand wildcard/range pattern against available scalar keys."""
-
     keys = list(available_keys)
     has_prefixed_keys = any("/" in key for key in keys)
     prefix = f"{analysis_name}/"
@@ -617,7 +612,6 @@ def _expand_scalar_pattern_keys(
 
 def _expand_scalar_pattern_ranges(pattern: str) -> list[str]:
     """Expand numeric range tokens (e.g., 0...4) within a scalar pattern."""
-
     range_pattern = re.compile(r"(\d+)\.\.\.(\d+)")
     match = range_pattern.search(pattern)
     if not match:
@@ -637,7 +631,6 @@ def _expand_scalar_pattern_ranges(pattern: str) -> list[str]:
 
 def _scalar_pattern_label(full_key: str) -> str:
     """Derive a categorical label for scalar pattern rows based on the key."""
-
     suffix = full_key.split("/", 1)[1] if "/" in full_key else full_key
     layer_match = re.search(r"(layer_\d+)", suffix)
     if layer_match:
@@ -657,17 +650,14 @@ def _build_dataframe(
     layer_names: list[str],
 ) -> pd.DataFrame:
     # Check if this is a scalar_pattern or scalar_history visualization
-    has_scalar_pattern = any(
-        ref.source == "scalar_pattern" for ref in viz_cfg.data_mapping.mappings.values()
-    )
-    has_scalar_history = any(
-        ref.source == "scalar_history" for ref in viz_cfg.data_mapping.mappings.values()
-    )
+    has_scalar_pattern = any(ref.source == "scalar_pattern" for ref in viz_cfg.data_mapping.mappings.values())
+    has_scalar_history = any(ref.source == "scalar_history" for ref in viz_cfg.data_mapping.mappings.values())
 
     if has_scalar_pattern or has_scalar_history:
         if scalar_history_step is None:
             raise ConfigValidationError(
-                "Visualization uses scalar_pattern/scalar_history source but analyze() was called without the `step` parameter."
+                "Visualization uses scalar_pattern/scalar_history " \
+                "source but analyze() was called without the `step` parameter."
             )
         # Extract analysis name from metadata
         analysis_name = str(metadata_columns.get("analysis", ["unknown"])[0])
@@ -700,9 +690,7 @@ def _build_dataframe(
                 )
                 expanded_mappings.update(expanded)
             except ConfigValidationError as e:
-                raise ConfigValidationError(
-                    f"Error expanding '{field_name}' for layer '{layer_name}': {e}"
-                ) from e
+                raise ConfigValidationError(f"Error expanding '{field_name}' for layer '{layer_name}': {e}") from e
 
         for column, ref in expanded_mappings.items():
             layer_data[column] = _resolve_field(
@@ -745,6 +733,7 @@ def _resolve_field(
 
     if ref.source == "projections":
         array = _lookup_projection_array(projections, layer_name, ref.key, analysis_concat_layers)
+        assert not isinstance(ref.component, str), "Component patterns should be expanded before resolution"
         return _maybe_component(array, ref.component)
 
     if ref.source == "belief_states":
@@ -802,7 +791,7 @@ def _infer_scalar_series_indices(
         )
     prefix, suffix = template.split(_SCALAR_INDEX_SENTINEL, 1)
     inferred: set[int] = set()
-    for key in scalars.keys():
+    for key in scalars:
         if not key.startswith(prefix):
             continue
         if suffix and not key.endswith(suffix):
@@ -816,7 +805,8 @@ def _infer_scalar_series_indices(
             continue
     if not inferred:
         raise ConfigValidationError(
-            f"Scalar series could not infer indices for layer '{layer_name}' using key_template '{mapping.key_template}'."
+            f"Scalar series could not infer indices for layer '{layer_name}' " \
+            f"using key_template '{mapping.key_template}'."
         )
     return sorted(inferred)
 
@@ -852,9 +842,7 @@ def _lookup_projection_array(
     raise ConfigValidationError(f"Projection '{key}' not available for layer '{layer_name}'.")
 
 
-def _lookup_scalar_value(
-    scalars: Mapping[str, float], layer_name: str, key: str, concat_layers: bool
-) -> float:
+def _lookup_scalar_value(scalars: Mapping[str, float], layer_name: str, key: str, concat_layers: bool) -> float:
     suffix = f"_{key}"
     for full_key, value in scalars.items():
         if concat_layers:
@@ -889,6 +877,7 @@ def _resolve_belief_states(belief_states: np.ndarray, ref: ActivationVisualizati
         return np.argmax(np_array, axis=1)
     if ref.reducer == "l2_norm":
         return np.linalg.norm(np_array, axis=1)
+    assert not isinstance(ref.component, str), "Component patterns should be expanded before resolution"
     component = ref.component if ref.component is not None else 0
     if component < 0 or component >= np_array.shape[1]:
         raise ConfigValidationError(
@@ -898,8 +887,7 @@ def _resolve_belief_states(belief_states: np.ndarray, ref: ActivationVisualizati
 
 
 def _expand_preprocessing_fields(field_patterns: list[str], available_columns: list[str]) -> list[str]:
-    """
-    Expand wildcard and range patterns in preprocessing field lists.
+    """Expand wildcard and range patterns in preprocessing field lists.
 
     Args:
         field_patterns: List of field names, may contain patterns like "belief_*" or "prob_0...3"
@@ -908,7 +896,6 @@ def _expand_preprocessing_fields(field_patterns: list[str], available_columns: l
     Returns:
         Expanded list of field names with patterns replaced by matching columns
     """
-
     expanded: list[str] = []
     for pattern in field_patterns:
         # Check if this is a pattern
@@ -925,7 +912,8 @@ def _expand_preprocessing_fields(field_patterns: list[str], available_columns: l
                         expanded.append(expanded_name)
                     else:
                         raise ConfigValidationError(
-                            f"Preprocessing pattern '{pattern}' expanded to '{expanded_name}' but column not found in DataFrame. "
+                            f"Preprocessing pattern '{pattern}' expanded to '{expanded_name}' "
+                            f"but column not found in DataFrame. "
                             f"Available columns: {', '.join(sorted(available_columns))}"
                         )
             elif "*" in pattern:
@@ -959,9 +947,7 @@ def _expand_preprocessing_fields(field_patterns: list[str], available_columns: l
     return expanded
 
 
-def _apply_preprocessing(
-    dataframe: pd.DataFrame, steps: list[ActivationVisualizationPreprocessStep]
-) -> pd.DataFrame:
+def _apply_preprocessing(dataframe: pd.DataFrame, steps: list[ActivationVisualizationPreprocessStep]) -> pd.DataFrame:
     result = dataframe.copy()
     available_columns = list(result.columns)
 
@@ -994,9 +980,7 @@ def _apply_preprocessing(
     return result
 
 
-def _project_to_simplex(
-    dataframe: pd.DataFrame, step: ActivationVisualizationPreprocessStep
-) -> pd.DataFrame:
+def _project_to_simplex(dataframe: pd.DataFrame, step: ActivationVisualizationPreprocessStep) -> pd.DataFrame:
     required = step.input_fields
     for column in required:
         if column not in dataframe:
@@ -1023,9 +1007,7 @@ def _combine_rgb(dataframe: pd.DataFrame, step: ActivationVisualizationPreproces
     # Make sure all input columns exist
     for field in step.input_fields:
         if field not in dataframe:
-            raise ConfigValidationError(
-                f"combine_rgb requires column '{field}' but it is missing from the dataframe."
-            )
+            raise ConfigValidationError(f"combine_rgb requires column '{field}' but it is missing from the dataframe.")
 
     def _channel_to_int(series: pd.Series) -> pd.Series:
         return (series.clip(0.0, 1.0) * 255).round().astype(int)
@@ -1033,9 +1015,9 @@ def _combine_rgb(dataframe: pd.DataFrame, step: ActivationVisualizationPreproces
     # ---- Case 1: exactly 3 inputs -> keep old behavior ----
     if len(step.input_fields) == 3:
         r, g, b = step.input_fields
-        r_vals = _channel_to_int(dataframe[r])
-        g_vals = _channel_to_int(dataframe[g])
-        b_vals = _channel_to_int(dataframe[b])
+        r_vals = _channel_to_int(pd.Series(dataframe[r]))
+        g_vals = _channel_to_int(pd.Series(dataframe[g]))
+        b_vals = _channel_to_int(pd.Series(dataframe[b]))
 
     # ---- Case 2: >3 inputs -> PCA to 3D, then map to RGB ----
     else:
@@ -1051,7 +1033,7 @@ def _combine_rgb(dataframe: pd.DataFrame, step: ActivationVisualizationPreproces
         # via its own logic if you change it to allow that, or you can just pass None and slice.
         pca_res = compute_weighted_pca(
             X_jax,
-            n_components=None,   # let it pick max_rank
+            n_components=None,  # let it pick max_rank
             weights=None,
             center=True,
         )
@@ -1085,8 +1067,7 @@ def _combine_rgb(dataframe: pd.DataFrame, step: ActivationVisualizationPreproces
 
     # ---- Build hex color column ----
     dataframe[step.output_fields[0]] = [
-        f"#{rv:02x}{gv:02x}{bv:02x}"
-        for rv, gv, bv in zip(r_vals, g_vals, b_vals)
+        f"#{rv:02x}{gv:02x}{bv:02x}" for rv, gv, bv in zip(r_vals, g_vals, b_vals, strict=False)
     ]
     return dataframe
 

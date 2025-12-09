@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal, Mapping
+from typing import Any, Literal, cast
 
 from omegaconf import OmegaConf
 
@@ -17,7 +18,9 @@ from simplexity.visualization.structured_configs import (
     PlotSizeConfig,
 )
 
-FieldSource = Literal["projections", "scalars", "belief_states", "weights", "metadata", "scalar_pattern", "scalar_history"]
+FieldSource = Literal[
+    "projections", "scalars", "belief_states", "weights", "metadata", "scalar_pattern", "scalar_history"
+]
 ReducerType = Literal["argmax", "l2_norm"]
 
 
@@ -67,9 +70,7 @@ class ActivationVisualizationFieldRef:
 
         if isinstance(self.component, str):
             if self.component != "*" and not self._is_valid_range(self.component):
-                raise ConfigValidationError(
-                    f"Component pattern '{self.component}' invalid. Use '*' or 'N...M'"
-                )
+                raise ConfigValidationError(f"Component pattern '{self.component}' invalid. Use '*' or 'N...M'")
             if self.source not in ("projections", "belief_states"):
                 raise ConfigValidationError(
                     f"Component patterns only supported for projections/belief_states, not '{self.source}'"
@@ -163,7 +164,6 @@ class ActivationVisualizationConfig:
 
     def resolve_plot_config(self, default_backend: str) -> PlotConfig:
         """Return a PlotConfig constructed from either `plot` or shorthand fields."""
-
         if self.plot is not None:
             plot_cfg = self.plot
         elif self.layer is not None:
@@ -187,44 +187,38 @@ class ActivationVisualizationConfig:
             plot_cfg.size = self.size
         if self.guides is not None:
             plot_cfg.guides = self.guides
-        if any(step.type == "combine_rgb" for step in self.preprocessing):
-            if plot_cfg.backend != "plotly":
-                raise ConfigValidationError(
-                    "combine_rgb preprocessing requires backend='plotly'"
-                )
+        if any(step.type == "combine_rgb" for step in self.preprocessing) and plot_cfg.backend != "plotly":
+            raise ConfigValidationError("combine_rgb preprocessing requires backend='plotly'")
         return plot_cfg
 
 
 def build_activation_visualization_config(raw_cfg: Mapping[str, Any]) -> ActivationVisualizationConfig:
     """Recursively convert dictionaries/OmegaConf nodes to visualization dataclasses."""
-
     if isinstance(raw_cfg, ActivationVisualizationConfig):
         return raw_cfg
 
-    config_dict = dict(OmegaConf.to_container(raw_cfg, resolve=False) or {})
+    container = OmegaConf.to_container(raw_cfg, resolve=False)
+    if isinstance(container, dict):
+        config_dict = cast(dict[str, Any], container)
+    else:
+        config_dict = {}
     data_mapping_cfg = config_dict.get("data_mapping")
     if data_mapping_cfg is None:
         raise ConfigValidationError("Visualization config must include a data_mapping block.")
     if "scalar_series" in data_mapping_cfg and data_mapping_cfg["scalar_series"] is not None:
-        data_mapping_cfg["scalar_series"] = convert_to_dataclass(
-            data_mapping_cfg["scalar_series"], ScalarSeriesMapping
-        )
+        data_mapping_cfg["scalar_series"] = convert_to_dataclass(data_mapping_cfg["scalar_series"], ScalarSeriesMapping)
     if "mappings" in data_mapping_cfg and data_mapping_cfg["mappings"] is not None:
         data_mapping_cfg["mappings"] = {
             key: convert_to_dataclass(value, ActivationVisualizationFieldRef)
             for key, value in data_mapping_cfg["mappings"].items()
         }
-    config_dict["data_mapping"] = convert_to_dataclass(
-        data_mapping_cfg, ActivationVisualizationDataMapping
-    )
+    config_dict["data_mapping"] = convert_to_dataclass(data_mapping_cfg, ActivationVisualizationDataMapping)
     if "preprocessing" in config_dict:
         config_dict["preprocessing"] = [
             convert_to_dataclass(step, ActivationVisualizationPreprocessStep) for step in config_dict["preprocessing"]
         ]
     if "controls" in config_dict and config_dict["controls"] is not None:
-        config_dict["controls"] = convert_to_dataclass(
-            config_dict["controls"], ActivationVisualizationControlsConfig
-        )
+        config_dict["controls"] = convert_to_dataclass(config_dict["controls"], ActivationVisualizationControlsConfig)
     if "plot" in config_dict and config_dict["plot"] is not None:
         config_dict["plot"] = convert_to_dataclass(config_dict["plot"], PlotConfig)
     if "layer" in config_dict and config_dict["layer"] is not None:
