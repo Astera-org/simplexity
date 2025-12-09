@@ -108,7 +108,12 @@ class ActivationTracker:
     def analyze(
         self,
         inputs: jax.Array | torch.Tensor | np.ndarray,
-        beliefs: jax.Array | torch.Tensor | np.ndarray,
+        beliefs: jax.Array
+        | torch.Tensor
+        | np.ndarray
+        | tuple[jax.Array, ...]
+        | tuple[torch.Tensor, ...]
+        | tuple[np.ndarray, ...],
         probs: jax.Array | torch.Tensor | np.ndarray,
         activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
