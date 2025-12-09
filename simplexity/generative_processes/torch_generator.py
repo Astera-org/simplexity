@@ -87,7 +87,6 @@ def generate_data_batch_with_full_history(
             - prefix_probabilities: Prefix probabilities (jax.Array)
             - inputs: Input tokens (torch.Tensor)
             - labels: Label tokens (torch.Tensor)
-            - belief_state_factors: Optional factored belief states (tuple[jax.Array, ...])
     """
     result = generate_jax_data_batch_with_full_history(
         gen_states,
@@ -109,5 +108,4 @@ def generate_data_batch_with_full_history(
         "prefix_probabilities": result["prefix_probabilities"],
         "inputs": jax_to_torch(inputs, device),
         "labels": jax_to_torch(labels, device),
-        **({k: v for k, v in result.items() if k not in ["belief_states", "prefix_probabilities", "inputs", "labels"]}),
     }

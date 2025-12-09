@@ -161,8 +161,7 @@ def layer_linear_regression(
                 projections[f"factor_{factor_idx}/{key}"] = value
         return scalars, projections
     else:
-        if isinstance(belief_states, tuple):
-            raise ValueError("belief_states must be a single array when to_factors is False")
+        belief_states = jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
         return linear_regression(layer_activations, belief_states, weights, **kwargs)
 
 
@@ -191,6 +190,5 @@ def layer_linear_regression_svd(
                 projections[f"factor_{factor_idx}/{key}"] = value
         return scalars, projections
     else:
-        if isinstance(belief_states, tuple):
-            raise ValueError("belief_states must be a single array when to_factors is False")
+        belief_states = jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
         return linear_regression_svd(layer_activations, belief_states, weights, **kwargs)

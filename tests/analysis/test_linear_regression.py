@@ -304,7 +304,7 @@ def test_layer_linear_regression_to_factors_validates_tuple_contents() -> None:
         layer_linear_regression_svd(x, weights, invalid_beliefs, to_factors=True)  # type: ignore
 
 
-def test_layer_linear_regression_to_factors_false_requires_array() -> None:
+def test_layer_linear_regression_to_factors_false_works() -> None:
     """to_factors=False requires belief_states to be a single array, not a tuple."""
     x = jnp.ones((3, 2))
     weights = jnp.ones(3) / 3.0
@@ -312,8 +312,12 @@ def test_layer_linear_regression_to_factors_false_requires_array() -> None:
     # Invalid: tuple when to_factors=False
     factored_beliefs = (jnp.ones((3, 2)), jnp.ones((3, 3)))
 
-    with pytest.raises(ValueError, match="belief_states must be a single array when to_factors is False"):
-        layer_linear_regression(x, weights, factored_beliefs, to_factors=False)
+    scalars, projections = layer_linear_regression(x, weights, factored_beliefs, to_factors=False)
+    assert "r2" in scalars
+    assert "projected" in projections
+    assert projections["projected"].shape == (3, 5)
 
-    with pytest.raises(ValueError, match="belief_states must be a single array when to_factors is False"):
-        layer_linear_regression_svd(x, weights, factored_beliefs, to_factors=False)
+    scalars, projections = layer_linear_regression_svd(x, weights, factored_beliefs, to_factors=False)
+    assert "r2" in scalars
+    assert "projected" in projections
+    assert projections["projected"].shape == (3, 5)
