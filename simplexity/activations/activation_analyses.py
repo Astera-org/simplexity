@@ -35,7 +35,7 @@ class ActivationAnalysis(Protocol):
         self,
         activations: Mapping[str, jax.Array],
         weights: jax.Array,
-        belief_states: jax.Array | None = None,
+        belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Analyze activations and return scalar metrics and projections."""
         ...
@@ -76,13 +76,14 @@ class LinearRegressionAnalysis(LayerwiseAnalysis):
         concat_layers: bool = False,
         use_probs_as_weights: bool = True,
         fit_intercept: bool = True,
+        to_factors: bool = False,
     ) -> None:
         super().__init__(
             analysis_type="linear_regression",
             last_token_only=last_token_only,
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,
-            analysis_kwargs={"fit_intercept": fit_intercept},
+            analysis_kwargs={"fit_intercept": fit_intercept, "to_factors": to_factors},
         )
 
 
@@ -97,8 +98,9 @@ class LinearRegressionSVDAnalysis(LayerwiseAnalysis):
         use_probs_as_weights: bool = True,
         rcond_values: Sequence[float] | None = None,
         fit_intercept: bool = True,
+        to_factors: bool = False,
     ) -> None:
-        analysis_kwargs: dict[str, Any] = {"fit_intercept": fit_intercept}
+        analysis_kwargs: dict[str, Any] = {"fit_intercept": fit_intercept, "to_factors": to_factors}
         if rcond_values is not None:
             analysis_kwargs["rcond_values"] = tuple(rcond_values)
         super().__init__(

@@ -103,14 +103,24 @@ def test_generate_data_batch_with_full_history():
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
-    next_states, belief_states, prefix_probs, inputs, labels = generate_data_batch_with_full_history(
+    result = generate_data_batch_with_full_history(
         states,
         hmm,
         batch_size,
         sequence_len,
         key,
     )
+    # Extract and type-check all fields
+    belief_states = result["belief_states"]
+    prefix_probs = result["prefix_probabilities"]
+    inputs = result["inputs"]
+    labels = result["labels"]
+
+    assert isinstance(belief_states, jax.Array)
+    assert isinstance(prefix_probs, jax.Array)
+    assert isinstance(inputs, jax.Array)
+    assert isinstance(labels, jax.Array)
+
     assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
     assert prefix_probs.shape == (batch_size, inputs.shape[1])
-    assert next_states.shape == (batch_size, gen_state.shape[0])
     assert labels.shape == inputs.shape
