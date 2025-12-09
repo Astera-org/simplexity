@@ -114,6 +114,27 @@ def test_fanizza():
     assert jnp.allclose(jnp.sum(transition_matrices @ tau, axis=0), tau), "Stochasticity condition not met"
 
 
+def test_leaky_rrxor():
+    """Test the leaky rrxor transition matrices."""
+    p1, p2, epsilon = 0.5, 0.5, 0.1
+    transition_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=epsilon)
+    assert transition_matrices.shape == (2, 5, 5)
+    validate_hmm_transition_matrices(transition_matrices)
+
+    base_matrices = rrxor(p1, p2)
+    leak = jnp.ones((2, 5, 5))
+    expected = (1 - epsilon) * base_matrices + (epsilon / 10) * leak
+    chex.assert_trees_all_close(transition_matrices, expected)
+
+
+def test_leaky_rrxor_zero_epsilon():
+    """Test that leaky rrxor with epsilon=0 equals regular rrxor."""
+    p1, p2 = 0.5, 0.5
+    leaky_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=0.0)
+    base_matrices = rrxor(p1, p2)
+    chex.assert_trees_all_close(leaky_matrices, base_matrices)
+
+
 def test_matching_parens():
     """Test the matching parens transition matrices."""
     transition_matrices = matching_parens(open_probs=[1.0, 0.5, 0.5])
@@ -160,27 +181,6 @@ def test_post_quantum():
     transition_matrix_sum_normalized = transition_matrices.sum(axis=0)
     transition_matrix_sum_max_eigval = jnp.abs(jnp.linalg.eigvals(transition_matrix_sum_normalized)).max()
     assert jnp.isclose(transition_matrix_sum_max_eigval, 1, atol=1e-10), "Largest absolute eigenvalue is not 1"
-
-
-def test_leaky_rrxor():
-    """Test the leaky rrxor transition matrices."""
-    p1, p2, epsilon = 0.5, 0.5, 0.1
-    transition_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=epsilon)
-    assert transition_matrices.shape == (2, 5, 5)
-    validate_hmm_transition_matrices(transition_matrices)
-
-    base_matrices = rrxor(p1, p2)
-    leak = jnp.ones((2, 5, 5))
-    expected = (1 - epsilon) * base_matrices + (epsilon / 10) * leak
-    chex.assert_trees_all_close(transition_matrices, expected)
-
-
-def test_leaky_rrxor_zero_epsilon():
-    """Test that leaky rrxor with epsilon=0 equals regular rrxor."""
-    p1, p2 = 0.5, 0.5
-    leaky_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=0.0)
-    base_matrices = rrxor(p1, p2)
-    chex.assert_trees_all_close(leaky_matrices, base_matrices)
 
 
 def test_rrxor():
