@@ -18,6 +18,8 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.transition_matrices import get_stationary_state
+from simplexity.logger import SIMPLEXITY_LOGGER
+from simplexity.utils.jnp_utils import resolve_jax_device
 
 State = TypeVar("State", bound=jax.Array)
 
@@ -26,6 +28,7 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     """A Generalized Hidden Markov Model."""
 
     transition_matrices: jax.Array
+    device: jax.Device  # type: ignore[valid-type]
     log_transition_matrices: jax.Array
     normalizing_eigenvector: jax.Array
     log_normalizing_eigenvector: jax.Array
@@ -34,8 +37,23 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
     normalizing_constant: jax.Array
     log_normalizing_constant: jax.Array
 
-    def __init__(self, transition_matrices: jax.Array, initial_state: jax.Array | None = None):
+    def __init__(
+        self,
+        transition_matrices: jax.Array,
+        initial_state: jax.Array | None = None,
+        device: str | None = None,
+    ):
+        self.device = resolve_jax_device(device)
         self.validate_transition_matrices(transition_matrices)
+
+        if self.device != transition_matrices.device:
+            SIMPLEXITY_LOGGER.warning(
+                "Transition matrices are on device %s but model is on device %s. "
+                "Moving transition matrices to model device.",
+                transition_matrices.device,
+                self.device,
+            )
+            transition_matrices = jax.device_put(transition_matrices, self.device)
 
         state_transition_matrix = jnp.sum(transition_matrices, axis=0)
         eigenvalues, right_eigenvectors = jnp.linalg.eig(state_transition_matrix)
@@ -53,16 +71,41 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
 
         if initial_state is None:
             initial_state = get_stationary_state(state_transition_matrix.T)
-        self._initial_state = initial_state
+
+        if initial_state.device != self.device:
+            SIMPLEXITY_LOGGER.warning(
+                "Initial state is on device %s but model is on device %s. Moving initial state to model device.",
+                initial_state.device,
+                self.device,
+            )
+            self._initial_state = jax.device_put(initial_state, self.device)
+        else:
+            self._initial_state = initial_state
         self.log_initial_state = jnp.log(self._initial_state)
 
         self.normalizing_constant = self._initial_state @ self.normalizing_eigenvector
         self.log_normalizing_constant = jax.nn.logsumexp(self.log_initial_state + self.log_normalizing_eigenvector)
 
     def validate_transition_matrices(self, transition_matrices: jax.Array):
-        """Validate the transition matrices."""
+        """Validate the transition matrices.
+
+        For GHMM, transition matrices must be non-negative and the net transition
+        matrix T = sum_x T^(x) should have a dominant eigenvalue close to 1.
+        """
         if transition_matrices.ndim != 3 or transition_matrices.shape[1] != transition_matrices.shape[2]:
             raise ValueError("Transition matrices must have shape (vocab_size, num_states, num_states)")
+
+        # Check that net transition matrix has dominant eigenvalue close to 1
+        state_transition_matrix = jnp.asarray(jnp.sum(transition_matrices, axis=0))
+        eigenvalues, _ = jnp.linalg.eig(state_transition_matrix)
+        eigenvalues = jnp.asarray(eigenvalues)
+        principal_eigenvalue = jnp.max(jnp.abs(eigenvalues))
+
+        if not jnp.isclose(principal_eigenvalue, 1.0, rtol=1e-5):
+            SIMPLEXITY_LOGGER.warning(
+                "Net transition matrix has principal eigenvalue %.6f (expected 1.0). Matrices will be normalized.",
+                float(principal_eigenvalue),
+            )
 
     @property
     def vocab_size(self) -> int:

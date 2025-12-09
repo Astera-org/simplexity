@@ -16,21 +16,29 @@ from typing import Any, Literal
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.alternating_process import AlternatingProcess
-from simplexity.generative_processes.factored_beliefs.topology.sequential_conditional import SequentialConditional
-from simplexity.generative_processes.factored_beliefs.topology.fully_conditional import FullyConditional
-from simplexity.generative_processes.factored_beliefs.topology.conditional_transitions import ConditionalTransitions
 from simplexity.generative_processes.factored_generative_process import ComponentType, FactoredGenerativeProcess
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.structures import (
+    ConditionalTransitions,
+    FullyConditional,
+    IndependentStructure,
+    SequentialConditional,
+)
 from simplexity.generative_processes.transition_matrices import (
     GHMM_MATRIX_FUNCTIONS,
     HMM_MATRIX_FUNCTIONS,
     get_stationary_state,
 )
+from simplexity.utils.jnp_utils import resolve_jax_device
 
 
-def build_transition_matrices(matrix_functions: dict[str, Callable], process_name: str, **kwargs) -> jax.Array:
+def build_transition_matrices(
+    matrix_functions: dict[str, Callable],
+    process_name: str,
+    process_params: Mapping[str, Any] | None = None,
+    device: str | None = None,
+) -> jax.Array:
     """Build transition matrices for a generative process."""
     if process_name not in matrix_functions:
         raise KeyError(
@@ -38,13 +46,17 @@ def build_transition_matrices(matrix_functions: dict[str, Callable], process_nam
             f"Available HMM processes are: {', '.join(matrix_functions.keys())}"
         )
     matrix_function = matrix_functions[process_name]
+    process_params = process_params or {}
     sig = inspect.signature(matrix_function)
+    jax_device = resolve_jax_device(device)
     try:
-        sig.bind_partial(**kwargs)
-        transition_matrices = matrix_function(**kwargs)
+        with jax.default_device(jax_device):
+            sig.bind_partial(**process_params)
+            transition_matrices = matrix_function(**process_params)
     except TypeError as e:
         params = ", ".join(f"{k}: {v.annotation}" for k, v in sig.parameters.items())
         raise TypeError(f"Invalid arguments for {process_name}: {e}.  Signature is: {params}") from e
+
     return transition_matrices
 
 
@@ -59,18 +71,29 @@ def add_begin_of_sequence_token(transition_matrix: jax.Array, initial_state: jax
 
 
 def build_hidden_markov_model(
-    process_name: str, initial_state: jax.Array | Sequence[float] | None = None, **kwargs
+    process_name: str,
+    process_params: Mapping[str, Any] | None = None,
+    initial_state: jax.Array | Sequence[float] | None = None,
+    device: str | None = None,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model."""
+    process_params = process_params or {}
     initial_state = jnp.array(initial_state) if initial_state is not None else None
-    transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, **kwargs)
-    return HiddenMarkovModel(transition_matrices, initial_state)
+    transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params, device=device)
+    return HiddenMarkovModel(transition_matrices, initial_state, device=device)
 
 
-def build_generalized_hidden_markov_model(process_name: str, **kwargs) -> GeneralizedHiddenMarkovModel:
+def build_generalized_hidden_markov_model(
+    process_name: str,
+    process_params: Mapping[str, Any] | None = None,
+    initial_state: jax.Array | Sequence[float] | None = None,
+    device: str | None = None,
+) -> GeneralizedHiddenMarkovModel:
     """Build a generalized hidden Markov model."""
-    transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, **kwargs)
-    return GeneralizedHiddenMarkovModel(transition_matrices)
+    process_params = process_params or {}
+    initial_state = jnp.array(initial_state) if initial_state is not None else None
+    transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, process_params, device=device)
+    return GeneralizedHiddenMarkovModel(transition_matrices, initial_state, device=device)
 
 
 def build_nonergodic_transition_matrices(
@@ -108,15 +131,16 @@ def build_nonergodic_initial_state(
 
 def build_nonergodic_hidden_markov_model(
     process_names: list[str],
-    process_kwargs: Sequence[Mapping[str, Any]],
+    process_params: Sequence[Mapping[str, Any]],
     process_weights: Sequence[float],
     vocab_maps: Sequence[Sequence[int]] | None = None,
     add_bos_token: bool = False,
+    device: str | None = None,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model from a list of process names and their corresponding keyword arguments."""
     component_transition_matrices = [
-        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, **kwargs)
-        for process_name, kwargs in zip(process_names, process_kwargs, strict=True)
+        build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params, device=device)
+        for process_name, process_params in zip(process_names, process_params, strict=True)
     ]
     composite_transition_matrix = build_nonergodic_transition_matrices(component_transition_matrices, vocab_maps)
     component_initial_states = [
@@ -128,481 +152,201 @@ def build_nonergodic_hidden_markov_model(
         num_states = composite_transition_matrix.shape[1]
         initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
         initial_state = initial_state.at[num_states - 1].set(1)
-    return HiddenMarkovModel(composite_transition_matrix, initial_state)
-
-
-def build_chain_process(
-    *,
-    component_types: Sequence[ComponentType],
-    transition_matrices: Sequence[jnp.ndarray],
-    normalizing_eigenvectors: Sequence[jnp.ndarray],
-    initial_states: Sequence[jnp.ndarray],
-    control_maps: Sequence[jnp.ndarray | None],
-) -> FactoredGenerativeProcess:
-    """Build a chain/conditional factored process.
-
-    Factor i>0 selects its parameter variant based on factor i-1's emitted token.
-
-    Args:
-        component_types: Type of each factor ("hmm" or "ghmm")
-        transition_matrices: Per-factor transition tensors (shape [K_i, V_i, S_i, S_i])
-        normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
-        initial_states: Initial state per factor (shape [S_i])
-        control_maps: Control maps for variant selection. control_maps[0] should
-            be None. control_maps[i] for i>0 should have shape [V_{i-1}].
-
-    Returns:
-        FactoredGenerativeProcess with sequential conditional structure
-    """
-    # Extract vocab sizes from transition matrices
-    vocab_sizes = jnp.array([int(T.shape[1]) for T in transition_matrices])
-
-    structure = SequentialConditional(control_maps=tuple(control_maps), vocab_sizes=vocab_sizes)
-    return FactoredGenerativeProcess(
-        component_types=component_types,
-        transition_matrices=transition_matrices,
-        normalizing_eigenvectors=normalizing_eigenvectors,
-        initial_states=initial_states,
-        structure=structure,
-    )
-
-
-def build_symmetric_process(
-    *,
-    component_types: Sequence[ComponentType],
-    transition_matrices: Sequence[jnp.ndarray],
-    normalizing_eigenvectors: Sequence[jnp.ndarray],
-    initial_states: Sequence[jnp.ndarray],
-    control_maps: Sequence[jnp.ndarray],
-) -> FactoredGenerativeProcess:
-    """Build a symmetric/fully-bidirectional factored process.
-
-    Each factor selects its variant based on all other factors' tokens.
-
-    Args:
-        component_types: Type of each factor ("hmm" or "ghmm")
-        transition_matrices: Per-factor transition tensors (shape [K_i, V_i, S_i, S_i])
-        normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
-        initial_states: Initial state per factor (shape [S_i])
-        control_maps: Control maps for variant selection. control_maps[i] should
-            have shape [prod(V_j for j!=i)].
-
-    Returns:
-        FactoredGenerativeProcess with fully conditional structure
-    """
-    # Extract vocab sizes from transition matrices
-    vocab_sizes = jnp.array([int(T.shape[1]) for T in transition_matrices])
-
-    structure = FullyConditional(
-        control_maps=tuple(control_maps),
-        vocab_sizes=vocab_sizes,
-    )
-    return FactoredGenerativeProcess(
-        component_types=component_types,
-        transition_matrices=transition_matrices,
-        normalizing_eigenvectors=normalizing_eigenvectors,
-        initial_states=initial_states,
-        structure=structure,
-    )
-
-
-def build_transition_coupled_process(
-    *,
-    component_types: Sequence[ComponentType],
-    transition_matrices: Sequence[jnp.ndarray],
-    normalizing_eigenvectors: Sequence[jnp.ndarray],
-    initial_states: Sequence[jnp.ndarray],
-    control_maps_transition: Sequence[jnp.ndarray],
-    emission_variant_indices: jnp.ndarray | Sequence[int],
-    emission_control_maps: Sequence[jnp.ndarray | None] | None = None,
-) -> FactoredGenerativeProcess:
-    """Build a transition-coupled factored process.
-
-    Emissions can be independent or chain-style. Transitions are coupled
-    based on other factors' tokens.
-
-    Args:
-        component_types: Type of each factor ("hmm" or "ghmm")
-        transition_matrices: Per-factor transition tensors (shape [K_i, V_i, S_i, S_i])
-        normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
-        initial_states: Initial state per factor (shape [S_i])
-        control_maps_transition: Transition control maps. control_maps_transition[i]
-            should have shape [prod(V_j for j!=i)].
-        emission_variant_indices: Fixed emission variant per factor (shape [F])
-        emission_control_maps: Optional chain-style emission control maps.
-            If provided, emission_control_maps[i] should have shape
-            [prod(V_j for j<i)] for i>0.
-
-    Returns:
-        FactoredGenerativeProcess with conditional transitions structure
-    """
-    # Extract vocab sizes from transition matrices
-    vocab_sizes = jnp.array([int(T.shape[1]) for T in transition_matrices])
-
-    structure = ConditionalTransitions(
-        control_maps_transition=tuple(control_maps_transition),
-        emission_variant_indices=emission_variant_indices,
-        vocab_sizes=vocab_sizes,
-        emission_control_maps=tuple(emission_control_maps) if emission_control_maps else None,
-    )
-    return FactoredGenerativeProcess(
-        component_types=component_types,
-        transition_matrices=transition_matrices,
-        normalizing_eigenvectors=normalizing_eigenvectors,
-        initial_states=initial_states,
-        structure=structure,
-    )
-
-
-def build_simple_alternating_process(
-    *,
-    component_type: ComponentType,
-    transition_matrices: jnp.ndarray,
-    normalizing_eigenvectors: jnp.ndarray,
-    initial_state: jnp.ndarray,
-    n_repetitions: int = 1,
-) -> AlternatingProcess:
-    """Build a simple alternating process (non-factored).
-
-    The process cycles through n different transition matrices. This is simpler
-    than the factored alternating process - it's just a single HMM/GHMM that
-    switches between different parameter sets.
-
-    Args:
-        component_type: Either "hmm" or "ghmm"
-        transition_matrices: Array of shape [n, V, S, S] with n variants
-        normalizing_eigenvectors: Array of shape [n, S] for GHMM normalization
-        initial_state: Initial belief state distribution [S]
-        n_repetitions: Number of times each variant is used consecutively
-
-    Returns:
-        AlternatingProcess that cycles through the n variants
-
-    Example:
-        ```python
-        # Build process alternating between 2 HMM variants
-        # Each variant used 3 times before switching
-        n = 2
-        V, S = 3, 4  # 3 tokens, 4 hidden states
-
-        # Stack n transition matrices
-        T0 = ...  # [V, S, S]
-        T1 = ...  # [V, S, S]
-        transition_matrices = jnp.stack([T0, T1])  # [2, V, S, S]
-
-        process = build_simple_alternating_process(
-            component_type="hmm",
-            transition_matrices=transition_matrices,
-            normalizing_eigenvectors=jnp.ones((2, S)),  # dummy for HMM
-            initial_state=jnp.ones(S) / S,  # uniform initial state
-            n_repetitions=3,
-        )
-        ```
-    """
-    return AlternatingProcess(
-        component_type=component_type,
-        transition_matrices=transition_matrices,
-        normalizing_eigenvectors=normalizing_eigenvectors,
-        initial_state=initial_state,
-        n_repetitions=n_repetitions,
-    )
-
-
-def build_simple_alternating_process_from_spec(
-    variants: list[dict[str, Any]],
-    component_type: ComponentType = "ghmm",
-    n_repetitions: int = 1,
-) -> AlternatingProcess:
-    """Build simple alternating process from specification.
-
-    Args:
-        variants: List of variant specifications, one per sub-process
-        component_type: Either "hmm" or "ghmm"
-        n_repetitions: Number of times each variant is used consecutively
-
-    Returns:
-        AlternatingProcess
-
-    Example:
-        ```python
-        variants = [
-            {"process_name": "coin", "p": 0.7},  # Variant 0
-            {"process_name": "coin", "p": 0.3},  # Variant 1
-            {"process_name": "coin", "p": 0.5},  # Variant 2
-        ]
-
-        process = build_simple_alternating_process_from_spec(
-            variants=variants,
-            component_type="hmm",
-            n_repetitions=2,  # Each variant repeated twice
-        )
-        ```
-    """
-    if not variants:
-        raise ValueError("Must provide at least one variant")
-
-    # Build each variant
-    matrix_functions = HMM_MATRIX_FUNCTIONS if component_type == "hmm" else GHMM_MATRIX_FUNCTIONS
-    built_processes = []
-
-    for variant_spec in variants:
-        T = build_transition_matrices(matrix_functions, **variant_spec)
-        built_processes.append(T)
-
-    # Validate all have same shape
-    shapes = [T.shape for T in built_processes]
-    if len(set(shapes)) != 1:
-        raise ValueError(f"All variants must have same shape, got {shapes}")
-
-    # Stack into [n, V, S, S]
-    transition_matrices = jnp.stack(built_processes, axis=0)
-    n, V, S, _ = transition_matrices.shape
-
-    # Get initial state from first variant (uniform if stationary fails)
-    try:
-        initial_state = get_stationary_state(built_processes[0])
-    except (IndexError, ValueError):
-        # Fall back to uniform distribution if stationary state computation fails
-        initial_state = jnp.ones(S) / S
-
-    # Build normalizing eigenvectors
-    if component_type == "ghmm":
-        eigenvectors = []
-        for T in built_processes:
-            # Compute normalizing eigenvector for this variant
-            state_transition_matrix = jnp.sum(T, axis=0)
-            eigenvalues, right_eigenvectors = jnp.linalg.eig(state_transition_matrix)
-            principal_eigenvalue = jnp.max(eigenvalues)
-            normalizing_eigenvector = (
-                right_eigenvectors[:, jnp.isclose(eigenvalues, principal_eigenvalue)].squeeze().real
-            )
-            normalizing_eigenvector = normalizing_eigenvector / jnp.sum(normalizing_eigenvector) * S
-            eigenvectors.append(normalizing_eigenvector)
-        normalizing_eigenvectors = jnp.stack(eigenvectors, axis=0)
-    else:
-        # Dummy for HMM
-        normalizing_eigenvectors = jnp.ones((n, S))
-
-    return build_simple_alternating_process(
-        component_type=component_type,
-        transition_matrices=transition_matrices,
-        normalizing_eigenvectors=normalizing_eigenvectors,
-        initial_state=initial_state,
-        n_repetitions=n_repetitions,
-    )
+    return HiddenMarkovModel(composite_transition_matrix, initial_state, device=device)
 
 
 def build_factored_process(
-    topology_type: Literal["chain", "symmetric", "transition_coupled"],
+    structure_type: Literal["independent", "chain", "symmetric", "transition_coupled"],
     component_types: Sequence[ComponentType],
-    transition_matrices: Sequence[jnp.ndarray],
-    normalizing_eigenvectors: Sequence[jnp.ndarray],
-    initial_states: Sequence[jnp.ndarray],
-    **topology_kwargs,
+    transition_matrices: Sequence[jax.Array],
+    normalizing_eigenvectors: Sequence[jax.Array],
+    initial_states: Sequence[jax.Array],
+    **structure_kwargs,
 ) -> FactoredGenerativeProcess:
-    """Factory function for building factored processes with different topologies.
+    """Factory function for building factored processes with different conditional structures.
 
     Args:
-        topology_type: Type of coupling topology to use
+        structure_type: Which conditional structure to instantiate
         component_types: Type of each factor ("hmm" or "ghmm")
         transition_matrices: Per-factor transition tensors (shape [K_i, V_i, S_i, S_i])
         normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
         initial_states: Initial state per factor (shape [S_i])
-        **topology_kwargs: Topology-specific keyword arguments:
+        **structure_kwargs: Structure-specific keyword arguments:
+            - For "independent": (none)
             - For "chain": control_maps
             - For "symmetric": control_maps
             - For "transition_coupled": control_maps_transition,
               emission_variant_indices, emission_control_maps (optional)
 
     Returns:
-        FactoredGenerativeProcess with the specified topology
+        FactoredGenerativeProcess configured with the requested conditional structure
 
     Raises:
-        ValueError: If topology_type is invalid or required kwargs are missing
+        ValueError: If structure_type is invalid or required kwargs are missing
     """
-    if topology_type == "chain":
-        return build_chain_process(
-            component_types=component_types,
-            transition_matrices=transition_matrices,
-            normalizing_eigenvectors=normalizing_eigenvectors,
-            initial_states=initial_states,
-            control_maps=topology_kwargs["control_maps"],
-        )
-    elif topology_type == "symmetric":
-        return build_symmetric_process(
-            component_types=component_types,
-            transition_matrices=transition_matrices,
-            normalizing_eigenvectors=normalizing_eigenvectors,
-            initial_states=initial_states,
-            control_maps=topology_kwargs["control_maps"],
-        )
-    elif topology_type == "transition_coupled":
-        return build_transition_coupled_process(
-            component_types=component_types,
-            transition_matrices=transition_matrices,
-            normalizing_eigenvectors=normalizing_eigenvectors,
-            initial_states=initial_states,
-            control_maps_transition=topology_kwargs["control_maps_transition"],
-            emission_variant_indices=topology_kwargs["emission_variant_indices"],
-            emission_control_maps=topology_kwargs.get("emission_control_maps"),
+    vocab_sizes = jnp.array([int(T.shape[1]) for T in transition_matrices])
+
+    if structure_type == "independent":
+        structure = IndependentStructure()
+    elif structure_type == "chain":
+        if "control_maps" not in structure_kwargs:
+            raise ValueError("Missing required argument 'control_maps' for chain structure")
+        structure = SequentialConditional(control_maps=tuple(structure_kwargs["control_maps"]), vocab_sizes=vocab_sizes)
+    elif structure_type == "symmetric":
+        if "control_maps" not in structure_kwargs:
+            raise ValueError("Missing required argument 'control_maps' for symmetric structure")
+        structure = FullyConditional(control_maps=tuple(structure_kwargs["control_maps"]), vocab_sizes=vocab_sizes)
+    elif structure_type == "transition_coupled":
+        if "control_maps_transition" not in structure_kwargs:
+            raise ValueError("Missing required argument 'control_maps_transition' for transition_coupled structure")
+        if "emission_variant_indices" not in structure_kwargs:
+            raise ValueError("Missing required argument 'emission_variant_indices' for transition_coupled structure")
+        structure = ConditionalTransitions(
+            control_maps_transition=tuple(structure_kwargs["control_maps_transition"]),
+            emission_variant_indices=structure_kwargs["emission_variant_indices"],
+            vocab_sizes=vocab_sizes,
+            emission_control_maps=tuple(structure_kwargs["emission_control_maps"])
+            if "emission_control_maps" in structure_kwargs and structure_kwargs["emission_control_maps"] is not None
+            else None,
         )
     else:
-        raise ValueError(
-            f"Unknown topology_type: {topology_type}. Must be one of: 'chain', 'symmetric', 'transition_coupled'"
+        raise ValueError(f"Unknown structure_type '{structure_type}'")
+
+    return FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+    )
+
+
+def build_factored_process_from_spec(
+    structure_type: Literal["independent", "chain", "symmetric", "transition_coupled"],
+    spec: Sequence[dict[str, Any]],
+    **structure_params,
+) -> FactoredGenerativeProcess:
+    """Unified builder for factored processes from specification.
+
+    Args:
+        structure_type: Which conditional structure to use
+        spec: Component specifications. Format depends on structure_type:
+            - For "independent": List of component dicts
+            - For "chain": List of component dicts with control_maps
+            - For "symmetric": List of component dicts
+            - For "transition_coupled": List of component dicts
+        **structure_params: Additional structure-specific parameters:
+            - For "independent": (none)
+            - For "chain": (none, uses spec's control_map fields)
+            - For "symmetric": control_maps (list)
+            - For "transition_coupled": control_maps_transition, emission_variant_indices,
+              emission_control_maps (optional)
+
+    Returns:
+        FactoredGenerativeProcess with specified structure
+
+    Example:
+        ```python
+        # Independent
+        process = build_factored_process_from_spec(
+            structure_type="independent",
+            spec=[
+                {"component_type": "hmm", "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}]},
+                {"component_type": "hmm", "variants": [{"process_name": "mess3", "x": 0.5, "a": 0.6}]},
+            ],
         )
 
-
-def build_chain_process_from_spec(
-    chain: Sequence[dict[str, Any]],
-) -> FactoredGenerativeProcess:
-    """Build chain process directly from specification.
-
-    This is a convenience function that combines spec parsing and process building.
-
-    Args:
-        chain: List of factor specifications. Each should have:
-            - component_type: "hmm" or "ghmm"
-            - variants: List of variant specs with process_name and parameters
-            - control_map (for i>0): List mapping parent token -> variant index
-
-    Returns:
-        FactoredGenerativeProcess with chain topology
-
-    Example:
-        ```python
-        chain = [
-            {
-                "component_type": "hmm",
-                "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
-            },
-            {
-                "component_type": "hmm",
-                "variants": [
-                    {"process_name": "mess3", "x": 0.15, "a": 0.6},
-                    {"process_name": "mess3", "x": 0.5, "a": 0.6},
-                ],
-                "control_map": [0, 1, 0],
-            },
-        ]
-        process = build_chain_process_from_spec(chain)
-        ```
-    """
-    component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps = (
-        build_chain_from_spec(chain)
-    )
-
-    return build_chain_process(
-        component_types=component_types,
-        transition_matrices=transition_matrices,
-        normalizing_eigenvectors=normalizing_eigenvectors,
-        initial_states=initial_states,
-        control_maps=control_maps,
-    )
-
-
-def build_symmetric_process_from_spec(
-    components: Sequence[dict[str, Any]],
-    control_maps: Sequence[list[int]],
-) -> FactoredGenerativeProcess:
-    """Build symmetric process directly from specification.
-
-    Args:
-        components: List of factor specifications
-        control_maps: Control maps for each factor
-
-    Returns:
-        FactoredGenerativeProcess with symmetric topology
-
-    Example:
-        ```python
-        components = [
-            {
-                "component_type": "hmm",
-                "variants": [
-                    {"process_name": "mess3", "x": 0.15, "a": 0.6},
-                    {"process_name": "mess3", "x": 0.5, "a": 0.6},
-                ],
-            },
-            # ... more components
-        ]
-        control_maps = [[0, 1, 0, 1], [1, 0, 1, 0]]
-        process = build_symmetric_process_from_spec(components, control_maps)
-        ```
-    """
-    component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps_arrays = (
-        build_symmetric_from_spec(components, control_maps)
-    )
-
-    return build_symmetric_process(
-        component_types=component_types,
-        transition_matrices=transition_matrices,
-        normalizing_eigenvectors=normalizing_eigenvectors,
-        initial_states=initial_states,
-        control_maps=control_maps_arrays,
-    )
-
-
-def build_transition_coupled_process_from_spec(
-    components: Sequence[dict[str, Any]],
-    control_maps_transition: Sequence[list[int]],
-    emission_variant_indices: Sequence[int],
-    emission_control_maps: Sequence[list[int] | None] | None = None,
-) -> FactoredGenerativeProcess:
-    """Build transition-coupled process directly from specification.
-
-    Args:
-        components: List of factor specifications
-        control_maps_transition: Transition control maps
-        emission_variant_indices: Fixed emission variant per factor
-        emission_control_maps: Optional chain-style emission control maps
-
-    Returns:
-        FactoredGenerativeProcess with transition-coupled topology
-
-    Example:
-        ```python
-        components = [...]
-        control_maps_transition = [[0, 1, 0, 1], [1, 0, 1, 0]]
-        emission_variant_indices = [0, 0]
-        process = build_transition_coupled_process_from_spec(
-            components, control_maps_transition, emission_variant_indices
+        # Symmetric
+        process = build_factored_process_from_spec(
+            structure_type="symmetric",
+            spec=[...],
+            control_maps=[[0, 1, 0, 1], [1, 0, 1, 0]],
         )
         ```
     """
-    (
-        component_types,
-        transition_matrices,
-        normalizing_eigenvectors,
-        initial_states,
-        control_maps_arrays,
-        emission_variant_indices_array,
-        emission_control_maps_arrays,
-    ) = build_transition_coupled_from_spec(
-        components, control_maps_transition, emission_variant_indices, emission_control_maps
-    )
-
-    return build_transition_coupled_process(
-        component_types=component_types,
-        transition_matrices=transition_matrices,
-        normalizing_eigenvectors=normalizing_eigenvectors,
-        initial_states=initial_states,
-        control_maps_transition=control_maps_arrays,
-        emission_variant_indices=emission_variant_indices_array,
-        emission_control_maps=emission_control_maps_arrays,
-    )
+    if structure_type == "independent":
+        component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(spec)
+        return build_factored_process(
+            structure_type="independent",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+        )
+    elif structure_type == "chain":
+        component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps = (
+            build_chain_from_spec(spec)
+        )
+        return build_factored_process(
+            structure_type="chain",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+            control_maps=control_maps,
+        )
+    elif structure_type == "symmetric":
+        if "control_maps" not in structure_params:
+            raise ValueError("symmetric structure requires 'control_maps' parameter")
+        (
+            component_types,
+            transition_matrices,
+            normalizing_eigenvectors,
+            initial_states,
+            control_maps_arrays,
+        ) = build_symmetric_from_spec(spec, structure_params["control_maps"])
+        return build_factored_process(
+            structure_type="symmetric",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+            control_maps=control_maps_arrays,
+        )
+    elif structure_type == "transition_coupled":
+        if "control_maps_transition" not in structure_params:
+            raise ValueError("transition_coupled structure requires 'control_maps_transition' parameter")
+        if "emission_variant_indices" not in structure_params:
+            raise ValueError("transition_coupled structure requires 'emission_variant_indices' parameter")
+        (
+            component_types,
+            transition_matrices,
+            normalizing_eigenvectors,
+            initial_states,
+            control_maps_arrays,
+            emission_variant_indices_array,
+            emission_control_maps_arrays,
+        ) = build_transition_coupled_from_spec(
+            spec,
+            structure_params["control_maps_transition"],
+            structure_params["emission_variant_indices"],
+            structure_params.get("emission_control_maps"),
+        )
+        return build_factored_process(
+            structure_type="transition_coupled",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+            control_maps_transition=control_maps_arrays,
+            emission_variant_indices=emission_variant_indices_array,
+            emission_control_maps=emission_control_maps_arrays,
+        )
+    else:
+        raise ValueError(f"Unknown structure_type '{structure_type}'")
 
 
 def build_matrices_from_spec(
     spec: Sequence[dict[str, Any]],
 ) -> tuple[
     list[ComponentType],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
 ]:
     """Build transition matrices, eigenvectors, and initial states from spec.
 
-    This is a generic helper that works for all topologies. Each element of spec
+    This is a generic helper that works for all conditional structures. Each element of spec
     should be a dict with:
       - component_type: "hmm" | "ghmm"
       - variants: list of dicts, each with "process_name" and process-specific kwargs
@@ -637,9 +381,9 @@ def build_matrices_from_spec(
         raise ValueError("spec must contain at least one factor")
 
     component_types: list[ComponentType] = []
-    transition_matrices: list[jnp.ndarray] = []
-    normalizing_eigenvectors: list[jnp.ndarray] = []
-    initial_states: list[jnp.ndarray] = []
+    transition_matrices: list[jax.Array] = []
+    normalizing_eigenvectors: list[jax.Array] = []
+    initial_states: list[jax.Array] = []
 
     for idx, factor_spec in enumerate(spec):
         ctype: ComponentType = factor_spec.get("component_type", "ghmm")
@@ -688,12 +432,12 @@ def build_chain_from_spec(
     chain: Sequence[dict[str, Any]],
 ) -> tuple[
     list[ComponentType],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray | None],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array | None],
 ]:
-    """Build all parameters for chain topology from chain specification.
+    """Build all parameters for chain structure from chain specification.
 
     Each element of chain should be a dict with:
       - component_type: "hmm" | "ghmm"
@@ -734,7 +478,7 @@ def build_chain_from_spec(
     component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(chain)
 
     # Extract control maps
-    control_maps: list[jnp.ndarray | None] = []
+    control_maps: list[jax.Array | None] = []
     expected_prev_vocab = None
 
     for idx, node in enumerate(chain):
@@ -765,12 +509,12 @@ def build_symmetric_from_spec(
     control_maps: Sequence[list[int]],
 ) -> tuple[
     list[ComponentType],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
 ]:
-    """Build all parameters for symmetric topology from specification.
+    """Build all parameters for symmetric structure from specification.
 
     Args:
         components: List of factor specifications (same format as build_matrices_from_spec)
@@ -819,7 +563,7 @@ def build_symmetric_from_spec(
                 expected *= vocab_sizes[j]
 
         if int(cm.shape[0]) != expected:
-            raise ValueError(f"control_maps[{i}] length {cm.shape[0]} must equal prod(V_j for j!={i}) = {expected}")
+            raise ValueError(f"control_maps[{i}] length {cm.shape[0]} must equal prod(V_j for j!=[{i}]) = {expected}")
 
     return component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps_arrays
 
@@ -831,14 +575,14 @@ def build_transition_coupled_from_spec(
     emission_control_maps: Sequence[list[int] | None] | None = None,
 ) -> tuple[
     list[ComponentType],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    jnp.ndarray,
-    list[jnp.ndarray | None] | None,
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    jax.Array,
+    list[jax.Array | None] | None,
 ]:
-    """Build all parameters for transition-coupled topology from specification.
+    """Build all parameters for transition-coupled structure from specification.
 
     Args:
         components: List of factor specifications

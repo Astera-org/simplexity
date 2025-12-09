@@ -1,0 +1,9 @@
+name: loss
+
+instance:
+  _target_: simplexity.metrics.metric_tracker.MetricTracker
+  metric_names:
+    - loss
+  metric_kwargs:
+    ma_window_size: 10
+    ema_gamma: 0.9

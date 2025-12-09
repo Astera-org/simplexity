@@ -183,3 +183,141 @@ def test_layer_linear_regression_svd_runs_end_to_end() -> None:
 
     assert pytest.approx(1.0, abs=1e-6) == scalars["r2"]
     chex.assert_trees_all_close(projections["projected"], beliefs)
+
+
+def test_layer_linear_regression_to_factors_basic() -> None:
+    """Layer regression with to_factors should regress to each factor separately."""
+    x = jnp.arange(12.0).reshape(4, 3)  # 4 samples, 3 features
+    weights = jnp.ones(4) / 4.0
+
+    # Two factors: factor 0 has 2 states, factor 1 has 3 states
+    factor_0 = jnp.array([[0.3, 0.7], [0.5, 0.5], [0.8, 0.2], [0.1, 0.9]])  # [4, 2]
+    factor_1 = jnp.array([[0.2, 0.3, 0.5], [0.1, 0.6, 0.3], [0.4, 0.4, 0.2], [0.3, 0.3, 0.4]])  # [4, 3]
+    factored_beliefs = (factor_0, factor_1)
+
+    scalars, projections = layer_linear_regression(
+        x,
+        weights,
+        factored_beliefs,
+        to_factors=True,
+    )
+
+    # Should have separate metrics for each factor
+    assert "factor_0/r2" in scalars
+    assert "factor_1/r2" in scalars
+    assert "factor_0/rmse" in scalars
+    assert "factor_1/rmse" in scalars
+    assert "factor_0/mae" in scalars
+    assert "factor_1/mae" in scalars
+    assert "factor_0/dist" in scalars
+    assert "factor_1/dist" in scalars
+
+    # Should have separate projections for each factor
+    assert "factor_0/projected" in projections
+    assert "factor_1/projected" in projections
+
+    # Check shapes
+    assert projections["factor_0/projected"].shape == factor_0.shape
+    assert projections["factor_1/projected"].shape == factor_1.shape
+
+
+def test_layer_linear_regression_svd_to_factors_basic() -> None:
+    """Layer regression SVD with to_factors should regress to each factor separately."""
+    x = jnp.arange(12.0).reshape(4, 3)  # 4 samples, 3 features
+    weights = jnp.ones(4) / 4.0
+
+    # Two factors: factor 0 has 2 states, factor 1 has 3 states
+    factor_0 = jnp.array([[0.3, 0.7], [0.5, 0.5], [0.8, 0.2], [0.1, 0.9]])  # [4, 2]
+    factor_1 = jnp.array([[0.2, 0.3, 0.5], [0.1, 0.6, 0.3], [0.4, 0.4, 0.2], [0.3, 0.3, 0.4]])  # [4, 3]
+    factored_beliefs = (factor_0, factor_1)
+
+    scalars, projections = layer_linear_regression_svd(
+        x,
+        weights,
+        factored_beliefs,
+        to_factors=True,
+        rcond_values=[1e-6],
+    )
+
+    # Should have separate metrics for each factor including best_rcond
+    assert "factor_0/r2" in scalars
+    assert "factor_1/r2" in scalars
+    assert "factor_0/best_rcond" in scalars
+    assert "factor_1/best_rcond" in scalars
+
+    # Should have separate projections for each factor
+    assert "factor_0/projected" in projections
+    assert "factor_1/projected" in projections
+
+    # Check shapes
+    assert projections["factor_0/projected"].shape == factor_0.shape
+    assert projections["factor_1/projected"].shape == factor_1.shape
+
+
+def test_layer_linear_regression_to_factors_single_factor() -> None:
+    """to_factors=True should work with a single factor tuple."""
+    x = jnp.arange(9.0).reshape(3, 3)
+    weights = jnp.ones(3) / 3.0
+
+    # Single factor in tuple
+    factor_0 = jnp.array([[0.3, 0.7], [0.5, 0.5], [0.8, 0.2]])
+    factored_beliefs = (factor_0,)
+
+    scalars, projections = layer_linear_regression(
+        x,
+        weights,
+        factored_beliefs,
+        to_factors=True,
+    )
+
+    # Should have metrics for single factor
+    assert "factor_0/r2" in scalars
+    assert "factor_0/projected" in projections
+    assert projections["factor_0/projected"].shape == factor_0.shape
+
+
+def test_layer_linear_regression_to_factors_requires_tuple() -> None:
+    """to_factors=True requires belief_states to be a tuple."""
+    x = jnp.ones((3, 2))
+    weights = jnp.ones(3) / 3.0
+    beliefs_array = jnp.ones((3, 2))
+
+    with pytest.raises(ValueError, match="belief_states must be a tuple when to_factors is True"):
+        layer_linear_regression(x, weights, beliefs_array, to_factors=True)
+
+    with pytest.raises(ValueError, match="belief_states must be a tuple when to_factors is True"):
+        layer_linear_regression_svd(x, weights, beliefs_array, to_factors=True)
+
+
+def test_layer_linear_regression_to_factors_validates_tuple_contents() -> None:
+    """to_factors=True requires all elements in tuple to be jax.Arrays."""
+    x = jnp.ones((3, 2))
+    weights = jnp.ones(3) / 3.0
+
+    # Invalid: tuple contains non-array
+    invalid_beliefs = (jnp.ones((3, 2)), "not an array")  # type: ignore
+
+    with pytest.raises(ValueError, match="Each factor in belief_states must be a jax.Array"):
+        layer_linear_regression(x, weights, invalid_beliefs, to_factors=True)  # type: ignore
+
+    with pytest.raises(ValueError, match="Each factor in belief_states must be a jax.Array"):
+        layer_linear_regression_svd(x, weights, invalid_beliefs, to_factors=True)  # type: ignore
+
+
+def test_layer_linear_regression_to_factors_false_works() -> None:
+    """to_factors=False requires belief_states to be a single array, not a tuple."""
+    x = jnp.ones((3, 2))
+    weights = jnp.ones(3) / 3.0
+
+    # Invalid: tuple when to_factors=False
+    factored_beliefs = (jnp.ones((3, 2)), jnp.ones((3, 3)))
+
+    scalars, projections = layer_linear_regression(x, weights, factored_beliefs, to_factors=False)
+    assert "r2" in scalars
+    assert "projected" in projections
+    assert projections["projected"].shape == (3, 5)
+
+    scalars, projections = layer_linear_regression_svd(x, weights, factored_beliefs, to_factors=False)
+    assert "r2" in scalars
+    assert "projected" in projections
+    assert projections["projected"].shape == (3, 5)

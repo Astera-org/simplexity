@@ -30,8 +30,23 @@ def generate_data_batch(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
+    device: str | torch.device | None = None,
 ) -> tuple[jax.Array, torch.Tensor, torch.Tensor]:
-    """Generate a batch of data."""
+    """Generate a batch of data.
+
+    Args:
+        gen_states: Generator states
+        data_generator: Generative process
+        batch_size: Batch size
+        sequence_len: Sequence length
+        key: JAX random key
+        bos_token: Optional beginning of sequence token
+        eos_token: Optional end of sequence token
+        device: Optional target device for PyTorch tensors
+
+    Returns:
+        Tuple of (generator states, inputs, labels)
+    """
     gen_states, inputs, labels = generate_jax_data_batch(
         gen_states,
         data_generator,
@@ -41,7 +56,7 @@ def generate_data_batch(
         bos_token,
         eos_token,
     )
-    return gen_states, jax_to_torch(inputs), jax_to_torch(labels)
+    return gen_states, jax_to_torch(inputs, device), jax_to_torch(labels, device)
 
 
 def generate_data_batch_with_full_history(
@@ -52,9 +67,28 @@ def generate_data_batch_with_full_history(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array, jax.Array, jax.Array, torch.Tensor, torch.Tensor]:
-    """Generate data plus full belief/prefix histories."""
-    next_states, belief_states, prefix_probs, inputs, labels = generate_jax_data_batch_with_full_history(
+    device: str | torch.device | None = None,
+) -> dict[str, jax.Array | torch.Tensor | tuple[jax.Array, ...]]:
+    """Generate data plus full belief/prefix histories.
+
+    Args:
+        gen_states: Generator states
+        data_generator: Generative process
+        batch_size: Batch size
+        sequence_len: Sequence length
+        key: JAX random key
+        bos_token: Optional beginning of sequence token
+        eos_token: Optional end of sequence token
+        device: Optional target device for PyTorch tensors
+
+    Returns:
+        Dict with keys:
+            - belief_states: Belief states (jax.Array or tuple[jax.Array, ...])
+            - prefix_probabilities: Prefix probabilities (jax.Array)
+            - inputs: Input tokens (torch.Tensor)
+            - labels: Label tokens (torch.Tensor)
+    """
+    result = generate_jax_data_batch_with_full_history(
         gen_states,
         data_generator,
         batch_size,
@@ -63,4 +97,15 @@ def generate_data_batch_with_full_history(
         bos_token,
         eos_token,
     )
-    return next_states, belief_states, prefix_probs, jax_to_torch(inputs), jax_to_torch(labels)
+    # Extract inputs and labels (these are always jax.Arrays)
+    inputs = result["inputs"]
+    labels = result["labels"]
+    assert isinstance(inputs, jax.Array)
+    assert isinstance(labels, jax.Array)
+
+    return {
+        "belief_states": result["belief_states"],
+        "prefix_probabilities": result["prefix_probabilities"],
+        "inputs": jax_to_torch(inputs, device),
+        "labels": jax_to_torch(labels, device),
+    }

@@ -23,7 +23,7 @@ jobs:
         run: uv run --extra dev --extra penzai pylint simplexity tests
 
       - name: pyright
-        run: uv run --extra altair --extra aws --extra dev --extra penzai pyright
+        run: uv run --extra aws --extra dev --extra penzai pyright
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -62,10 +62,12 @@ jobs:
           # Coverage is tracked but won't fail - new code in PRs is checked via diff-cover
           # TODO: Enable strict overall coverage enforcement once coverage improves
           # Note: --cov-fail-under=0 is explicit but redundant since pyproject.toml doesn't set a threshold
-          uv run --extra altair --extra aws --extra dev --extra cuda --extra penzai pytest \
+          # Exclude end-to-end tests - they run in a separate workflow
+          uv run --extra aws --extra dev --extra cuda --extra penzai pytest \
             --capture=no \
             --verbose \
             --cov-fail-under=0 \
+            --ignore=tests/end_to_end \
             $TESTMON_FLAG
           
           # Verify coverage.xml was generated (required for diff-cover and Codecov)

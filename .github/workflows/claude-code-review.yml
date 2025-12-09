@@ -4,40 +4,161 @@
 name: Claude Code Review
 
 on:
+  workflow_run:
+    workflows: ["simplexity"]
+    types:
+      - completed
   pull_request:
-    types: [opened, synchronize]
+    types:
+      - ready_for_review
 
 jobs:
   claude-review:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: read
       id-token: write
-    
+      checks: read
+      actions: read
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
           fetch-depth: 1
 
+      - name: Check PR status and checks
+        id: check-status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let pr;
+
+            if (context.eventName === 'workflow_run') {
+              // Triggered by workflow_run - check if workflow succeeded
+              const workflowRun = context.payload.workflow_run;
+              if (workflowRun.event !== 'pull_request' || workflowRun.conclusion !== 'success') {
+                core.setFailed('Workflow did not succeed or was not triggered by PR');
+                return;
+              }
+              
+              // Find the PR associated with this workflow run
+              const prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${workflowRun.head_branch}`,
+              });
+              
+              if (prs.data.length === 0) {
+                core.setFailed('No open PR found');
+                return;
+              }
+              
+              pr = prs.data[0];
+            } else {
+              // Triggered by ready_for_review event
+              pr = context.payload.pull_request;
+              
+              // Check if the simplexity workflow has completed successfully
+              // List all workflow runs for this commit
+              const workflowRuns = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head_sha: pr.head.sha,
+              });
+              
+              // Find the simplexity workflow run
+              const simplexityRun = workflowRuns.data.workflow_runs.find(
+                run => run.name === 'simplexity' || run.path === '.github/workflows/simplexity.yaml'
+              );
+              
+              if (!simplexityRun) {
+                core.info('Simplexity workflow not found for this commit - skipping review');
+                core.setFailed('Checks not found');
+                return;
+              }
+              
+              if (simplexityRun.status !== 'completed' || simplexityRun.conclusion !== 'success') {
+                core.info(`Simplexity workflow status: ${simplexityRun.status}, conclusion: ${simplexityRun.conclusion} - skipping review`);
+                core.setFailed('Checks not passing');
+                return;
+              }
+            }
+
+            // Check if PR is a draft
+            if (pr.draft === true) {
+              core.info(`PR #${pr.number} is a draft - skipping Claude review`);
+              core.setFailed('PR is a draft');
+              return;
+            }
+
+            core.info(`PR #${pr.number} is ready for review and checks are passing - proceeding with Claude review`);
+
       - name: Run Claude Code Review
+        if: steps.check-status.outcome == 'success'
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Please review this pull request and provide feedback on:
+            Please review this pull request for:
             - Code quality and best practices
             - Potential bugs or issues
             - Performance considerations
             - Security concerns
             - Test coverage
-            
-            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
+            using the repository's CLAUDE.md for guidance on style and conventions.
 
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
-          
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+            IMPORTANT: You must create a proper GitHub review with inline comments on specific lines (not just a single comment).
 
+            Review Process:
+            1. Use `gh pr view --json number,headRefName,baseRefName` to get the PR number
+            2. Use `gh pr diff` to see the changes.
+            3. For each issue you find:
+               - Note the file path and the *actual file line number* (not the diff position).
+            4. Create ONE review with all inline comments using the GitHub API.
+
+            To create a review with inline comments, use this format:
+
+            ```bash
+            PR_NUM=$(gh pr view --json number -q .number)
+            gh api repos/:owner/:repo/pulls/$PR_NUM/reviews \
+              -X POST \
+              -f event=REQUEST_CHANGES \
+              -f body="Overall review summary" \
+              -f comments='[
+                {
+                  "path": "simplexity/file.py",
+                  "line": 15,
+                  "side": "RIGHT",
+                  "body": "Issue description and suggested fix"
+                },
+                {
+                  "path": "tests/test_file.py", 
+                  "line": 42,
+                  "side": "RIGHT",
+                  "body": "Another issue description"
+                }
+              ]'
+            ```
+
+            Important:
+            - `event` must be one of: APPROVE, REQUEST_CHANGES, or COMMENT
+            - Use `line` (the actual line number in the file) and `side="RIGHT"` (for new changes).
+            - Do NOT use `position`.
+            - Include ALL inline comments in a single API call
+            - If no issues found: use `event=APPROVE` with body "PR approved, no improvements needed" and empty comments array
+            - If issues found: use `event=REQUEST_CHANGES` with inline comments for each specific issue
+
+            For each inline comment, provide:
+            - Clear description of the issue
+            - Reference to the specific code
+            - Suggested fix (preferably as a code block)
+
+            Be concise and actionable. Each inline comment should be resolvable independently.
+
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr review:*),Bash(gh api:*)"'

@@ -1,5 +1,14 @@
 """Test the generator module."""
 
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -13,7 +22,7 @@ from simplexity.generative_processes.generator import (
 
 def test_generate_data_batch():
     """Test the generate_data_batch function."""
-    hmm = build_hidden_markov_model("zero_one_random", p=0.5)
+    hmm = build_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
     batch_size = 10
     sequence_len = 10
     gen_state: jax.Array = hmm.initial_state
@@ -32,7 +41,7 @@ def test_generate_data_batch():
 
 def test_generate_data_batch_with_bos_token():
     """Test the generate_data_batch function with a BOS token."""
-    hmm = build_hidden_markov_model("zero_one_random", p=0.5)
+    hmm = build_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
     batch_size = 10
     sequence_len = 10
     gen_state: jax.Array = hmm.initial_state
@@ -60,7 +69,7 @@ def test_generate_data_batch_with_bos_token():
 
 def test_generate_data_batch_with_eos_token():
     """Test the generate_data_batch function with an EOS token."""
-    hmm = build_hidden_markov_model("zero_one_random", p=0.5)
+    hmm = build_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
     batch_size = 10
     sequence_len = 10
     gen_state: jax.Array = hmm.initial_state
@@ -88,20 +97,44 @@ def test_generate_data_batch_with_eos_token():
 
 def test_generate_data_batch_with_full_history():
     """Ensure belief states and prefix probabilities can be returned."""
+<<<<<<< HEAD
     hmm = build_hidden_markov_model("zero_one_random", p=0.5)
+=======
+    hmm = build_hidden_markov_model("zero_one_random", process_params={"p": 0.5})
+>>>>>>> origin/dev
     batch_size = 4
     sequence_len = 6
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
+<<<<<<< HEAD
     next_states, belief_states, prefix_probs, inputs, labels = generate_data_batch_with_full_history(
+=======
+    result = generate_data_batch_with_full_history(
+>>>>>>> origin/dev
         states,
         hmm,
         batch_size,
         sequence_len,
         key,
     )
+<<<<<<< HEAD
     assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
     assert prefix_probs.shape == (batch_size, inputs.shape[1])
     assert next_states.shape == (batch_size, gen_state.shape[0])
+=======
+    # Extract and type-check all fields
+    belief_states = result["belief_states"]
+    prefix_probs = result["prefix_probabilities"]
+    inputs = result["inputs"]
+    labels = result["labels"]
+
+    assert isinstance(belief_states, jax.Array)
+    assert isinstance(prefix_probs, jax.Array)
+    assert isinstance(inputs, jax.Array)
+    assert isinstance(labels, jax.Array)
+
+    assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
+    assert prefix_probs.shape == (batch_size, inputs.shape[1])
+>>>>>>> origin/dev
     assert labels.shape == inputs.shape

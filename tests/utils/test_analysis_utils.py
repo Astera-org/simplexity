@@ -1,5 +1,6 @@
 """Tests for analysis utilities."""
 
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -327,6 +328,11 @@ class TestBuildPrefixDataset:
         assert jnp.allclose(jnp.sum(dataset.probs), 1.0)
 
         # Check shapes are consistent
+<<<<<<< HEAD
+=======
+
+        assert isinstance(dataset.beliefs, jax.Array)
+>>>>>>> origin/dev
         n_prefixes = dataset.beliefs.shape[0]
         assert dataset.probs.shape[0] == n_prefixes
         for layer_acts in dataset.activations_by_layer.values():
@@ -373,6 +379,7 @@ class TestBuildLastTokenDataset:
         dataset = build_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Should have 2 unique sequences
+        assert isinstance(dataset.beliefs, jax.Array)
         assert dataset.beliefs.shape[0] == 2
         assert dataset.probs.shape[0] == 2
 
@@ -381,6 +388,7 @@ class TestBuildLastTokenDataset:
         dataset = build_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Check belief dimension
+        assert isinstance(dataset.beliefs, jax.Array)
         assert dataset.beliefs.shape[1] == 2
 
         # Check layer dimensions
