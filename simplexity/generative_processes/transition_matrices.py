@@ -96,7 +96,7 @@ def fanizza(alpha: float, lamb: float) -> jax.Array:
 
 
 def leaky_rrxor(pR1: float, pR2: float, epsilon: float) -> jax.Array:
-    """Creates a transition matrix for the RRXOR Process."""
+    """Creates a transition matrix for the leaky RRXOR Process."""
     assert 0 <= epsilon <= 1
 
     transition_matrices_base = rrxor(pR1, pR2)
