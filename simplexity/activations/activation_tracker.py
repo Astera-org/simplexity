@@ -20,7 +20,7 @@ class PreparedActivations:
     """Prepared activations with belief states and sample weights."""
 
     activations: Mapping[str, jax.Array]
-    belief_states: jax.Array | None
+    belief_states: jax.Array | tuple[jax.Array, ...] | None
     weights: jax.Array
 
 
@@ -48,16 +48,26 @@ def _to_jax_array(value: Any) -> jax.Array:
     return jnp.asarray(value)
 
 
+def _convert_tuple_to_jax_array(value: tuple[Any, ...]) -> tuple[jax.Array, ...]:
+    """Convert a tuple of supported tensor types to JAX arrays."""
+    return tuple(_to_jax_array(v) for v in value)
+
+
 def prepare_activations(
     inputs: jax.Array | torch.Tensor | np.ndarray,
-    beliefs: jax.Array | torch.Tensor | np.ndarray,
+    beliefs: jax.Array
+    | torch.Tensor
+    | np.ndarray
+    | tuple[jax.Array, ...]
+    | tuple[torch.Tensor, ...]
+    | tuple[np.ndarray, ...],
     probs: jax.Array | torch.Tensor | np.ndarray,
     activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
     prepare_options: PrepareOptions,
 ) -> PreparedActivations:
     """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
     inputs = _to_jax_array(inputs)
-    beliefs = _to_jax_array(beliefs)
+    beliefs = _convert_tuple_to_jax_array(beliefs) if isinstance(beliefs, tuple) else _to_jax_array(beliefs)
     probs = _to_jax_array(probs)
     activations = {name: _to_jax_array(layer) for name, layer in activations.items()}
 
@@ -74,7 +84,7 @@ def prepare_activations(
     weights = (
         dataset.probs
         if prepare_options.use_probs_as_weights
-        else _get_uniform_weights(belief_states.shape[0], belief_states.dtype)
+        else _get_uniform_weights(dataset.probs.shape[0], dataset.probs.dtype)
     )
 
     if prepare_options.concat_layers:
