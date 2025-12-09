@@ -174,12 +174,12 @@ def test_rrxor():
 
 def test_leaky_rrxor():
     """Test the leaky rrxor transition matrices."""
-    pR1, pR2, epsilon = 0.5, 0.5, 0.1
-    transition_matrices = leaky_rrxor(pR1=pR1, pR2=pR2, epsilon=epsilon)
+    p1, p2, epsilon = 0.5, 0.5, 0.1
+    transition_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=epsilon)
     assert transition_matrices.shape == (2, 5, 5)
     validate_hmm_transition_matrices(transition_matrices)
 
-    base_matrices = rrxor(pR1, pR2)
+    base_matrices = rrxor(p1, p2)
     leak = jnp.ones((2, 5, 5))
     expected = (1 - epsilon) * base_matrices + (epsilon / 10) * leak
     chex.assert_trees_all_close(transition_matrices, expected)
@@ -187,9 +187,9 @@ def test_leaky_rrxor():
 
 def test_leaky_rrxor_zero_epsilon():
     """Test that leaky rrxor with epsilon=0 equals regular rrxor."""
-    pR1, pR2 = 0.5, 0.5
-    leaky_matrices = leaky_rrxor(pR1=pR1, pR2=pR2, epsilon=0.0)
-    base_matrices = rrxor(pR1, pR2)
+    p1, p2 = 0.5, 0.5
+    leaky_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=0.0)
+    base_matrices = rrxor(p1, p2)
     chex.assert_trees_all_close(leaky_matrices, base_matrices)
 
 
