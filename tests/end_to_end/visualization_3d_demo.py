@@ -111,7 +111,7 @@ def _convert_value_by_type(value: Any, field_type: Any) -> Any:
     return value
 
 
-def _dict_to_dataclass(data: dict[str, Any] | Any, schema: type[Any]) -> Any:
+def _dict_to_dataclass(data: dict[str, Any] | Any, schema: type[Any]) -> Any:  # pylint: disable=too-many-branches
     """Recursively convert dict to dataclass instance, handling nested structures."""
     if not isinstance(data, dict):
         return data
