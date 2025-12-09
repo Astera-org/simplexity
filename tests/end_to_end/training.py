@@ -40,7 +40,7 @@ from simplexity.structured_configs.persistence import PersistenceConfig
 from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
-CONFIG_NAME = "training.yaml"
+CONFIG_NAME = "training_test.yaml"
 
 logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
 
@@ -172,7 +172,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         assert isinstance(prefix_probs, (jax.Array, torch.Tensor))
         _, act_cache = predictive_model.run_with_cache(inputs)
         act_cache = {k: v.detach().cpu() for k, v in act_cache.items() if "resid_post" in k}
-        scalars, projections, visualizations = activation_tracker.analyze(
+        _, _, visualizations = activation_tracker.analyze(
             inputs=inputs,
             beliefs=outs["belief_states"],
             probs=prefix_probs,

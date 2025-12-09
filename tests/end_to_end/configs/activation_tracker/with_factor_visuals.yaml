@@ -6,11 +6,12 @@ instance:
     # Keys are namespaced as: {layer}_factor_{idx}/projected
     regression_factored:
       instance:
-        _target_: simplexity.activations.activation_analyses.LinearRegressionAnalysis
+        _target_: simplexity.activations.activation_analyses.LinearRegressionSVDAnalysis
         last_token_only: false
         concat_layers: false
         use_probs_as_weights: true
         to_factors: true  # Enable per-factor projections
+        rcond_values: [1e-15, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]
       visualizations:
         # # Per-factor 2D simplex visualization with column faceting
         # - name: per_factor_simplex
