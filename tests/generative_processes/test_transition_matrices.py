@@ -162,16 +162,6 @@ def test_post_quantum():
     assert jnp.isclose(transition_matrix_sum_max_eigval, 1, atol=1e-10), "Largest absolute eigenvalue is not 1"
 
 
-def test_rrxor():
-    """Test the rrxor transition matrices."""
-    transition_matrices = rrxor(p1=0.5, p2=0.5)
-    assert transition_matrices.shape == (2, 5, 5)
-    validate_hmm_transition_matrices(transition_matrices, rtol=1e-5)  # rtol=1e-6 barely fails
-    state_transition_matrix = jnp.sum(transition_matrices, axis=0)
-    stationary_distribution = get_stationary_state(state_transition_matrix.T)
-    assert jnp.allclose(stationary_distribution, jnp.array([2, 1, 1, 1, 1]) / 6)
-
-
 def test_leaky_rrxor():
     """Test the leaky rrxor transition matrices."""
     p1, p2, epsilon = 0.5, 0.5, 0.1
@@ -191,6 +181,16 @@ def test_leaky_rrxor_zero_epsilon():
     leaky_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=0.0)
     base_matrices = rrxor(p1, p2)
     chex.assert_trees_all_close(leaky_matrices, base_matrices)
+
+
+def test_rrxor():
+    """Test the rrxor transition matrices."""
+    transition_matrices = rrxor(p1=0.5, p2=0.5)
+    assert transition_matrices.shape == (2, 5, 5)
+    validate_hmm_transition_matrices(transition_matrices, rtol=1e-5)  # rtol=1e-6 barely fails
+    state_transition_matrix = jnp.sum(transition_matrices, axis=0)
+    stationary_distribution = get_stationary_state(state_transition_matrix.T)
+    assert jnp.allclose(stationary_distribution, jnp.array([2, 1, 1, 1, 1]) / 6)
 
 
 def test_sns():
