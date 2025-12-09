@@ -17,7 +17,7 @@ from simplexity.visualization.structured_configs import (
     PlotSizeConfig,
 )
 
-FieldSource = Literal["projections", "scalars", "belief_states", "weights", "metadata", "scalar_history"]
+FieldSource = Literal["projections", "scalars", "belief_states", "weights", "metadata", "scalar_pattern", "scalar_history"]
 ReducerType = Literal["argmax", "l2_norm"]
 
 
@@ -58,6 +58,8 @@ class ActivationVisualizationFieldRef:
             raise ConfigValidationError("Projection field references must specify the `key` to read from.")
         if self.source == "scalars" and not self.key:
             raise ConfigValidationError("Scalar field references must specify the `key` to read from.")
+        if self.source == "scalar_pattern" and not self.key:
+            raise ConfigValidationError("Scalar pattern field references must specify the `key` to read from.")
         if self.source == "scalar_history" and not self.key:
             raise ConfigValidationError("Scalar history field references must specify the `key` to read from.")
         if self.source == "metadata" and not self.key:

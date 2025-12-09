@@ -1,9 +1,9 @@
-name: mess3
+name: rrxor
 instance:
   _target_: simplexity.generative_processes.builder.build_hidden_markov_model
-  process_name: mess3
-  x: 0.15
-  a: 0.6
+  process_name: rrxor
+  p1: 0.5
+  p2: 0.5
 
 base_vocab_size: ???
 bos_token: ???

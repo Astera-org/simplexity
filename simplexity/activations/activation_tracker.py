@@ -206,6 +206,7 @@ class ActivationTracker:
                     belief_states=np_beliefs,
                     projections=np_projections,
                     scalars={key: float(value) for key, value in scalars.items()},
+                    scalar_history=self._scalar_history,
                     scalar_history_step=step,
                     analysis_concat_layers=analysis.concat_layers,
                     layer_names=list(prepared.activations.keys()),
@@ -225,6 +226,60 @@ class ActivationTracker:
         """Persist visualization payloads to disk with history accumulation."""
 
         return save_visualization_payloads(visualizations, root, step)
+
+    def get_scalar_history(
+        self,
+        pattern: str | None = None,
+    ) -> dict[str, list[tuple[int, float]]]:
+        """Get scalar history, optionally filtered by pattern.
+
+        Args:
+            pattern: Optional wildcard pattern to filter scalar keys (e.g., "layer_*_rmse" or "layer_0...3_loss")
+
+        Returns:
+            Dictionary mapping scalar names to list of (step, value) tuples
+        """
+        if pattern is None:
+            return dict(self._scalar_history)
+
+        import re
+
+        # Convert wildcard pattern to regex
+        has_star = "*" in pattern
+        has_range = bool(re.search(r"\d+\.\.\.\d+", pattern))
+
+        if not has_star and not has_range:
+            # No pattern, just exact match
+            return {k: v for k, v in self._scalar_history.items() if k == pattern}
+
+        # Expand range patterns first
+        if has_range:
+            range_match = re.search(r"(\d+)\.\.\.(\d+)", pattern)
+            if range_match:
+                start_idx = int(range_match.group(1))
+                end_idx = int(range_match.group(2))
+                patterns = []
+                for idx in range(start_idx, end_idx):
+                    patterns.append(re.sub(r"\d+\.\.\.\d+", str(idx), pattern))
+            else:
+                patterns = [pattern]
+        else:
+            patterns = [pattern]
+
+        # Match against available keys
+        matched = {}
+        for p in patterns:
+            if "*" in p:
+                escaped = re.escape(p).replace(r"\*", r"([^/]+)")
+                regex = re.compile(f"^{escaped}$")
+                for key, history in self._scalar_history.items():
+                    if regex.match(key):
+                        matched[key] = history
+            else:
+                if p in self._scalar_history:
+                    matched[p] = self._scalar_history[p]
+
+        return matched
 
     def get_scalar_history_df(self) -> pd.DataFrame:
         """Export scalar history as a tidy pandas DataFrame.

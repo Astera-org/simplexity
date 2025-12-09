@@ -1,0 +1,114 @@
+instance:
+  _target_: simplexity.activations.activation_tracker.ActivationTracker
+  analyses:
+    pca_all_tokens: # <- THIS RETURNS SCALARS AND PROJECTIONS
+      instance:
+        _target_: simplexity.activations.activation_analyses.PcaAnalysis
+        n_components: 20
+        last_token_only: false
+        concat_layers: false
+        use_probs_as_weights: true
+        variance_thresholds: [0.80, 0.90, 0.95, 0.99]
+        visualizations: # <- THIS IS OPTIONAL
+          - name: pca_3d_scatter # <- NEW VISUALIZATION
+            controls:
+              slider: step
+              dropdown: layer
+              cumulative: false
+            data_mapping:
+              mappings:
+                pc_0: {source: projections, key: pca, component: 0}
+                pc_1: {source: projections, key: pca, component: 1}
+                pc_2: {source: projections, key: pca, component: 2}
+                belief_r: {source: belief_states, component: 0}
+                belief_g: {source: belief_states, component: 1}
+                belief_b: {source: belief_states, component: 2}
+            preprocessing:
+              - type: combine_rgb
+                input_fields: [belief_r, belief_g, belief_b]
+                output_fields: [belief_color]
+            backend: plotly
+            layer:
+              geometry:
+                type: point
+                props: {size: 3}
+              aesthetics:
+                x: {field: pc_0, type: quantitative, title: "PC 1"}
+                y: {field: pc_1, type: quantitative, title: "PC 2"}
+                z: {field: pc_2, type: quantitative, title: "PC 3"}
+                color:
+                  field: belief_color
+                  type: nominal
+                opacity: {value: 0.85}
+            size: {width: 800, height: 600}
+            guides:
+              title: "PCA Projection (3D)"
+              subtitle: "All tokens, weighted by prefix probability"
+
+    regression: # <- THIS RETURNS SCALARS AND PROJECTIONS
+      instance:
+        _target_: simplexity.activations.activation_analyses.LinearRegressionAnalysis
+        last_token_only: false
+        concat_layers: false
+        use_probs_as_weights: true
+        visualizations: # <- THIS IS OPTIONAL
+          - name: regression_to_simplex # <- NEW VISUALIZATION
+            controls:
+              slider: step
+              dropdown: layer
+              cumulative: false
+            data_mapping:
+              mappings:
+                prob_0: {source: projections, key: projected, component: 0}
+                prob_1: {source: projections, key: projected, component: 1}
+                prob_2: {source: projections, key: projected, component: 2}
+            preprocessing:
+              - type: combine_rgb
+                input_fields: [prob_0, prob_1, prob_2]
+                output_fields: [prediction_color]
+              - type: project_to_simplex
+                input_fields: [prob_0, prob_1, prob_2]
+                output_fields: [simplex_x, simplex_y]
+            backend: plotly
+            layer:
+              geometry:
+                type: point
+                props: {size: 4}
+              aesthetics:
+                x: {field: simplex_x, type: quantitative, title: "Simplex X"}
+                y: {field: simplex_y, type: quantitative, title: "Simplex Y"}
+                color:
+                  field: prediction_color
+                  type: nominal
+                opacity: {value: 0.7}
+            size: {width: 800, height: 600}
+            guides:
+              title: "Regression Projection (Simplex)"
+          - name: ground_truth_simplex
+            data_mapping:
+              mappings:
+                belief_r: {source: belief_states, component: 0}
+                belief_g: {source: belief_states, component: 1}
+                belief_b: {source: belief_states, component: 2}
+            preprocessing:
+              - type: combine_rgb
+                input_fields: [belief_r, belief_g, belief_b]
+                output_fields: [belief_color]
+              - type: project_to_simplex
+                input_fields: [belief_r, belief_g, belief_b]
+                output_fields: [simplex_x, simplex_y]
+            backend: plotly
+            layer:
+              geometry:
+                type: point
+                props: {size: 4}
+              aesthetics:
+                x: {field: simplex_x, type: quantitative, title: "Simplex X"}
+                y: {field: simplex_y, type: quantitative, title: "Simplex Y"}
+                color:
+                  field: belief_color
+                  type: nominal
+                opacity: {value: 0.7}
+            size: {width: 800, height: 600}
+            guides:
+              title: "Regression Projection (Simplex)"

@@ -15,5 +15,5 @@ tags:
   research_step: demo
   retention: temp
 training_steps: 50000
-validate_every: 2000
+validate_every: 1000
 visualization_dir: activation_visualizations

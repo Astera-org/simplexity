@@ -11,22 +11,18 @@ instance:
         use_probs_as_weights: true
         variance_thresholds: [0.80, 0.90, 0.95, 0.99]
         visualizations: # <- THIS IS OPTIONAL
-          - name: pca_3d_scatter
+          - name: pca_3d_scatter # <- NEW VISUALIZATION
             controls:
               slider: step
               dropdown: layer
               cumulative: false
             data_mapping:
               mappings:
-                pc_0: {source: projections, key: pca, component: 0}
-                pc_1: {source: projections, key: pca, component: 1}
-                pc_2: {source: projections, key: pca, component: 2}
-                belief_r: {source: belief_states, component: 0}
-                belief_g: {source: belief_states, component: 1}
-                belief_b: {source: belief_states, component: 2}
+                pc_*: {source: projections, key: pca, component: "*"}
+                belief_*: {source: belief_states, component: "*"}
             preprocessing:
               - type: combine_rgb
-                input_fields: [belief_r, belief_g, belief_b]
+                input_fields: [belief_*]
                 output_fields: [belief_color]
             backend: plotly
             layer:
@@ -44,8 +40,8 @@ instance:
             size: {width: 800, height: 600}
             guides:
               title: "PCA Projection (3D)"
-              subtitle: "All tokens, weighted by probability"
-          - name: cumulative_explained_variance
+              subtitle: "All tokens, weighted by prefix probability"
+          - name: cumulative_explained_variance # <- NEW VISUALIZATION
             controls:
               dropdown: layer
               accumulate_steps: true
@@ -71,13 +67,13 @@ instance:
 
     regression: # <- THIS RETURNS SCALARS AND PROJECTIONS
       instance:
-        _target_: simplexity.activations.activation_analyses.LinearRegressionSVDAnalysis
+        _target_: simplexity.activations.activation_analyses.LinearRegressionAnalysis
         last_token_only: false
         concat_layers: false
         use_probs_as_weights: true
-        rcond_values: [1e-15, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]
+        # rcond_values: [1e-15, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]
         visualizations: # <- THIS IS OPTIONAL
-          - name: regression_3d
+          - name: regression_3d # <- NEW VISUALIZATION
             controls:
               slider: step
               dropdown: layer
@@ -110,7 +106,7 @@ instance:
             size: {width: 800, height: 600}
             guides:
               title: "Regression Projection (3D)"
-          - name: regression_to_simplex
+          - name: regression_to_simplex # <- NEW VISUALIZATION
             controls:
               slider: step
               dropdown: layer
@@ -165,6 +161,68 @@ instance:
                 y: {field: simplex_y, type: quantitative, title: "Simplex Y"}
                 color:
                   field: belief_color
+                  type: nominal
+                opacity: {value: 0.7}
+            size: {width: 800, height: 600}
+            guides:
+              title: "Regression Projection (Simplex)"
+          # Temporal visualization: RMSE over training steps
+          - name: rmse_over_time
+            controls:
+              accumulate_steps: true
+              dropdown: layer  # User can filter by layer in UI
+            data_mapping:
+              mappings:
+                rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_*_rmse"}  # Wildcard expands to all layers
+            backend: altair
+            layer:
+              geometry:
+                type: line
+                props: {}
+              aesthetics:
+                x: {field: step, type: quantitative, title: "Training Step"}
+                y: {field: rmse, type: quantitative, title: "RMSE"}
+                color: {field: layer, type: nominal, title: "Layer"}
+                strokeDash: {field: layer, type: nominal}
+            size: {width: 800, height: 400}
+            guides:
+              title: "RMSE Evolution Across Training"
+              subtitle: "Tracking model convergence by layer"
+    regression_concat: # <- THIS RETURNS SCALARS AND PROJECTIONS
+      instance:
+        _target_: simplexity.activations.activation_analyses.LinearRegressionAnalysis
+        last_token_only: false
+        concat_layers: true
+        use_probs_as_weights: true
+        # rcond_values: [1e-15, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]
+        visualizations: # <- THIS IS OPTIONAL
+          - name: regression_to_simplex_concat # <- NEW VISUALIZATION
+            controls:
+              slider: step
+              dropdown: layer
+              cumulative: false
+            data_mapping:
+              mappings:
+                prob_0: {source: projections, key: projected, component: 0}
+                prob_1: {source: projections, key: projected, component: 1}
+                prob_2: {source: projections, key: projected, component: 2}
+            preprocessing:
+              - type: combine_rgb
+                input_fields: [prob_0, prob_1, prob_2]
+                output_fields: [prediction_color]
+              - type: project_to_simplex
+                input_fields: [prob_0, prob_1, prob_2]
+                output_fields: [simplex_x, simplex_y]
+            backend: plotly
+            layer:
+              geometry:
+                type: point
+                props: {size: 4}
+              aesthetics:
+                x: {field: simplex_x, type: quantitative, title: "Simplex X"}
+                y: {field: simplex_y, type: quantitative, title: "Simplex Y"}
+                color:
+                  field: prediction_color
                   type: nominal
                 opacity: {value: 0.7}
             size: {width: 800, height: 600}

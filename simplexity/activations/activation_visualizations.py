@@ -69,20 +69,76 @@ class VisualizationControlsState:
 _SCALAR_INDEX_SENTINEL = "__SCALAR_INDEX_SENTINEL__"
 
 
+def _parse_scalar_expression(expr: str) -> tuple[str, str | None]:
+    """Parse a scalar expression that may contain an aggregation function.
+
+    Args:
+        expr: Expression like "layer_0_rmse" or "min(layer_0_rmse)"
+
+    Returns:
+        Tuple of (scalar_key, aggregation_function or None)
+    """
+    expr = expr.strip()
+    agg_match = re.match(r"^(min|max|avg|mean|latest|first|last)\((.+)\)$", expr)
+    if agg_match:
+        agg_func = agg_match.group(1)
+        scalar_key = agg_match.group(2).strip()
+        return (scalar_key, agg_func)
+    return (expr, None)
+
+
+def _compute_aggregation(
+    history: list[tuple[int, float]],
+    agg_func: str,
+) -> float:
+    """Compute aggregation over scalar history.
+
+    Args:
+        history: List of (step, value) tuples
+        agg_func: Aggregation function name (min, max, avg, mean, latest, first, last)
+
+    Returns:
+        Aggregated value
+    """
+    if not history:
+        raise ConfigValidationError(f"Cannot compute {agg_func} over empty history")
+
+    values = [value for _, value in history]
+
+    if agg_func == "min":
+        return float(np.min(values))
+    elif agg_func == "max":
+        return float(np.max(values))
+    elif agg_func in ("avg", "mean"):
+        return float(np.mean(values))
+    elif agg_func in ("latest", "last"):
+        return history[-1][1]
+    elif agg_func == "first":
+        return history[0][1]
+    else:
+        raise ConfigValidationError(f"Unknown aggregation function: {agg_func}")
+
+
 def _render_title_template(
     title: str | None,
     title_scalars: dict[str, str] | None,
     scalars: Mapping[str, float],
+    scalar_history: Mapping[str, list[tuple[int, float]]],
 ) -> str | None:
-    """Render a title template by substituting scalar values.
+    """Render a title template by substituting scalar values and aggregations.
 
     Args:
         title: Title string potentially containing format placeholders like {rmse:.3f}
-        title_scalars: Mapping from template variable names to scalar keys
-        scalars: Available scalar values
+        title_scalars: Mapping from template variable names to scalar keys or expressions
+        scalars: Available current scalar values
+        scalar_history: Historical scalar values for aggregations
 
     Returns:
         Rendered title string with scalar values substituted, or None if title is None
+
+    Examples:
+        title_scalars: {"rmse": "layer_0_rmse", "best": "min(layer_0_rmse)"}
+        This will substitute {rmse} with current value and {best} with historical minimum.
     """
     if title is None:
         return None
@@ -91,14 +147,27 @@ def _render_title_template(
         return title
 
     scalar_values = {}
-    for var_name, scalar_key in title_scalars.items():
-        if scalar_key in scalars:
-            scalar_values[var_name] = scalars[scalar_key]
+    for var_name, scalar_expr in title_scalars.items():
+        scalar_key, agg_func = _parse_scalar_expression(scalar_expr)
+
+        if agg_func is None:
+            # No aggregation, use current value
+            if scalar_key in scalars:
+                scalar_values[var_name] = scalars[scalar_key]
+            else:
+                raise ConfigValidationError(
+                    f"Title template references scalar '{scalar_key}' (var: '{var_name}') but it is not available. "
+                    f"Available scalars: {list(scalars.keys())}"
+                )
         else:
-            raise ConfigValidationError(
-                f"Title template references scalar '{scalar_key}' (var: '{var_name}') but it is not available. "
-                f"Available scalars: {list(scalars.keys())}"
-            )
+            # Aggregation requested, use history
+            if scalar_key not in scalar_history:
+                raise ConfigValidationError(
+                    f"Title template requests {agg_func}({scalar_key}) but no history available for '{scalar_key}'. "
+                    f"Available history keys: {list(scalar_history.keys())}"
+                )
+            history = scalar_history[scalar_key]
+            scalar_values[var_name] = _compute_aggregation(history, agg_func)
 
     try:
         return title.format(**scalar_values)
@@ -118,6 +187,7 @@ def build_visualization_payloads(
     belief_states: np.ndarray | None,
     projections: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
+    scalar_history: Mapping[str, list[tuple[int, float]]],
     scalar_history_step: int | None,
     analysis_concat_layers: bool,
     layer_names: list[str],
@@ -132,6 +202,7 @@ def build_visualization_payloads(
             metadata_columns,
             projections,
             scalars,
+            scalar_history,
             scalar_history_step,
             belief_states,
             analysis_concat_layers,
@@ -145,6 +216,7 @@ def build_visualization_payloads(
                 plot_cfg.guides.title,
                 plot_cfg.guides.title_scalars,
                 scalars,
+                scalar_history,
             )
 
         controls = _build_controls_state(dataframe, viz_cfg.controls)
@@ -276,6 +348,49 @@ def _get_component_count(
         raise ConfigValidationError(f"Component expansion not supported for source: {ref.source}")
 
 
+def _expand_pattern_to_indices(
+    pattern: str,
+    available_keys: Iterable[str],
+) -> list[int]:
+    """
+    Extract numeric indices from keys matching a wildcard or range pattern.
+
+    Args:
+        pattern: Pattern with * or N...M
+        available_keys: Keys to match against
+
+    Returns:
+        Sorted list of unique indices that match the pattern
+    """
+    has_star = "*" in pattern
+    has_range = bool(re.search(r"\d+\.\.\.\d+", pattern))
+
+    if not has_star and not has_range:
+        raise ConfigValidationError(f"Pattern '{pattern}' has no wildcard or range")
+
+    if has_star:
+        escaped_pattern = re.escape(pattern).replace(r"\*", r"(\d+)")
+        regex_pattern = re.compile(f"^{escaped_pattern}$")
+        indices: list[int] = []
+        for key in available_keys:
+            match = regex_pattern.match(key)
+            if match:
+                try:
+                    indices.append(int(match.group(1)))
+                except (ValueError, IndexError):
+                    continue
+        if not indices:
+            raise ConfigValidationError(f"No keys found matching pattern '{pattern}'")
+        return sorted(set(indices))
+    else:
+        range_match = re.search(r"(\d+)\.\.\.(\d+)", pattern)
+        if not range_match:
+            raise ConfigValidationError(f"Invalid range pattern in '{pattern}'")
+        start_idx = int(range_match.group(1))
+        end_idx = int(range_match.group(2))
+        return list(range(start_idx, end_idx))
+
+
 def _expand_scalar_keys(
     field_pattern: str,
     key_pattern: str | None,
@@ -297,27 +412,7 @@ def _expand_scalar_keys(
     if not has_star and not has_range:
         return {field_pattern: key_pattern}
 
-    if has_star:
-        escaped_pattern = re.escape(key_pattern).replace(r"\*", r"(\d+)")
-        regex_pattern = re.compile(f"^{escaped_pattern}$")
-        indices: list[int] = []
-        for scalar_key in scalars.keys():
-            match = regex_pattern.match(scalar_key)
-            if match:
-                try:
-                    indices.append(int(match.group(1)))
-                except (ValueError, IndexError):
-                    continue
-        if not indices:
-            raise ConfigValidationError(f"No scalar keys found matching pattern '{key_pattern}'")
-        indices = sorted(set(indices))
-    else:
-        range_match = re.search(r"(\d+)\.\.\.(\d+)", key_pattern)
-        if not range_match:
-            raise ConfigValidationError(f"Invalid range pattern in key '{key_pattern}'")
-        start_idx = int(range_match.group(1))
-        end_idx = int(range_match.group(2))
-        indices = list(range(start_idx, end_idx))
+    indices = _expand_pattern_to_indices(key_pattern, scalars.keys())
 
     expanded = {}
     for idx in indices:
@@ -406,52 +501,79 @@ def _expand_field_mapping(
     return expanded
 
 
-def _build_scalar_history_dataframe(
+def _build_scalar_dataframe(
     mappings: dict[str, ActivationVisualizationFieldRef],
     scalars: Mapping[str, float],
+    scalar_history: Mapping[str, list[tuple[int, float]]],
     analysis_name: str,
     current_step: int,
 ) -> pd.DataFrame:
-    """Build a long-format DataFrame for scalar visualizations at the current step."""
+    """Build a long-format DataFrame for scalar visualizations supporting both current and historical data."""
     rows: list[dict[str, Any]] = []
 
     for field_name, ref in mappings.items():
-        if ref.source != "scalar_history":
+        if ref.source not in ("scalar_pattern", "scalar_history"):
             continue
 
         if ref.key is None:
-            raise ConfigValidationError("scalar_history field references must specify a key")
+            raise ConfigValidationError(f"{ref.source} field references must specify a key")
 
         # Determine which scalar keys this mapping should include
         if "*" in ref.key or re.search(r"\d+\.\.\.\d+", ref.key):
-            matched_keys = _expand_scalar_history_pattern(ref.key, scalars.keys(), analysis_name)
+            # Match pattern against both current scalars and history keys
+            all_available_keys = set(scalars.keys()) | set(scalar_history.keys())
+            matched_keys = _expand_scalar_pattern_keys(ref.key, all_available_keys, analysis_name)
         else:
             matched_keys = [ref.key if "/" in ref.key else f"{analysis_name}/{ref.key}"]
 
         for scalar_key in matched_keys:
-            if scalar_key not in scalars:
-                continue
-
-            value = scalars[scalar_key]
-            rows.append(
-                {
-                    "step": current_step,
-                    "layer": _scalar_history_label(scalar_key),
-                    field_name: value,
-                    "metric": scalar_key,
-                }
-            )
+            if ref.source == "scalar_pattern":
+                # scalar_pattern: Always use current scalar values
+                # This ensures compatibility with accumulate_steps file persistence
+                if scalar_key in scalars:
+                    value = scalars[scalar_key]
+                    rows.append(
+                        {
+                            "step": current_step,
+                            "layer": _scalar_pattern_label(scalar_key),
+                            field_name: value,
+                            "metric": scalar_key,
+                        }
+                    )
+            elif ref.source == "scalar_history":
+                # scalar_history: Use full in-memory history
+                if scalar_key in scalar_history and scalar_history[scalar_key]:
+                    for step, value in scalar_history[scalar_key]:
+                        rows.append(
+                            {
+                                "step": step,
+                                "layer": _scalar_pattern_label(scalar_key),
+                                field_name: value,
+                                "metric": scalar_key,
+                            }
+                        )
+                elif scalar_key in scalars:
+                    # No history yet, use current value
+                    value = scalars[scalar_key]
+                    rows.append(
+                        {
+                            "step": current_step,
+                            "layer": _scalar_pattern_label(scalar_key),
+                            field_name: value,
+                            "metric": scalar_key,
+                        }
+                    )
 
     if not rows:
         raise ConfigValidationError(
-            "Scalar history visualization could not find any matching scalar values. "
-            f"Available keys: {list(scalars.keys())}"
+            "Scalar visualization could not find any matching scalar values. "
+            f"Available keys: {list(scalars.keys())}, History keys: {list(scalar_history.keys())}"
         )
 
     return pd.DataFrame(rows)
 
 
-def _expand_scalar_history_pattern(
+def _expand_scalar_pattern_keys(
     pattern: str,
     available_keys: Iterable[str],
     analysis_name: str,
@@ -468,7 +590,7 @@ def _expand_scalar_history_pattern(
     elif "/" in normalized_pattern and not has_prefixed_keys and normalized_pattern.startswith(prefix):
         normalized_pattern = normalized_pattern[len(prefix) :]
 
-    pattern_variants = _expand_scalar_history_ranges(normalized_pattern)
+    pattern_variants = _expand_scalar_pattern_ranges(normalized_pattern)
     matched: list[str] = []
 
     for variant in pattern_variants:
@@ -488,13 +610,13 @@ def _expand_scalar_history_pattern(
             unique_matches.append(key)
 
     if not unique_matches:
-        raise ConfigValidationError(f"No scalar history keys found matching pattern '{pattern}'")
+        raise ConfigValidationError(f"No scalar pattern keys found matching pattern '{pattern}'")
 
     return sorted(unique_matches)
 
 
-def _expand_scalar_history_ranges(pattern: str) -> list[str]:
-    """Expand numeric range tokens (e.g., 0...4) within a scalar history pattern."""
+def _expand_scalar_pattern_ranges(pattern: str) -> list[str]:
+    """Expand numeric range tokens (e.g., 0...4) within a scalar pattern."""
 
     range_pattern = re.compile(r"(\d+)\.\.\.(\d+)")
     match = range_pattern.search(pattern)
@@ -504,17 +626,17 @@ def _expand_scalar_history_ranges(pattern: str) -> list[str]:
     start_idx = int(match.group(1))
     end_idx = int(match.group(2))
     if start_idx >= end_idx:
-        raise ConfigValidationError(f"Invalid range pattern in scalar history key '{pattern}'")
+        raise ConfigValidationError(f"Invalid range pattern in scalar pattern key '{pattern}'")
 
     expanded: list[str] = []
     for idx in range(start_idx, end_idx):
         replaced = range_pattern.sub(str(idx), pattern, count=1)
-        expanded.extend(_expand_scalar_history_ranges(replaced))
+        expanded.extend(_expand_scalar_pattern_ranges(replaced))
     return expanded
 
 
-def _scalar_history_label(full_key: str) -> str:
-    """Derive a categorical label for scalar history rows based on the key."""
+def _scalar_pattern_label(full_key: str) -> str:
+    """Derive a categorical label for scalar pattern rows based on the key."""
 
     suffix = full_key.split("/", 1)[1] if "/" in full_key else full_key
     layer_match = re.search(r"(layer_\d+)", suffix)
@@ -528,26 +650,31 @@ def _build_dataframe(
     metadata_columns: Mapping[str, Any],
     projections: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
+    scalar_history: Mapping[str, list[tuple[int, float]]],
     scalar_history_step: int | None,
     belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
     layer_names: list[str],
 ) -> pd.DataFrame:
-    # Check if this is a scalar_history visualization
+    # Check if this is a scalar_pattern or scalar_history visualization
+    has_scalar_pattern = any(
+        ref.source == "scalar_pattern" for ref in viz_cfg.data_mapping.mappings.values()
+    )
     has_scalar_history = any(
         ref.source == "scalar_history" for ref in viz_cfg.data_mapping.mappings.values()
     )
 
-    if has_scalar_history:
+    if has_scalar_pattern or has_scalar_history:
         if scalar_history_step is None:
             raise ConfigValidationError(
-                "Visualization uses scalar_history source but analyze() was called without the `step` parameter."
+                "Visualization uses scalar_pattern/scalar_history source but analyze() was called without the `step` parameter."
             )
         # Extract analysis name from metadata
         analysis_name = str(metadata_columns.get("analysis", ["unknown"])[0])
-        return _build_scalar_history_dataframe(
+        return _build_scalar_dataframe(
             viz_cfg.data_mapping.mappings,
             scalars,
+            scalar_history,
             analysis_name,
             scalar_history_step,
         )
