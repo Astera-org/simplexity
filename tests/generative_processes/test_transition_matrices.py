@@ -10,6 +10,7 @@ from simplexity.generative_processes.transition_matrices import (
     even_ones,
     fanizza,
     get_stationary_state,
+    leaky_rrxor,
     matching_parens,
     mess3,
     mr_name,
@@ -169,6 +170,27 @@ def test_rrxor():
     state_transition_matrix = jnp.sum(transition_matrices, axis=0)
     stationary_distribution = get_stationary_state(state_transition_matrix.T)
     assert jnp.allclose(stationary_distribution, jnp.array([2, 1, 1, 1, 1]) / 6)
+
+
+def test_leaky_rrxor():
+    """Test the leaky rrxor transition matrices."""
+    p1, p2, epsilon = 0.5, 0.5, 0.1
+    transition_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=epsilon)
+    assert transition_matrices.shape == (2, 5, 5)
+    validate_hmm_transition_matrices(transition_matrices)
+
+    base_matrices = rrxor(p1, p2)
+    leak = jnp.ones((2, 5, 5))
+    expected = (1 - epsilon) * base_matrices + (epsilon / 10) * leak
+    chex.assert_trees_all_close(transition_matrices, expected)
+
+
+def test_leaky_rrxor_zero_epsilon():
+    """Test that leaky rrxor with epsilon=0 equals regular rrxor."""
+    p1, p2 = 0.5, 0.5
+    leaky_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=0.0)
+    base_matrices = rrxor(p1, p2)
+    chex.assert_trees_all_close(leaky_matrices, base_matrices)
 
 
 def test_sns():
