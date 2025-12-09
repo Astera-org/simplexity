@@ -17,9 +17,6 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
 
-# Type alias for JAX pytree states (arrays or tuples of arrays)
-PyTreeState = jax.Array | tuple[jax.Array, ...]
-
 
 @eqx.filter_jit
 def generate_data_batch(
@@ -90,10 +87,10 @@ def generate_data_batch_with_full_history(
 
 def _compute_prefix_probabilities(
     data_generator: GenerativeProcess,
-    initial_states: PyTreeState,
+    initial_states: jax.Array | tuple[jax.Array, ...],
     tokens: jax.Array,
 ) -> jax.Array:
-    def run_sequence(state: Any, seq: jax.Array) -> jax.Array:
+    def run_sequence(state: jax.Array | tuple[jax.Array, ...], seq: jax.Array) -> jax.Array:
         def step(carry_state: Any, token: jax.Array) -> tuple[Any, jax.Array]:
             obs_probs = data_generator.observation_probability_distribution(carry_state)
             token_prob = obs_probs[token]
