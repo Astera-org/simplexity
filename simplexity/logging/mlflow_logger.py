@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import platform
 import sys
@@ -22,6 +23,8 @@ from simplexity.logging.logger import Logger
 dotenv.load_dotenv()
 _DATABRICKS_HOST = os.getenv("DATABRICKS_HOST")
 
+logger = logging.getLogger(__name__)
+
 
 class MLFlowLogger(Logger):
     """Logs to MLflow Tracking."""
@@ -39,6 +42,7 @@ class MLFlowLogger(Logger):
             experiment_id = experiment.experiment_id
         else:
             experiment_id = self._client.create_experiment(experiment_name)
+        self._experiment_id = experiment_id
         run = self._client.create_run(experiment_id=experiment_id, run_name=run_name)
         self._run_id = run.info.run_id
 
@@ -94,6 +98,35 @@ class MLFlowLogger(Logger):
         """Set tags on the MLFlow."""
         tags = [RunTag(k, str(v)) for k, v in tag_dict.items()]
         self._log_batch(tags=tags)
+
+    def set_experiment_tags(self, tags: dict[str, str]) -> None:
+        """Set experiment-level tags with protection against accidental overwrites.
+
+        Experiment tags are set at the experiment level and apply to all runs
+        within the experiment. Use these for high-level categorization like
+        model type, dataset, or project information.
+
+        If a tag already exists with a different value, a warning is logged
+        and the tag is not overwritten. Tags with matching values are
+        idempotently skipped.
+
+        Args:
+            tags: Dictionary of tag key-value pairs to set on the experiment.
+        """
+        experiment = self._client.get_experiment(self._experiment_id)
+        existing_tags = experiment.tags or {}
+
+        for key, value in tags.items():
+            value_str = str(value)
+            if key in existing_tags:
+                if existing_tags[key] != value_str:
+                    logger.warning(
+                        f"Experiment tag '{key}' already set to '{existing_tags[key]}', "
+                        f"skipping attempted overwrite to '{value_str}'"
+                    )
+                    continue
+            else:
+                self._client.set_experiment_tag(self._experiment_id, key, value_str)
 
     def log_figure(
         self,
