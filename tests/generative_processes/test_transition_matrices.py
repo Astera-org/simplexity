@@ -116,15 +116,26 @@ def test_fanizza():
 
 def test_leaky_rrxor():
     """Test the leaky rrxor transition matrices."""
-    p1, p2, epsilon = 0.5, 0.5, 0.1
+    vocab_size = 2
+    num_states = 5
+    p1 = 0.5
+    p2 = 0.5
+    epsilon = 0.1
     transition_matrices = leaky_rrxor(p1=p1, p2=p2, epsilon=epsilon)
-    assert transition_matrices.shape == (2, 5, 5)
+    assert transition_matrices.shape == (vocab_size, num_states, num_states)
     validate_hmm_transition_matrices(transition_matrices)
 
     base_matrices = rrxor(p1, p2)
-    leak = jnp.ones((2, 5, 5))
-    expected = (1 - epsilon) * base_matrices + (epsilon / 10) * leak
-    chex.assert_trees_all_close(transition_matrices, expected)
+    diff = jnp.abs(transition_matrices - base_matrices)
+    leak_value = 1 / (vocab_size * num_states)
+    min_diff_expected = epsilon * jnp.min(jnp.abs(base_matrices - leak_value))
+    max_diff_expected = epsilon * jnp.max(jnp.abs(base_matrices - leak_value))
+    assert jnp.allclose(jnp.min(diff), min_diff_expected, rtol=1e-5), (
+        f"Minimum difference should be approximately {min_diff_expected}"
+    )
+    assert jnp.allclose(jnp.max(diff), max_diff_expected, rtol=1e-5), (
+        f"Maximum difference should be approximately {max_diff_expected}"
+    )
 
 
 def test_leaky_rrxor_zero_epsilon():
