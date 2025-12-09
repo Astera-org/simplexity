@@ -11,15 +11,13 @@
 
 from dataclasses import dataclass, field
 
-from simplexity.run_management.structured_configs import (
-    ActivationTrackerConfig,
-    GenerativeProcessConfig,
-    LoggingConfig,
-    MLFlowConfig,
-    OptimizerConfig,
-    PersistenceConfig,
-    PredictiveModelConfig,
-)
+from simplexity.structured_configs.activation_tracker import ActivationTrackerConfig
+from simplexity.structured_configs.generative_process import GenerativeProcessConfig
+from simplexity.structured_configs.logging import LoggingConfig
+from simplexity.structured_configs.mlflow import MLFlowConfig
+from simplexity.structured_configs.optimizer import OptimizerConfig
+from simplexity.structured_configs.persistence import PersistenceConfig
+from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 
 @dataclass

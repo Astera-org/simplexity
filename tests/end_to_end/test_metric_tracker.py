@@ -33,7 +33,7 @@ class SimpleModel(nn.Module):
 
 @hydra.main(config_path="configs", config_name="test_metric_tracker.yaml", version_base="1.2")
 @simplexity.managed_run(strict=False, verbose=False)
-def test_metric_tracker(_cfg: DictConfig, components: simplexity.Components) -> None:
+def test_metric_tracker(_cfg: DictConfig, components: simplexity.Components) -> None:  # noqa: PT019
     """Test the metric tracker integration."""
     SIMPLEXITY_LOGGER.info("Testing metric tracker integration")
 

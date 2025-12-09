@@ -762,7 +762,7 @@ class TestCombinedDataMapping:
             )
 
     def test_combined_with_mappings_raises(self):
-        """Test that an ActivationVisualizationDataMapping with both 'mappings' and 'combined' raises a ConfigValidationError."""
+        """Test that a DataMapping with both 'mappings' and 'combined' raises ConfigValidationError."""
         with pytest.raises(ConfigValidationError, match="Cannot use both"):
             ActivationVisualizationDataMapping(
                 mappings={"prob_0": ActivationVisualizationFieldRef(source="projections", key="proj", component=0)},

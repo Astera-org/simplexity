@@ -30,7 +30,7 @@ from simplexity.generative_processes.torch_generator import generate_data_batch,
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.mlflow_persister import MLFlowPersister
-from simplexity.run_management.structured_configs import ActivationTrackerConfig
+from simplexity.structured_configs.activation_tracker import ActivationTrackerConfig
 from simplexity.structured_configs.generative_process import GenerativeProcessConfig
 from simplexity.structured_configs.logging import LoggingConfig
 from simplexity.structured_configs.metric_tracker import MetricTrackerConfig
