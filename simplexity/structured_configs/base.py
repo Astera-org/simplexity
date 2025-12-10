@@ -78,8 +78,8 @@ def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int | None = Non
 
     seed_tag = cfg.get("seed")
     if seed_tag is None:
-        cfg.seed = seed or 42
-    elif seed and seed_tag != seed:
+        cfg.seed = seed if seed is not None else 42
+    elif seed is not None and seed_tag != seed:
         SIMPLEXITY_LOGGER.warning("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", seed_tag, seed)
         cfg.seed = seed
 

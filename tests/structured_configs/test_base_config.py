@@ -120,9 +120,9 @@ class TestResolveBaseConfig:
     def test_empty_config_with_explicit_param_values(self) -> None:
         """Test resolve_base_config with valid configs."""
         cfg = DictConfig({})
-        resolve_base_config(cfg, strict=True, seed=34, device="gpu")
+        resolve_base_config(cfg, strict=True, seed=0, device="gpu")
         assert cfg.device == "gpu"
-        assert cfg.seed == 34
+        assert cfg.seed == 0
         assert cfg.tags.strict == "true"
 
     def test_empty_config_with_default_param_values(self) -> None:
@@ -136,10 +136,10 @@ class TestResolveBaseConfig:
     def test_config_with_matching_param_values(self) -> None:
         """Test resolve_base_config preserves matching seed, strict and device values."""
         # matching values
-        cfg = DictConfig({"device": "gpu", "seed": 34, "tags": DictConfig({"strict": "true"})})
-        resolve_base_config(cfg, strict=True, seed=34, device="gpu")
+        cfg = DictConfig({"device": "gpu", "seed": 0, "tags": DictConfig({"strict": "true"})})
+        resolve_base_config(cfg, strict=True, seed=0, device="gpu")
         assert cfg.device == "gpu"
-        assert cfg.seed == 34
+        assert cfg.seed == 0
         assert cfg.tags.strict == "true"
 
     def test_config_with_non_matching_param_values(self) -> None:
@@ -147,16 +147,16 @@ class TestResolveBaseConfig:
         # non-matching values
         cfg = DictConfig({"device": "gpu", "seed": 34, "tags": DictConfig({"strict": "true"})})
         with patch("simplexity.structured_configs.base.SIMPLEXITY_LOGGER.warning") as mock_warning:
-            resolve_base_config(cfg, strict=False, seed=56, device="cpu")
+            resolve_base_config(cfg, strict=False, seed=0, device="cpu")
             mock_warning.assert_has_calls(
                 [
                     call("Device tag set to '%s', but device is '%s'. Overriding device tag.", "gpu", "cpu"),
-                    call("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", 34, 56),
+                    call("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", 34, 0),
                     call("Strict tag set to '%s', but strict mode is '%s'. Overriding strict tag.", "true", "false"),
                 ]
             )
             assert cfg.device == "cpu"
-            assert cfg.seed == 56
+            assert cfg.seed == 0
             assert cfg.tags.strict == "false"
 
     def test_config_with_no_param_values(self) -> None:
