@@ -64,8 +64,8 @@ def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int | None = Non
     Args:
         cfg: A DictConfig with seed and tags fields (from Hydra).
         strict: Whether strict mode is enabled. Used to set tags.strict.
-        seed: The random seed to use. Defaults to 42.
-        device: The device to use. Defaults to "auto".
+        seed: The random seed to use. If None, defaults to 42 when config has no seed.
+        device: The device to use. If None, defaults to "auto" when config has no device.
     """
     device_tag = cfg.get("device")
     if device_tag is None:
