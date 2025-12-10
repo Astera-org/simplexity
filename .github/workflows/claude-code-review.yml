@@ -33,9 +33,9 @@ jobs:
     # 4. Workflow_run event where associated PR targets main
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main') ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'main') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && contains(github.event.workflow_run.pull_requests.*.base.ref, 'main'))
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.base_ref == 'main')
 
     steps:
       - name: Checkout repository
