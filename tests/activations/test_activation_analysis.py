@@ -751,11 +751,11 @@ class TestScalarSeriesMapping:
         )
         metadata_columns = {"step": np.array([0])}
         scalars = {
-            "layer_0_metric_1": 0.1,
-            "layer_0_metric_2": 0.2,
-            "layer_1_metric_1": 0.3,
+            "test_analysis/layer_0_metric_1": 0.1,
+            "test_analysis/layer_0_metric_2": 0.2,
+            "test_analysis/layer_1_metric_1": 0.3,
         }
-        df = _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0", "layer_1"])
+        df = _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0", "layer_1"], "test_analysis")
 
         assert set(df["component"]) == {1, 2}
         assert set(df[df["layer"] == "layer_0"]["component"]) == {1, 2}
@@ -771,4 +771,4 @@ class TestScalarSeriesMapping:
         scalars = {}
 
         with pytest.raises(ConfigValidationError):
-            _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0"])
+            _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0"], "test_analysis")

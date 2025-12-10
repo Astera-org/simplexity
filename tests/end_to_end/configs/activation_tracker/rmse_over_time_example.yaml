@@ -20,7 +20,7 @@ instance:
             dropdown: layer  # User can filter by layer in UI
           data_mapping:
             mappings:
-              rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_*_rmse"}
+              rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_post_rmse"}
           backend: altair
           layer:
             geometry:

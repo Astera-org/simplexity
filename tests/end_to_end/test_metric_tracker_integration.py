@@ -1,20 +1,16 @@
 """Test metric tracker integration without full demo dependencies."""
 
 import logging
-import sys
 from pathlib import Path
 
-import hydra
 import torch
-from omegaconf import DictConfig
+from hydra import compose, initialize_config_dir
 from torch import nn
 
-# Add simplexity to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import simplexity  # pylint: disable=wrong-import-position
+import simplexity
 
 SIMPLEXITY_LOGGER = logging.getLogger("simplexity")
+CONFIG_DIR = str(Path(__file__).parent / "configs")
 
 
 class SimpleModel(nn.Module):
@@ -31,10 +27,9 @@ class SimpleModel(nn.Module):
         return self.linear(x)
 
 
-@hydra.main(config_path="configs", config_name="test_metric_tracker.yaml", version_base="1.2")
 @simplexity.managed_run(strict=False, verbose=False)
-def test_metric_tracker(_cfg: DictConfig, components: simplexity.Components) -> None:  # noqa: PT019
-    """Test the metric tracker integration."""
+def _run_metric_tracker_test(_cfg, components: simplexity.Components) -> None:  # pylint: disable=unused-argument
+    """Run the metric tracker integration test."""
     SIMPLEXITY_LOGGER.info("Testing metric tracker integration")
 
     # Check that metric tracker was instantiated
@@ -78,9 +73,17 @@ def test_metric_tracker(_cfg: DictConfig, components: simplexity.Components) -> 
         tokens_val = metrics.get("tokens/raw", "N/A")
         SIMPLEXITY_LOGGER.info("Step %d metrics: loss=%.4f, tokens=%s", step, loss_val, tokens_val)
 
-    SIMPLEXITY_LOGGER.info("✅ Metric tracker integration test PASSED")
+    SIMPLEXITY_LOGGER.info("Metric tracker integration test PASSED")
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    test_metric_tracker()  # pylint: disable=no-value-for-parameter
+def test_metric_tracker(tmp_path: Path) -> None:
+    """Test the metric tracker integration."""
+    mlflow_db = tmp_path / "mlflow.db"
+    mlflow_uri = f"sqlite:///{mlflow_db.absolute()}"
+    overrides = [
+        f"mlflow.tracking_uri={mlflow_uri}",
+        f"mlflow.registry_uri={mlflow_uri}",
+    ]
+    with initialize_config_dir(CONFIG_DIR, version_base="1.2"):
+        cfg = compose(config_name="test_metric_tracker.yaml", overrides=overrides)
+    _run_metric_tracker_test(cfg)  # pylint: disable=no-value-for-parameter

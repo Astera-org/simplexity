@@ -5,7 +5,7 @@ instance:
     pca_all_tokens: # <- THIS RETURNS SCALARS AND PROJECTIONS
       instance:
         _target_: simplexity.activations.activation_analyses.PcaAnalysis
-        n_components: 20
+        n_components: null
         last_token_only: false
         concat_layers: false
         use_probs_as_weights: true
@@ -173,7 +173,7 @@ instance:
             dropdown: layer  # User can filter by layer in UI
           data_mapping:
             mappings:
-              rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_*_rmse"}  # Wildcard expands to all layers
+              rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_post_rmse"}  # Wildcard expands to all layers
           backend: altair
           layer:
             geometry:

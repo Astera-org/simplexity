@@ -103,8 +103,10 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     assert activation_tracker is not None
 
     # gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
-    gen_states = tuple(
-        jnp.repeat(s[None, :], cfg.training.batch_size, axis=0) for s in generative_process.initial_state
+    gen_states = (
+        tuple(jnp.repeat(s[None, :], cfg.training.batch_size, axis=0) for s in generative_process.initial_state)
+        if isinstance(generative_process.initial_state, tuple)
+        else jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
     )
 
     # Only need to specify device for MPS since JAX doesn't support it

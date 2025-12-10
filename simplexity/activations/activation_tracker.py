@@ -226,7 +226,7 @@ class ActivationTracker:
                     weights=np_weights,
                     belief_states=np_beliefs,
                     projections=np_projections,
-                    scalars={key: float(value) for key, value in scalars.items()},
+                    scalars={f"{analysis_name}/{key}": float(value) for key, value in scalars.items()},
                     scalar_history=self._scalar_history,
                     scalar_history_step=step,
                     analysis_concat_layers=analysis.concat_layers,

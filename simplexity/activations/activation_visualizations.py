@@ -1140,8 +1140,9 @@ def _build_dataframe(
                 "Visualization uses scalar_pattern/scalar_history "
                 "source but analyze() was called without the `step` parameter."
             )
-        # Extract analysis name from metadata
-        analysis_name = str(metadata_columns.get("analysis", ["unknown"])[0])
+        if "analysis" not in metadata_columns:
+            raise ConfigValidationError("scalar_pattern/scalar_history requires 'analysis' in metadata_columns.")
+        analysis_name = str(metadata_columns["analysis"][0])
         return _build_scalar_dataframe(
             viz_cfg.data_mapping.mappings,
             scalars,
@@ -1151,11 +1152,15 @@ def _build_dataframe(
         )
 
     if viz_cfg.data_mapping.scalar_series is not None:
+        if "analysis" not in metadata_columns:
+            raise ConfigValidationError("scalar_series requires 'analysis' in metadata_columns.")
+        analysis_name = str(metadata_columns["analysis"][0])
         return _build_scalar_series_dataframe(
             viz_cfg.data_mapping.scalar_series,
             metadata_columns,
             scalars,
             layer_names,
+            analysis_name,
         )
 
     # Standard mappings mode - delegate to helper
@@ -1218,13 +1223,15 @@ def _build_scalar_series_dataframe(
     metadata_columns: Mapping[str, Any],
     scalars: Mapping[str, float],
     layer_names: list[str],
+    analysis_name: str,
 ) -> pd.DataFrame:
     base_metadata = _scalar_series_metadata(metadata_columns)
     rows: list[dict[str, Any]] = []
     for layer_name in layer_names:
-        index_values = mapping.index_values or _infer_scalar_series_indices(mapping, scalars, layer_name)
+        index_values = mapping.index_values or _infer_scalar_series_indices(mapping, scalars, layer_name, analysis_name)
         for index_value in index_values:
-            scalar_key = mapping.key_template.format(layer=layer_name, index=index_value)
+            raw_key = mapping.key_template.format(layer=layer_name, index=index_value)
+            scalar_key = f"{analysis_name}/{raw_key}"
             scalar_value = scalars.get(scalar_key)
             if scalar_value is None:
                 continue
@@ -1246,8 +1253,10 @@ def _infer_scalar_series_indices(
     mapping: ScalarSeriesMapping,
     scalars: Mapping[str, float],
     layer_name: str,
+    analysis_name: str,
 ) -> list[int]:
-    template = mapping.key_template.format(layer=layer_name, index=_SCALAR_INDEX_SENTINEL)
+    raw_template = mapping.key_template.format(layer=layer_name, index=_SCALAR_INDEX_SENTINEL)
+    template = f"{analysis_name}/{raw_template}"
     if _SCALAR_INDEX_SENTINEL not in template:
         raise ConfigValidationError(
             "scalar_series.key_template must include '{index}' placeholder to infer index values."
