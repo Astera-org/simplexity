@@ -29,7 +29,6 @@ def mock_boto():
         sys.modules["botocore.exceptions"] = MagicMock()
         # Mock ClientError
         sys.modules["botocore.exceptions"].ClientError = Exception
-    yield
 
 
 def get_model(seed: int = 0) -> eqx.Module:
