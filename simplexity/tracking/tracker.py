@@ -1,13 +1,15 @@
 """RunTracker protocol."""
 
-from typing import Any, Protocol
-from collections.abc import Mapping
+# pylint: disable=unnecessary-ellipsis
 
+from collections.abc import Mapping
+from typing import Any, Protocol
+
+import matplotlib.figure
 import mlflow
 import numpy
 import PIL.Image
 import plotly.graph_objects
-import matplotlib.figure
 from omegaconf import DictConfig
 
 

@@ -11,7 +11,7 @@
 
 from dataclasses import dataclass
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config

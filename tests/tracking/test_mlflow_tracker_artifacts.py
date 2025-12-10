@@ -1,6 +1,5 @@
 """Tests for artifact logging functionality for MLFlowTracker."""
 
-import json
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
