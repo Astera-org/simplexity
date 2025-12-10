@@ -73,17 +73,17 @@ def _get_calling_file_path() -> str | None:
     return None
 
 
-def log_git_info(logger: RunTracker) -> None:
+def log_git_info(tracker: RunTracker) -> None:
     """Log git information for reproducibility.
 
     Logs git information for the main repository where training is running.
     """
     tags = {f"git.main.{k}": v for k, v in get_git_info().items()}
     if tags:
-        logger.log_tags(tags)
+        tracker.log_tags(tags)
 
 
-def log_environment_artifacts(logger: RunTracker) -> None:
+def log_environment_artifacts(tracker: RunTracker) -> None:
     """Log environment configuration files as MLflow artifacts for reproducibility.
 
     Logs dependency lockfile, project configuration, and system information
@@ -92,10 +92,10 @@ def log_environment_artifacts(logger: RunTracker) -> None:
     environment_objects = ["uv.lock", "pyproject.toml"]
     for obj in environment_objects:
         if Path(obj).exists():
-            logger.log_artifact(str(obj), "environment")
+            tracker.log_artifact(str(obj), "environment")
 
 
-def log_system_info(logger: RunTracker) -> None:
+def log_system_info(tracker: RunTracker) -> None:
     """Generate and log system information as an artifact."""
     with tempfile.TemporaryDirectory() as temp_dir:
         info_path = Path(temp_dir) / "system_info.txt"
@@ -106,10 +106,10 @@ def log_system_info(logger: RunTracker) -> None:
             f.write(f"Machine: {platform.machine()}\n")
             f.write(f"Processor: {platform.processor()}\n")
 
-        logger.log_artifact(str(info_path), "environment")
+        tracker.log_artifact(str(info_path), "environment")
 
 
-def log_hydra_artifacts(logger: RunTracker) -> None:
+def log_hydra_artifacts(tracker: RunTracker) -> None:
     """Log Hydra artifacts for reproducibility."""
     try:
         hydra_dir = Path(HydraConfig.get().runtime.output_dir) / ".hydra"
@@ -120,15 +120,15 @@ def log_hydra_artifacts(logger: RunTracker) -> None:
         path = hydra_dir / artifact
         if path.exists():
             try:
-                logger.log_artifact(str(path), artifact_path=".hydra")
+                tracker.log_artifact(str(path), artifact_path=".hydra")
             except Exception as e:
                 SIMPLEXITY_LOGGER.warning("Failed to log Hydra artifact %s: %s", path, e)
 
 
-def log_source_script(logger: RunTracker) -> None:
+def log_source_script(tracker: RunTracker) -> None:
     """Log the source script for reproducibility."""
     calling_file_path = _get_calling_file_path()
     if calling_file_path:
-        logger.log_artifact(calling_file_path, artifact_path="source")
+        tracker.log_artifact(calling_file_path, artifact_path="source")
     else:
         SIMPLEXITY_LOGGER.warning("Failed to log source script")
