@@ -68,7 +68,7 @@ def generate_data_batch_with_full_history(
     bos_token: int | None = None,
     eos_token: int | None = None,
     device: str | torch.device | None = None,
-) -> tuple[jax.Array, jax.Array, jax.Array, torch.Tensor, torch.Tensor]:
+) -> dict[str, jax.Array | torch.Tensor | tuple[jax.Array, ...]]:
     """Generate data plus full belief/prefix histories.
 
     Args:
@@ -82,9 +82,13 @@ def generate_data_batch_with_full_history(
         device: Optional target device for PyTorch tensors
 
     Returns:
-        Tuple of (next states, belief states, prefix probs, inputs, labels)
+        Dict with keys:
+            - belief_states: Belief states (jax.Array or tuple[jax.Array, ...])
+            - prefix_probabilities: Prefix probabilities (jax.Array)
+            - inputs: Input tokens (torch.Tensor)
+            - labels: Label tokens (torch.Tensor)
     """
-    next_states, belief_states, prefix_probs, inputs, labels = generate_jax_data_batch_with_full_history(
+    result = generate_jax_data_batch_with_full_history(
         gen_states,
         data_generator,
         batch_size,
@@ -93,4 +97,15 @@ def generate_data_batch_with_full_history(
         bos_token,
         eos_token,
     )
-    return next_states, belief_states, prefix_probs, jax_to_torch(inputs, device), jax_to_torch(labels, device)
+    # Extract inputs and labels (these are always jax.Arrays)
+    inputs = result["inputs"]
+    labels = result["labels"]
+    assert isinstance(inputs, jax.Array)
+    assert isinstance(labels, jax.Array)
+
+    return {
+        "belief_states": result["belief_states"],
+        "prefix_probabilities": result["prefix_probabilities"],
+        "inputs": jax_to_torch(inputs, device),
+        "labels": jax_to_torch(labels, device),
+    }

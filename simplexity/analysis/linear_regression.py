@@ -139,22 +139,56 @@ def linear_regression_svd(
 def layer_linear_regression(
     layer_activations: jax.Array,
     weights: jax.Array,
-    belief_states: jax.Array | None,
+    belief_states: jax.Array | tuple[jax.Array, ...] | None,
+    to_factors: bool = False,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Layer-wise regression helper that wraps :func:`linear_regression`."""
     if belief_states is None:
         raise ValueError("linear_regression requires belief_states")
-    return linear_regression(layer_activations, belief_states, weights, **kwargs)
+
+    if to_factors:
+        scalars, projections = {}, {}
+        if not isinstance(belief_states, tuple):
+            raise ValueError("belief_states must be a tuple when to_factors is True")
+        for factor_idx, factor in enumerate(belief_states):
+            if not isinstance(factor, jax.Array):
+                raise ValueError("Each factor in belief_states must be a jax.Array")
+            factor_scalars, factor_projections = linear_regression(layer_activations, factor, weights, **kwargs)
+            for key, value in factor_scalars.items():
+                scalars[f"factor_{factor_idx}/{key}"] = value
+            for key, value in factor_projections.items():
+                projections[f"factor_{factor_idx}/{key}"] = value
+        return scalars, projections
+    else:
+        belief_states = jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
+        return linear_regression(layer_activations, belief_states, weights, **kwargs)
 
 
 def layer_linear_regression_svd(
     layer_activations: jax.Array,
     weights: jax.Array,
-    belief_states: jax.Array | None,
+    belief_states: jax.Array | tuple[jax.Array, ...] | None,
+    to_factors: bool = False,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Layer-wise regression helper that wraps :func:`linear_regression_svd`."""
     if belief_states is None:
         raise ValueError("linear_regression_svd requires belief_states")
-    return linear_regression_svd(layer_activations, belief_states, weights, **kwargs)
+
+    if to_factors:
+        scalars, projections = {}, {}
+        if not isinstance(belief_states, tuple):
+            raise ValueError("belief_states must be a tuple when to_factors is True")
+        for factor_idx, factor in enumerate(belief_states):
+            if not isinstance(factor, jax.Array):
+                raise ValueError("Each factor in belief_states must be a jax.Array")
+            factor_scalars, factor_projections = linear_regression_svd(layer_activations, factor, weights, **kwargs)
+            for key, value in factor_scalars.items():
+                scalars[f"factor_{factor_idx}/{key}"] = value
+            for key, value in factor_projections.items():
+                projections[f"factor_{factor_idx}/{key}"] = value
+        return scalars, projections
+    else:
+        belief_states = jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
+        return linear_regression_svd(layer_activations, belief_states, weights, **kwargs)

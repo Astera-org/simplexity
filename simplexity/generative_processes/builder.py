@@ -152,15 +152,15 @@ def build_nonergodic_hidden_markov_model(
         num_states = composite_transition_matrix.shape[1]
         initial_state = jnp.zeros((num_states,), dtype=composite_transition_matrix.dtype)
         initial_state = initial_state.at[num_states - 1].set(1)
-    return HiddenMarkovModel(composite_transition_matrix, initial_state)
+    return HiddenMarkovModel(composite_transition_matrix, initial_state, device=device)
 
 
 def build_factored_process(
     structure_type: Literal["independent", "chain", "symmetric", "transition_coupled"],
     component_types: Sequence[ComponentType],
-    transition_matrices: Sequence[jnp.ndarray],
-    normalizing_eigenvectors: Sequence[jnp.ndarray],
-    initial_states: Sequence[jnp.ndarray],
+    transition_matrices: Sequence[jax.Array],
+    normalizing_eigenvectors: Sequence[jax.Array],
+    initial_states: Sequence[jax.Array],
     **structure_kwargs,
 ) -> FactoredGenerativeProcess:
     """Factory function for building factored processes with different conditional structures.
@@ -340,9 +340,9 @@ def build_matrices_from_spec(
     spec: Sequence[dict[str, Any]],
 ) -> tuple[
     list[ComponentType],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
 ]:
     """Build transition matrices, eigenvectors, and initial states from spec.
 
@@ -381,9 +381,9 @@ def build_matrices_from_spec(
         raise ValueError("spec must contain at least one factor")
 
     component_types: list[ComponentType] = []
-    transition_matrices: list[jnp.ndarray] = []
-    normalizing_eigenvectors: list[jnp.ndarray] = []
-    initial_states: list[jnp.ndarray] = []
+    transition_matrices: list[jax.Array] = []
+    normalizing_eigenvectors: list[jax.Array] = []
+    initial_states: list[jax.Array] = []
 
     for idx, factor_spec in enumerate(spec):
         ctype: ComponentType = factor_spec.get("component_type", "ghmm")
@@ -432,10 +432,10 @@ def build_chain_from_spec(
     chain: Sequence[dict[str, Any]],
 ) -> tuple[
     list[ComponentType],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray | None],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array | None],
 ]:
     """Build all parameters for chain structure from chain specification.
 
@@ -478,7 +478,7 @@ def build_chain_from_spec(
     component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(chain)
 
     # Extract control maps
-    control_maps: list[jnp.ndarray | None] = []
+    control_maps: list[jax.Array | None] = []
     expected_prev_vocab = None
 
     for idx, node in enumerate(chain):
@@ -509,10 +509,10 @@ def build_symmetric_from_spec(
     control_maps: Sequence[list[int]],
 ) -> tuple[
     list[ComponentType],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
 ]:
     """Build all parameters for symmetric structure from specification.
 
@@ -563,7 +563,7 @@ def build_symmetric_from_spec(
                 expected *= vocab_sizes[j]
 
         if int(cm.shape[0]) != expected:
-            raise ValueError(f"control_maps[{i}] length {cm.shape[0]} must equal prod(V_j for j!={i}) = {expected}")
+            raise ValueError(f"control_maps[{i}] length {cm.shape[0]} must equal prod(V_j for j!=[{i}]) = {expected}")
 
     return component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps_arrays
 
@@ -575,12 +575,12 @@ def build_transition_coupled_from_spec(
     emission_control_maps: Sequence[list[int] | None] | None = None,
 ) -> tuple[
     list[ComponentType],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    list[jnp.ndarray],
-    jnp.ndarray,
-    list[jnp.ndarray | None] | None,
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    jax.Array,
+    list[jax.Array | None] | None,
 ]:
     """Build all parameters for transition-coupled structure from specification.
 

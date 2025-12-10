@@ -9,8 +9,8 @@ from __future__ import annotations
 from typing import Literal
 
 import chex
-import jax.numpy as jnp
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 
 ComponentType = Literal["hmm", "ghmm"]
@@ -18,10 +18,10 @@ ComponentType = Literal["hmm", "ghmm"]
 
 def compute_obs_dist_for_variant(
     component_type: ComponentType,
-    state: jnp.ndarray,
-    transition_matrix: jnp.ndarray,
-    normalizing_eigenvector: jnp.ndarray | None = None,
-) -> jnp.ndarray:
+    state: jax.Array,
+    transition_matrix: jax.Array,
+    normalizing_eigenvector: jax.Array | None = None,
+) -> jax.Array:
     """Compute observation distribution for a single factor variant.
 
     Args:
@@ -48,11 +48,11 @@ def compute_obs_dist_for_variant(
 
 def transition_with_obs(
     component_type: ComponentType,
-    state: jnp.ndarray,
-    transition_matrix: jnp.ndarray,
-    obs: jnp.ndarray,
-    normalizing_eigenvector: jnp.ndarray | None = None,
-) -> jnp.ndarray:
+    state: jax.Array,
+    transition_matrix: jax.Array,
+    obs: jax.Array,
+    normalizing_eigenvector: jax.Array | None = None,
+) -> jax.Array:
     """Update state after observing a token.
 
     Args:
@@ -77,13 +77,6 @@ def transition_with_obs(
         return new_state / (new_state @ normalizing_eigenvector)
 
 
-"""Token encoding utilities for factored observations.
-
-Handles conversion between composite tokens and per-factor token tuples
-using radix/base conversion.
-"""
-
-
 class TokenEncoder(eqx.Module):
     """Encodes/decodes composite observations from per-factor tokens.
 
@@ -96,10 +89,10 @@ class TokenEncoder(eqx.Module):
         radix_multipliers: Array of shape [F] with multipliers for encoding
     """
 
-    vocab_sizes: jnp.ndarray  # shape [F]
-    radix_multipliers: jnp.ndarray  # shape [F]
+    vocab_sizes: jax.Array  # shape [F]
+    radix_multipliers: jax.Array  # shape [F]
 
-    def __init__(self, vocab_sizes: jnp.ndarray):
+    def __init__(self, vocab_sizes: jax.Array):
         """Initialize encoder with vocab sizes.
 
         Args:
@@ -108,11 +101,11 @@ class TokenEncoder(eqx.Module):
         self.vocab_sizes = jnp.asarray(vocab_sizes)
 
         # Compute radix multipliers
-        F = len(vocab_sizes)
+        f = len(vocab_sizes)
         multipliers = []
-        for i in range(F):
+        for i in range(f):
             m = 1
-            for j in range(i + 1, F):
+            for j in range(i + 1, f):
                 m *= int(vocab_sizes[j])
             multipliers.append(m)
         self.radix_multipliers = jnp.array(multipliers)
@@ -127,11 +120,11 @@ class TokenEncoder(eqx.Module):
         """Total vocabulary size of composite observation."""
         return int(jnp.prod(self.vocab_sizes))
 
-    def tuple_to_token(self, token_tuple: tuple[jnp.ndarray, ...]) -> jnp.ndarray:
+    def tuple_to_token(self, token_tuple: tuple[jax.Array, ...]) -> jax.Array:
         """Convert per-factor tokens to composite token.
 
         Args:
-            token_tuple: Tuple of F scalar arrays, each in [0, V_i)
+            token_tuple: Tuple of f scalar arrays, each in [0, V_i)
 
         Returns:
             Scalar array with composite token in [0, prod(V_i))
@@ -143,14 +136,14 @@ class TokenEncoder(eqx.Module):
             multiplier *= self.vocab_sizes[i]
         return token
 
-    def token_to_tuple(self, token: chex.Array) -> tuple[jnp.ndarray, ...]:
+    def token_to_tuple(self, token: chex.Array) -> tuple[jax.Array, ...]:
         """Convert composite token to per-factor tokens.
 
         Args:
             token: Scalar array with composite token
 
         Returns:
-            Tuple of F scalar arrays with per-factor tokens
+            Tuple of f scalar arrays with per-factor tokens
         """
         result = []
         remaining = jnp.array(token)
@@ -161,14 +154,14 @@ class TokenEncoder(eqx.Module):
             remaining = remaining // v
         return tuple(reversed(result))
 
-    def extract_factors_vectorized(self, tokens: jnp.ndarray) -> jnp.ndarray:
+    def extract_factors_vectorized(self, tokens: jax.Array) -> jax.Array:
         """Extract per-factor tokens from batch of composite tokens.
 
         Args:
-            tokens: Array of shape [N] with composite tokens
+            tokens: Array of shape [n] with composite tokens
 
         Returns:
-            Array of shape [N, F] with per-factor tokens
+            Array of shape [n, f] with per-factor tokens
         """
         tokens = jnp.atleast_1d(tokens)
         return (tokens[:, None] // self.radix_multipliers[None, :]) % self.vocab_sizes[None, :]

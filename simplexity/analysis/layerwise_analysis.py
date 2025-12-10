@@ -34,21 +34,23 @@ class AnalysisRegistration:
 
 def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     provided = dict(kwargs or {})
-    allowed = {"fit_intercept"}
+    allowed = {"fit_intercept", "to_factors"}
     unexpected = set(provided) - allowed
     if unexpected:
         raise ValueError(f"Unexpected linear_regression kwargs: {sorted(unexpected)}")
     fit_intercept = bool(provided.get("fit_intercept", True))
-    return {"fit_intercept": fit_intercept}
+    to_factors = bool(provided.get("to_factors", False))
+    return {"fit_intercept": fit_intercept, "to_factors": to_factors}
 
 
 def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     provided = dict(kwargs or {})
-    allowed = {"fit_intercept", "rcond_values"}
+    allowed = {"fit_intercept", "rcond_values", "to_factors"}
     unexpected = set(provided) - allowed
     if unexpected:
         raise ValueError(f"Unexpected linear_regression_svd kwargs: {sorted(unexpected)}")
     fit_intercept = bool(provided.get("fit_intercept", True))
+    to_factors = bool(provided.get("to_factors", False))
     rcond_values = provided.get("rcond_values")
     if rcond_values is not None:
         if not isinstance(rcond_values, (list, tuple)):
@@ -58,6 +60,7 @@ def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> 
         rcond_values = tuple(float(v) for v in rcond_values)
     return {
         "fit_intercept": fit_intercept,
+        "to_factors": to_factors,
         "rcond_values": rcond_values,
     }
 
@@ -152,7 +155,7 @@ class LayerwiseAnalysis:
         self,
         activations: Mapping[str, jax.Array],
         weights: jax.Array,
-        belief_states: jax.Array | None = None,
+        belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Analyze activations and return namespaced scalar metrics and projections."""
         if self._requires_belief_states and belief_states is None:

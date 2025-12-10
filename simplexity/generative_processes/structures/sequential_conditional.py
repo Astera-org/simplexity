@@ -29,13 +29,13 @@ class SequentialConditional(eqx.Module):
         vocab_sizes_py: Python int tuple of vocab sizes (for reshape operations)
     """
 
-    control_maps: tuple[jnp.ndarray | None, ...]
-    vocab_sizes_py: tuple[int, ...] | None
+    control_maps: tuple[jax.Array | None, ...]
+    vocab_sizes_py: tuple[int, ...]
 
     def __init__(
         self,
-        control_maps: tuple[jnp.ndarray | None, ...],
-        vocab_sizes: jnp.ndarray | None = None,
+        control_maps: tuple[jax.Array | None, ...],
+        vocab_sizes: jax.Array,
     ):
         """Initialize sequential conditional structure.
 
@@ -43,13 +43,12 @@ class SequentialConditional(eqx.Module):
             control_maps: Control maps for variant selection. control_maps[0]
                 should be None (root factor). control_maps[i] for i>0 should
                 have shape [V_{i-1}] mapping parent token to variant index.
-            vocab_sizes: Optional vocab sizes for shape operations. If provided,
-                should be array of shape [F].
+            vocab_sizes: Vocab sizes for shape operations. Must be array of shape [F].
         """
         self.control_maps = tuple(control_maps)
-        self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes) if vocab_sizes is not None else None
+        self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
 
-    def compute_joint_distribution(self, context: ConditionalContext) -> jnp.ndarray:
+    def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
         """Compute joint distribution using sequential factorization.
 
         Builds P(t0, t1, ..., tF) = P(t0) * P(t1|t0) * ... * P(tF|t_{F-1})
@@ -81,7 +80,7 @@ class SequentialConditional(eqx.Module):
             ks = jnp.arange(num_var_i, dtype=jnp.int32)
 
             # Vectorize over variants
-            def get_dist_i(k: jnp.ndarray, i: int = i) -> jnp.ndarray:
+            def get_dist_i(k: jax.Array, i: int = i) -> jax.Array:
                 transition_matrix_k = transition_matrices[i][k]
                 norm_k = normalizing_eigenvectors[i][k] if component_types[i] == "ghmm" else None
                 return compute_obs_dist_for_variant(component_types[i], states[i], transition_matrix_k, norm_k)
@@ -96,12 +95,8 @@ class SequentialConditional(eqx.Module):
             # Current joint has shape [..., V_{i-1}]
             # We want to expand to [..., V_{i-1}, V_i]
             # Use precomputed Python ints for reshape (JIT-compatible)
-            if self.vocab_sizes_py is not None:
-                prev_vocab_size = self.vocab_sizes_py[i - 1]
-                curr_vocab_size = self.vocab_sizes_py[i]
-            else:
-                prev_vocab_size = int(context.vocab_sizes[i - 1])
-                curr_vocab_size = int(context.vocab_sizes[i])
+            prev_vocab_size = self.vocab_sizes_py[i - 1]
+            curr_vocab_size = self.vocab_sizes_py[i]
             left = joint.reshape(-1, prev_vocab_size)  # [P, V_{i-1}]
             extended = left[..., None] * cond[None, ...]  # [P, V_{i-1}, V_i]
             joint = extended.reshape(joint.shape + (curr_vocab_size,))
@@ -110,9 +105,9 @@ class SequentialConditional(eqx.Module):
 
     def select_variants(
         self,
-        obs_tuple: tuple[jnp.ndarray, ...],
+        obs_tuple: tuple[jax.Array, ...],
         context: ConditionalContext,  # pylint: disable=unused-argument
-    ) -> tuple[jnp.ndarray, ...]:
+    ) -> tuple[jax.Array, ...]:
         """Select variants based on parent tokens in chain.
 
         Args:

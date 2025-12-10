@@ -38,6 +38,24 @@ def dedup_tensor_first(
     return jnp.stack(values, axis=0), prefixes
 
 
+def dedup_tuple_of_tensors_first(
+    tensors: tuple[jax.Array, ...],
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
+) -> tuple[tuple[jax.Array, ...], list[tuple[int, ...]]]:
+    """Deduplicate a tuple of (batch, seq_len, ...) tensors by prefixes, taking the first occurrence in each tuple."""
+    combined_values = []
+    prefixes = prefix_to_indices.keys()
+
+    for tensor in tensors:
+        values = []
+        for idxs in prefix_to_indices.values():
+            seq_idx, pos = idxs[0]
+            values.append(tensor[seq_idx, pos])
+        combined_values.append(jnp.stack(values, axis=0))
+
+    return tuple(combined_values), list(prefixes)
+
+
 def dedup_probs_sum(
     probs: jax.Array,
     prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
@@ -127,19 +145,37 @@ def dedup_last_token_probs_sum(
     return dedup_probs, sequences
 
 
+def dedup_last_token_tuple_of_tensors_first(
+    tensors: tuple[jax.Array, ...],
+    sequence_to_indices: dict[tuple[int, ...], list[int]],
+) -> tuple[tuple[jax.Array, ...], list[tuple[int, ...]]]:
+    """Deduplicate a tuple of (batch, ...) tensors by full sequences, taking the first occurrence in each tuple."""
+    combined_values = []
+    sequences = list(sequence_to_indices.keys())
+
+    for tensor in tensors:
+        values = []
+        for idxs in sequence_to_indices.values():
+            seq_idx = idxs[0]
+            values.append(tensor[seq_idx])
+        combined_values.append(jnp.stack(values, axis=0))
+
+    return tuple(combined_values), sequences
+
+
 @dataclass
 class DeduplicatedDataset:
     """A clean container for last-token-only data."""
 
     sequences: list[tuple[int, ...]]
-    beliefs: jax.Array
+    beliefs: jax.Array | tuple[jax.Array, ...]
     probs: jax.Array
     activations_by_layer: dict[str, jax.Array]
 
 
 def build_deduplicated_dataset(
     inputs: jax.Array,
-    beliefs: jax.Array,
+    beliefs: jax.Array | tuple[jax.Array, ...],
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
     select_last_token: bool = False,
@@ -163,14 +199,18 @@ def build_deduplicated_dataset(
 
 def build_prefix_dataset(
     inputs: jax.Array,
-    beliefs: jax.Array,
+    beliefs: jax.Array | tuple[jax.Array, ...],
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
 ) -> DeduplicatedDataset:
     """Deduplicate everything by prefix."""
     prefix_to_indices = make_prefix_groups(inputs)
 
-    dedup_beliefs, prefixes = dedup_tensor_first(beliefs, prefix_to_indices)
+    dedup_beliefs, prefixes = (
+        dedup_tensor_first(beliefs, prefix_to_indices)
+        if isinstance(beliefs, jax.Array)
+        else dedup_tuple_of_tensors_first(beliefs, prefix_to_indices)
+    )
     dedup_probs, prefixes2 = dedup_probs_sum(probs, prefix_to_indices)
 
     if prefixes != prefixes2:
@@ -193,18 +233,25 @@ def build_prefix_dataset(
 
 def build_last_token_dataset(
     inputs: jax.Array,
-    beliefs: jax.Array,
+    beliefs: jax.Array | tuple[jax.Array, ...],
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
 ) -> DeduplicatedDataset:
     """Deduplicate everything by full sequence."""
-    beliefs = beliefs[:, -1, :]
+    if isinstance(beliefs, tuple):
+        beliefs = tuple(b[:, -1, :] for b in beliefs)
+    else:
+        beliefs = beliefs[:, -1, :]
     probs = probs[:, -1]
     activations_by_layer = {name: acts[:, -1, :] for name, acts in activations_by_layer.items()}
     sequence_to_indices = make_sequence_groups(inputs)
 
     # Dedup beliefs & probs
-    dedup_beliefs, sequences = dedup_last_token_tensor_first(beliefs, sequence_to_indices)
+    dedup_beliefs, sequences = (
+        dedup_last_token_tensor_first(beliefs, sequence_to_indices)
+        if isinstance(beliefs, jax.Array)
+        else dedup_last_token_tuple_of_tensors_first(beliefs, sequence_to_indices)
+    )
     dedup_probs, sequences2 = dedup_last_token_probs_sum(probs, sequence_to_indices)
 
     if sequences != sequences2:

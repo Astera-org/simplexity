@@ -450,3 +450,180 @@ def test_independent_structure_get_required_params():
     structure = IndependentStructure()
     required_params = structure.get_required_params()
     assert required_params == {}
+
+
+def test_factored_process_rejects_empty_components():
+    """FactoredGenerativeProcess should reject empty component lists."""
+    with pytest.raises(ValueError, match="Must provide at least one component"):
+        FactoredGenerativeProcess(
+            component_types=(),
+            transition_matrices=(),
+            normalizing_eigenvectors=(),
+            initial_states=(),
+            structure=IndependentStructure(),
+        )
+
+
+def test_factored_process_validates_transition_matrix_ndim():
+    """FactoredGenerativeProcess should reject non-4D transition matrices."""
+    component_types = ("hmm",)
+    # Wrong shape: should be [K, V, S, S] but providing [V, S, S]
+    transition_matrices = (jnp.ones((2, 3, 3), dtype=jnp.float32),)
+    normalizing_eigenvectors = (jnp.ones((1, 3), dtype=jnp.float32),)
+    initial_states = (jnp.ones(3, dtype=jnp.float32),)
+    structure = IndependentStructure()
+
+    with pytest.raises(ValueError, match=r"transition_matrices\[0\] must have shape \[K, V, S, S\]"):
+        FactoredGenerativeProcess(
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+            structure=structure,
+        )
+
+
+def test_factored_process_validates_transition_matrix_square():
+    """FactoredGenerativeProcess should reject non-square transition matrices."""
+    component_types = ("hmm",)
+    # Wrong shape: last two dims should be equal
+    transition_matrices = (jnp.ones((1, 2, 3, 4), dtype=jnp.float32),)
+    normalizing_eigenvectors = (jnp.ones((1, 3), dtype=jnp.float32),)
+    initial_states = (jnp.ones(3, dtype=jnp.float32),)
+    structure = IndependentStructure()
+
+    with pytest.raises(ValueError, match=r"transition_matrices\[0\] square mismatch"):
+        FactoredGenerativeProcess(
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+            structure=structure,
+        )
+
+
+def test_factored_process_computes_vocab_sizes_from_transitions():
+    """FactoredGenerativeProcess should infer vocab sizes from transition matrices."""
+    component_types = ("hmm", "hmm")
+    # Factor 0 has vocab size 2, factor 1 has vocab size 3
+    transition_matrices = (
+        jnp.ones((1, 2, 4, 4), dtype=jnp.float32),  # K=1, V=2, S=4
+        jnp.ones((1, 3, 5, 5), dtype=jnp.float32),  # K=1, V=3, S=5
+    )
+    normalizing_eigenvectors = (
+        jnp.ones((1, 4), dtype=jnp.float32),
+        jnp.ones((1, 5), dtype=jnp.float32),
+    )
+    initial_states = (
+        jnp.ones(4, dtype=jnp.float32),
+        jnp.ones(5, dtype=jnp.float32),
+    )
+    structure = IndependentStructure()
+
+    process = FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+    )
+
+    assert process.vocab_size == 2 * 3  # Product of vocab sizes
+    chex.assert_trees_all_equal(process.encoder.vocab_sizes, jnp.array([2, 3]))
+
+
+def test_factored_process_computes_num_variants_from_transitions():
+    """FactoredGenerativeProcess should infer num_variants from transition matrices."""
+    component_types = ("hmm", "hmm")
+    # Factor 0 has 2 variants, factor 1 has 3 variants
+    transition_matrices = (
+        jnp.ones((2, 2, 4, 4), dtype=jnp.float32),  # K=2
+        jnp.ones((3, 2, 5, 5), dtype=jnp.float32),  # K=3
+    )
+    normalizing_eigenvectors = (
+        jnp.ones((2, 4), dtype=jnp.float32),
+        jnp.ones((3, 5), dtype=jnp.float32),
+    )
+    initial_states = (
+        jnp.ones(4, dtype=jnp.float32),
+        jnp.ones(5, dtype=jnp.float32),
+    )
+    structure = IndependentStructure()
+
+    process = FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+    )
+
+    assert process.num_variants == (2, 3)
+
+
+def test_factored_process_ghmm_component_uses_normalizing_eigenvector():
+    """GHMM components should use normalizing eigenvectors in transitions."""
+    component_types = ("ghmm", "hmm")
+    # Simple transition matrix and eigenvector for GHMM
+    transition_matrices = (
+        jnp.array([[[[0.8, 0.2], [0.3, 0.7]]]], dtype=jnp.float32),  # GHMM with K=1, V=1, S=2
+        _tensor_from_probs([[0.6, 0.4]]),  # HMM
+    )
+    normalizing_eigenvectors = (
+        jnp.array([[0.5, 0.5]], dtype=jnp.float32),  # For GHMM
+        jnp.ones((1, 1), dtype=jnp.float32),  # For HMM (not used)
+    )
+    initial_states = (
+        jnp.array([0.6, 0.4], dtype=jnp.float32),
+        jnp.array([1.0], dtype=jnp.float32),
+    )
+    structure = SequentialConditional(
+        control_maps=(None, jnp.array([0], dtype=jnp.int32)),
+        vocab_sizes=jnp.array([1, 2], dtype=jnp.int32),
+    )
+
+    process = FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+    )
+
+    # Verify process initializes correctly with GHMM
+    assert process.component_types[0] == "ghmm"
+    assert process.component_types[1] == "hmm"
+
+    # Test that transition works (it should use the eigenvector for GHMM)
+    obs_token = jnp.array(0, dtype=jnp.int32)
+    new_state = process.transition_states(initial_states, obs_token)
+
+    # Just verify it runs without error and produces valid states
+    assert new_state[0].shape == initial_states[0].shape
+    assert new_state[1].shape == initial_states[1].shape
+
+
+def test_factored_process_device_placement():
+    """FactoredGenerativeProcess should respect device placement."""
+    component_types = ("hmm",)
+    transition_matrices = (jnp.ones((1, 2, 3, 3), dtype=jnp.float32),)
+    normalizing_eigenvectors = (jnp.ones((1, 3), dtype=jnp.float32),)
+    initial_states = (jnp.ones(3, dtype=jnp.float32),)
+    structure = IndependentStructure()
+
+    # Should work with explicit device specification
+    process = FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+        device="cpu",
+    )
+
+    # Device should be set
+    assert process.device is not None
+    # Arrays should be on the specified device
+    assert all(tm.device == process.device for tm in process.transition_matrices)
+    assert all(ev.device == process.device for ev in process.normalizing_eigenvectors)
+    assert all(s.device == process.device for s in process.initial_states)
