@@ -54,7 +54,7 @@ def validate_base_config(cfg: DictConfig) -> None:
 
 
 @dynamic_resolve
-def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42, device: str | None = None) -> None:
+def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int | None = None, device: str | None = None) -> None:
     """Resolve the BaseConfig by setting default values and logging mismatches.
 
     This function sets default seed and strict tag values if not present in the config.
@@ -67,25 +67,21 @@ def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42, device
         seed: The random seed to use. Defaults to 42.
         device: The device to use. Defaults to "auto".
     """
-    if device is None:
-        device = "auto"
-    if cfg.get("device") is None:
+    device_tag = cfg.get("device")
+    if device_tag is None:
+        cfg.device = device or "auto"
+    elif device and device_tag != device:
+        SIMPLEXITY_LOGGER.warning(
+            "Device tag set to '%s', but device is '%s'. Overriding device tag.", device_tag, device
+        )
         cfg.device = device
-    else:
-        device_tag: str = cfg.get("device")
-        if device_tag != device:
-            SIMPLEXITY_LOGGER.warning(
-                "Device tag set to '%s', but device is '%s'. Overriding device tag.", device_tag, device
-            )
-            cfg.device = device
 
-    if cfg.get("seed") is None:
+    seed_tag = cfg.get("seed")
+    if seed_tag is None:
+        cfg.seed = seed or 42
+    elif seed and seed_tag != seed:
+        SIMPLEXITY_LOGGER.warning("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", seed_tag, seed)
         cfg.seed = seed
-    else:
-        seed_tag: int = cfg.get("seed")
-        if seed_tag != seed:
-            SIMPLEXITY_LOGGER.warning("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", seed_tag, seed)
-            cfg.seed = seed
 
     if cfg.get("tags") is None:
         cfg.tags = DictConfig({"strict": str(strict).lower()})

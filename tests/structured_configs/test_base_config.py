@@ -22,8 +22,8 @@ from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.base import resolve_base_config, validate_base_config
 
 
-class TestBaseConfig:
-    """Test BaseConfig."""
+class TestValidateBaseConfig:
+    """Test validate_base_config."""
 
     def test_validate_base_config_valid(self) -> None:
         """Test validate_base_config with valid configs."""
@@ -113,7 +113,11 @@ class TestBaseConfig:
         with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
             validate_base_config(cfg)
 
-    def test_resolve_base_config(self) -> None:
+
+class TestResolveBaseConfig:
+    """Test resolve_base_config."""
+
+    def test_empty_config_with_explicit_param_values(self) -> None:
         """Test resolve_base_config with valid configs."""
         cfg = DictConfig({})
         resolve_base_config(cfg, strict=True, seed=34, device="gpu")
@@ -121,30 +125,44 @@ class TestBaseConfig:
         assert cfg.seed == 34
         assert cfg.tags.strict == "true"
 
-        # default seed
+    def test_empty_config_with_default_param_values(self) -> None:
+        """Test resolve_base_config with default values."""
         cfg = DictConfig({})
         resolve_base_config(cfg, strict=False)
         assert cfg.device == "auto"
         assert cfg.seed == 42
         assert cfg.tags.strict == "false"
 
-    def test_resolve_base_config_with_existing_values(self) -> None:
+    def test_config_with_matching_param_values(self) -> None:
         """Test resolve_base_config overrides mismatched seed and strict values."""
         # matching values
-        cfg = DictConfig({"seed": 34, "tags": DictConfig({"strict": "true"})})
-        resolve_base_config(cfg, strict=True, seed=34)
+        cfg = DictConfig({"device": "gpu", "seed": 34, "tags": DictConfig({"strict": "true"})})
+        resolve_base_config(cfg, strict=True, seed=34, device="gpu")
+        assert cfg.device == "gpu"
         assert cfg.seed == 34
         assert cfg.tags.strict == "true"
 
+    def test_config_with_non_matching_param_values(self) -> None:
+        """Test resolve_base_config overrides mismatched seed and strict values."""
         # non-matching values
-        cfg = DictConfig({"seed": 34, "tags": DictConfig({"strict": "true"})})
+        cfg = DictConfig({"device": "gpu", "seed": 34, "tags": DictConfig({"strict": "true"})})
         with patch("simplexity.structured_configs.base.SIMPLEXITY_LOGGER.warning") as mock_warning:
-            resolve_base_config(cfg, strict=False, seed=56)
+            resolve_base_config(cfg, strict=False, seed=56, device="cpu")
             mock_warning.assert_has_calls(
                 [
+                    call("Device tag set to '%s', but device is '%s'. Overriding device tag.", "gpu", "cpu"),
                     call("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", 34, 56),
                     call("Strict tag set to '%s', but strict mode is '%s'. Overriding strict tag.", "true", "false"),
                 ]
             )
+            assert cfg.device == "cpu"
             assert cfg.seed == 56
             assert cfg.tags.strict == "false"
+
+    def test_config_with_no_param_values(self) -> None:
+        """Test resolve_base_config with no param values."""
+        cfg = DictConfig({"device": "gpu", "seed": 34})
+        resolve_base_config(cfg, strict=False)
+        assert cfg.device == "gpu"
+        assert cfg.seed == 34
+        assert cfg.tags.strict == "false"
