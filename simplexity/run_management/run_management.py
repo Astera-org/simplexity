@@ -275,13 +275,22 @@ def _setup_tracking(cfg: DictConfig, instance_keys: list[str], *, strict: bool) 
         trackers = {instance_key: _instantiate_tracker(cfg, instance_key) for instance_key in instance_keys}
         if strict:
             mlflow_trackers = [tracker for tracker in trackers.values() if isinstance(tracker, MLFlowTracker)]
-            if mlflow_trackers:
-                assert any(
-                    tracker.tracking_uri and tracker.tracking_uri.startswith("databricks")
-                    for tracker in mlflow_trackers
-                ), "Tracking URI must start with 'databricks'"
+            assert mlflow_trackers, "No MLFlow trackers found"
+            assert any(
+                tracker.tracking_uri and tracker.tracking_uri.startswith("databricks") for tracker in mlflow_trackers
+            ), "Tracking URI must start with 'databricks'"
         return trackers
     SIMPLEXITY_LOGGER.info("[tracking] no tracking configs found")
+    return None
+
+
+def _get_tracker(trackers: dict[str, RunTracker] | None) -> RunTracker | None:
+    if trackers:
+        if len(trackers) == 1:
+            return next(iter(trackers.values()))
+        SIMPLEXITY_LOGGER.warning("[tracking] multiple trackers found, any model loading will be skipped")
+        return None
+    SIMPLEXITY_LOGGER.warning("[tracking] no trackers found, any model loading will be skipped")
     return None
 
 
@@ -370,15 +379,9 @@ def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
 
 def _load_checkpoint(model: Any, trackers: dict[str, RunTracker] | None, load_checkpoint_step: int) -> None:
     """Load the checkpoint."""
-    # Try to find a tracker that can load the model
-    if not trackers:
+    tracker = _get_tracker(trackers)
+    if tracker is None:
         raise RuntimeError("No trackers found to load model checkpoint")
-
-    # If multiple trackers, we need to decide which one to use.
-    # For now, we use the first one available or maybe specific logic?
-    # Original logic only supported one persister.
-    # We will try the first one.
-    tracker = next(iter(trackers.values()))
     tracker.load_model(model, load_checkpoint_step)
     SIMPLEXITY_LOGGER.info("[predictive model] loaded checkpoint step: %s", load_checkpoint_step)
 
