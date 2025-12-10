@@ -1,22 +1,23 @@
 """Local model persister protocol."""
 
-from typing import Any, Protocol
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any
 
 
-class LocalModelPersister(Protocol):
-    """Persists a model to a local directory."""
+class LocalModelPersister(ABC):
+    """Abstract base class for local model persisters."""
 
-    directory: Any
+    directory: Path
     """Return the directory where the model is persisted."""
 
-    def cleanup(self) -> None:
+    def cleanup(self) -> None:  # noqa: B027
         """Cleans up the persister."""
-        ...
 
+    @abstractmethod
     def save_weights(self, model: Any, step: int = 0) -> None:
         """Saves a model."""
-        ...
 
+    @abstractmethod
     def load_weights(self, model: Any, step: int = 0) -> Any:
         """Load weights into an existing model instance."""
-        ...
