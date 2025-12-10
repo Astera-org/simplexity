@@ -12,6 +12,7 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 import hydra
@@ -40,7 +41,7 @@ from simplexity.structured_configs.persistence import PersistenceConfig
 from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
-CONFIG_NAME = "training_test.yaml"
+CONFIG_NAME = "training.yaml"
 
 logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
 
@@ -101,6 +102,8 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     assert isinstance(eval_metric_tracker, MetricTracker)
     activation_tracker = components.get_activation_tracker()
     assert activation_tracker is not None
+
+    visualization_path = TemporaryDirectory()
 
     # gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
     gen_states = (
@@ -182,7 +185,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
             step=step,
         )
         visualization_paths = activation_tracker.save_visualizations(
-            visualizations, Path("activation_visualizations"), step
+            visualizations, Path(visualization_path.name), step
         )
         for key, path in visualization_paths.items():
             logger.log_artifact(str(path), artifact_path=f"activation_plots/{key.split('/')[0]}")
@@ -215,5 +218,5 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
 
 
 if __name__ == "__main__":
-    main = hydra.main(config_path=CONFIG_DIR, config_name="training.yaml", version_base="1.2")(train)
+    main = hydra.main(config_path=CONFIG_DIR, config_name=CONFIG_NAME, version_base="1.2")(train)
     main()

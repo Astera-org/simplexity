@@ -2,7 +2,7 @@
 
 import pytest
 
-from simplexity.activations.activation_visualizations import _expand_scalar_keys
+from simplexity.activations.visualization.pattern_expansion import _expand_scalar_keys
 from simplexity.exceptions import ConfigValidationError
 
 

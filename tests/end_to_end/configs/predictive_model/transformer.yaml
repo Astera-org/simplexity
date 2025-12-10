@@ -6,7 +6,7 @@ instance:
     d_model: 512
     d_head: 128
     n_heads: 4
-    n_layers: 2
+    n_layers: 1
     n_ctx: 10
     d_mlp: 2048
     d_vocab: ???

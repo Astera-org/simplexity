@@ -20,7 +20,7 @@ from simplexity.activations.activation_analyses import (
     PcaAnalysis,
 )
 from simplexity.activations.activation_tracker import ActivationTracker, PrepareOptions, prepare_activations
-from simplexity.activations.activation_visualizations import _build_scalar_series_dataframe
+from simplexity.activations.visualization.dataframe_builders import _build_scalar_series_dataframe
 from simplexity.activations.visualization_configs import (
     ActivationVisualizationControlsConfig,
     ScalarSeriesMapping,

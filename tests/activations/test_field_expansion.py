@@ -3,17 +3,23 @@
 import numpy as np
 import pytest
 
-from simplexity.activations.activation_visualizations import (
+from simplexity.activations.visualization.dataframe_builders import (
+    _extract_base_column_name,
+)
+from simplexity.activations.visualization.field_resolution import (
+    _resolve_belief_states,
+)
+from simplexity.activations.visualization.pattern_expansion import (
     _expand_belief_factor_mapping,
     _expand_field_mapping,
-    _expand_preprocessing_fields,
     _expand_projection_key_pattern,
-    _extract_base_column_name,
     _get_component_count,
     _has_field_pattern,
     _has_key_pattern,
     _parse_component_spec,
-    _resolve_belief_states,
+)
+from simplexity.activations.visualization.preprocessing import (
+    _expand_preprocessing_fields,
 )
 from simplexity.activations.visualization_configs import (
     ActivationVisualizationDataMapping,

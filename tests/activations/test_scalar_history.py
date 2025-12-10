@@ -6,7 +6,7 @@ import pytest
 
 from simplexity.activations.activation_analyses import PcaAnalysis
 from simplexity.activations.activation_tracker import ActivationTracker
-from simplexity.activations.activation_visualizations import _build_dataframe
+from simplexity.activations.visualization.dataframe_builders import _build_dataframe
 from simplexity.activations.visualization_configs import (
     ActivationVisualizationConfig,
     ActivationVisualizationDataMapping,
