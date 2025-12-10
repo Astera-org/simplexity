@@ -1,4 +1,4 @@
-"""FileLogger class for logging to a file."""
+"""File tracker."""
 
 # pylint: disable-all
 # Temporarily disable all pylint checkers during AST traversal to prevent crash.
@@ -22,18 +22,34 @@ import PIL.Image
 import plotly.graph_objects
 from omegaconf import DictConfig, OmegaConf
 
-from simplexity.logging.logger import Logger
+from simplexity.predictive_models.types import ModelFramework, get_model_framework
+from simplexity.tracking.model_persistence.local_model_persister import (
+    LocalModelPersister,
+)
+from simplexity.tracking.tracker import RunTracker
+from simplexity.tracking.utils import build_local_persister
 
 
-class FileLogger(Logger):
-    """Logs to a file."""
+def _clear_subdirectory(subdirectory: Path) -> None:
+    if subdirectory.exists():
+        shutil.rmtree(subdirectory)
+    subdirectory.parent.mkdir(parents=True, exist_ok=True)
 
-    def __init__(self, file_path: str):
-        self.file_path = file_path
+
+class FileTracker(RunTracker):
+    """Tracks runs to a file/directory."""
+
+    def __init__(self, file_path: str, model_dir_name: str = "models"):
+        self.file_path = Path(file_path)
         try:
-            Path(self.file_path).parent.mkdir(parents=True, exist_ok=True)
+            self.file_path.parent.mkdir(parents=True, exist_ok=True)
         except PermissionError as e:
             raise RuntimeError(f"Failed to create directory for logging: {e}") from e
+
+        # Model persistence
+        self._model_dir = self.file_path.parent / model_dir_name
+        self._model_dir.mkdir(parents=True, exist_ok=True)
+        self._local_persisters: dict[ModelFramework, LocalModelPersister] = {}
 
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config to the file."""
@@ -63,7 +79,7 @@ class FileLogger(Logger):
         **kwargs,
     ) -> None:
         """Save figure to file system."""
-        figure_path = Path(self.file_path).parent / artifact_file
+        figure_path = self.file_path.parent / artifact_file
         figure_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Handle different figure types
@@ -122,16 +138,16 @@ class FileLogger(Logger):
 
         if artifact_file:
             # Artifact mode
-            image_path = Path(self.file_path).parent / artifact_file
+            image_path = self.file_path.parent / artifact_file
             image_path.parent.mkdir(parents=True, exist_ok=True)
 
             if self._save_image_to_path(image, image_path, **kwargs):
                 with open(self.file_path, "a") as f:
                     print(f"Image saved: {image_path}", file=f)
         else:
-            # Time-stepped mode (we know key and step are valid due to validation above)
+            # Time-stepped mode
             filename = f"{key}_step_{step}.png"
-            image_path = Path(self.file_path).parent / filename
+            image_path = self.file_path.parent / filename
             image_path.parent.mkdir(parents=True, exist_ok=True)
 
             if self._save_image_to_path(image, image_path, **kwargs):
@@ -141,7 +157,7 @@ class FileLogger(Logger):
     def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
         """Copy artifact to the log directory."""
         source_path = Path(local_path)
-        dest_path = Path(self.file_path).parent / (artifact_path or source_path.name)
+        dest_path = self.file_path.parent / (artifact_path or source_path.name)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
         if source_path.is_file():
@@ -154,7 +170,7 @@ class FileLogger(Logger):
 
     def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
         """Save JSON data as an artifact to the log directory."""
-        json_path = Path(self.file_path).parent / artifact_name
+        json_path = self.file_path.parent / artifact_name
         json_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(json_path, "w") as f:
@@ -164,5 +180,42 @@ class FileLogger(Logger):
             print(f"JSON artifact saved: {json_path}", file=f)
 
     def close(self) -> None:
-        """Close the logger."""
-        pass
+        """Close the tracker."""
+        self.cleanup()
+
+    def cleanup(self) -> None:
+        """Cleanup resources."""
+        for persister in self._local_persisters.values():
+            persister.cleanup()
+
+    # Persistence
+
+    def save_model(self, model: Any, step: int = 0) -> None:
+        """Save a model to the file system."""
+        local_persister = self.get_local_persister(model)
+        step_dir = local_persister.directory / str(step)
+        _clear_subdirectory(step_dir)
+        local_persister.save_weights(model, step)
+        # Note: Local persisters already save to the model_dir which is under file_path.parent
+        # So we just need to ensure the local persister is built with the right root.
+
+    def load_model(self, model: Any, step: int = 0) -> Any:
+        """Load a model from the file system."""
+        local_persister = self.get_local_persister(model)
+        return local_persister.load_weights(model, step)
+
+    def get_local_persister(self, model: Any) -> LocalModelPersister:
+        """Get the local persister for the given model."""
+        model_framework = get_model_framework(model)
+        if model_framework not in self._local_persisters:
+            self._local_persisters[model_framework] = build_local_persister(model_framework, self._model_dir)
+        return self._local_persisters[model_framework]
+
+    # Model Registry (Not supported)
+    def save_model_to_registry(self, model: Any, registered_model_name: str, **kwargs) -> Any:
+        """Save a model to the registry (Not Supported)."""
+        raise NotImplementedError("FileTracker does not support model registry.")
+
+    def load_model_from_registry(self, registered_model_name: str, **kwargs) -> Any:
+        """Load a model from the registry (Not Supported)."""
+        raise NotImplementedError("FileTracker does not support model registry.")

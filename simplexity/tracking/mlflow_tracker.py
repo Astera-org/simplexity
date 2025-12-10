@@ -1,4 +1,4 @@
-"""MLflow-backed model persistence utilities."""
+"""MLFlow tracker."""
 
 # pylint: disable-all
 # Temporarily disable all pylint checkers during AST traversal to prevent crash.
@@ -9,26 +9,37 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-from __future__ import annotations
-
+import json
+import os
 import shutil
 import tempfile
+import time
+from collections.abc import Mapping
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
+import dotenv
+import matplotlib.figure
 import mlflow
 import mlflow.pytorch as mlflow_pytorch
+import numpy
+import PIL.Image
+import plotly.graph_objects
 import torch
+from mlflow.entities import Metric, Param, RunTag
 from mlflow.models.model import ModelInfo
 from mlflow.models.signature import infer_signature
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logger import SIMPLEXITY_LOGGER
-from simplexity.persistence.local_persister import LocalPersister
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
-from simplexity.structured_configs.persistence import MLFlowPersisterInstanceConfig
-from simplexity.utils.config_utils import typed_instantiate
+from simplexity.structured_configs.tracking import MLFlowTrackerInstanceConfig
+from simplexity.tracking.model_persistence.local_model_persister import (
+    LocalModelPersister,
+)
+from simplexity.tracking.tracker import RunTracker
+from simplexity.tracking.utils import build_local_persister
 from simplexity.utils.mlflow_utils import (
     get_experiment,
     get_run,
@@ -39,40 +50,17 @@ from simplexity.utils.mlflow_utils import (
 from simplexity.utils.pip_utils import create_requirements_file
 
 
-def _build_local_persister(model_framework: ModelFramework, artifact_dir: Path) -> LocalPersister:
-    if model_framework == ModelFramework.EQUINOX:
-        from simplexity.persistence.local_equinox_persister import (  # pylint: disable=import-outside-toplevel
-            LocalEquinoxPersister,
-        )
-
-        directory = artifact_dir / "equinox"
-        return LocalEquinoxPersister(directory=directory)
-    if model_framework == ModelFramework.PENZAI:
-        from simplexity.persistence.local_penzai_persister import (  # pylint: disable=import-outside-toplevel
-            LocalPenzaiPersister,
-        )
-
-        directory = artifact_dir / "penzai"
-        return LocalPenzaiPersister(directory=directory)
-    if model_framework == ModelFramework.PYTORCH:
-        from simplexity.persistence.local_pytorch_persister import (  # pylint: disable=import-outside-toplevel
-            LocalPytorchPersister,
-        )
-
-        directory = artifact_dir / "pytorch"
-        return LocalPytorchPersister(directory=directory)
-
-    raise ValueError(f"Unsupported model framework: {model_framework}")
-
-
 def _clear_subdirectory(subdirectory: Path) -> None:
     if subdirectory.exists():
         shutil.rmtree(subdirectory)
     subdirectory.parent.mkdir(parents=True, exist_ok=True)
 
 
-class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
-    """Persist model checkpoints as MLflow artifacts, optionally reusing an existing run."""
+dotenv.load_dotenv()
+
+
+class MLFlowTracker(RunTracker):  # pylint: disable=too-many-instance-attributes
+    """Tracks runs to MLflow."""
 
     def __init__(
         self,
@@ -86,7 +74,7 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         model_dir: str = "models",
         config_path: str = "config.yaml",
     ):
-        """Create a persister from an MLflow experiment."""
+        """Initialize MLflow tracker."""
         self._downgrade_unity_catalog = downgrade_unity_catalog if downgrade_unity_catalog is not None else True
         resolved_registry_uri = resolve_registry_uri(
             registry_uri=registry_uri,
@@ -102,12 +90,14 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         assert run is not None
         self._run_id = run.info.run_id
         self._run_name = run.info.run_name
+
+        # Model persistence setup
         self._model_dir = model_dir.strip().strip("/")
         self._temp_dir = tempfile.TemporaryDirectory()
         self._model_path = Path(self._temp_dir.name) / self._model_dir if self._model_dir else Path(self._temp_dir.name)
         self._model_path.mkdir(parents=True, exist_ok=True)
         self._config_path = config_path
-        self._local_persisters = {}
+        self._local_persisters: dict[ModelFramework, LocalModelPersister] = {}
 
     @property
     def client(self) -> mlflow.MlflowClient:
@@ -125,34 +115,34 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         return self._experiment_id
 
     @property
-    def run_id(self) -> str:
-        """Expose active MLflow run identifier."""
-        return self._run_id
-
-    @property
     def run_name(self) -> str | None:
         """Expose active MLflow run name."""
         return self._run_name
 
     @property
+    def run_id(self) -> str:
+        """Expose active MLflow run identifier."""
+        return self._run_id
+
+    @property
     def tracking_uri(self) -> str | None:
-        """Return the tracking URI associated with this persister."""
+        """Return the tracking URI associated with this tracker."""
         return self.client.tracking_uri
 
     @property
     def registry_uri(self) -> str | None:
-        """Return the model registry URI associated with this persister."""
+        """Return the model registry URI associated with this tracker."""
         return self.client._registry_uri  # pylint: disable=protected-access
 
     @property
     def model_dir(self) -> str:
-        """Return the artifact path associated with this persister."""
+        """Return the artifact path associated with this tracker."""
         return self._model_dir
 
     @property
-    def cfg(self) -> MLFlowPersisterInstanceConfig:
-        """Return the configuration of this persister."""
-        return MLFlowPersisterInstanceConfig(
+    def cfg(self) -> MLFlowTrackerInstanceConfig:
+        """Return the configuration of this tracker."""
+        return MLFlowTrackerInstanceConfig(
             _target_=self.__class__.__qualname__,
             experiment_id=self.experiment_id,
             experiment_name=self.experiment_name,
@@ -161,11 +151,120 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
             tracking_uri=self.tracking_uri,
             registry_uri=self.registry_uri,
             downgrade_unity_catalog=self._downgrade_unity_catalog,
-            artifact_path=self.model_dir,
+            model_dir=self.model_dir,
             config_path=self._config_path,
         )
 
-    def save_weights(self, model: Any, step: int = 0) -> None:
+    # Lifecycle
+
+    def close(self) -> None:
+        """End the MLflow run."""
+        self.cleanup()
+
+    def cleanup(self) -> None:
+        """Remove temporary resources and optionally end the MLflow run."""
+        for persister in self._local_persisters.values():
+            persister.cleanup()
+        self._temp_dir.cleanup()
+        maybe_terminate_run(run_id=self.run_id, client=self.client)
+
+    # Logging
+
+    def log_config(self, config: DictConfig, resolve: bool = False) -> None:
+        """Log config to MLflow."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = os.path.join(temp_dir, "config.yaml")
+            OmegaConf.save(config, config_path, resolve=resolve)
+            self.client.log_artifact(self.run_id, config_path)
+
+    def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
+        """Log metrics to MLflow."""
+        timestamp = int(time.time() * 1000)
+        metrics = self._flatten_metric_dict(metric_dict, timestamp, step)
+        self._log_batch(metrics=metrics)
+
+    def _flatten_metric_dict(
+        self, metric_dict: Mapping[str, Any], timestamp: int, step: int, key_prefix: str = ""
+    ) -> list[Metric]:
+        """Flatten a dictionary of metrics into a list of Metric entities."""
+        metrics = []
+        for key, value in metric_dict.items():
+            key = f"{key_prefix}/{key}" if key_prefix else key
+            if isinstance(value, Mapping):
+                nested_metrics = self._flatten_metric_dict(value, timestamp, step, key_prefix=key)
+                metrics.extend(nested_metrics)
+            else:
+                value = float(value)
+                metric = Metric(key, value, timestamp, step)
+                metrics.append(metric)
+        return metrics
+
+    def log_params(self, param_dict: Mapping[str, Any]) -> None:
+        """Log params to MLflow."""
+        params = self._flatten_param_dict(param_dict)
+        self._log_batch(params=params)
+
+    def _flatten_param_dict(self, param_dict: Mapping[str, Any], key_prefix: str = "") -> list[Param]:
+        """Flatten a dictionary of params into a list of Param entities."""
+        params = []
+        for key, value in param_dict.items():
+            key = f"{key_prefix}.{key}" if key_prefix else key
+            if isinstance(value, Mapping):
+                nested_params = self._flatten_param_dict(value, key_prefix=key)
+                params.extend(nested_params)
+            else:
+                value = str(value)
+                param = Param(key, value)
+                params.append(param)
+        return params
+
+    def log_tags(self, tag_dict: Mapping[str, Any]) -> None:
+        """Set tags on the MLFlow."""
+        tags = [RunTag(k, str(v)) for k, v in tag_dict.items()]
+        self._log_batch(tags=tags)
+
+    def log_figure(
+        self,
+        figure: matplotlib.figure.Figure | plotly.graph_objects.Figure,
+        artifact_file: str,
+        **kwargs,
+    ) -> None:
+        """Log a figure to MLflow using MLflowClient.log_figure."""
+        self.client.log_figure(self.run_id, figure, artifact_file, **kwargs)
+
+    def log_image(
+        self,
+        image: numpy.ndarray | PIL.Image.Image | mlflow.Image,
+        artifact_file: str | None = None,
+        key: str | None = None,
+        step: int | None = None,
+        **kwargs,
+    ) -> None:
+        """Log an image to MLflow using MLflowClient.log_image."""
+        if not artifact_file and not (key and step is not None):
+            raise ValueError("Must provide either artifact_file or both key and step parameters")
+
+        self.client.log_image(self.run_id, image, artifact_file=artifact_file, key=key, step=step, **kwargs)
+
+    def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
+        """Log an artifact (file or directory) to MLflow."""
+        self.client.log_artifact(self.run_id, local_path, artifact_path)
+
+    def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
+        """Log a JSON object as an artifact to MLflow."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = os.path.join(temp_dir, artifact_name)
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            self.client.log_artifact(self.run_id, json_path)
+
+    def _log_batch(self, **kwargs: Any) -> None:
+        """Log arbitrary data to MLflow."""
+        self.client.log_batch(self.run_id, **kwargs, synchronous=False)
+
+    # Persistence
+
+    def save_model(self, model: Any, step: int = 0) -> None:
         """Serialize weights locally and upload them as MLflow artifacts."""
         local_persister = self.get_local_persister(model)
         step_dir = local_persister.directory / str(step)
@@ -174,7 +273,7 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         framework_dir = step_dir.parent
         self.client.log_artifacts(self.run_id, str(framework_dir), artifact_path=self._model_dir)
 
-    def load_weights(self, model: Any, step: int = 0) -> Any:
+    def load_model(self, model: Any, step: int = 0) -> Any:
         """Download MLflow artifacts and restore them into the provided model."""
         local_persister = self.get_local_persister(model)
         step_dir = local_persister.directory / str(step)
@@ -189,37 +288,14 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
             raise RuntimeError(f"MLflow artifact for step {step} was not found after download")
         return local_persister.load_weights(model, step)
 
-    def load_model(self, step: int = 0) -> Any:
-        """Load a model from a specified MLflow run and step."""
-        config_path = self._config_path
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            downloaded_config_path = self.client.download_artifacts(
-                self.run_id,
-                config_path,
-                dst_path=str(temp_dir),
-            )
-            run_config = OmegaConf.load(downloaded_config_path)
-
-        instance: DictConfig = OmegaConf.select(run_config, "predictive_model.instance", throw_on_missing=True)
-        target: str = OmegaConf.select(run_config, "predictive_model.instance._target_", throw_on_missing=True)
-        model = typed_instantiate(instance, target)
-
-        return self.load_weights(model, step)
-
-    def cleanup(self) -> None:
-        """Remove temporary resources and optionally end the MLflow run."""
-        for persister in self._local_persisters.values():
-            persister.cleanup()
-        self._temp_dir.cleanup()
-        maybe_terminate_run(run_id=self.run_id, client=self.client)
-
-    def get_local_persister(self, model: Any) -> LocalPersister:
+    def get_local_persister(self, model: Any) -> LocalModelPersister:
         """Get the local persister for the given model."""
         model_framework = get_model_framework(model)
         if model_framework not in self._local_persisters:
-            self._local_persisters[model_framework] = _build_local_persister(model_framework, self._model_path)
+            self._local_persisters[model_framework] = build_local_persister(model_framework, self._model_path)
         return self._local_persisters[model_framework]
+
+    # Model Registry
 
     def save_model_to_registry(
         self,
@@ -228,19 +304,7 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         model_inputs: torch.Tensor | None = None,
         **kwargs: Any,
     ) -> ModelInfo:
-        """Save a PyTorch model to the MLflow model registry.
-
-        Args:
-            model: The PyTorch model to save. Must be a torch.nn.Module instance.
-            registered_model_name: The name to register the model under in the registry.
-            model_inputs: Optional model inputs (torch.Tensor) to use for inferring the model signature.
-                         If provided, the signature will be automatically inferred.
-            **kwargs: Additional keyword arguments passed to mlflow.pytorch.log_model.
-                     Can include 'signature' or 'pip_requirements' to override defaults.
-
-        Raises:
-            ValueError: If the model is not a PyTorch model.
-        """
+        """Save a PyTorch model to the MLflow model registry."""
         if not isinstance(model, torch.nn.Module):
             raise ValueError(f"Model must be a PyTorch model (torch.nn.Module), got {type(model)}")
 
@@ -293,14 +357,7 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
     def registered_model_uri(
         self, registered_model_name: str, version: str | None = None, stage: str | None = None
     ) -> str:
-        """Get the URI for a registered model.
-
-        Args:
-            registered_model_name: The name of the registered model.
-            version: Optional specific version to load (e.g., "1", "2"). If None, loads the latest version.
-            stage: Optional stage to load from (e.g., "Production", "Staging", "Archived").
-            If provided, takes precedence over version.
-        """
+        """Get the URI for a registered model."""
         prefix = "models:"
         if version is not None and stage is not None:
             raise ValueError("Cannot specify both version and stage. Use one or the other.")
@@ -322,56 +379,9 @@ class MLFlowPersister:  # pylint: disable=too-many-instance-attributes
         registered_model_name: str,
         version: str | None = None,
         stage: str | None = None,
+        **kwargs: Any,  # pylint: disable=unused-argument
     ) -> Any:
-        """Load a PyTorch model from the MLflow model registry.
-
-        Args:
-            registered_model_name: The name of the registered model.
-            version: Optional specific version to load (e.g., "1", "2"). If None, loads the latest version.
-            stage: Optional stage to load from (e.g., "Production", "Staging", "Archived").
-                   If provided, takes precedence over version.
-
-        Returns:
-            The loaded PyTorch model.
-
-        Raises:
-            ValueError: If both version and stage are provided.
-            RuntimeError: If the model cannot be found or loaded.
-        """
+        """Load a PyTorch model from the MLflow model registry."""
         model_uri = self.registered_model_uri(registered_model_name, version, stage)
         with set_mlflow_uris(tracking_uri=self.tracking_uri, registry_uri=self.registry_uri):
             return mlflow_pytorch.load_model(model_uri)
-
-    def list_model_versions(
-        self,
-        registered_model_name: str,
-        max_results: int = 100,
-    ) -> list[dict[str, Any]]:
-        """List available versions for a registered model.
-
-        Args:
-            registered_model_name: The name of the registered model.
-            max_results: Maximum number of versions to return.
-
-        Returns:
-            A list of dictionaries containing version information. Each dictionary includes:
-            - version: The version number (string)
-            - stage: The current stage (string)
-            - status: The version status (string)
-            - creation_timestamp: When the version was created (timestamp)
-            - last_updated_timestamp: When the version was last updated (timestamp)
-        """
-        model_versions = self.client.search_model_versions(
-            filter_string=f"name='{registered_model_name}'", max_results=max_results
-        )
-
-        return [
-            {
-                "version": mv.version,
-                "stage": mv.current_stage,
-                "status": mv.status,
-                "creation_timestamp": mv.creation_timestamp,
-                "last_updated_timestamp": mv.last_updated_timestamp,
-            }
-            for mv in model_versions
-        ]

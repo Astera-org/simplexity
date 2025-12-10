@@ -13,10 +13,12 @@ from pathlib import Path
 
 import torch
 
-from simplexity.persistence.local_persister import LocalPersister
+from simplexity.tracking.model_persistence.local_model_persister import (
+    LocalModelPersister,
+)
 
 
-class LocalPytorchPersister(LocalPersister):
+class LocalPytorchPersister(LocalModelPersister):
     """Persists a PyTorch model to the local filesystem."""
 
     filename: str = "model.pt"

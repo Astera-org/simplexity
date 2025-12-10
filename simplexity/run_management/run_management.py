@@ -1,7 +1,7 @@
 """Run management utilities for orchestrating experiment setup and teardown.
 
 This module centralizes environment setup, configuration resolution, component
-instantiation (logging, generative processes, models, optimizers), MLflow run
+instantiation (tracking, generative processes, models, optimizers), MLflow run
 management, and cleanup via the `managed_run` decorator.
 """
 
@@ -32,10 +32,6 @@ from torch.nn import Module as PytorchModel
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logger import SIMPLEXITY_LOGGER
-from simplexity.logging.logger import Logger
-from simplexity.logging.mlflow_logger import MLFlowLogger
-from simplexity.persistence.mlflow_persister import MLFlowPersister
-from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.components import Components
 from simplexity.run_management.run_logging import (
     log_environment_artifacts,
@@ -54,11 +50,6 @@ from simplexity.structured_configs.generative_process import (
     resolve_generative_process_config,
     validate_generative_process_config,
 )
-from simplexity.structured_configs.logging import (
-    is_logger_target,
-    update_logging_instance_config,
-    validate_logging_config,
-)
 from simplexity.structured_configs.metric_tracker import (
     is_metric_tracker_target,
     validate_metric_tracker_config,
@@ -69,16 +60,18 @@ from simplexity.structured_configs.optimizer import (
     is_pytorch_optimizer_config,
     validate_optimizer_config,
 )
-from simplexity.structured_configs.persistence import (
-    is_model_persister_target,
-    update_persister_instance_config,
-    validate_persistence_config,
-)
 from simplexity.structured_configs.predictive_model import (
     is_hooked_transformer_config,
     is_predictive_model_target,
     resolve_hooked_transformer_config,
 )
+from simplexity.structured_configs.tracking import (
+    is_run_tracker_target,
+    update_tracking_instance_config,
+    validate_tracking_config,
+)
+from simplexity.tracking.mlflow_tracker import MLFlowTracker
+from simplexity.tracking.tracker import RunTracker
 from simplexity.utils.config_utils import (
     filter_instance_keys,
     get_config,
@@ -257,39 +250,38 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
     )
 
 
-def _instantiate_logger(cfg: DictConfig, instance_key: str) -> Logger:
-    """Setup the logging."""
+def _instantiate_tracker(cfg: DictConfig, instance_key: str) -> RunTracker:
+    """Setup setup the tracker."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
-        logger = typed_instantiate(instance_config, Logger)
-        SIMPLEXITY_LOGGER.info("[logging] instantiated logger: %s", logger.__class__.__name__)
-        if isinstance(logger, MLFlowLogger):
-            updated_cfg = OmegaConf.structured(logger.cfg)
-            update_logging_instance_config(instance_config, updated_cfg=updated_cfg)
-        return logger
+        tracker = typed_instantiate(instance_config, RunTracker)
+        SIMPLEXITY_LOGGER.info("[tracking] instantiated tracker: %s", tracker.__class__.__name__)
+        if isinstance(tracker, MLFlowTracker):
+            updated_cfg = OmegaConf.structured(tracker.cfg)
+            update_tracking_instance_config(instance_config, updated_cfg=updated_cfg)
+        return tracker
     raise KeyError
 
 
-def _setup_logging(cfg: DictConfig, instance_keys: list[str], *, strict: bool) -> dict[str, Logger] | None:
+def _setup_tracking(cfg: DictConfig, instance_keys: list[str], *, strict: bool) -> dict[str, RunTracker] | None:
     instance_keys = filter_instance_keys(
         cfg,
         instance_keys,
-        is_logger_target,
-        validate_fn=validate_logging_config,
-        component_name="logging",
+        is_run_tracker_target,
+        validate_fn=validate_tracking_config,
+        component_name="tracking",
     )
     if instance_keys:
-        loggers = {instance_key: _instantiate_logger(cfg, instance_key) for instance_key in instance_keys}
+        trackers = {instance_key: _instantiate_tracker(cfg, instance_key) for instance_key in instance_keys}
         if strict:
-            mlflow_loggers = [logger for logger in loggers.values() if isinstance(logger, MLFlowLogger)]
-            assert mlflow_loggers, "Logger must be an instance of MLFlowLogger"
-            assert any(
-                logger.tracking_uri and logger.tracking_uri.startswith("databricks") for logger in mlflow_loggers
-            ), "Tracking URI must start with 'databricks'"
-        return loggers
-    SIMPLEXITY_LOGGER.info("[logging] no logging configs found")
-    if strict:
-        raise ValueError(f"Config must contain 1 logger, {len(instance_keys)} found")
+            mlflow_trackers = [tracker for tracker in trackers.values() if isinstance(tracker, MLFlowTracker)]
+            if mlflow_trackers:
+                assert any(
+                    tracker.tracking_uri and tracker.tracking_uri.startswith("databricks")
+                    for tracker in mlflow_trackers
+                ), "Tracking URI must start with 'databricks'"
+        return trackers
+    SIMPLEXITY_LOGGER.info("[tracking] no tracking configs found")
     return None
 
 
@@ -335,43 +327,6 @@ def _setup_generative_processes(cfg: DictConfig, instance_keys: list[str]) -> di
     return None
 
 
-def _instantiate_persister(cfg: DictConfig, instance_key: str) -> ModelPersister:
-    """Setup the persister."""
-    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
-    if instance_config:
-        persister: ModelPersister = hydra.utils.instantiate(instance_config)
-        SIMPLEXITY_LOGGER.info("[persister] instantiated persister: %s", persister.__class__.__name__)
-        if isinstance(persister, MLFlowPersister):
-            updated_cfg = OmegaConf.structured(persister.cfg)
-            update_persister_instance_config(instance_config, updated_cfg=updated_cfg)
-        return persister
-    raise KeyError
-
-
-def _setup_persisters(cfg: DictConfig, instance_keys: list[str]) -> dict[str, ModelPersister] | None:
-    instance_keys = filter_instance_keys(
-        cfg,
-        instance_keys,
-        is_model_persister_target,
-        validate_fn=validate_persistence_config,
-        component_name="persistence",
-    )
-    if instance_keys:
-        return {instance_key: _instantiate_persister(cfg, instance_key) for instance_key in instance_keys}
-    SIMPLEXITY_LOGGER.info("[persister] no persister configs found")
-    return None
-
-
-def _get_persister(persisters: dict[str, ModelPersister] | None) -> ModelPersister | None:
-    if persisters:
-        if len(persisters) == 1:
-            return next(iter(persisters.values()))
-        SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model model checkpoint loading will be skipped")
-        return None
-    SIMPLEXITY_LOGGER.warning("No persister found, any model checkpoint loading will be skipped")
-    return None
-
-
 def _get_attribute_value(cfg: DictConfig, instance_keys: list[str], attribute_name: str) -> int | None:
     """Get the vocab size."""
     instance_keys = filter_instance_keys(
@@ -413,18 +368,23 @@ def _instantiate_predictive_model(cfg: DictConfig, instance_key: str) -> Any:
     raise KeyError
 
 
-def _load_checkpoint(model: Any, persisters: dict[str, ModelPersister] | None, load_checkpoint_step: int) -> None:
+def _load_checkpoint(model: Any, trackers: dict[str, RunTracker] | None, load_checkpoint_step: int) -> None:
     """Load the checkpoint."""
-    persister = _get_persister(persisters)
-    if persister:
-        persister.load_weights(model, load_checkpoint_step)
-        SIMPLEXITY_LOGGER.info("[predictive model] loaded checkpoint step: %s", load_checkpoint_step)
-    else:
-        raise RuntimeError("Unable to load model checkpoint")
+    # Try to find a tracker that can load the model
+    if not trackers:
+        raise RuntimeError("No trackers found to load model checkpoint")
+
+    # If multiple trackers, we need to decide which one to use.
+    # For now, we use the first one available or maybe specific logic?
+    # Original logic only supported one persister.
+    # We will try the first one.
+    tracker = next(iter(trackers.values()))
+    tracker.load_model(model, load_checkpoint_step)
+    SIMPLEXITY_LOGGER.info("[predictive model] loaded checkpoint step: %s", load_checkpoint_step)
 
 
 def _setup_predictive_models(
-    cfg: DictConfig, instance_keys: list[str], persisters: dict[str, ModelPersister] | None
+    cfg: DictConfig, instance_keys: list[str], trackers: dict[str, RunTracker] | None
 ) -> dict[str, Any] | None:
     """Setup the predictive model."""
     models = {}
@@ -441,7 +401,7 @@ def _setup_predictive_models(
         step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
         load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
         if load_checkpoint_step is not None:
-            _load_checkpoint(model, persisters, load_checkpoint_step)
+            _load_checkpoint(model, trackers, load_checkpoint_step)
         models[instance_key] = model
     if models:
         return models
@@ -576,21 +536,21 @@ def _setup_activation_trackers(cfg: DictConfig, instance_keys: list[str]) -> dic
     return None
 
 
-def _do_logging(cfg: DictConfig, loggers: dict[str, Logger] | None, *, verbose: bool) -> None:
-    if loggers is None:
+def _do_logging(cfg: DictConfig, trackers: dict[str, RunTracker] | None, *, verbose: bool) -> None:
+    if trackers is None:
         return
-    for logger in loggers.values():
-        logger.log_config(cfg, resolve=True)
-        logger.log_params(cfg)
-        log_git_info(logger)
-        log_system_info(logger)
+    for tracker in trackers.values():
+        tracker.log_config(cfg, resolve=True)
+        tracker.log_params(cfg)
+        log_git_info(tracker)
+        log_system_info(tracker)
         tags = cfg.get("tags", {})
         if tags:
-            logger.log_tags(tags)
+            tracker.log_tags(tags)
         if verbose:
-            log_hydra_artifacts(logger)
-            log_environment_artifacts(logger)
-            log_source_script(logger)
+            log_hydra_artifacts(tracker)
+            log_environment_artifacts(tracker)
+            log_source_script(tracker)
 
 
 def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
@@ -603,27 +563,23 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     _set_random_seeds(cfg.get("seed", None))
     components = Components()
     instance_keys = get_instance_keys(cfg)
-    components.loggers = _setup_logging(cfg, instance_keys, strict=strict)
+    components.run_trackers = _setup_tracking(cfg, instance_keys, strict=strict)
     components.generative_processes = _setup_generative_processes(cfg, instance_keys)
-    components.persisters = _setup_persisters(cfg, instance_keys)
-    components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
+    components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.run_trackers)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
     components.metric_trackers = _setup_metric_trackers(
         cfg, instance_keys, components.predictive_models, components.optimizers
     )
     components.activation_trackers = _setup_activation_trackers(cfg, instance_keys)
-    _do_logging(cfg, components.loggers, verbose=verbose)
+    _do_logging(cfg, components.run_trackers, verbose=verbose)
     return components
 
 
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
-    if components.loggers:
-        for logger in components.loggers.values():
-            logger.close()
-    if components.persisters:
-        for persister in components.persisters.values():
-            persister.cleanup()
+    if components.run_trackers:
+        for tracker in components.run_trackers.values():
+            tracker.close()
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:

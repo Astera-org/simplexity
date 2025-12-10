@@ -16,11 +16,13 @@ from orbax.checkpoint.handlers import DefaultCheckpointHandlerRegistry
 from penzai import pz
 from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.persistence.local_persister import LocalPersister
+from simplexity.tracking.model_persistence.local_model_persister import (
+    LocalModelPersister,
+)
 from simplexity.utils.penzai_utils import deconstruct_variables, reconstruct_variables
 
 
-class LocalPenzaiPersister(LocalPersister):
+class LocalPenzaiPersister(LocalModelPersister):
     """Persists a model to the local filesystem."""
 
     registry: DefaultCheckpointHandlerRegistry

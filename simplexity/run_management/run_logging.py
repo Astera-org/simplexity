@@ -18,7 +18,7 @@ from pathlib import Path
 from hydra.core.hydra_config import HydraConfig
 
 from simplexity.logger import SIMPLEXITY_LOGGER
-from simplexity.logging.logger import Logger
+from simplexity.tracking.tracker import RunTracker
 from simplexity.utils.git_utils import get_git_info
 
 
@@ -73,7 +73,7 @@ def _get_calling_file_path() -> str | None:
     return None
 
 
-def log_git_info(logger: Logger) -> None:
+def log_git_info(logger: RunTracker) -> None:
     """Log git information for reproducibility.
 
     Logs git information for the main repository where training is running.
@@ -83,7 +83,7 @@ def log_git_info(logger: Logger) -> None:
         logger.log_tags(tags)
 
 
-def log_environment_artifacts(logger: Logger) -> None:
+def log_environment_artifacts(logger: RunTracker) -> None:
     """Log environment configuration files as MLflow artifacts for reproducibility.
 
     Logs dependency lockfile, project configuration, and system information
@@ -95,7 +95,7 @@ def log_environment_artifacts(logger: Logger) -> None:
             logger.log_artifact(str(obj), "environment")
 
 
-def log_system_info(logger: Logger) -> None:
+def log_system_info(logger: RunTracker) -> None:
     """Generate and log system information as an artifact."""
     with tempfile.TemporaryDirectory() as temp_dir:
         info_path = Path(temp_dir) / "system_info.txt"
@@ -109,7 +109,7 @@ def log_system_info(logger: Logger) -> None:
         logger.log_artifact(str(info_path), "environment")
 
 
-def log_hydra_artifacts(logger: Logger) -> None:
+def log_hydra_artifacts(logger: RunTracker) -> None:
     """Log Hydra artifacts for reproducibility."""
     try:
         hydra_dir = Path(HydraConfig.get().runtime.output_dir) / ".hydra"
@@ -125,7 +125,7 @@ def log_hydra_artifacts(logger: Logger) -> None:
                 SIMPLEXITY_LOGGER.warning("Failed to log Hydra artifact %s: %s", path, e)
 
 
-def log_source_script(logger: Logger) -> None:
+def log_source_script(logger: RunTracker) -> None:
     """Log the source script for reproducibility."""
     calling_file_path = _get_calling_file_path()
     if calling_file_path:

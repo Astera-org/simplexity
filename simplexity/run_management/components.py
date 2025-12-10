@@ -14,34 +14,28 @@ from typing import Any
 
 from simplexity.activations.activation_tracker import ActivationTracker
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.logging.logger import Logger
 from simplexity.metrics.metric_tracker import MetricTracker
-from simplexity.persistence.model_persister import ModelPersister
+from simplexity.tracking.tracker import RunTracker
 
 
 @dataclass
 class Components:
     """Components for the run."""
 
-    loggers: dict[str, Logger] | None = None
+    run_trackers: dict[str, RunTracker] | None = None
     generative_processes: dict[str, GenerativeProcess] | None = None
-    persisters: dict[str, ModelPersister] | None = None
     predictive_models: dict[str, Any] | None = None  # TODO: improve typing
     optimizers: dict[str, Any] | None = None  # TODO: improve typing
     metric_trackers: dict[str, MetricTracker] | None = None
     activation_trackers: dict[str, ActivationTracker] | None = None
 
-    def get_logger(self, key: str | None = None) -> Logger | None:
-        """Get the logger."""
-        return self._get_instance_by_key(self.loggers, key, "logger")
+    def get_run_tracker(self, key: str | None = None) -> RunTracker | None:
+        """Get the run tracker."""
+        return self._get_instance_by_key(self.run_trackers, key, "run tracker")
 
     def get_generative_process(self, key: str | None = None) -> GenerativeProcess | None:
         """Get the generative process."""
         return self._get_instance_by_key(self.generative_processes, key, "generative process")
-
-    def get_persister(self, key: str | None = None) -> ModelPersister | None:
-        """Get the persister."""
-        return self._get_instance_by_key(self.persisters, key, "persister")
 
     def get_predictive_model(self, key: str | None = None) -> Any | None:
         """Get the predictive model."""
