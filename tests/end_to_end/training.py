@@ -41,7 +41,7 @@ from simplexity.structured_configs.persistence import PersistenceConfig
 from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
-CONFIG_NAME = "training.yaml"
+CONFIG_NAME = "training_test.yaml"
 
 logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
 
