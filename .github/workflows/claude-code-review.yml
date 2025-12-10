@@ -4,6 +4,7 @@
 name: Claude Code Review
 
 on:
+  workflow_dispatch:
   workflow_run:
     workflows: ["simplexity"]
     types:
@@ -11,6 +12,8 @@ on:
   pull_request:
     types:
       - ready_for_review
+    branches:
+      - main
 
 jobs:
   claude-review:
@@ -22,6 +25,17 @@ jobs:
       id-token: write
       checks: read
       actions: read
+
+    # Only run if:
+    # 1. Manually triggered (workflow_dispatch)
+    # 2. PR event targeting main
+    # 3. Workflow_run event where head_branch is main (push to main)
+    # 4. Workflow_run event where associated PR targets main
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && contains(github.event.workflow_run.pull_requests.*.base.ref, 'main'))
 
     steps:
       - name: Checkout repository
