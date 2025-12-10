@@ -12,26 +12,26 @@ instance:
         concat_layers: false
         use_probs_as_weights: true
         rcond_values: [1e-15, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]
-        visualizations:
-          # Temporal visualization: RMSE over training steps
-          - name: rmse_over_time
-            controls:
-              accumulate_steps: true
-              dropdown: layer  # User can filter by layer in UI
-            data_mapping:
-              mappings:
-                rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_*_rmse"}
-            backend: altair
-            layer:
-              geometry:
-                type: line
-                props: {}
-              aesthetics:
-                x: {field: step, type: quantitative, title: "Training Step"}
-                y: {field: rmse, type: quantitative, title: "RMSE"}
-                color: {field: layer, type: nominal, title: "Layer"}
-                strokeDash: {field: layer, type: nominal}
-            size: {width: 800, height: 400}
-            guides:
-              title: "RMSE Evolution Across Training"
-              subtitle: "Tracking model convergence by layer"
+      visualizations:
+        # Temporal visualization: RMSE over training steps
+        - name: rmse_over_time
+          controls:
+            accumulate_steps: true
+            dropdown: layer  # User can filter by layer in UI
+          data_mapping:
+            mappings:
+              rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_*_rmse"}
+          backend: altair
+          layer:
+            geometry:
+              type: line
+              props: {}
+            aesthetics:
+              x: {field: step, type: quantitative, title: "Training Step"}
+              y: {field: rmse, type: quantitative, title: "RMSE"}
+              color: {field: layer, type: nominal, title: "Layer"}
+              strokeDash: {field: layer, type: nominal}
+          size: {width: 800, height: 400}
+          guides:
+            title: "RMSE Evolution Across Training"
+            subtitle: "Tracking model convergence by layer"
