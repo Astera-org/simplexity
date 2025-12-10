@@ -293,3 +293,116 @@ class TestFacetedFigures:
         registry = DictDataRegistry({"main": df})
         fig = build_plotly_figure(plot_cfg, registry)
         assert fig is not None
+
+    def test_builds_row_and_column_faceted_figure(self):
+        """Test building figure with both row and column facets."""
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4, 5, 6, 7, 8],
+                "y": [1, 2, 3, 4, 5, 6, 7, 8],
+                "row_grp": ["r1", "r1", "r1", "r1", "r2", "r2", "r2", "r2"],
+                "col_grp": ["c1", "c1", "c2", "c2", "c1", "c1", "c2", "c2"],
+            }
+        )
+        layer = LayerConfig(
+            geometry=GeometryConfig(type="point"),
+            aesthetics=AestheticsConfig(
+                x=ChannelAestheticsConfig(field="x", type="quantitative"),
+                y=ChannelAestheticsConfig(field="y", type="quantitative"),
+            ),
+        )
+        facet = FacetConfig(row="row_grp", column="col_grp")
+        plot_cfg = PlotConfig(data=DataConfig(source="main"), layers=[layer], facet=facet)
+        registry = DictDataRegistry({"main": df})
+        fig = build_plotly_figure(plot_cfg, registry)
+        assert fig is not None
+
+
+class TestScatterWithEncodings:
+    """Tests for scatter plots with various encodings."""
+
+    def test_scatter2d_with_size_encoding(self):
+        """Test 2D scatter with size encoding."""
+        df = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6], "size_val": [10, 20, 30]})
+        layer = LayerConfig(
+            geometry=GeometryConfig(type="point"),
+            aesthetics=AestheticsConfig(
+                x=ChannelAestheticsConfig(field="x", type="quantitative"),
+                y=ChannelAestheticsConfig(field="y", type="quantitative"),
+                size=ChannelAestheticsConfig(field="size_val", type="quantitative"),
+            ),
+        )
+        fig = _build_scatter2d(layer, df, None)
+        assert fig is not None
+
+    def test_scatter2d_with_opacity(self):
+        """Test 2D scatter with opacity encoding."""
+        df = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]})
+        layer = LayerConfig(
+            geometry=GeometryConfig(type="point"),
+            aesthetics=AestheticsConfig(
+                x=ChannelAestheticsConfig(field="x", type="quantitative"),
+                y=ChannelAestheticsConfig(field="y", type="quantitative"),
+                opacity=ChannelAestheticsConfig(field=None, type="quantitative", value=0.5),
+            ),
+        )
+        fig = _build_scatter2d(layer, df, None)
+        assert fig is not None
+
+    def test_scatter3d_with_size_encoding(self):
+        """Test 3D scatter with size encoding."""
+        df = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6], "z": [7, 8, 9], "size_val": [10, 20, 30]})
+        layer = LayerConfig(
+            geometry=GeometryConfig(type="point"),
+            aesthetics=AestheticsConfig(
+                x=ChannelAestheticsConfig(field="x", type="quantitative"),
+                y=ChannelAestheticsConfig(field="y", type="quantitative"),
+                z=ChannelAestheticsConfig(field="z", type="quantitative"),
+                size=ChannelAestheticsConfig(field="size_val", type="quantitative"),
+            ),
+        )
+        fig = _build_scatter3d(layer, df, None)
+        assert fig is not None
+
+    def test_figure_with_background_color(self):
+        """Test that background color is applied."""
+        df = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]})
+        layer = LayerConfig(
+            geometry=GeometryConfig(type="point"),
+            aesthetics=AestheticsConfig(
+                x=ChannelAestheticsConfig(field="x", type="quantitative"),
+                y=ChannelAestheticsConfig(field="y", type="quantitative"),
+            ),
+        )
+        plot_cfg = PlotConfig(
+            data=DataConfig(source="main"),
+            layers=[layer],
+            background="#f0f0f0",
+        )
+        registry = DictDataRegistry({"main": df})
+        fig = build_plotly_figure(plot_cfg, registry)
+        assert fig.layout.plot_bgcolor == "#f0f0f0"
+
+    def test_faceted_figure_with_color_encoding(self):
+        """Test faceted figure with color encoding."""
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "y": [4, 5, 6, 7],
+                "group": ["a", "a", "b", "b"],
+                "category": ["cat1", "cat2", "cat1", "cat2"],
+            }
+        )
+        layer = LayerConfig(
+            geometry=GeometryConfig(type="point"),
+            aesthetics=AestheticsConfig(
+                x=ChannelAestheticsConfig(field="x", type="quantitative"),
+                y=ChannelAestheticsConfig(field="y", type="quantitative"),
+                color=ChannelAestheticsConfig(field="category", type="nominal"),
+            ),
+        )
+        facet = FacetConfig(column="group")
+        plot_cfg = PlotConfig(data=DataConfig(source="main"), layers=[layer], facet=facet)
+        registry = DictDataRegistry({"main": df})
+        fig = build_plotly_figure(plot_cfg, registry)
+        assert fig is not None

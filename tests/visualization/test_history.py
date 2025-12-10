@@ -69,3 +69,87 @@ def test_history_round_trip(tmp_path):
 
     loaded = load_history_dataframe(data_path, meta_path, expected_signature=signature)
     pd.testing.assert_frame_equal(loaded, df)
+
+
+def test_load_returns_empty_when_files_missing(tmp_path):
+    """Test that missing files return empty dataframe."""
+    data_path, meta_path = history_paths(tmp_path, "nonexistent")
+    loaded = load_history_dataframe(data_path, meta_path, expected_signature="any")
+    assert loaded.empty
+
+
+def test_load_returns_empty_when_metadata_corrupted(tmp_path):
+    """Test that corrupted metadata returns empty dataframe."""
+    data_path, meta_path = history_paths(tmp_path, "corrupted")
+    data_path.parent.mkdir(parents=True, exist_ok=True)
+    data_path.write_text('{"step": 0, "value": 0.1}\n')
+    meta_path.write_text("not valid json {{{")
+    loaded = load_history_dataframe(data_path, meta_path, expected_signature="any")
+    assert loaded.empty
+
+
+def test_load_returns_empty_when_signature_mismatched(tmp_path):
+    """Test that mismatched signature returns empty dataframe."""
+    cfg = _simple_plot_config()
+    signature = plot_config_signature(cfg)
+    data_path, meta_path = history_paths(tmp_path, "mismatched")
+    df = pd.DataFrame({"step": [0], "value": [0.1]})
+
+    save_history_dataframe(
+        df,
+        data_path,
+        meta_path,
+        signature=signature,
+        analysis="analysis",
+        name="viz",
+        backend="altair",
+    )
+
+    loaded = load_history_dataframe(data_path, meta_path, expected_signature="different_signature")
+    assert loaded.empty
+
+
+def test_load_returns_empty_when_data_corrupted(tmp_path):
+    """Test that corrupted data file returns empty dataframe."""
+    cfg = _simple_plot_config()
+    signature = plot_config_signature(cfg)
+    data_path, meta_path = history_paths(tmp_path, "data_corrupted")
+    df = pd.DataFrame({"step": [0], "value": [0.1]})
+
+    save_history_dataframe(
+        df,
+        data_path,
+        meta_path,
+        signature=signature,
+        analysis="analysis",
+        name="viz",
+        backend="altair",
+    )
+
+    # Corrupt the data file
+    data_path.write_text("not valid jsonl {{{")
+
+    loaded = load_history_dataframe(data_path, meta_path, expected_signature=signature)
+    assert loaded.empty
+
+
+def test_plot_config_signature_handles_path_values():
+    """Test that plot config signature can serialize Path objects."""
+    layer = LayerConfig(
+        geometry=GeometryConfig(type="line"),
+        aesthetics=AestheticsConfig(
+            x=ChannelAestheticsConfig(field="step", type="quantitative"),
+            y=ChannelAestheticsConfig(field="value", type="quantitative"),
+        ),
+    )
+    cfg = PlotConfig(
+        backend="altair",
+        data=DataConfig(source="main"),
+        layers=[layer],
+        size=PlotSizeConfig(width=400, height=200),
+        guides=PlotLevelGuideConfig(),
+    )
+    # This should not raise even with complex nested objects
+    sig = plot_config_signature(cfg)
+    assert isinstance(sig, str)
+    assert len(sig) == 64  # SHA256 hex length
