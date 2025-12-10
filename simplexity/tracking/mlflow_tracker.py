@@ -143,7 +143,7 @@ class MLFlowTracker(RunTracker):  # pylint: disable=too-many-instance-attributes
     def cfg(self) -> MLFlowTrackerInstanceConfig:
         """Return the configuration of this tracker."""
         return MLFlowTrackerInstanceConfig(
-            _target_=self.__class__.__qualname__,
+            _target_=f"simpexity.tracking.{self.__class__.__module__}.{self.__class__.__qualname__}",
             experiment_id=self.experiment_id,
             experiment_name=self.experiment_name,
             run_id=self.run_id,
