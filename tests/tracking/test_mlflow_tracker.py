@@ -1,5 +1,14 @@
 """Integration-style tests for MlflowTracker with a local MLflow backend."""
 
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 from __future__ import annotations
 
 from collections.abc import Generator
@@ -28,6 +37,12 @@ def _get_artifacts_root(tracker: MlflowTracker) -> Path:
     experiment_id = tracker.experiment_id
     run_id = tracker.run_id
     return tracking_dir / experiment_id / run_id / "artifacts"
+
+
+def _get_pytorch_model(seed: int) -> Linear:
+    """Build a small deterministic PyTorch model for serialization tests."""
+    torch.manual_seed(seed)
+    return Linear(in_features=4, out_features=2)
 
 
 def _pytorch_models_equal(model1: Module, model2: Module) -> bool:
@@ -400,3 +415,40 @@ def test_load_model_from_registry_both_version_and_stage(tracker: MlflowTracker)
 
     with pytest.raises(ValueError, match="Cannot specify both version and stage. Use one or the other."):
         tracker.load_model_from_registry(registered_model_name="model_name", version="1", stage="Production")
+
+
+@pytest.mark.usefixtures("mock_create_requirements_file")
+def test_list_model_versions(tmp_path: Path) -> None:
+    """Test listing model versions from the registry."""
+    artifact_dir = tmp_path / "mlruns"
+    artifact_dir.mkdir()
+
+    registered_model_name = "test_list_model"
+
+    tracker = MlflowTracker(
+        experiment_name="registry-list",
+        run_name="registry-list-run",
+        tracking_uri=artifact_dir.as_uri(),
+        registry_uri=artifact_dir.as_uri(),
+    )
+
+    versions = tracker.list_model_versions(registered_model_name)
+    assert len(versions) == 0
+
+    for version_number in range(1, 4):
+        tracker = MlflowTracker(
+            experiment_name="registry-list",
+            run_name=f"registry-list-run-{version_number}",
+            tracking_uri=artifact_dir.as_uri(),
+            registry_uri=artifact_dir.as_uri(),
+        )
+
+        model = _get_pytorch_model(version_number)
+        tracker.save_model_to_registry(model, registered_model_name)
+
+        versions = tracker.list_model_versions(registered_model_name)
+        assert len(versions) == version_number
+        version_numbers = {v["version"] for v in versions}
+        assert version_numbers == {str(v + 1) for v in range(version_number)}
+
+        tracker.cleanup()

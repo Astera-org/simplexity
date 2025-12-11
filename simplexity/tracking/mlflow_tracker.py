@@ -370,6 +370,40 @@ class MlflowTracker(RunTracker):  # pylint: disable=too-many-instance-attributes
         latest_version = model_versions[0].version
         return f"{prefix}/{registered_model_name}/{latest_version}"
 
+    def list_model_versions(
+        self,
+        registered_model_name: str,
+        max_results: int = 100,
+    ) -> list[dict[str, Any]]:
+        """List available versions for a registered model.
+
+        Args:
+            registered_model_name: The name of the registered model.
+            max_results: Maximum number of versions to return.
+
+        Returns:
+            A list of dictionaries containing version information. Each dictionary includes:
+            - version: The version number (string)
+            - stage: The current stage (string)
+            - status: The version status (string)
+            - creation_timestamp: When the version was created (timestamp)
+            - last_updated_timestamp: When the version was last updated (timestamp)
+        """
+        model_versions = self.client.search_model_versions(
+            filter_string=f"name='{registered_model_name}'", max_results=max_results
+        )
+
+        return [
+            {
+                "version": mv.version,
+                "stage": mv.current_stage,
+                "status": mv.status,
+                "creation_timestamp": mv.creation_timestamp,
+                "last_updated_timestamp": mv.last_updated_timestamp,
+            }
+            for mv in model_versions
+        ]
+
     def load_model_from_registry(
         self,
         registered_model_name: str,
