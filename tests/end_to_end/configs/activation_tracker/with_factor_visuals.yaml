@@ -6,61 +6,12 @@ instance:
     # Keys are namespaced as: {layer}_factor_{idx}/projected
     regression_factored:
       instance:
-        _target_: simplexity.activations.activation_analyses.LinearRegressionSVDAnalysis
+        _target_: simplexity.activations.activation_analyses.LinearRegressionAnalysis
         last_token_only: false
         concat_layers: false
-        use_probs_as_weights: true
+        use_probs_as_weights: false
         to_factors: true  # Enable per-factor projections
-        rcond_values: [1e-15, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]
       visualizations:
-        # # Per-factor 2D simplex visualization with column faceting
-        # - name: per_factor_simplex
-        #   controls:
-        #     slider: step
-        #     dropdown: layer
-        #   data_mapping:
-        #     mappings:
-        #       # Key pattern "factor_*/projected" expands across all factors
-        #       # group_as creates a "factor" column for faceting
-        #       factor_*_prob_0:
-        #         source: projections
-        #         key: "factor_*/projected"
-        #         component: 0
-        #         group_as: factor
-        #       factor_*_prob_1:
-        #         source: projections
-        #         key: "factor_*/projected"
-        #         component: 1
-        #         group_as: factor
-        #       factor_*_prob_2:
-        #         source: projections
-        #         key: "factor_*/projected"
-        #         component: 2
-        #         group_as: factor
-        #   preprocessing:
-        #     # Project to 2D simplex coordinates
-        #     - type: project_to_simplex
-        #       input_fields: [prob_0, prob_1, prob_2]
-        #       output_fields: [simplex_x, simplex_y]
-        #     # Color by predicted probabilities
-        #     - type: combine_rgb
-        #       input_fields: [prob_0, prob_1, prob_2]
-        #       output_fields: [prediction_color]
-        #   backend: altair
-        #   plot:
-        #     facet:
-        #       column: factor  # Each factor in its own subplot
-        #     layers:
-        #       - geometry: {type: point, props: {size: 30, opacity: 0.7}}
-        #         aesthetics:
-        #           x: {field: simplex_x, type: quantitative, title: "Simplex X"}
-        #           y: {field: simplex_y, type: quantitative, title: "Simplex Y"}
-        #           color: {field: prediction_color, type: nominal}
-        #   size: {width: 300, height: 300}
-        #   guides:
-        #     title: "Per-Factor Regression Projections (Simplex)"
-        #     subtitle: "Each subplot shows one factor's belief state projection"
-
         # 2x5 grid: Top row = projections, Bottom row = ground truth beliefs
         # Uses combined mappings to merge two data sources with a data_type column
         - name: prediction_vs_truth_grid
@@ -69,6 +20,9 @@ instance:
             dropdown: layer
           data_mapping:
             # Combined mappings allow merging projections + belief states
+            sampling:
+              max_points: 300
+              seed: 42
             combined:
               - label: prediction
                 mappings:
@@ -128,79 +82,3 @@ instance:
           guides:
             title: "Prediction vs Ground Truth (Per Factor)"
             subtitle: "Top: Ground truth | Bottom: Model belief states"
-
-    #     # Per-factor 3D scatter visualization
-    #     - name: per_factor_3d
-    #       controls:
-    #         slider: step
-    #         dropdown: layer
-    #       data_mapping:
-    #         mappings:
-    #           factor_*_x:
-    #             source: projections
-    #             key: "factor_*/projected"
-    #             component: 0
-    #             group_as: factor
-    #           factor_*_y:
-    #             source: projections
-    #             key: "factor_*/projected"
-    #             component: 1
-    #             group_as: factor
-    #           factor_*_z:
-    #             source: projections
-    #             key: "factor_*/projected"
-    #             component: 2
-    #             group_as: factor
-    #       preprocessing:
-    #         - type: combine_rgb
-    #           input_fields: [x, y, z]
-    #           output_fields: [prediction_color]
-    #       backend: plotly
-    #       layer:
-    #         geometry: {type: point, props: {size: 4}}
-    #         aesthetics:
-    #           x: {field: x, type: quantitative, title: "P(State 0)"}
-    #           y: {field: y, type: quantitative, title: "P(State 1)"}
-    #           z: {field: z, type: quantitative, title: "P(State 2)"}
-    #           color: {field: prediction_color, type: nominal}
-    #           opacity: {value: 0.7}
-    #       size: {width: 800, height: 600}
-    #       guides:
-    #         title: "Per-Factor Regression Projection (3D)"
-
-    # # Standard regression (without to_factors) for comparison
-    # regression_combined:
-    #   instance:
-    #     _target_: simplexity.activations.activation_analyses.LinearRegressionAnalysis
-    #     last_token_only: false
-    #     concat_layers: false
-    #     use_probs_as_weights: true
-    #     to_factors: false  # Concatenate all factors
-    #   visualizations:
-    #     - name: combined_simplex
-    #       controls:
-    #         slider: step
-    #         dropdown: layer
-    #       data_mapping:
-    #         mappings:
-    #           prob_0: {source: projections, key: projected, component: 0}
-    #           prob_1: {source: projections, key: projected, component: 1}
-    #           prob_2: {source: projections, key: projected, component: 2}
-    #       preprocessing:
-    #         - type: project_to_simplex
-    #           input_fields: [prob_0, prob_1, prob_2]
-    #           output_fields: [simplex_x, simplex_y]
-    #         - type: combine_rgb
-    #           input_fields: [prob_0, prob_1, prob_2]
-    #           output_fields: [prediction_color]
-    #       backend: altair
-    #       layer:
-    #         geometry: {type: point, props: {size: 30, opacity: 0.7}}
-    #         aesthetics:
-    #           x: {field: simplex_x, type: quantitative, title: "Simplex X"}
-    #           y: {field: simplex_y, type: quantitative, title: "Simplex Y"}
-    #           color: {field: prediction_color, type: nominal}
-    #       size: {width: 600, height: 600}
-    #       guides:
-    #         title: "Combined Regression Projection (Simplex)"
-    #         subtitle: "All factors concatenated"

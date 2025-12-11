@@ -8,6 +8,7 @@ import pytest
 
 from simplexity.activations.visualization.data_structures import PreparedMetadata
 from simplexity.activations.visualization.dataframe_builders import (
+    _apply_sampling,
     _build_dataframe,
     _build_dataframe_for_mappings,
     _build_metadata_columns,
@@ -45,6 +46,7 @@ from simplexity.activations.visualization_configs import (
     ActivationVisualizationFieldRef,
     ActivationVisualizationPreprocessStep,
     CombinedMappingSection,
+    SamplingConfig,
     ScalarSeriesMapping,
 )
 from simplexity.exceptions import ConfigValidationError
@@ -876,3 +878,93 @@ class TestDataframeBuilders:
         metadata = {"step": np.array([1])}  # No "analysis" key
         with pytest.raises(ConfigValidationError, match="requires 'analysis'"):
             _build_dataframe(viz_cfg, metadata, {}, {}, {}, None, None, False, ["layer_0"])
+
+
+class TestSampling:
+    """Tests for DataFrame sampling functionality."""
+
+    def test_sampling_reduces_size_no_facets(self):
+        """Test that sampling reduces DataFrame size when no facet columns present."""
+        df = pd.DataFrame({"a": range(100), "b": range(100)})
+        config = SamplingConfig(max_points=20, seed=42)
+        result = _apply_sampling(df, config, facet_columns=[])
+        assert len(result) == 20
+
+    def test_sampling_no_reduction_when_under_limit(self):
+        """Test that sampling returns original DataFrame when size <= max_points."""
+        df = pd.DataFrame({"a": range(10), "b": range(10)})
+        config = SamplingConfig(max_points=20, seed=42)
+        result = _apply_sampling(df, config, facet_columns=[])
+        assert len(result) == 10
+        pd.testing.assert_frame_equal(result, df)
+
+    def test_sampling_per_facet_group(self):
+        """Test that sampling applies per facet group."""
+        df = pd.DataFrame(
+            {
+                "factor": ["0"] * 50 + ["1"] * 50 + ["2"] * 50,
+                "value": range(150),
+            }
+        )
+        config = SamplingConfig(max_points=10, seed=42)
+        result = _apply_sampling(df, config, facet_columns=["factor"])
+
+        assert len(result) == 30  # 10 per factor * 3 factors
+        for factor in ["0", "1", "2"]:
+            factor_count = len(result[result["factor"] == factor])
+            assert factor_count == 10
+
+    def test_sampling_multiple_facet_columns(self):
+        """Test sampling with multiple facet columns."""
+        df = pd.DataFrame(
+            {
+                "layer": ["layer_0"] * 40 + ["layer_1"] * 40,
+                "factor": (["0"] * 20 + ["1"] * 20) * 2,
+                "value": range(80),
+            }
+        )
+        config = SamplingConfig(max_points=5, seed=42)
+        result = _apply_sampling(df, config, facet_columns=["layer", "factor"])
+
+        # Should have 4 groups (2 layers * 2 factors), each with max 5 points
+        assert len(result) == 20
+        for layer in ["layer_0", "layer_1"]:
+            for factor in ["0", "1"]:
+                group_count = len(result[(result["layer"] == layer) & (result["factor"] == factor)])
+                assert group_count == 5
+
+    def test_sampling_ignores_missing_facet_columns(self):
+        """Test that non-existent facet columns are ignored."""
+        df = pd.DataFrame({"a": range(100), "value": range(100)})
+        config = SamplingConfig(max_points=20, seed=42)
+        # facet_columns includes "factor" which doesn't exist
+        result = _apply_sampling(df, config, facet_columns=["factor", "layer"])
+        # Should sample globally since no facet columns exist
+        assert len(result) == 20
+
+    def test_sampling_seed_reproducibility(self):
+        """Test that seed produces reproducible results."""
+        df = pd.DataFrame({"a": range(100), "b": range(100)})
+        config = SamplingConfig(max_points=20, seed=42)
+
+        result1 = _apply_sampling(df, config, facet_columns=[])
+        result2 = _apply_sampling(df, config, facet_columns=[])
+
+        pd.testing.assert_frame_equal(result1.reset_index(drop=True), result2.reset_index(drop=True))
+
+    def test_sampling_none_max_points_returns_original(self):
+        """Test that None max_points returns DataFrame unchanged."""
+        df = pd.DataFrame({"a": range(100), "b": range(100)})
+        config = SamplingConfig(max_points=None)
+        result = _apply_sampling(df, config, facet_columns=[])
+        pd.testing.assert_frame_equal(result, df)
+
+    def test_sampling_config_validation_negative(self):
+        """Test that negative max_points raises error."""
+        with pytest.raises(ConfigValidationError, match="positive integer"):
+            SamplingConfig(max_points=-1)
+
+    def test_sampling_config_validation_zero(self):
+        """Test that zero max_points raises error."""
+        with pytest.raises(ConfigValidationError, match="positive integer"):
+            SamplingConfig(max_points=0)

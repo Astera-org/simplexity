@@ -75,6 +75,26 @@ def generate_data_batch_with_full_history(
     labels = tokens[:, 1:]
     prefix_probs = prefix_probs[:, : inputs.shape[1]]
 
+    # Align belief_states with inputs:
+    # - belief_states[i] is the belief BEFORE emitting token i (i.e., after seeing tokens 0..i-1)
+    # - Model activation at position i (after seeing inputs[i]) should predict belief after inputs[i]
+    # - With BOS: inputs[0]=BOS, activation[0] should predict beliefs[0] (initial belief)
+    # - Without BOS: inputs[0]=tok_0, activation[0] should predict beliefs[1] (belief after tok_0)
+    # So when BOS is NOT used, we skip the first belief state.
+    if bos_token is None:
+        # Drop first belief state since it's the initial state before any token
+        if isinstance(belief_states, tuple):
+            belief_states = tuple(b[:, 1:, ...] for b in belief_states)
+        else:
+            belief_states = belief_states[:, 1:, ...]
+
+    # Trim belief_states to match inputs length
+    input_len = inputs.shape[1]
+    if isinstance(belief_states, tuple):
+        belief_states = tuple(b[:, :input_len, ...] for b in belief_states)
+    else:
+        belief_states = belief_states[:, :input_len, ...]
+
     result = {
         "belief_states": belief_states,
         "prefix_probabilities": prefix_probs,

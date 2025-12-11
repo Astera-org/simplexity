@@ -28,6 +28,7 @@ class Components:
     persisters: dict[str, ModelPersister] | None = None
     predictive_models: dict[str, Any] | None = None  # TODO: improve typing
     optimizers: dict[str, Any] | None = None  # TODO: improve typing
+    lr_schedulers: dict[str, Any] | None = None  # TODO: improve typing
     metric_trackers: dict[str, MetricTracker] | None = None
     activation_trackers: dict[str, ActivationTracker] | None = None
 
@@ -50,6 +51,10 @@ class Components:
     def get_optimizer(self, key: str | None = None) -> Any | None:
         """Get the optimizer."""
         return self._get_instance_by_key(self.optimizers, key, "optimizer")
+
+    def get_learning_rate_scheduler(self, key: str | None = None) -> Any | None:
+        """Get the learning rate scheduler."""
+        return self._get_instance_by_key(self.lr_schedulers, key, "learning rate scheduler")
 
     def get_metric_tracker(self, key: str | None = None) -> MetricTracker | None:
         """Get the metric tracker."""

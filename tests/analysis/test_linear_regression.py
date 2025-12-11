@@ -321,3 +321,68 @@ def test_layer_linear_regression_to_factors_false_works() -> None:
     assert "r2" in scalars
     assert "projected" in projections
     assert projections["projected"].shape == (3, 5)
+
+
+def test_factored_regression_perfect_linear_fit() -> None:
+    """Test factored regression with perfectly linear targets achieves perfect fit.
+
+    Uses targets that are exact linear combinations of features to verify
+    the regression machinery works correctly for the factored case.
+    """
+    # 5 samples, 4 features
+    x = jnp.array(
+        [
+            [1.0, 2.0, 3.0, 4.0],
+            [2.0, 3.0, 4.0, 5.0],
+            [3.0, 4.0, 5.0, 6.0],
+            [4.0, 5.0, 6.0, 7.0],
+            [5.0, 6.0, 7.0, 8.0],
+        ]
+    )
+    weights = jnp.ones(5) / 5.0
+
+    # Factor 0: 3 states, exact linear combination (with intercept)
+    # y0 = [x0 + 1, x1 + 2, x2 + 3]
+    factor_0 = jnp.stack([x[:, 0] + 1, x[:, 1] + 2, x[:, 2] + 3], axis=1)
+
+    # Factor 1: 2 states, exact linear combination
+    # y1 = [x1, x3]
+    factor_1 = jnp.stack([x[:, 1], x[:, 3]], axis=1)
+
+    scalars, projections = layer_linear_regression(x, weights, (factor_0, factor_1), to_factors=True)
+
+    # Should achieve perfect R² since targets are exact linear combinations
+    assert scalars["factor_0/r2"] > 0.99, f"factor_0 R² too low: {scalars['factor_0/r2']}"
+    assert scalars["factor_1/r2"] > 0.99, f"factor_1 R² too low: {scalars['factor_1/r2']}"
+
+    # Projections should match targets very closely
+    chex.assert_trees_all_close(projections["factor_0/projected"], factor_0, atol=1e-4)
+    chex.assert_trees_all_close(projections["factor_1/projected"], factor_1, atol=1e-4)
+
+
+def test_factored_regression_different_state_counts() -> None:
+    """Test factored regression with factors having different numbers of states.
+
+    This reproduces a scenario where factors have different dimensionality,
+    which is common in factored generative processes.
+    """
+    x = jnp.arange(24.0).reshape(6, 4)  # 6 samples, 4 features
+    weights = jnp.ones(6) / 6.0
+
+    # Factor 0: 3 states (like "mess3")
+    factor_0_raw = x[:, :3]
+    factor_0 = factor_0_raw / factor_0_raw.sum(axis=1, keepdims=True)
+
+    # Factor 1: 2 states (like "tom quantum")
+    factor_1_raw = x[:, :2]
+    factor_1 = factor_1_raw / factor_1_raw.sum(axis=1, keepdims=True)
+
+    scalars, projections = layer_linear_regression(x, weights, (factor_0, factor_1), to_factors=True)
+
+    # Verify shapes are correct
+    assert projections["factor_0/projected"].shape == (6, 3)
+    assert projections["factor_1/projected"].shape == (6, 2)
+
+    # Both should achieve reasonable fit
+    assert scalars["factor_0/r2"] > 0.5, f"factor_0 R² too low: {scalars['factor_0/r2']}"
+    assert scalars["factor_1/r2"] > 0.5, f"factor_1 R² too low: {scalars['factor_1/r2']}"

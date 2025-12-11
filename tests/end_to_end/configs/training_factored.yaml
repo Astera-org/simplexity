@@ -5,14 +5,15 @@ defaults:
   - generative_process: unified_independent_example
   - persistence: mlflow_persister
   - predictive_model: transformer
-  - optimizer: pytorch_adam
+  - optimizer: pytorch_adam_factored
+  - lr_scheduler: reduce_lr_on_plateau
   - metric_tracker@training_metric_tracker: default
   - metric_tracker@eval_metric_tracker: loss_only
   - activation_tracker: with_factor_visuals
   - training: full
 
-experiment_name: training_test
-run_name: training_test_${now:%Y%m%d_%H%M%S}
+experiment_name: training_test_factored
+run_name: training_test_factored_${now:%Y%m%d_%H%M%S}
 device: auto
 seed: 0
 tags:

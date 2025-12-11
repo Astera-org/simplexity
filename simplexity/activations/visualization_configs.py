@@ -121,6 +121,23 @@ class ActivationVisualizationFieldRef:
 
 
 @dataclass
+class SamplingConfig:
+    """Configuration for sampling DataFrame rows to limit visualization size.
+
+    When max_points is set, the DataFrame is sampled down to at most max_points
+    rows per facet group (e.g., per layer, factor, or data_type combination).
+    This ensures even distribution across subplots.
+    """
+
+    max_points: int | None = None
+    seed: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.max_points is not None and self.max_points <= 0:
+            raise ConfigValidationError("sampling.max_points must be a positive integer")
+
+
+@dataclass
 class CombinedMappingSection:
     """A labeled section of field mappings for combining multiple data sources.
 
@@ -144,6 +161,7 @@ class ActivationVisualizationDataMapping:
     scalar_series: ScalarSeriesMapping | None = None
     combined: list[CombinedMappingSection] | None = None  # For combining multiple data sources
     combine_as: str | None = None  # Column name for section labels (e.g., "data_type")
+    sampling: SamplingConfig | None = None  # Optional sampling to limit visualization size
 
     def __post_init__(self) -> None:
         has_mappings = bool(self.mappings)
@@ -289,6 +307,8 @@ def build_activation_visualization_config(raw_cfg: Mapping[str, Any]) -> Activat
             }
             converted_sections.append(CombinedMappingSection(label=section["label"], mappings=converted_mappings))
         data_mapping_cfg["combined"] = converted_sections
+    if "sampling" in data_mapping_cfg and data_mapping_cfg["sampling"] is not None:
+        data_mapping_cfg["sampling"] = convert_to_dataclass(data_mapping_cfg["sampling"], SamplingConfig)
     config_dict["data_mapping"] = convert_to_dataclass(data_mapping_cfg, ActivationVisualizationDataMapping)
     if "preprocessing" in config_dict:
         config_dict["preprocessing"] = [
@@ -315,6 +335,7 @@ __all__ = [
     "ActivationVisualizationFieldRef",
     "ActivationVisualizationPreprocessStep",
     "CombinedMappingSection",
+    "SamplingConfig",
     "ScalarSeriesMapping",
     "build_activation_visualization_config",
 ]

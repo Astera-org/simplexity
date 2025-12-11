@@ -33,6 +33,7 @@ from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.structured_configs.activation_tracker import ActivationTrackerConfig
 from simplexity.structured_configs.generative_process import GenerativeProcessConfig
+from simplexity.structured_configs.learning_rate_scheduler import LearningRateSchedulerConfig
 from simplexity.structured_configs.logging import LoggingConfig
 from simplexity.structured_configs.metric_tracker import MetricTrackerConfig
 from simplexity.structured_configs.mlflow import MLFlowConfig
@@ -57,6 +58,7 @@ class TrainingConfig:
     log_expensive_every: int
     checkpoint_every: int
     evaluate_every: int
+    validation_multiplier: int
 
 
 @dataclass
@@ -69,6 +71,7 @@ class TrainingRunConfig:
     persistence: PersistenceConfig
     predictive_model: PredictiveModelConfig
     optimizer: OptimizerConfig
+    learning_rate_scheduler: LearningRateSchedulerConfig
     training_metric_tracker: MetricTrackerConfig
     eval_metric_tracker: MetricTrackerConfig
     training: TrainingConfig
@@ -79,6 +82,16 @@ class TrainingRunConfig:
     run_name: str
     seed: int
     tags: dict[str, str]
+
+
+def _expand_init_state(
+    initial_state: jax.Array | tuple[jax.Array, ...],
+    batch_size: int,
+) -> jax.Array | tuple[jax.Array, ...]:
+    """Expand the initial state to the batch size."""
+    if isinstance(initial_state, tuple):
+        return tuple(jnp.repeat(s[None, :], batch_size, axis=0) for s in initial_state)
+    return jnp.repeat(initial_state[None, :], batch_size, axis=0)
 
 
 @simplexity.managed_run(strict=False, verbose=True)
@@ -96,6 +109,8 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     assert isinstance(predictive_model, HookedTransformer)
     optimizer = components.get_optimizer()
     assert isinstance(optimizer, Adam)
+    learning_rate_scheduler = components.get_learning_rate_scheduler()
+    assert isinstance(learning_rate_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau)
     training_metric_tracker = components.get_metric_tracker("training_metric_tracker")
     assert isinstance(training_metric_tracker, MetricTracker)
     eval_metric_tracker = components.get_metric_tracker("eval_metric_tracker")
@@ -105,11 +120,9 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
 
     visualization_path = TemporaryDirectory()
 
-    # gen_states = jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
-    gen_states = (
-        tuple(jnp.repeat(s[None, :], cfg.training.batch_size, axis=0) for s in generative_process.initial_state)
-        if isinstance(generative_process.initial_state, tuple)
-        else jnp.repeat(generative_process.initial_state[None, :], cfg.training.batch_size, axis=0)
+    gen_states = _expand_init_state(
+        generative_process.initial_state,
+        cfg.training.batch_size,
     )
 
     # Only need to specify device for MPS since JAX doesn't support it
@@ -120,7 +133,13 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     def generate(step: int) -> tuple[torch.Tensor, torch.Tensor]:
         key = jax.random.key(step)
         _, inputs, labels = generate_data_batch(
-            gen_states, generative_process, cfg.training.batch_size, cfg.training.sequence_len, key, device=device_arg
+            gen_states,
+            generative_process,
+            cfg.training.batch_size,
+            cfg.training.sequence_len,
+            key,
+            device=device_arg,
+            bos_token=cfg.generative_process.bos_token,
         )
         return inputs, labels
 
@@ -160,24 +179,34 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         metrics = eval_metric_tracker.get_metrics()
         metrics = add_key_prefix(metrics, "eval")
         logger.log_metrics(step, metrics)
+        if step != 0:
+            old_lr = optimizer.param_groups[0]["lr"]
+            learning_rate_scheduler.step(metrics["eval/loss/step"])
+            new_lr = optimizer.param_groups[0]["lr"]
+            if new_lr != old_lr:
+                logging.info(f"Learning rate changed from {old_lr} to {new_lr} at step {step}")
 
     def activation_tracker_step(step: int) -> None:
         predictive_model.eval()
         outs = generate_data_batch_with_full_history(
-            gen_states,
+            _expand_init_state(
+                generative_process.initial_state,
+                cfg.training.batch_size * cfg.training.validation_multiplier,
+            ),
             generative_process,
-            cfg.training.batch_size,
+            cfg.training.batch_size * cfg.training.validation_multiplier,
             cfg.training.sequence_len,
             jax.random.key(step),
             device=device_arg,
+            bos_token=cfg.generative_process.bos_token,
         )
         inputs = outs["inputs"]
         assert isinstance(inputs, (jax.Array, torch.Tensor))
         prefix_probs = outs["prefix_probabilities"]
         assert isinstance(prefix_probs, (jax.Array, torch.Tensor))
         _, act_cache = predictive_model.run_with_cache(inputs)
-        act_cache = {k: v.detach().cpu() for k, v in act_cache.items() if "resid_post" in k}
-        _, _, visualizations = activation_tracker.analyze(
+        act_cache = {k: v.detach().cpu() for k, v in act_cache.items() if "resid" in k}
+        scalars, _, visualizations = activation_tracker.analyze(
             inputs=inputs,
             beliefs=outs["belief_states"],
             probs=prefix_probs,
@@ -189,6 +218,8 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         )
         for key, path in visualization_paths.items():
             logger.log_artifact(str(path), artifact_path=f"activation_plots/{key.split('/')[0]}")
+        scalars = add_key_prefix(dict(scalars), "activations")
+        logger.log_metrics(step, scalars)
 
     def checkpoint_step(step: int) -> None:
         persister.save_weights(predictive_model, step)
@@ -198,6 +229,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
             initial_loss = evaluate()
             training_metric_tracker.context.loss = initial_loss
             eval_metric_tracker.context.loss = initial_loss
+            activation_tracker_step(step)
         else:
             train_step(step)
         if step % cfg.training.log_cheap_every == 0:

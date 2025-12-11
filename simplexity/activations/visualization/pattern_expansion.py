@@ -253,8 +253,9 @@ def _expand_projection_key_mapping(
                     expanded_name = substitute_pattern(field_name, int(group_idx))
                     expanded_name = substitute_pattern(expanded_name, comp_idx)
                 elif total_field_patterns == 1:
-                    # Only one pattern in field name - use for component, append group index
-                    expanded_name = substitute_pattern(field_name, comp_idx)
+                    # Only one pattern in field name - use for component, prefix with group index
+                    # to ensure unique keys when iterating over multiple groups
+                    expanded_name = f"factor_{group_idx}_{substitute_pattern(field_name, comp_idx)}"
                 else:
                     raise ConfigValidationError(
                         f"Field '{field_name}' must have 1-2 patterns for key+component expansion"
@@ -346,8 +347,9 @@ def _expand_belief_factor_mapping(
                     expanded_name = substitute_pattern(field_name, factor_idx)
                     expanded_name = substitute_pattern(expanded_name, comp_idx)
                 elif total_field_patterns == 1:
-                    # Only one pattern - use for component, append factor index
-                    expanded_name = substitute_pattern(field_name, comp_idx)
+                    # Only one pattern in field name - use for component, prefix with factor index
+                    # to ensure unique keys when iterating over multiple factors
+                    expanded_name = f"factor_{factor_idx}_{substitute_pattern(field_name, comp_idx)}"
                 else:
                     raise ConfigValidationError(
                         f"Field '{field_name}' must have 1-2 patterns for factor+component expansion"

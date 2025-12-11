@@ -23,6 +23,7 @@ from simplexity.activations.visualization.pattern_utils import has_pattern
 from simplexity.activations.visualization_configs import (
     ActivationVisualizationConfig,
     ActivationVisualizationFieldRef,
+    SamplingConfig,
     ScalarSeriesMapping,
 )
 from simplexity.exceptions import ConfigValidationError
@@ -413,7 +414,48 @@ def _build_dataframe(
     )
 
 
+def _apply_sampling(
+    df: pd.DataFrame,
+    config: SamplingConfig,
+    facet_columns: list[str],
+) -> pd.DataFrame:
+    """Sample DataFrame down to max_points per facet group.
+
+    Args:
+        df: The DataFrame to sample
+        config: Sampling configuration with max_points and optional seed
+        facet_columns: Column names used for faceting/subplots (e.g., layer, factor, data_type)
+
+    Returns:
+        Sampled DataFrame with at most max_points rows per facet group
+    """
+    if config.max_points is None:
+        return df
+
+    group_cols = [col for col in facet_columns if col in df.columns]
+
+    if not group_cols:
+        if len(df) <= config.max_points:
+            return df
+        return df.sample(n=config.max_points, random_state=config.seed)
+
+    def sample_group(group: pd.DataFrame) -> pd.DataFrame:
+        if len(group) <= config.max_points:  # type: ignore[operator]
+            return group
+        return group.sample(n=config.max_points, random_state=config.seed)  # type: ignore[arg-type]
+
+    # Use group_keys=True to preserve group columns in index, include_groups=False to avoid FutureWarning,
+    # then reset_index to restore group columns as regular columns
+    return (
+        df.groupby(group_cols, group_keys=True)
+        .apply(sample_group, include_groups=False)
+        .reset_index(level=group_cols)
+        .reset_index(drop=True)
+    )
+
+
 __all__ = [
+    "_apply_sampling",
     "_build_dataframe",
     "_build_dataframe_for_mappings",
     "_build_metadata_columns",

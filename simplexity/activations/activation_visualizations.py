@@ -17,6 +17,7 @@ from simplexity.activations.visualization.data_structures import (
     VisualizationControlsState,
 )
 from simplexity.activations.visualization.dataframe_builders import (
+    _apply_sampling,
     _build_dataframe,
     _build_metadata_columns,
 )
@@ -140,6 +141,20 @@ def _render_title_template(
         ) from e
 
 
+def _get_facet_columns(viz_cfg: ActivationVisualizationConfig) -> list[str]:
+    """Get columns used for faceting/subplots.
+
+    Returns columns that define subplot groups, used for per-subplot sampling.
+    """
+    cols = ["layer", "factor", "data_type"]
+    if viz_cfg.plot and viz_cfg.plot.facet:
+        if viz_cfg.plot.facet.row:
+            cols.append(viz_cfg.plot.facet.row)
+        if viz_cfg.plot.facet.column:
+            cols.append(viz_cfg.plot.facet.column)
+    return list(dict.fromkeys(cols))
+
+
 def build_visualization_payloads(
     analysis_name: str,
     viz_cfgs: list[ActivationVisualizationConfig],
@@ -170,6 +185,9 @@ def build_visualization_payloads(
             analysis_concat_layers,
             layer_names,
         )
+        if viz_cfg.data_mapping.sampling is not None:
+            facet_cols = _get_facet_columns(viz_cfg)
+            dataframe = _apply_sampling(dataframe, viz_cfg.data_mapping.sampling, facet_cols)
         dataframe = _apply_preprocessing(dataframe, viz_cfg.preprocessing)
         plot_cfg = viz_cfg.resolve_plot_config(default_backend)
 

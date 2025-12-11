@@ -54,6 +54,10 @@ from simplexity.structured_configs.generative_process import (
     resolve_generative_process_config,
     validate_generative_process_config,
 )
+from simplexity.structured_configs.learning_rate_scheduler import (
+    is_lr_scheduler_target,
+    validate_lr_scheduler_config,
+)
 from simplexity.structured_configs.logging import (
     is_logger_target,
     update_logging_instance_config,
@@ -504,6 +508,37 @@ def _setup_optimizers(
     return None
 
 
+def _instantiate_lr_scheduler(cfg: DictConfig, instance_key: str, optimizer: Any | None) -> Any:
+    """Setup the learning rate scheduler."""
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        if optimizer is None:
+            SIMPLEXITY_LOGGER.warning("No optimizer provided, LR scheduler will be skipped")
+            return None
+        lr_scheduler = hydra.utils.instantiate(instance_config, optimizer=optimizer)
+        SIMPLEXITY_LOGGER.info("[lr_scheduler] instantiated LR scheduler: %s", lr_scheduler.__class__.__name__)
+        return lr_scheduler
+    raise KeyError
+
+
+def _setup_lr_schedulers(
+    cfg: DictConfig, instance_keys: list[str], optimizers: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """Setup the learning rate schedulers."""
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_lr_scheduler_target,
+        validate_fn=validate_lr_scheduler_config,
+        component_name="lr_scheduler",
+    )
+    if instance_keys:
+        optimizer = _get_optimizer(optimizers)
+        return {instance_key: _instantiate_lr_scheduler(cfg, instance_key, optimizer) for instance_key in instance_keys}
+    SIMPLEXITY_LOGGER.info("[lr_scheduler] no LR scheduler configs found")
+    return None
+
+
 def _instantiate_metric_tracker(
     cfg: DictConfig, instance_key: str, predictive_model: Any | None, optimizer: Any | None
 ) -> Any:
@@ -619,6 +654,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.persisters = _setup_persisters(cfg, instance_keys)
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
+    components.lr_schedulers = _setup_lr_schedulers(cfg, instance_keys, components.optimizers)
     components.metric_trackers = _setup_metric_trackers(
         cfg, instance_keys, components.predictive_models, components.optimizers
     )
