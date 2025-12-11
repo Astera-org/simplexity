@@ -25,16 +25,14 @@ from transformer_lens import HookedTransformer
 import simplexity
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
 from simplexity.generative_processes.torch_generator import generate_data_batch
-from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.metrics.metric_tracker import MetricTracker
-from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.structured_configs.generative_process import GenerativeProcessConfig
-from simplexity.structured_configs.logging import LoggingConfig
 from simplexity.structured_configs.metric_tracker import MetricTrackerConfig
-from simplexity.structured_configs.mlflow import MLFlowConfig
+from simplexity.structured_configs.mlflow import MlflowConfig
 from simplexity.structured_configs.optimizer import OptimizerConfig
-from simplexity.structured_configs.persistence import PersistenceConfig
 from simplexity.structured_configs.predictive_model import PredictiveModelConfig
+from simplexity.structured_configs.tracking import MlflowTrackerInstanceConfig
+from simplexity.tracking.mlflow_tracker import MlflowTracker
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
 CONFIG_NAME = "training_test.yaml"
@@ -59,10 +57,9 @@ class TrainingConfig:
 class TrainingRunConfig:
     """Configuration for the managed run demo."""
 
-    mlflow: MLFlowConfig
-    logging: LoggingConfig
+    mlflow: MlflowConfig
+    tracker: MlflowTrackerInstanceConfig
     generative_process: GenerativeProcessConfig
-    persistence: PersistenceConfig
     predictive_model: PredictiveModelConfig
     optimizer: OptimizerConfig
     training_metric_tracker: MetricTrackerConfig
@@ -81,12 +78,10 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     """Test the managed run decorator."""
     active_run = mlflow.active_run()
     assert active_run is not None
-    logger = components.get_logger()
-    assert isinstance(logger, MLFlowLogger)
+    tracker = components.get_run_tracker()
+    assert isinstance(tracker, MlflowTracker)
     generative_process = components.get_generative_process()
     assert isinstance(generative_process, HiddenMarkovModel)
-    persister = components.get_persister()
-    assert isinstance(persister, MLFlowPersister)
     predictive_model = components.get_predictive_model()
     assert isinstance(predictive_model, HookedTransformer)
     optimizer = components.get_optimizer()
@@ -127,7 +122,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
 
     def log_step(step: int, group: str) -> None:
         metrics = training_metric_tracker.get_metrics(group)
-        logger.log_metrics(step, metrics)
+        tracker.log_metrics(step, metrics)
 
     eval_inputs, eval_labels = generate(cfg.training.num_steps)
 
@@ -145,10 +140,10 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         eval_metric_tracker.step(loss=loss)
         metrics = eval_metric_tracker.get_metrics()
         metrics = add_key_prefix(metrics, "eval")
-        logger.log_metrics(step, metrics)
+        tracker.log_metrics(step, metrics)
 
     def checkpoint_step(step: int) -> None:
-        persister.save_weights(predictive_model, step)
+        tracker.save_model(predictive_model, step)
 
     for step in range(cfg.training.num_steps + 1):
         if step == 0:
@@ -170,7 +165,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     sample_inputs = generate(0)[0]
     # TODO(https://github.com/Astera-org/simplexity/issues/125): This is a hack
     step += 1  # pyright: ignore[reportPossiblyUnboundVariable]
-    persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs, step=step)
+    tracker.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs, step=step)
 
 
 if __name__ == "__main__":
