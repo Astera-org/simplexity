@@ -449,6 +449,6 @@ def test_list_model_versions(tmp_path: Path) -> None:
         versions = tracker.list_model_versions(registered_model_name)
         assert len(versions) == version_number
         version_numbers = {v["version"] for v in versions}
-        assert version_numbers == {str(v + 1) for v in range(version_number)}
+        assert version_numbers == {v for v in range(1, version_number + 1)}
 
         tracker.cleanup()
