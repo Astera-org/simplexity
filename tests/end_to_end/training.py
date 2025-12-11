@@ -58,7 +58,7 @@ class TrainingRunConfig:
     """Configuration for the managed run demo."""
 
     mlflow: MlflowConfig
-    tracker: MlflowTrackerInstanceConfig
+    tracking: MlflowTrackerInstanceConfig
     generative_process: GenerativeProcessConfig
     predictive_model: PredictiveModelConfig
     optimizer: OptimizerConfig
