@@ -16,10 +16,9 @@ import pytest
 
 from simplexity.activations.activation_tracker import ActivationTracker
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.logging.logger import Logger
 from simplexity.metrics.metric_tracker import MetricTracker
-from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.components import Components
+from simplexity.tracking.tracker import RunTracker
 
 
 def test_get_none():
@@ -34,25 +33,25 @@ def test_get_none_with_key_raises_error():
 
 
 def test_get_unique_instance():
-    logger = Mock(spec=Logger)
-    components = Components(loggers={"mock": logger})
-    assert components.get_logger() == logger
+    tracker = Mock(spec=RunTracker)
+    components = Components(run_trackers={"mock": tracker})
+    assert components.get_run_tracker() == tracker
 
 
 def test_get_multiple_instances_without_key_raises_error():
-    persister_1 = Mock(spec=ModelPersister)
-    persister_2 = Mock(spec=ModelPersister)
-    components = Components(persisters={"mock_1": persister_1, "mock_2": persister_2})
-    with pytest.raises(KeyError, match="No key provided and multiple persisters found"):
-        components.get_persister()
+    tracker_1 = Mock(spec=RunTracker)
+    tracker_2 = Mock(spec=RunTracker)
+    components = Components(run_trackers={"mock_1": tracker_1, "mock_2": tracker_2})
+    with pytest.raises(KeyError, match="No key provided and multiple run trackers found"):
+        components.get_run_tracker()
 
 
 def test_get_instance_with_key():
-    persister_1 = Mock(spec=ModelPersister)
-    persister_2 = Mock(spec=ModelPersister)
-    components = Components(persisters={"mock_1": persister_1, "mock_2": persister_2})
-    assert components.get_persister("mock_1") == persister_1
-    assert components.get_persister("mock_2") == persister_2
+    tracker_1 = Mock(spec=RunTracker)
+    tracker_2 = Mock(spec=RunTracker)
+    components = Components(run_trackers={"mock_1": tracker_1, "mock_2": tracker_2})
+    assert components.get_run_tracker("mock_1") == tracker_1
+    assert components.get_run_tracker("mock_2") == tracker_2
 
 
 def test_get_instance_with_ending_key():

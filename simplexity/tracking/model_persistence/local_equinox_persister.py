@@ -13,10 +13,12 @@ from pathlib import Path
 
 import equinox as eqx
 
-from simplexity.persistence.local_persister import LocalPersister
+from simplexity.tracking.model_persistence.local_model_persister import (
+    LocalModelPersister,
+)
 
 
-class LocalEquinoxPersister(LocalPersister):
+class LocalEquinoxPersister(LocalModelPersister):
     """Persists a model to the local filesystem."""
 
     filename: str = "model.eqx"

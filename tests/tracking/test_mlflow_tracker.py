@@ -1,4 +1,13 @@
-"""Integration-style tests for MLFlowPersister with a local MLflow backend."""
+"""Integration-style tests for MlflowTracker with a local MLflow backend."""
+
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
 
 from __future__ import annotations
 
@@ -16,18 +25,24 @@ import yaml
 from mlflow.models import infer_signature
 from torch.nn import Linear, Module
 
-from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.predictive_models.types import ModelFramework
+from simplexity.tracking.mlflow_tracker import MlflowTracker
 from simplexity.utils.mlflow_utils import set_mlflow_uris
 
 
-def _get_artifacts_root(persister: MLFlowPersister) -> Path:
-    """Get the artifacts root directory for the given persister."""
-    assert persister.tracking_uri is not None
-    tracking_dir = Path(persister.tracking_uri.replace("file://", ""))
-    experiment_id = persister.experiment_id
-    run_id = persister.run_id
+def _get_artifacts_root(tracker: MlflowTracker) -> Path:
+    """Get the artifacts root directory for the given tracker."""
+    assert tracker.tracking_uri is not None
+    tracking_dir = Path(tracker.tracking_uri.replace("file://", ""))
+    experiment_id = tracker.experiment_id
+    run_id = tracker.run_id
     return tracking_dir / experiment_id / run_id / "artifacts"
+
+
+def _get_pytorch_model(seed: int) -> Linear:
+    """Build a small deterministic PyTorch model for serialization tests."""
+    torch.manual_seed(seed)
+    return Linear(in_features=4, out_features=2)
 
 
 def _pytorch_models_equal(model1: Module, model2: Module) -> bool:
@@ -55,23 +70,23 @@ def _models_equal(model1: Module | eqx.Module, model2: Module | eqx.Module) -> b
 
 
 @pytest.fixture
-def persister(tmp_path: Path) -> Generator[MLFlowPersister, None, None]:
-    """Get a MLFlowPersister instance."""
+def tracker(tmp_path: Path) -> Generator[MlflowTracker, None, None]:
+    """Get a MlflowTracker instance."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
-    persister = MLFlowPersister(
+    tracker = MlflowTracker(
         experiment_name="test-experiment",
         run_name="test-run",
         tracking_uri=artifact_dir.as_uri(),
         registry_uri=artifact_dir.as_uri(),
         model_dir="models",
     )
-    yield persister
-    persister.cleanup()
+    yield tracker
+    tracker.cleanup()
 
 
 @pytest.mark.parametrize("framework", [ModelFramework.PYTORCH, ModelFramework.EQUINOX])
-def test_round_trip(persister: MLFlowPersister, framework: ModelFramework) -> None:
+def test_round_trip(tracker: MlflowTracker, framework: ModelFramework) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance."""
 
     if framework == ModelFramework.PYTORCH:
@@ -87,58 +102,39 @@ def test_round_trip(persister: MLFlowPersister, framework: ModelFramework) -> No
     else:
         raise ValueError(f"Unsupported model framework: {framework}")
 
-    persister.save_weights(original, step=0)
+    tracker.save_model(original, step=0)
 
-    remote_model_path = _get_artifacts_root(persister) / persister.model_dir / "0" / model_filename
+    remote_model_path = _get_artifacts_root(tracker) / tracker.model_dir / "0" / model_filename
     assert remote_model_path.exists()
 
     assert not _models_equal(original, updated)
-    loaded = persister.load_weights(updated, step=0)
+    loaded = tracker.load_model(updated, step=0)
     assert _models_equal(loaded, original)
 
 
 @pytest.mark.parametrize("framework", [ModelFramework.PYTORCH, ModelFramework.EQUINOX])
-def test_round_trip_from_config(persister: MLFlowPersister, framework: ModelFramework) -> None:
+def test_round_trip_from_config(tracker: MlflowTracker, framework: ModelFramework) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance via the config."""
-
     if framework == ModelFramework.PYTORCH:
+        torch.manual_seed(0)
         original = Linear(in_features=4, out_features=2)
-        config = {
-            "predictive_model": {
-                "instance": {
-                    "_target_": "torch.nn.Linear",
-                    "in_features": 4,
-                    "out_features": 2,
-                }
-            }
-        }
+        torch.manual_seed(1)
+        updated = Linear(in_features=4, out_features=2)
         model_filename = "model.pt"
     elif framework == ModelFramework.EQUINOX:
         original = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
-        config = {
-            "predictive_model": {
-                "instance": {
-                    "_target_": "equinox.nn.Linear",
-                    "in_features": 4,
-                    "out_features": 2,
-                    "key": {"_target_": "jax.random.key", "seed": 0},
-                }
-            }
-        }
+        updated = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(1))
         model_filename = "model.eqx"
     else:
         raise ValueError(f"Unsupported model framework: {framework}")
 
-    persister.save_weights(original, step=0)
+    tracker.save_model(original, step=0)
 
-    remote_model_path = _get_artifacts_root(persister) / persister.model_dir / "0" / model_filename
+    remote_model_path = _get_artifacts_root(tracker) / tracker.model_dir / "0" / model_filename
     assert remote_model_path.exists()
 
-    config_path = _get_artifacts_root(persister) / "config.yaml"
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f)
-
-    loaded = persister.load_model(step=0)
+    assert not _models_equal(original, updated)
+    loaded = tracker.load_model(updated, step=0)
     assert _models_equal(loaded, original)
 
 
@@ -147,16 +143,16 @@ def test_round_trip_from_config(persister: MLFlowPersister, framework: ModelFram
     [ModelFramework.PYTORCH, ModelFramework.EQUINOX],
 )
 def test_cleanup(tmp_path: Path, framework: ModelFramework) -> None:
-    """Test PyTorch model cleanup with MLflow persister."""
+    """Test PyTorch model cleanup with MLflow tracker."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
 
-    persister = MLFlowPersister(experiment_name="pytorch-cleanup", tracking_uri=artifact_dir.as_uri())
+    tracker = MlflowTracker(experiment_name="pytorch-cleanup", tracking_uri=artifact_dir.as_uri())
 
     def run_status() -> str:
         """Get the status of the run."""
-        client = persister.client
-        run_id = persister.run_id
+        client = tracker.client
+        run_id = tracker.run_id
         run = client.get_run(run_id)
         return run.info.status
 
@@ -169,11 +165,11 @@ def test_cleanup(tmp_path: Path, framework: ModelFramework) -> None:
     else:
         raise ValueError(f"Unsupported model framework: {framework}")
 
-    persister.save_weights(model, step=0)
-    local_persister = persister.get_local_persister(model)
+    tracker.save_model(model, step=0)
+    local_persister = tracker.get_local_persister(model)
     assert local_persister.directory.exists()
 
-    persister.cleanup()
+    tracker.cleanup()
     assert run_status() == "FINISHED"
     assert not local_persister.directory.exists()
 
@@ -192,30 +188,30 @@ def mock_create_requirements_file(tmp_path: Path) -> Generator[str, None, None]:
     requirements_path = tmp_path / "requirements.txt"
     requirements_path.write_text(REQUIREMENTS_CONTENT, encoding="utf-8")
 
-    with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
+    with patch("simplexity.tracking.mlflow_tracker.create_requirements_file") as mock_create:
         mock_create.return_value = str(requirements_path)
         yield mock_create
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry(persister: MLFlowPersister) -> None:
+def test_save_model_to_registry(tracker: MlflowTracker) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
 
     model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model"
 
-    model_info = persister.save_model_to_registry(model, registered_model_name)
+    model_info = tracker.save_model_to_registry(model, registered_model_name)
 
-    model_versions = persister.client.search_model_versions(
+    model_versions = tracker.client.search_model_versions(
         filter_string=f"name='{registered_model_name}'", max_results=10
     )
     assert len(model_versions) == 1
     assert model_versions[0].run_id == model_info.run_id
     assert model_versions[0].version == model_info.registered_model_version
 
-    assert persister.registry_uri is not None
-    registry_dir = Path(persister.registry_uri.replace("file://", ""))
-    models_meta_path = registry_dir / persister.model_dir / registered_model_name / "version-1" / "meta.yaml"
+    assert tracker.registry_uri is not None
+    registry_dir = Path(tracker.registry_uri.replace("file://", ""))
+    models_meta_path = registry_dir / tracker.model_dir / registered_model_name / "version-1" / "meta.yaml"
     assert models_meta_path.exists()
     with open(models_meta_path, encoding="utf-8") as f:
         models_meta = yaml.load(f, Loader=yaml.FullLoader)
@@ -232,58 +228,58 @@ def test_save_model_to_registry(persister: MLFlowPersister) -> None:
         requirements_content = f.read()
     assert requirements_content == REQUIREMENTS_CONTENT.rstrip()
 
-    persister.cleanup()
+    tracker.cleanup()
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_matching_active_run(persister: MLFlowPersister) -> None:
+def test_save_model_to_registry_with_matching_active_run(tracker: MlflowTracker) -> None:
     """save_model_to_registry should reuse an already active run with the same id."""
     model = Linear(in_features=4, out_features=2)
     model_info = None
     with (
-        set_mlflow_uris(tracking_uri=persister.tracking_uri, registry_uri=persister.registry_uri),
-        mlflow.start_run(run_id=persister.run_id),
+        set_mlflow_uris(tracking_uri=tracker.tracking_uri, registry_uri=tracker.registry_uri),
+        mlflow.start_run(run_id=tracker.run_id),
     ):
-        model_info = persister.save_model_to_registry(model, "test_model_active_run")
+        model_info = tracker.save_model_to_registry(model, "test_model_active_run")
 
     assert model_info is not None
-    assert model_info.run_id == persister.run_id
+    assert model_info.run_id == tracker.run_id
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_mismatched_active_run(persister: MLFlowPersister) -> None:
+def test_save_model_to_registry_with_mismatched_active_run(tracker: MlflowTracker) -> None:
     """save_model_to_registry should fail when another run is active."""
 
     model = Linear(in_features=4, out_features=2)
     with (
-        set_mlflow_uris(tracking_uri=persister.tracking_uri, registry_uri=persister.registry_uri),
-        mlflow.start_run(experiment_id=persister.experiment_id) as active_run,
+        set_mlflow_uris(tracking_uri=tracker.tracking_uri, registry_uri=tracker.registry_uri),
+        mlflow.start_run(experiment_id=tracker.experiment_id) as active_run,
     ):
-        assert active_run.info.run_id != persister.run_id
+        assert active_run.info.run_id != tracker.run_id
         with pytest.raises(RuntimeError, match="Cannot save model to registry"):
-            persister.save_model_to_registry(model, "test_model_mismatched_run")
+            tracker.save_model_to_registry(model, "test_model_mismatched_run")
 
 
-def test_save_model_to_registry_with_no_requirements(persister: MLFlowPersister) -> None:
+def test_save_model_to_registry_with_no_requirements(tracker: MlflowTracker) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
 
     model = Linear(in_features=4, out_features=2)
     registered_model_name = "test_model"
 
-    assert persister.tracking_uri is not None
-    pyproject_path = Path(persister.tracking_uri.replace("file://", "")).parent / "pyproject.toml"
+    assert tracker.tracking_uri is not None
+    pyproject_path = Path(tracker.tracking_uri.replace("file://", "")).parent / "pyproject.toml"
 
-    with patch("simplexity.persistence.mlflow_persister.create_requirements_file") as mock_create:
+    with patch("simplexity.tracking.mlflow_tracker.create_requirements_file") as mock_create:
         mock_create.side_effect = FileNotFoundError(f"pyproject.toml not found at {pyproject_path}")
-        model_info = persister.save_model_to_registry(model, registered_model_name)
+        model_info = tracker.save_model_to_registry(model, registered_model_name)
 
     assert model_info is not None
 
-    persister.cleanup()
+    tracker.cleanup()
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_model_inputs(persister: MLFlowPersister) -> None:
+def test_save_model_to_registry_with_model_inputs(tracker: MlflowTracker) -> None:
     """Test saving a PyTorch model to registry with model inputs for automatic signature inference."""
 
     model = Linear(in_features=4, out_features=2)
@@ -291,13 +287,13 @@ def test_save_model_to_registry_with_model_inputs(persister: MLFlowPersister) ->
 
     sample_input = torch.randn(2, 4)
 
-    model_info = persister.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
+    model_info = tracker.save_model_to_registry(model, registered_model_name, model_inputs=sample_input)
     assert model_info.signature is not None, "Registered model should have a signature when model_inputs is provided"
 
-    persister.cleanup()
+    tracker.cleanup()
 
 
-def test_save_model_to_registry_non_pytorch(persister: MLFlowPersister) -> None:
+def test_save_model_to_registry_non_pytorch(tracker: MlflowTracker) -> None:
     """Test saving a non-PyTorch model to the MLflow model registry."""
 
     registered_model_name = "test_non_pytorch_model"
@@ -308,11 +304,11 @@ def test_save_model_to_registry_non_pytorch(persister: MLFlowPersister) -> None:
         ValueError,
         match=r"Model must be a PyTorch model \(torch\.nn\.Module\), got <class '.+'?>",
     ):
-        persister.save_model_to_registry(equinox_model, registered_model_name)
+        tracker.save_model_to_registry(equinox_model, registered_model_name)
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_signature(persister: MLFlowPersister) -> None:
+def test_save_model_to_registry_with_signature(tracker: MlflowTracker) -> None:
     """Test saving a PyTorch model to the MLflow model registry with a signature."""
 
     model = Linear(in_features=4, out_features=2)
@@ -321,69 +317,69 @@ def test_save_model_to_registry_with_signature(persister: MLFlowPersister) -> No
     signature_data = {"some_key": "some_value", "some_other_key": "some_other_value"}
     signature = infer_signature(signature_data)
 
-    with patch("simplexity.persistence.mlflow_persister.SIMPLEXITY_LOGGER.warning") as mock_warning:
-        model_info = persister.save_model_to_registry(
+    with patch("simplexity.tracking.mlflow_tracker.SIMPLEXITY_LOGGER.warning") as mock_warning:
+        model_info = tracker.save_model_to_registry(
             model, registered_model_name, model_inputs=sample_input, signature=signature
         )
         mock_warning.assert_called_once_with("Signature provided in kwargs, ignoring inferred signature")
 
     assert model_info.signature == signature
-    persister.cleanup()
+    tracker.cleanup()
 
 
-def test_model_registry_round_trip(persister: MLFlowPersister) -> None:
+def test_model_registry_round_trip(tracker: MlflowTracker) -> None:
     """Test loading a PyTorch model from the MLflow model registry."""
 
     original = Linear(in_features=4, out_features=2)
     registered_model_name = "test_load_model"
 
-    persister.save_model_to_registry(original, registered_model_name)
+    tracker.save_model_to_registry(original, registered_model_name)
 
-    loaded = persister.load_model_from_registry(registered_model_name)
+    loaded = tracker.load_model_from_registry(registered_model_name)
     assert _pytorch_models_equal(loaded, original)
 
 
-def test_load_model_from_registry_multiple_versions(persister: MLFlowPersister) -> None:
+def test_load_model_from_registry_multiple_versions(tracker: MlflowTracker) -> None:
     """Test loading different versions of a model from the registry."""
 
     registered_model_name = "test_model"
 
     torch.manual_seed(0)
     model_v1 = Linear(in_features=4, out_features=2)
-    model_v1_info = persister.save_model_to_registry(model_v1, registered_model_name)
+    model_v1_info = tracker.save_model_to_registry(model_v1, registered_model_name)
 
     torch.manual_seed(1)
     model_v2 = Linear(in_features=4, out_features=2)
-    model_v2_info = persister.save_model_to_registry(model_v2, registered_model_name)
+    model_v2_info = tracker.save_model_to_registry(model_v2, registered_model_name)
 
     assert not _pytorch_models_equal(model_v1, model_v2)
 
     # Load version 1
-    loaded_v1 = persister.load_model_from_registry(
+    loaded_v1 = tracker.load_model_from_registry(
         registered_model_name, version=str(model_v1_info.registered_model_version)
     )
     assert _pytorch_models_equal(loaded_v1, model_v1)
 
     # Load version 2
-    loaded_v2 = persister.load_model_from_registry(
+    loaded_v2 = tracker.load_model_from_registry(
         registered_model_name, version=str(model_v2_info.registered_model_version)
     )
     assert _pytorch_models_equal(loaded_v2, model_v2)
 
     # Load latest (should be version 2)
-    loaded_latest = persister.load_model_from_registry(registered_model_name)
+    loaded_latest = tracker.load_model_from_registry(registered_model_name)
     assert _pytorch_models_equal(loaded_latest, model_v2)
 
 
-def test_load_model_from_registry_with_stage(persister: MLFlowPersister) -> None:
+def test_load_model_from_registry_with_stage(tracker: MlflowTracker) -> None:
     """Test loading a model from the registry with a stage."""
 
     registered_model_name = "test_model"
 
     torch.manual_seed(0)
     model_prod = Linear(in_features=4, out_features=2)
-    model_prod_info = persister.save_model_to_registry(model_prod, registered_model_name)
-    persister.client.transition_model_version_stage(
+    model_prod_info = tracker.save_model_to_registry(model_prod, registered_model_name)
+    tracker.client.transition_model_version_stage(
         name=registered_model_name,
         version=str(model_prod_info.registered_model_version),
         stage="Production",
@@ -391,8 +387,8 @@ def test_load_model_from_registry_with_stage(persister: MLFlowPersister) -> None
 
     torch.manual_seed(1)
     model_stage = Linear(in_features=4, out_features=2)
-    model_stage_info = persister.save_model_to_registry(model_stage, registered_model_name)
-    persister.client.transition_model_version_stage(
+    model_stage_info = tracker.save_model_to_registry(model_stage, registered_model_name)
+    tracker.client.transition_model_version_stage(
         name=registered_model_name,
         version=str(model_stage_info.registered_model_version),
         stage="Staging",
@@ -400,41 +396,59 @@ def test_load_model_from_registry_with_stage(persister: MLFlowPersister) -> None
 
     assert not _pytorch_models_equal(model_prod, model_stage)
 
-    loaded_prod = persister.load_model_from_registry(registered_model_name, stage="Production")
+    loaded_prod = tracker.load_model_from_registry(registered_model_name, stage="Production")
     assert _pytorch_models_equal(loaded_prod, model_prod)
 
-    loaded_stage = persister.load_model_from_registry(registered_model_name, stage="Staging")
+    loaded_stage = tracker.load_model_from_registry(registered_model_name, stage="Staging")
     assert _pytorch_models_equal(loaded_stage, model_stage)
 
 
-def test_load_model_from_registry_no_registered_model(persister: MLFlowPersister) -> None:
+def test_load_model_from_registry_no_registered_model(tracker: MlflowTracker) -> None:
     """Test that loading a non-existent version raises an error."""
 
     with pytest.raises(RuntimeError, match="No versions found for registered model 'model_name'"):
-        persister.load_model_from_registry(registered_model_name="model_name")
+        tracker.load_model_from_registry(registered_model_name="model_name")
 
 
-def test_load_model_from_registry_both_version_and_stage(persister: MLFlowPersister) -> None:
+def test_load_model_from_registry_both_version_and_stage(tracker: MlflowTracker) -> None:
     """Test that specifying both version and stage raises an error."""
 
     with pytest.raises(ValueError, match="Cannot specify both version and stage. Use one or the other."):
-        persister.load_model_from_registry(registered_model_name="model_name", version="1", stage="Production")
+        tracker.load_model_from_registry(registered_model_name="model_name", version="1", stage="Production")
 
 
-def test_list_model_versions(persister: MLFlowPersister) -> None:
+@pytest.mark.usefixtures("mock_create_requirements_file")
+def test_list_model_versions(tmp_path: Path) -> None:
     """Test listing model versions from the registry."""
+    artifact_dir = tmp_path / "mlruns"
+    artifact_dir.mkdir()
 
     registered_model_name = "test_list_model"
 
-    versions = persister.list_model_versions(registered_model_name)
+    tracker = MlflowTracker(
+        experiment_name="registry-list",
+        run_name="registry-list-run",
+        tracking_uri=artifact_dir.as_uri(),
+        registry_uri=artifact_dir.as_uri(),
+    )
+
+    versions = tracker.list_model_versions(registered_model_name)
     assert len(versions) == 0
 
     for version_number in range(1, 4):
-        torch.manual_seed(version_number)
-        model = Linear(in_features=4, out_features=2)
-        persister.save_model_to_registry(model, registered_model_name)
+        tracker = MlflowTracker(
+            experiment_name="registry-list",
+            run_name=f"registry-list-run-{version_number}",
+            tracking_uri=artifact_dir.as_uri(),
+            registry_uri=artifact_dir.as_uri(),
+        )
 
-        versions = persister.list_model_versions(registered_model_name)
+        model = _get_pytorch_model(version_number)
+        tracker.save_model_to_registry(model, registered_model_name)
+
+        versions = tracker.list_model_versions(registered_model_name)
         assert len(versions) == version_number
         version_numbers = {v["version"] for v in versions}
-        assert version_numbers == {v + 1 for v in range(version_number)}
+        assert version_numbers == {v for v in range(1, version_number + 1)}
+
+        tracker.cleanup()

@@ -7,10 +7,18 @@ import jax
 import pytest
 from penzai import pz
 from penzai.core.variables import UnboundVariableError
-from penzai.models.transformer.variants.llamalike_common import LlamalikeTransformerConfig, build_llamalike_transformer
+from penzai.models.transformer.variants.llamalike_common import (
+    LlamalikeTransformerConfig,
+    build_llamalike_transformer,
+)
 from penzai.nn.layer import Layer as PenzaiModel
 
-from simplexity.persistence.local_penzai_persister import LocalPenzaiPersister
+from simplexity.tracking.model_persistence.local_penzai_persister import (
+    LocalPenzaiPersister,
+)
+
+# Skip if penzai is not installed
+pytest.importorskip("penzai")
 
 
 def test_local_penzai_persister(tmp_path: Path):
