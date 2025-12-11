@@ -3,7 +3,7 @@
 # pylint: disable=unnecessary-ellipsis
 
 from collections.abc import Mapping
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import matplotlib.figure
 import mlflow
@@ -13,6 +13,7 @@ import plotly.graph_objects
 from omegaconf import DictConfig
 
 
+@runtime_checkable
 class RunTracker(Protocol):
     """Tracks run data (metrics, params, artifacts, models)."""
 
