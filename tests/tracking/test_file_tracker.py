@@ -99,6 +99,7 @@ def sample_list_data():
 
 
 def test_file_tracker(tmp_path: Path):
+    """Test FileTracker initialization."""
     tracker = FileTracker(str(tmp_path / "test.log"))
     params = {
         "str_param": "str_value",
@@ -124,7 +125,7 @@ def test_file_tracker(tmp_path: Path):
     tracker.log_metrics(1, metrics)
     tracker.close()
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         assert f.read() == EXPECTED_LOG
 
 
@@ -145,7 +146,7 @@ def test_file_tracker_with_interpolation(tmp_path: Path):
     tracker.log_config(config, resolve=True)
     tracker.close()
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         assert f.read() == EXPECTED_LOG_WITH_INTERPOLATION
 
 
@@ -159,7 +160,7 @@ def test_log_artifact_copies_file(test_artifact_file, tmp_path: Path):
     assert copied_file.exists()
     assert copied_file.read_text() == "test content"
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         log_content = f.read()
         assert "Artifact copied:" in log_content
         assert "test_artifact.txt" in log_content
@@ -200,11 +201,11 @@ def test_log_json_artifact_saves_json(sample_json_data, tmp_path: Path):
     json_file = tmp_path / "results.json"
     assert json_file.exists()
 
-    with open(json_file) as f:
+    with open(json_file, encoding="utf-8") as f:
         loaded_data = json.load(f)
         assert loaded_data == sample_json_data
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         log_content = f.read()
         assert "JSON artifact saved:" in log_content
         assert "results.json" in log_content
@@ -219,7 +220,7 @@ def test_log_json_artifact_with_list(sample_list_data, tmp_path: Path):
     json_file = tmp_path / "data_list.json"
     assert json_file.exists()
 
-    with open(json_file) as f:
+    with open(json_file, encoding="utf-8") as f:
         loaded_data = json.load(f)
         assert loaded_data == sample_list_data
 
@@ -233,7 +234,7 @@ def test_log_figure_saves_matplotlib_plot(matplotlib_figure, tmp_path: Path):
     with Image.open(tmp_path / "test_plot.png") as img:
         assert img.size == (400, 300)
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         log_content = f.read()
         assert "Figure saved:" in log_content
         assert "test_plot.png" in log_content
@@ -258,7 +259,7 @@ def test_log_image_pil_artifact_mode(pil_image, tmp_path: Path):
     with Image.open(tmp_path / "pil_test.png") as img:
         assert img.size == (100, 50)
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         log_content = f.read()
         assert "Image saved:" in log_content
         assert "pil_test.png" in log_content
@@ -283,7 +284,7 @@ def test_log_image_time_stepped_mode(small_numpy_image, tmp_path: Path):
     with Image.open(tmp_path / "training_viz_step_42.png") as img:
         assert img.size == (50, 50)
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         log_content = f.read()
         assert "Time-stepped image saved:" in log_content
         assert "training_viz_step_42.png" in log_content
@@ -299,7 +300,7 @@ def test_log_image_unsupported_type(tmp_path: Path):
 
     assert not (tmp_path / "bad.png").exists()
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         log_content = f.read()
         assert "not supported for file saving" in log_content
 
@@ -310,7 +311,7 @@ def test_log_image_missing_parameters_fails(tiny_numpy_image, tmp_path: Path):
     tracker.log_image(tiny_numpy_image, key="incomplete")  # missing step
     tracker.close()
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         log_content = f.read()
         assert "Image logging failed" in log_content
 
@@ -321,6 +322,6 @@ def test_log_image_no_parameters_fails(tiny_numpy_image, tmp_path: Path):
     tracker.log_image(tiny_numpy_image)  # Neither artifact_file nor key+step
     tracker.close()
 
-    with open(tmp_path / "test.log") as f:
+    with open(tmp_path / "test.log", encoding="utf-8") as f:
         log_content = f.read()
         assert "Image logging failed - need either artifact_file or (key + step)" in log_content
