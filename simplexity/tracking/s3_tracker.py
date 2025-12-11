@@ -140,31 +140,25 @@ class S3Tracker(RunTracker):
 
     def save_model(self, model: Any, step: int = 0) -> None:
         """Saves a model to S3."""
-        from simplexity.predictive_models.types import get_model_framework
-
-        framework = get_model_framework(model)
-
-        if framework not in self.local_persisters:
-            # Build one in the temp dir
-            self.local_persisters[framework] = build_local_persister(framework, Path(self.temp_dir.name))
-
-        local_persister = self.local_persisters[framework]
+        local_persister = self.get_local_persister(model)
         local_persister.save_weights(model, step)
         directory = local_persister.directory / str(step)
         self._upload_local_directory(directory)
 
     def load_model(self, model: Any, step: int = 0) -> Any:
         """Loads a model from S3."""
-        from simplexity.predictive_models.types import get_model_framework
-
-        framework = get_model_framework(model)
-
-        if framework not in self.local_persisters:
-            self.local_persisters[framework] = build_local_persister(framework, Path(self.temp_dir.name))
-        local_persister = self.local_persisters[framework]
-
+        local_persister = self.get_local_persister(model)
         self._download_s3_objects(step, local_persister)
         return local_persister.load_weights(model, step)
+
+    def get_local_persister(self, model: Any) -> LocalModelPersister:
+        """Get the local persister for the given model."""
+        from simplexity.predictive_models.types import get_model_framework
+
+        model_framework = get_model_framework(model)
+        if model_framework not in self.local_persisters:
+            self.local_persisters[model_framework] = build_local_persister(model_framework, Path(self.temp_dir.name))
+        return self.local_persisters[model_framework]
 
     def _upload_local_directory(self, directory: Path) -> None:
         for root, _, files in directory.walk():
