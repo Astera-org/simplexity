@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
   pull_request:
 
 jobs:
@@ -24,4 +25,3 @@ jobs:
             tests/end_to_end/ \
             --capture=no \
             --verbose
-

@@ -1,7 +1,7 @@
 # GitHub Copilot Code Review
 #
 # This workflow requests a review from GitHub Copilot only after all checks pass.
-# 
+#
 # IMPORTANT: To use this workflow, you must DISABLE the automatic Copilot review
 # in your repository ruleset (Settings > Rules > Rulesets). Otherwise, Copilot
 # will be added as a reviewer immediately when the PR is created, defeating the
@@ -16,6 +16,7 @@
 name: Copilot Code Review
 
 on:
+  workflow_dispatch:
   workflow_run:
     workflows: ["simplexity"]
     types:
@@ -23,6 +24,8 @@ on:
   pull_request:
     types:
       - ready_for_review
+    branches:
+      - main
 
 jobs:
   copilot-review:
@@ -33,7 +36,18 @@ jobs:
       issues: read
       checks: read
       actions: read
-    
+
+    # Only run if:
+    # 1. Manually triggered (workflow_dispatch)
+    # 2. PR event targeting main
+    # 3. Workflow_run event where head_branch is main (push to main)
+    # 4. Workflow_run event where associated PR targets main
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.base_ref == 'main')
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -47,7 +61,7 @@ jobs:
         with:
           script: |
             let pr;
-            
+
             if (context.eventName === 'workflow_run') {
               // Triggered by workflow_run - check if workflow succeeded
               const workflowRun = context.payload.workflow_run;
@@ -99,14 +113,14 @@ jobs:
                 return;
               }
             }
-            
+
             // Skip if PR is a draft
             if (pr.draft === true) {
               core.info(`PR #${pr.number} is a draft - skipping Copilot review`);
               core.setFailed('PR is a draft');
               return;
             }
-            
+
             core.info(`Processing PR #${pr.number} - all checks have passed`);
 
       - name: Check and request Copilot review
@@ -115,7 +129,7 @@ jobs:
         with:
           script: |
             let pr;
-            
+
             if (context.eventName === 'workflow_run') {
               const workflowRun = context.payload.workflow_run;
               const prs = await github.rest.pulls.list({
@@ -128,35 +142,35 @@ jobs:
             } else {
               pr = context.payload.pull_request;
             }
-            
+
             const prNumber = pr.number;
-            
+
             // Get current reviewers to check if Copilot is already a reviewer
             const reviews = await github.rest.pulls.listRequestedReviewers({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: prNumber,
             });
-            
+
             // Check if Copilot is already a requested reviewer
             const existingReviewers = [
               ...(reviews.data.users || []).map(u => u.login.toLowerCase()),
               ...(reviews.data.teams || []).map(t => t.slug.toLowerCase()),
             ];
-            
+
             const copilotIdentifiers = ['github-copilot', 'copilot', 'github-copilot[bot]'];
             const hasCopilot = existingReviewers.some(r => 
               copilotIdentifiers.some(id => r.includes(id))
             );
-            
+
             if (hasCopilot) {
               core.info('GitHub Copilot is already a requested reviewer for this PR - skipping');
               return;
             }
-            
+
             // Try to request Copilot as a reviewer
             core.info(`Requesting Copilot review for PR #${prNumber}...`);
-            
+
             try {
               // Note: The GitHub API may not directly support requesting Copilot as a reviewer
               // since it's an app, not a user. This is a best-effort attempt.

@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main
+      - dev
   pull_request:
 
 jobs:
@@ -57,7 +58,7 @@ jobs:
             TESTMON_FLAG="--testmon-noselect"
             echo "::notice::Running full test suite (main branch mode)"
           fi
-          
+
           # Run tests with coverage tracking (no threshold enforcement)
           # Coverage is tracked but won't fail - new code in PRs is checked via diff-cover
           # TODO: Enable strict overall coverage enforcement once coverage improves
@@ -69,7 +70,7 @@ jobs:
             --cov-fail-under=0 \
             --ignore=tests/end_to_end \
             $TESTMON_FLAG
-          
+
           # Verify coverage.xml was generated (required for diff-cover and Codecov)
           # This is ensured by --cov-report=xml in pyproject.toml, but we verify for clarity
           if [ ! -f coverage.xml ]; then
@@ -83,16 +84,25 @@ jobs:
           # Get the base branch (usually main)
           BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
           echo "Checking coverage for new code against base branch: ${BASE_BRANCH}"
+
+          # Determine threshold based on branch
+          if [ "$BASE_BRANCH" = "main" ]; then
+            FAIL_UNDER=80
+            echo "::notice::Enforcing 80% coverage threshold for main branch"
+          else
+            FAIL_UNDER=0
+            echo "::notice::Skipping coverage enforcement for non-main branch (monitoring only)"
+          fi
+
           # Run diff-cover to check only new/changed code
-          # Fail if new code coverage is below 80%
           # Note: diff-cover only needs --extra dev (tests need all extras for integration testing)
           if uv run --extra dev diff-cover coverage.xml \
             --compare-branch=origin/${BASE_BRANCH} \
-            --fail-under=80 \
+            --fail-under=$FAIL_UNDER \
             --markdown-report diff-coverage-report.md; then
-            echo "::notice::New code coverage check passed (80% threshold)"
+            echo "::notice::New code coverage check passed"
           else
-            echo "::error::New code coverage is below 80% threshold"
+            echo "::error::New code coverage is below $FAIL_UNDER% threshold"
             exit 1
           fi
         continue-on-error: false
