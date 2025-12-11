@@ -124,6 +124,44 @@ def test_generate_data_batch_with_full_history():
     assert isinstance(inputs, jax.Array)
     assert isinstance(labels, jax.Array)
 
+    # Without BOS, belief_states is aligned with inputs (one less than sequence_len)
+    assert belief_states.shape == (batch_size, sequence_len - 1, gen_state.shape[0])
+    assert prefix_probs.shape == (batch_size, inputs.shape[1])
+    assert labels.shape == inputs.shape
+
+
+def test_generate_data_batch_with_full_history_bos():
+    """Ensure belief states align with inputs when BOS token is used."""
+    hmm = build_hidden_markov_model("zero_one_random", process_params={"p": 0.5})
+    batch_size = 4
+    sequence_len = 6
+    bos_token = 2
+    gen_state: jax.Array = hmm.initial_state
+    states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
+    key = jax.random.PRNGKey(0)
+    result = generate_data_batch_with_full_history(
+        states,
+        hmm,
+        batch_size,
+        sequence_len,
+        key,
+        bos_token=bos_token,
+    )
+    belief_states = result["belief_states"]
+    prefix_probs = result["prefix_probabilities"]
+    inputs = result["inputs"]
+    labels = result["labels"]
+
+    assert isinstance(belief_states, jax.Array)
+    assert isinstance(prefix_probs, jax.Array)
+    assert isinstance(inputs, jax.Array)
+    assert isinstance(labels, jax.Array)
+
+    # With BOS, inputs has sequence_len positions (BOS + sequence_len-1 tokens)
+    # belief_states is aligned with inputs
+    assert inputs.shape == (batch_size, sequence_len)
     assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
     assert prefix_probs.shape == (batch_size, inputs.shape[1])
     assert labels.shape == inputs.shape
+    # First input should be BOS token
+    assert jnp.all(inputs[:, 0] == bos_token)
