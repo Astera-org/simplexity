@@ -54,7 +54,7 @@ def validate_base_config(cfg: DictConfig) -> None:
 
 
 @dynamic_resolve
-def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42, device: str | None = None) -> None:
+def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int | None = None, device: str | None = None) -> None:
     """Resolve the BaseConfig by setting default values and logging mismatches.
 
     This function sets default seed and strict tag values if not present in the config.
@@ -64,28 +64,24 @@ def resolve_base_config(cfg: DictConfig, *, strict: bool, seed: int = 42, device
     Args:
         cfg: A DictConfig with seed and tags fields (from Hydra).
         strict: Whether strict mode is enabled. Used to set tags.strict.
-        seed: The random seed to use. Defaults to 42.
-        device: The device to use. Defaults to "auto".
+        seed: The random seed to use. If None, defaults to 42 when config has no seed.
+        device: The device to use. If None, defaults to "auto" when config has no device.
     """
-    if device is None:
-        device = "auto"
-    if cfg.get("device") is None:
+    device_tag = cfg.get("device")
+    if device_tag is None:
+        cfg.device = device or "auto"
+    elif device and device_tag != device:
+        SIMPLEXITY_LOGGER.warning(
+            "Device tag set to '%s', but device is '%s'. Overriding device tag.", device_tag, device
+        )
         cfg.device = device
-    else:
-        device_tag: str = cfg.get("device")
-        if device_tag != device:
-            SIMPLEXITY_LOGGER.warning(
-                "Device tag set to '%s', but device is '%s'. Overriding device tag.", device_tag, device
-            )
-            cfg.device = device
 
-    if cfg.get("seed") is None:
+    seed_tag = cfg.get("seed")
+    if seed_tag is None:
+        cfg.seed = seed if seed is not None else 42
+    elif seed is not None and seed_tag != seed:
+        SIMPLEXITY_LOGGER.warning("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", seed_tag, seed)
         cfg.seed = seed
-    else:
-        seed_tag: int = cfg.get("seed")
-        if seed_tag != seed:
-            SIMPLEXITY_LOGGER.warning("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", seed_tag, seed)
-            cfg.seed = seed
 
     if cfg.get("tags") is None:
         cfg.tags = DictConfig({"strict": str(strict).lower()})
