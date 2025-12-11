@@ -99,23 +99,23 @@ class S3Tracker(RunTracker):
 
     def log_config(self, config: DictConfig, resolve: bool = False) -> None:
         """Log config (Not Supported)."""
-        pass
+        raise NotImplementedError("S3Tracker does not support logging config.")
 
     def log_metrics(self, step: int, metric_dict: Mapping[str, Any]) -> None:
         """Log metrics (Not Supported)."""
-        pass
+        raise NotImplementedError("S3Tracker does not support logging metrics.")
 
     def log_params(self, param_dict: Mapping[str, Any]) -> None:
         """Log params (Not Supported)."""
-        pass
+        raise NotImplementedError("S3Tracker does not support logging params.")
 
     def log_tags(self, tag_dict: Mapping[str, Any]) -> None:
         """Log tags (Not Supported)."""
-        pass
+        raise NotImplementedError("S3Tracker does not support logging tags.")
 
     def log_figure(self, figure: Any, artifact_file: str, **kwargs) -> None:
         """Log figure (Not Supported)."""
-        pass
+        raise NotImplementedError("S3Tracker does not support logging figures.")
 
     def log_image(
         self,
@@ -126,15 +126,15 @@ class S3Tracker(RunTracker):
         **kwargs,
     ) -> None:
         """Log image (Not Supported)."""
-        pass
+        raise NotImplementedError("S3Tracker does not support logging images.")
 
     def log_artifact(self, local_path: str, artifact_path: str | None = None) -> None:
         """Log artifact (Not Supported)."""
-        pass
+        raise NotImplementedError("S3Tracker does not support logging artifacts.")
 
     def log_json_artifact(self, data: dict | list, artifact_name: str) -> None:
         """Log JSON artifact (Not Supported)."""
-        pass
+        raise NotImplementedError("S3Tracker does not support logging JSON artifacts.")
 
     # Persistence
 
