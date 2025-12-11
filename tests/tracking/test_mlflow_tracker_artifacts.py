@@ -1,4 +1,4 @@
-"""Tests for artifact logging functionality for MLFlowTracker."""
+"""Tests for artifact logging functionality for MlflowTracker."""
 
 import os
 import tempfile
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from simplexity.tracking.mlflow_tracker import MLFlowTracker
+from simplexity.tracking.mlflow_tracker import MlflowTracker
 
 
 @pytest.fixture
@@ -15,8 +15,8 @@ def sample_json_data():
     return {"key": "value", "number": 42, "list": [1, 2, 3]}
 
 
-class TestMLFlowTrackerArtifacts:
-    """Tests for MLFlowTracker artifact logging."""
+class TestMlflowTrackerArtifacts:
+    """Tests for MlflowTracker artifact logging."""
 
     @pytest.fixture(autouse=True)
     def setup_mlflow_temp_dir(self):
@@ -34,7 +34,7 @@ class TestMLFlowTrackerArtifacts:
 
     @pytest.fixture
     def mock_mlflow_tracker(self):
-        """Create a mocked MLFlowTracker for testing."""
+        """Create a mocked MlflowTracker for testing."""
         with patch("mlflow.MlflowClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client_class.return_value = mock_client
@@ -52,7 +52,7 @@ class TestMLFlowTrackerArtifacts:
             mock_client.create_run.return_value = mock_run
             mock_client.get_run.return_value = mock_run
 
-            tracker = MLFlowTracker(experiment_name="test_experiment")
+            tracker = MlflowTracker(experiment_name="test_experiment")
             yield tracker, mock_client
 
     def test_log_artifact_calls_client(self, mock_mlflow_tracker):

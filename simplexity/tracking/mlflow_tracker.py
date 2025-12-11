@@ -34,7 +34,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.predictive_models.types import ModelFramework, get_model_framework
-from simplexity.structured_configs.tracking import MLFlowTrackerInstanceConfig
+from simplexity.structured_configs.tracking import MlflowTrackerInstanceConfig
 from simplexity.tracking.model_persistence.local_model_persister import (
     LocalModelPersister,
 )
@@ -59,7 +59,7 @@ def _clear_subdirectory(subdirectory: Path) -> None:
 dotenv.load_dotenv()
 
 
-class MLFlowTracker(RunTracker):  # pylint: disable=too-many-instance-attributes
+class MlflowTracker(RunTracker):  # pylint: disable=too-many-instance-attributes
     """Tracks runs to MLflow."""
 
     def __init__(
@@ -140,9 +140,9 @@ class MLFlowTracker(RunTracker):  # pylint: disable=too-many-instance-attributes
         return self._model_dir
 
     @property
-    def cfg(self) -> MLFlowTrackerInstanceConfig:
+    def cfg(self) -> MlflowTrackerInstanceConfig:
         """Return the configuration of this tracker."""
-        return MLFlowTrackerInstanceConfig(
+        return MlflowTrackerInstanceConfig(
             _target_=f"simpexity.tracking.{self.__class__.__module__}.{self.__class__.__qualname__}",
             experiment_id=self.experiment_id,
             experiment_name=self.experiment_name,

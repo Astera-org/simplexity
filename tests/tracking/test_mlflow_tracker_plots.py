@@ -1,4 +1,4 @@
-"""Tests for plot and image logging functionality for MLFlowTracker."""
+"""Tests for plot and image logging functionality for MlflowTracker."""
 
 import os
 import tempfile
@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from simplexity.tracking.mlflow_tracker import MLFlowTracker
+from simplexity.tracking.mlflow_tracker import MlflowTracker
 
 
 @pytest.fixture
@@ -33,8 +33,8 @@ def larger_pil_image():
     return Image.new("RGB", (20, 20))
 
 
-class TestMLFlowTrackerPlotting:
-    """Tests for MLFlowTracker figure and image logging."""
+class TestMlflowTrackerPlotting:
+    """Tests for MlflowTracker figure and image logging."""
 
     @pytest.fixture(autouse=True)
     def setup_mlflow_temp_dir(self):
@@ -71,7 +71,7 @@ class TestMLFlowTrackerPlotting:
         mock_client.create_run.return_value = mock_run
         mock_client.get_run.return_value = mock_run
 
-        tracker = MLFlowTracker(experiment_name="test_experiment", run_name="test_run")
+        tracker = MlflowTracker(experiment_name="test_experiment", run_name="test_run")
 
         tracker.log_figure(simple_matplotlib_figure, "test.png", dpi=150)
         tracker.close()
@@ -97,7 +97,7 @@ class TestMLFlowTrackerPlotting:
         mock_client.create_run.return_value = mock_run
         mock_client.get_run.return_value = mock_run
 
-        tracker = MLFlowTracker(experiment_name="test_experiment")
+        tracker = MlflowTracker(experiment_name="test_experiment")
 
         tracker.log_image(tiny_numpy_image, artifact_file="image.png")
         tracker.close()
@@ -125,7 +125,7 @@ class TestMLFlowTrackerPlotting:
         mock_client.create_run.return_value = mock_run
         mock_client.get_run.return_value = mock_run
 
-        tracker = MLFlowTracker(experiment_name="test_experiment")
+        tracker = MlflowTracker(experiment_name="test_experiment")
 
         tracker.log_image(larger_pil_image, key="training", step=50, timestamp=1234567890)
         tracker.close()

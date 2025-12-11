@@ -61,8 +61,8 @@ def validate_file_tracker_instance_config(cfg: DictConfig) -> None:
 
 
 @dataclass
-class MLFlowTrackerInstanceConfig(InstanceConfig):
-    """Configuration for MLFlowTracker."""
+class MlflowTrackerInstanceConfig(InstanceConfig):
+    """Configuration for MlflowTracker."""
 
     experiment_id: str | None = None
     experiment_name: str | None = None
@@ -85,7 +85,7 @@ class MLFlowTrackerInstanceConfig(InstanceConfig):
         downgrade_unity_catalog: bool = True,
         model_dir: str = "models",
         config_path: str = "config.yaml",
-        _target_: str = "simplexity.tracking.mlflow_tracker.MLFlowTracker",
+        _target_: str = "simplexity.tracking.mlflow_tracker.MlflowTracker",
     ) -> None:
         super().__init__(_target_=_target_)
         self.experiment_id = experiment_id
@@ -101,11 +101,11 @@ class MLFlowTrackerInstanceConfig(InstanceConfig):
 
 def is_mlflow_tracker_target(target: str) -> bool:
     """Check if the target is a mlflow tracker target."""
-    return target == "simplexity.tracking.mlflow_tracker.MLFlowTracker"
+    return target == "simplexity.tracking.mlflow_tracker.MlflowTracker"
 
 
 def is_mlflow_tracker_config(cfg: DictConfig) -> bool:
-    """Check if the configuration is a MLFlowTrackerInstanceConfig."""
+    """Check if the configuration is a MlflowTrackerInstanceConfig."""
     target = cfg.get("_target_", None)
     if isinstance(target, str):
         return is_mlflow_tracker_target(target)
@@ -113,7 +113,7 @@ def is_mlflow_tracker_config(cfg: DictConfig) -> bool:
 
 
 def validate_mlflow_tracker_instance_config(cfg: DictConfig) -> None:
-    """Validate a MLFlowTrackerInstanceConfig."""
+    """Validate a MlflowTrackerInstanceConfig."""
     experiment_id = cfg.get("experiment_id")
     experiment_name = cfg.get("experiment_name")
     run_id = cfg.get("run_id")
@@ -124,16 +124,16 @@ def validate_mlflow_tracker_instance_config(cfg: DictConfig) -> None:
     model_dir = cfg.get("model_dir")
     config_path = cfg.get("config_path")
 
-    validate_instance_config(cfg, expected_target="simplexity.tracking.mlflow_tracker.MLFlowTracker")
-    validate_nonempty_str(experiment_id, "MLFlowTrackerInstanceConfig.experiment_id", is_none_allowed=True)
-    validate_nonempty_str(experiment_name, "MLFlowTrackerInstanceConfig.experiment_name", is_none_allowed=True)
-    validate_nonempty_str(run_id, "MLFlowTrackerInstanceConfig.run_id", is_none_allowed=True)
-    validate_nonempty_str(run_name, "MLFlowTrackerInstanceConfig.run_name", is_none_allowed=True)
-    validate_uri(tracking_uri, "MLFlowTrackerInstanceConfig.tracking_uri", is_none_allowed=True)
-    validate_uri(registry_uri, "MLFlowTrackerInstanceConfig.registry_uri", is_none_allowed=True)
-    validate_bool(downgrade_unity_catalog, "MLFlowTrackerInstanceConfig.downgrade_unity_catalog", is_none_allowed=True)
-    validate_nonempty_str(model_dir, "MLFlowTrackerInstanceConfig.model_dir", is_none_allowed=True)
-    validate_nonempty_str(config_path, "MLFlowTrackerInstanceConfig.config_path", is_none_allowed=True)
+    validate_instance_config(cfg, expected_target="simplexity.tracking.mlflow_tracker.MlflowTracker")
+    validate_nonempty_str(experiment_id, "MlflowTrackerInstanceConfig.experiment_id", is_none_allowed=True)
+    validate_nonempty_str(experiment_name, "MlflowTrackerInstanceConfig.experiment_name", is_none_allowed=True)
+    validate_nonempty_str(run_id, "MlflowTrackerInstanceConfig.run_id", is_none_allowed=True)
+    validate_nonempty_str(run_name, "MlflowTrackerInstanceConfig.run_name", is_none_allowed=True)
+    validate_uri(tracking_uri, "MlflowTrackerInstanceConfig.tracking_uri", is_none_allowed=True)
+    validate_uri(registry_uri, "MlflowTrackerInstanceConfig.registry_uri", is_none_allowed=True)
+    validate_bool(downgrade_unity_catalog, "MlflowTrackerInstanceConfig.downgrade_unity_catalog", is_none_allowed=True)
+    validate_nonempty_str(model_dir, "MlflowTrackerInstanceConfig.model_dir", is_none_allowed=True)
+    validate_nonempty_str(config_path, "MlflowTrackerInstanceConfig.config_path", is_none_allowed=True)
 
 
 @dataclass

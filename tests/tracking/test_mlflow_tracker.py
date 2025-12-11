@@ -1,4 +1,4 @@
-"""Integration-style tests for MLFlowTracker with a local MLflow backend."""
+"""Integration-style tests for MlflowTracker with a local MLflow backend."""
 
 from __future__ import annotations
 
@@ -17,11 +17,11 @@ from mlflow.models import infer_signature
 from torch.nn import Linear, Module
 
 from simplexity.predictive_models.types import ModelFramework
-from simplexity.tracking.mlflow_tracker import MLFlowTracker
+from simplexity.tracking.mlflow_tracker import MlflowTracker
 from simplexity.utils.mlflow_utils import set_mlflow_uris
 
 
-def _get_artifacts_root(tracker: MLFlowTracker) -> Path:
+def _get_artifacts_root(tracker: MlflowTracker) -> Path:
     """Get the artifacts root directory for the given tracker."""
     assert tracker.tracking_uri is not None
     tracking_dir = Path(tracker.tracking_uri.replace("file://", ""))
@@ -55,11 +55,11 @@ def _models_equal(model1: Module | eqx.Module, model2: Module | eqx.Module) -> b
 
 
 @pytest.fixture
-def tracker(tmp_path: Path) -> Generator[MLFlowTracker, None, None]:
-    """Get a MLFlowTracker instance."""
+def tracker(tmp_path: Path) -> Generator[MlflowTracker, None, None]:
+    """Get a MlflowTracker instance."""
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
-    tracker = MLFlowTracker(
+    tracker = MlflowTracker(
         experiment_name="test-experiment",
         run_name="test-run",
         tracking_uri=artifact_dir.as_uri(),
@@ -71,7 +71,7 @@ def tracker(tmp_path: Path) -> Generator[MLFlowTracker, None, None]:
 
 
 @pytest.mark.parametrize("framework", [ModelFramework.PYTORCH, ModelFramework.EQUINOX])
-def test_round_trip(tracker: MLFlowTracker, framework: ModelFramework) -> None:
+def test_round_trip(tracker: MlflowTracker, framework: ModelFramework) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance."""
 
     if framework == ModelFramework.PYTORCH:
@@ -98,7 +98,7 @@ def test_round_trip(tracker: MLFlowTracker, framework: ModelFramework) -> None:
 
 
 @pytest.mark.parametrize("framework", [ModelFramework.PYTORCH, ModelFramework.EQUINOX])
-def test_round_trip_from_config(tracker: MLFlowTracker, framework: ModelFramework) -> None:
+def test_round_trip_from_config(tracker: MlflowTracker, framework: ModelFramework) -> None:
     """PyTorch model weights saved via MLflow can be restored back into a new instance via the config."""
     if framework == ModelFramework.PYTORCH:
         torch.manual_seed(0)
@@ -132,7 +132,7 @@ def test_cleanup(tmp_path: Path, framework: ModelFramework) -> None:
     artifact_dir = tmp_path / "mlruns"
     artifact_dir.mkdir()
 
-    tracker = MLFlowTracker(experiment_name="pytorch-cleanup", tracking_uri=artifact_dir.as_uri())
+    tracker = MlflowTracker(experiment_name="pytorch-cleanup", tracking_uri=artifact_dir.as_uri())
 
     def run_status() -> str:
         """Get the status of the run."""
@@ -179,7 +179,7 @@ def mock_create_requirements_file(tmp_path: Path) -> Generator[str, None, None]:
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry(tracker: MLFlowTracker) -> None:
+def test_save_model_to_registry(tracker: MlflowTracker) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
 
     model = Linear(in_features=4, out_features=2)
@@ -217,7 +217,7 @@ def test_save_model_to_registry(tracker: MLFlowTracker) -> None:
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_matching_active_run(tracker: MLFlowTracker) -> None:
+def test_save_model_to_registry_with_matching_active_run(tracker: MlflowTracker) -> None:
     """save_model_to_registry should reuse an already active run with the same id."""
     model = Linear(in_features=4, out_features=2)
     model_info = None
@@ -232,7 +232,7 @@ def test_save_model_to_registry_with_matching_active_run(tracker: MLFlowTracker)
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_mismatched_active_run(tracker: MLFlowTracker) -> None:
+def test_save_model_to_registry_with_mismatched_active_run(tracker: MlflowTracker) -> None:
     """save_model_to_registry should fail when another run is active."""
 
     model = Linear(in_features=4, out_features=2)
@@ -245,7 +245,7 @@ def test_save_model_to_registry_with_mismatched_active_run(tracker: MLFlowTracke
             tracker.save_model_to_registry(model, "test_model_mismatched_run")
 
 
-def test_save_model_to_registry_with_no_requirements(tracker: MLFlowTracker) -> None:
+def test_save_model_to_registry_with_no_requirements(tracker: MlflowTracker) -> None:
     """Test saving a PyTorch model to the MLflow model registry."""
 
     model = Linear(in_features=4, out_features=2)
@@ -264,7 +264,7 @@ def test_save_model_to_registry_with_no_requirements(tracker: MLFlowTracker) -> 
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_model_inputs(tracker: MLFlowTracker) -> None:
+def test_save_model_to_registry_with_model_inputs(tracker: MlflowTracker) -> None:
     """Test saving a PyTorch model to registry with model inputs for automatic signature inference."""
 
     model = Linear(in_features=4, out_features=2)
@@ -278,7 +278,7 @@ def test_save_model_to_registry_with_model_inputs(tracker: MLFlowTracker) -> Non
     tracker.cleanup()
 
 
-def test_save_model_to_registry_non_pytorch(tracker: MLFlowTracker) -> None:
+def test_save_model_to_registry_non_pytorch(tracker: MlflowTracker) -> None:
     """Test saving a non-PyTorch model to the MLflow model registry."""
 
     registered_model_name = "test_non_pytorch_model"
@@ -293,7 +293,7 @@ def test_save_model_to_registry_non_pytorch(tracker: MLFlowTracker) -> None:
 
 
 @pytest.mark.usefixtures("mock_create_requirements_file")
-def test_save_model_to_registry_with_signature(tracker: MLFlowTracker) -> None:
+def test_save_model_to_registry_with_signature(tracker: MlflowTracker) -> None:
     """Test saving a PyTorch model to the MLflow model registry with a signature."""
 
     model = Linear(in_features=4, out_features=2)
@@ -312,7 +312,7 @@ def test_save_model_to_registry_with_signature(tracker: MLFlowTracker) -> None:
     tracker.cleanup()
 
 
-def test_model_registry_round_trip(tracker: MLFlowTracker) -> None:
+def test_model_registry_round_trip(tracker: MlflowTracker) -> None:
     """Test loading a PyTorch model from the MLflow model registry."""
 
     original = Linear(in_features=4, out_features=2)
@@ -324,7 +324,7 @@ def test_model_registry_round_trip(tracker: MLFlowTracker) -> None:
     assert _pytorch_models_equal(loaded, original)
 
 
-def test_load_model_from_registry_multiple_versions(tracker: MLFlowTracker) -> None:
+def test_load_model_from_registry_multiple_versions(tracker: MlflowTracker) -> None:
     """Test loading different versions of a model from the registry."""
 
     registered_model_name = "test_model"
@@ -356,7 +356,7 @@ def test_load_model_from_registry_multiple_versions(tracker: MLFlowTracker) -> N
     assert _pytorch_models_equal(loaded_latest, model_v2)
 
 
-def test_load_model_from_registry_with_stage(tracker: MLFlowTracker) -> None:
+def test_load_model_from_registry_with_stage(tracker: MlflowTracker) -> None:
     """Test loading a model from the registry with a stage."""
 
     registered_model_name = "test_model"
@@ -388,14 +388,14 @@ def test_load_model_from_registry_with_stage(tracker: MLFlowTracker) -> None:
     assert _pytorch_models_equal(loaded_stage, model_stage)
 
 
-def test_load_model_from_registry_no_registered_model(tracker: MLFlowTracker) -> None:
+def test_load_model_from_registry_no_registered_model(tracker: MlflowTracker) -> None:
     """Test that loading a non-existent version raises an error."""
 
     with pytest.raises(RuntimeError, match="No versions found for registered model 'model_name'"):
         tracker.load_model_from_registry(registered_model_name="model_name")
 
 
-def test_load_model_from_registry_both_version_and_stage(tracker: MLFlowTracker) -> None:
+def test_load_model_from_registry_both_version_and_stage(tracker: MlflowTracker) -> None:
     """Test that specifying both version and stage raises an error."""
 
     with pytest.raises(ValueError, match="Cannot specify both version and stage. Use one or the other."):

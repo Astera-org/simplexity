@@ -70,7 +70,7 @@ from simplexity.structured_configs.tracking import (
     update_tracking_instance_config,
     validate_tracking_config,
 )
-from simplexity.tracking.mlflow_tracker import MLFlowTracker
+from simplexity.tracking.mlflow_tracker import MlflowTracker
 from simplexity.tracking.tracker import RunTracker
 from simplexity.utils.config_utils import (
     filter_instance_keys,
@@ -256,7 +256,7 @@ def _instantiate_tracker(cfg: DictConfig, instance_key: str) -> RunTracker:
     if instance_config:
         tracker = typed_instantiate(instance_config, RunTracker)
         SIMPLEXITY_LOGGER.info("[tracking] instantiated tracker: %s", tracker.__class__.__name__)
-        if isinstance(tracker, MLFlowTracker):
+        if isinstance(tracker, MlflowTracker):
             updated_cfg = OmegaConf.structured(tracker.cfg)
             update_tracking_instance_config(instance_config, updated_cfg=updated_cfg)
         return tracker
@@ -274,7 +274,7 @@ def _setup_tracking(cfg: DictConfig, instance_keys: list[str], *, strict: bool) 
     if instance_keys:
         trackers = {instance_key: _instantiate_tracker(cfg, instance_key) for instance_key in instance_keys}
         if strict:
-            mlflow_trackers = [tracker for tracker in trackers.values() if isinstance(tracker, MLFlowTracker)]
+            mlflow_trackers = [tracker for tracker in trackers.values() if isinstance(tracker, MlflowTracker)]
             assert mlflow_trackers, "No MLFlow trackers found"
             assert any(
                 tracker.tracking_uri and tracker.tracking_uri.startswith("databricks") for tracker in mlflow_trackers
