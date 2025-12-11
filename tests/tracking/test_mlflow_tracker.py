@@ -99,21 +99,28 @@ def test_round_trip(tracker: MLFlowTracker, framework: ModelFramework) -> None:
 
 @pytest.mark.parametrize("framework", [ModelFramework.PYTORCH, ModelFramework.EQUINOX])
 def test_round_trip_from_config(tracker: MLFlowTracker, framework: ModelFramework) -> None:
-    """PyTorch model weights saved via MLflow can be restored back into a new instance via the config.
+    """PyTorch model weights saved via MLflow can be restored back into a new instance via the config."""
+    if framework == ModelFramework.PYTORCH:
+        torch.manual_seed(0)
+        original = Linear(in_features=4, out_features=2)
+        torch.manual_seed(1)
+        updated = Linear(in_features=4, out_features=2)
+        model_filename = "model.pt"
+    elif framework == ModelFramework.EQUINOX:
+        original = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(0))
+        updated = eqx.nn.Linear(in_features=4, out_features=2, key=jax.random.key(1))
+        model_filename = "model.eqx"
+    else:
+        raise ValueError(f"Unsupported model framework: {framework}")
 
-    Note: MLFlowTracker.load_model takes an instantiated model. To test instantiating from config involves RunManagement or Hydra logic.
-    Since RunTracker protocol doesn't have load_model(step) -> Any (instantiator), this test might be testing something out of scope for RunTracker alone unless we mimic manual instantiation.
-    The original test used persister.load_model(step=0) which did instantiation.
-    Our MLFlowTracker.load_model(model, step) requires a model instance.
-    So we cannot test loading from config to create instance via Tracker directly.
-    We can test that config is logged if we use run_management, but here we are unit testing Tracker.
-    So I will modify this test to instantiate manually then load, effectively checking load_model.
-    But that's what test_round_trip checks.
-    So test_round_trip_from_config is redundant for RunTracker interface, or needs to use RunManagement logic/utils.
-    I'll remove or adapt it.
-    Since we don't have load_model(step) anymore, I'll remove this test for now.
-    """
-    pass
+    tracker.save_model(original, step=0)
+
+    remote_model_path = _get_artifacts_root(tracker) / tracker.model_dir / "0" / model_filename
+    assert remote_model_path.exists()
+
+    assert not _models_equal(original, updated)
+    loaded = tracker.load_model(updated, step=0)
+    assert _models_equal(loaded, original)
 
 
 @pytest.mark.parametrize(
