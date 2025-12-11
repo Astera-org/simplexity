@@ -157,10 +157,6 @@ class MlflowTracker(RunTracker):  # pylint: disable=too-many-instance-attributes
 
     # Lifecycle
 
-    def close(self) -> None:
-        """End the MLflow run."""
-        self.cleanup()
-
     def cleanup(self) -> None:
         """Remove temporary resources and optionally end the MLflow run."""
         for persister in self._local_persisters.values():

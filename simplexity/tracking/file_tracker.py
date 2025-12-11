@@ -179,10 +179,6 @@ class FileTracker(RunTracker):
         with open(self.file_path, "a") as f:
             print(f"JSON artifact saved: {json_path}", file=f)
 
-    def close(self) -> None:
-        """Close the tracker."""
-        self.cleanup()
-
     def cleanup(self) -> None:
         """Cleanup resources."""
         for persister in self._local_persisters.values():

@@ -17,10 +17,6 @@ class RunTracker(Protocol):
     """Tracks run data (metrics, params, artifacts, models)."""
 
     # Lifecycle
-    def close(self) -> None:
-        """Close the tracker."""
-        ...
-
     def cleanup(self) -> None:
         """Cleanup resources."""
         ...

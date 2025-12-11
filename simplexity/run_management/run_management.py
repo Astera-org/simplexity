@@ -584,7 +584,7 @@ def _cleanup(components: Components) -> None:
     """Cleanup the run."""
     if components.run_trackers:
         for tracker in components.run_trackers.values():
-            tracker.close()
+            tracker.cleanup()
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:

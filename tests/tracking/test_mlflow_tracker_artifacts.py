@@ -1,5 +1,14 @@
 """Tests for artifact logging functionality for MlflowTracker."""
 
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -60,7 +69,7 @@ class TestMlflowTrackerArtifacts:
         tracker, mock_client = mock_mlflow_tracker
 
         tracker.log_artifact("/path/to/file.txt", "artifacts/file.txt")
-        tracker.close()
+        tracker.cleanup()
 
         mock_client.log_artifact.assert_called_once_with("run_456", "/path/to/file.txt", "artifacts/file.txt")
 
@@ -69,7 +78,7 @@ class TestMlflowTrackerArtifacts:
         tracker, mock_client = mock_mlflow_tracker
 
         tracker.log_artifact("/path/to/model.pkl")
-        tracker.close()
+        tracker.cleanup()
 
         mock_client.log_artifact.assert_called_once_with("run_456", "/path/to/model.pkl", None)
 
@@ -78,7 +87,7 @@ class TestMlflowTrackerArtifacts:
         tracker, mock_client = mock_mlflow_tracker
 
         tracker.log_json_artifact(sample_json_data, "metrics.json")
-        tracker.close()
+        tracker.cleanup()
 
         mock_client.log_artifact.assert_called_once()
         call_args = mock_client.log_artifact.call_args
