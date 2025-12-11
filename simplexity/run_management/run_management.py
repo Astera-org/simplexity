@@ -251,7 +251,7 @@ def _setup_mlflow(cfg: DictConfig) -> mlflow.ActiveRun | nullcontext[None]:
 
 
 def _instantiate_tracker(cfg: DictConfig, instance_key: str) -> RunTracker:
-    """Setup setup the tracker."""
+    """Setup the tracker."""
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
     if instance_config:
         tracker = typed_instantiate(instance_config, RunTracker)
@@ -280,9 +280,9 @@ def _setup_tracking(cfg: DictConfig, instance_keys: list[str], *, strict: bool) 
                 tracker.tracking_uri and tracker.tracking_uri.startswith("databricks") for tracker in mlflow_trackers
             ), "Tracking URI must start with 'databricks'"
         return trackers
+    SIMPLEXITY_LOGGER.info("[tracking] no tracking configs found")
     if strict:
         raise ValueError("No tracking configs found (strict mode requires at least one tracker)")
-    SIMPLEXITY_LOGGER.info("[tracking] no tracking configs found")
     return None
 
 
