@@ -9,6 +9,7 @@ from simplexity.analysis.layerwise_analysis import ANALYSIS_REGISTRY, LayerwiseA
 @pytest.fixture
 def analysis_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.ndarray]:
     """Provides sample activations, weights, and belief states for analysis tests."""
+    
     activations = {
         "layer_a": jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]),
         "layer_b": jnp.array([[2.0, 1.0], [1.0, 2.0], [0.0, 1.0]]),
@@ -20,6 +21,7 @@ def analysis_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.ndarray]
 
 def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> None:
     """Metrics and projections should be namespace-qualified per layer."""
+
     activations, weights, belief_states = analysis_inputs
     analysis = LayerwiseAnalysis("linear_regression", last_token_only=True)
 
@@ -42,6 +44,7 @@ def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> No
 
 def test_layerwise_analysis_requires_targets(analysis_inputs) -> None:
     """Analyses that need belief states should validate input."""
+
     activations, weights, _ = analysis_inputs
     analysis = LayerwiseAnalysis("linear_regression")
 
@@ -51,12 +54,14 @@ def test_layerwise_analysis_requires_targets(analysis_inputs) -> None:
 
 def test_invalid_analysis_type_raises() -> None:
     """Unknown analysis types should raise clear errors."""
+
     with pytest.raises(ValueError, match="Unknown analysis_type"):
         LayerwiseAnalysis("unknown")
 
 
 def test_invalid_kwargs_validation() -> None:
     """Validator rejects unsupported kwargs for a registered analysis."""
+
     with pytest.raises(ValueError, match="Unexpected linear_regression kwargs"):
         LayerwiseAnalysis(
             "linear_regression",
@@ -66,6 +71,7 @@ def test_invalid_kwargs_validation() -> None:
 
 def test_pca_analysis_does_not_require_beliefs(analysis_inputs) -> None:
     """PCA analysis should run without belief states and namespace results."""
+
     activations, weights, _ = analysis_inputs
     analysis = LayerwiseAnalysis(
         "pca",
@@ -83,6 +89,7 @@ def test_pca_analysis_does_not_require_beliefs(analysis_inputs) -> None:
 
 def test_invalid_pca_kwargs() -> None:
     """Invalid PCA kwargs should raise helpful errors."""
+
     with pytest.raises(ValueError, match="n_components must be positive"):
         LayerwiseAnalysis(
             "pca",
@@ -92,6 +99,7 @@ def test_invalid_pca_kwargs() -> None:
 
 def test_linear_regression_svd_kwargs_validation_errors() -> None:
     """SVD-specific validators should reject unsupported inputs."""
+
     with pytest.raises(TypeError, match="rcond_values must be a sequence"):
         LayerwiseAnalysis(
             "linear_regression_svd",
@@ -107,6 +115,7 @@ def test_linear_regression_svd_kwargs_validation_errors() -> None:
 
 def test_linear_regression_svd_rejects_unexpected_kwargs() -> None:
     """Unexpected SVD kwargs should raise clear errors."""
+
     with pytest.raises(ValueError, match="Unexpected linear_regression kwargs"):
         LayerwiseAnalysis(
             "linear_regression_svd",
@@ -116,6 +125,7 @@ def test_linear_regression_svd_rejects_unexpected_kwargs() -> None:
 
 def test_linear_regression_svd_kwargs_are_normalized() -> None:
     """Validator should coerce mixed numeric types to floats."""
+
     validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
     params = validator({"rcond_values": [1, 1e-3]})
 
@@ -124,6 +134,7 @@ def test_linear_regression_svd_kwargs_are_normalized() -> None:
 
 def test_pca_kwargs_require_int_components() -> None:
     """PCA validator should enforce integral n_components."""
+
     with pytest.raises(TypeError, match="n_components must be an int or None"):
         LayerwiseAnalysis(
             "pca",
@@ -133,6 +144,7 @@ def test_pca_kwargs_require_int_components() -> None:
 
 def test_pca_kwargs_require_sequence_thresholds() -> None:
     """Variance thresholds must be sequences with valid ranges."""
+
     with pytest.raises(TypeError, match="variance_thresholds must be a sequence"):
         LayerwiseAnalysis(
             "pca",
@@ -148,6 +160,7 @@ def test_pca_kwargs_require_sequence_thresholds() -> None:
 
 def test_pca_rejects_unexpected_kwargs() -> None:
     """Unexpected PCA kwargs should surface informative errors."""
+
     with pytest.raises(ValueError, match="Unexpected pca kwargs"):
         LayerwiseAnalysis(
             "pca",
@@ -157,6 +170,7 @@ def test_pca_rejects_unexpected_kwargs() -> None:
 
 def test_layerwise_analysis_property_accessors() -> None:
     """Constructor flags should surface via property accessors."""
+
     analysis = LayerwiseAnalysis(
         "pca",
         last_token_only=True,
@@ -172,6 +186,7 @@ def test_layerwise_analysis_property_accessors() -> None:
 
 def test_linear_regression_accepts_concat_belief_states() -> None:
     """linear_regression validator should accept concat_belief_states parameter."""
+
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
     params = validator({"fit_intercept": False, "concat_belief_states": True})
 
@@ -181,6 +196,7 @@ def test_linear_regression_accepts_concat_belief_states() -> None:
 
 def test_linear_regression_svd_accepts_concat_belief_states() -> None:
     """linear_regression_svd validator should accept concat_belief_states parameter."""
+
     validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
     params = validator({"fit_intercept": True, "concat_belief_states": True, "rcond_values": [1e-3]})
 
@@ -191,6 +207,7 @@ def test_linear_regression_svd_accepts_concat_belief_states() -> None:
 
 def test_linear_regression_concat_belief_states_defaults_false() -> None:
     """concat_belief_states should default to False when not provided."""
+
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
     params = validator({"fit_intercept": True})
 
@@ -199,6 +216,7 @@ def test_linear_regression_concat_belief_states_defaults_false() -> None:
 
 def test_linear_regression_accepts_compute_subspace_orthogonality() -> None:
     """linear_regression validator should accept compute_subspace_orthogonality parameter."""
+
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
     params = validator({"fit_intercept": True, "compute_subspace_orthogonality": True})
 
@@ -208,6 +226,7 @@ def test_linear_regression_accepts_compute_subspace_orthogonality() -> None:
 
 def test_linear_regression_svd_accepts_compute_subspace_orthogonality() -> None:
     """linear_regression_svd validator should accept compute_subspace_orthogonality parameter."""
+
     validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
     params = validator({"fit_intercept": True, "compute_subspace_orthogonality": True, "rcond_values": [1e-3]})
 
@@ -218,6 +237,7 @@ def test_linear_regression_svd_accepts_compute_subspace_orthogonality() -> None:
 
 def test_linear_regression_compute_subspace_orthogonality_defaults_false() -> None:
     """compute_subspace_orthogonality should default to False when not provided."""
+
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
     params = validator({"fit_intercept": True})
 
@@ -226,6 +246,7 @@ def test_linear_regression_compute_subspace_orthogonality_defaults_false() -> No
 
 def test_linear_regression_accepts_use_svd() -> None:
     """linear_regression validator should accept use_svd parameter."""
+
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
     params = validator({"use_svd": True})
 
@@ -234,6 +255,7 @@ def test_linear_regression_accepts_use_svd() -> None:
 
 def test_linear_regression_use_svd_defaults_false() -> None:
     """use_svd should default to False when not provided."""
+
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
     params = validator({})
 
