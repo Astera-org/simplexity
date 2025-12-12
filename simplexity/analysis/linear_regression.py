@@ -298,7 +298,7 @@ def _compute_subspace_orthogonality(
     sum_quad_sv = jnp.sum(singular_values**4)
 
     is_degenerate = sum_quad_sv == 0
-    
+
     # Define the False branch function (does nothing)
     def do_nothing_branch(x):
         return None
@@ -306,7 +306,7 @@ def _compute_subspace_orthogonality(
     # Define the True branch function (runs the callback)
     def execute_all_zeros_warning_branch(x):
         callback(log_all_zeros, x)
-        return None 
+        return None
 
     def log_all_zeros(_):
         SIMPLEXITY_LOGGER.warning(
@@ -314,7 +314,7 @@ def _compute_subspace_orthogonality(
             " All singular values are zero."
             " Setting probability values and participation ratio to zero."
         )
-    
+
     jax.lax.cond(is_degenerate, execute_all_zeros_warning_branch, do_nothing_branch, sum_sq_sv)
 
     pratio_denominator_safe = jnp.where(is_degenerate, 1.0, sum_quad_sv)
@@ -338,7 +338,7 @@ def _compute_subspace_orthogonality(
             " This is likely due to numerical instability."
             " Setting corresponding entropy contribution to zero."
         )
-    
+
     num_zeros = jnp.sum(probs == 0)
     has_some_zeros = num_zeros > 0
     jax.lax.cond(has_some_zeros, execute_some_zeros_warning_branch, do_nothing_branch, num_zeros)
@@ -401,7 +401,7 @@ def _handle_factored_regression(
     """Handle regression for two or more factored belief states using either standard or SVD method."""
     if len(belief_states) < 2:
         raise ValueError("At least two factors are required for factored regression")
-    
+
     scalars: dict[str, float] = {}
     arrays: dict[str, jax.Array] = {}
 
