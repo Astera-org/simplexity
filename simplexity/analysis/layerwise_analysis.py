@@ -68,6 +68,16 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     }
 
 
+def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    kwargs = _base_validate_linear_regression_kwargs(kwargs)
+    return {k: v for k, v in kwargs.items() if k != "rcond_values"}
+
+
+def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    kwargs = _base_validate_linear_regression_kwargs(kwargs)
+    return {k: v for k, v in kwargs.items() if k != "use_svd"}
+
+
 def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     provided = dict(kwargs or {})
     allowed = {"n_components", "variance_thresholds"}

@@ -301,8 +301,10 @@ def _compute_subspace_orthogonality(
 
     # Define the False branch function (does nothing)
     def do_nothing_branch(x):
-        """JAX 'False' branch function. Serves only to return a value that matches the 'True' branch's type (None) for
-        jax.lax.cond."""
+        """JAX 'False' branch function.
+
+        Serves only to return a value that matches the 'True' branch's type (None) for jax.lax.cond.
+        """
         return None
 
     # Define the True branch function (runs the callback)
