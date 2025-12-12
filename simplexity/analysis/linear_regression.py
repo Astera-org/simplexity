@@ -77,7 +77,7 @@ def linear_regression(
         arrays = {
             "projected": predictions,
             "coeffs": beta[1:],  # Linear coefficients (excluding intercept)
-            "intercept": beta[0:1],  # Intercept term (keep 2D: [1, n_targets])
+            "intercept": beta[:1],  # Intercept term (keep 2D: [1, n_targets])
         }
     else:
         arrays = {
@@ -180,7 +180,7 @@ def linear_regression_svd(
         arrays = {
             "projected": best_pred,
             "coeffs": best_beta[1:],  # Linear coefficients (excluding intercept)
-            "intercept": best_beta[0:1],  # Intercept term (keep 2D: [1, n_targets])
+            "intercept": best_beta[:1],  # Intercept term (keep 2D: [1, n_targets])
         }
     else:
         arrays = {
