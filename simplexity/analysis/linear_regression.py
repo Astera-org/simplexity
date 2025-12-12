@@ -390,11 +390,14 @@ def _handle_factored_regression(
         _merge_results_with_prefix(scalars, arrays, factor_result, f"factor_{factor_idx}")
 
     if compute_subspace_orthogonality:
-        # Extract coefficients (excludes intercept) for orthogonality computation
-        coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
-        orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
-        scalars.update(orthogonality_scalars)
-        arrays.update(orthogonality_singular_values)
+        if len(belief_states) > 1:
+            # Extract coefficients (excludes intercept) for orthogonality computation
+            coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
+            orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
+            scalars.update(orthogonality_scalars)
+            arrays.update(orthogonality_singular_values)
+        else:
+            SIMPLEXITY_LOGGER.warning("Subspace orthogonality cannot be computed for a single belief state")
 
     return scalars, arrays
 
