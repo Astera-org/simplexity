@@ -1,5 +1,7 @@
 """Tests for reusable linear regression helpers."""
 
+# pylint: disable=too-many-lines
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -342,13 +344,13 @@ def test_orthogonality_with_orthogonal_subspaces() -> None:
     x = jax.random.normal(key, (n_samples, n_features))
 
     # Define orthogonal coefficient matrices
-    # W_0 uses first 3 features, W_1 uses last 3 features
-    W_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])  # (6, 2)
-    W_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])  # (6, 2)
+    # w_0 uses first 3 features, w_1 uses last 3 features
+    w_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])  # (6, 2)
+    w_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])  # (6, 2)
 
     # Generate factors using orthogonal subspaces (no intercept for simplicity)
-    factor_0 = x @ W_0  # (100, 2)
-    factor_1 = x @ W_1  # (100, 2)
+    factor_0 = x @ w_0  # (100, 2)
+    factor_1 = x @ w_1  # (100, 2)
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.ones(n_samples) / n_samples
 
@@ -395,14 +397,14 @@ def test_orthogonality_with_aligned_subspaces() -> None:
     key = jax.random.PRNGKey(0)
     x = jax.random.normal(key, (n_samples, n_features))
 
-    # Define aligned coefficient matrices - W_1 = W_0 @ A for invertible A
-    # This ensures span(W_1) = span(W_0)
-    W_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])  # (6, 2)
-    W_1 = jnp.array([[0.5, 1.0], [1.0, 0.5], [1.5, 1.5], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])  # (6, 2)
+    # Define aligned coefficient matrices - w_1 = w_0 @ A for invertible A
+    # This ensures span(w_1) = span(w_0)
+    w_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])  # (6, 2)
+    w_1 = jnp.array([[0.5, 1.0], [1.0, 0.5], [1.5, 1.5], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])  # (6, 2)
 
     # Generate factors using aligned subspaces (no intercept for simplicity)
-    factor_0 = x @ W_0  # (100, 2)
-    factor_1 = x @ W_1  # (100, 2)
+    factor_0 = x @ w_0  # (100, 2)
+    factor_1 = x @ w_1  # (100, 2)
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.ones(n_samples) / n_samples
 
@@ -447,14 +449,14 @@ def test_orthogonality_with_three_factors() -> None:
     x = jax.random.normal(key, (n_samples, n_features))
 
     # Define three orthogonal coefficient matrices using disjoint features
-    W_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])  # Uses features 0-1
-    W_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]])  # Uses features 2-3
-    W_2 = jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])  # Uses features 4-5
+    w_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])  # Uses features 0-1
+    w_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]])  # Uses features 2-3
+    w_2 = jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])  # Uses features 4-5
 
     # Generate factors using orthogonal subspaces
-    factor_0 = x @ W_0  # (100, 2)
-    factor_1 = x @ W_1  # (100, 2)
-    factor_2 = x @ W_2  # (100, 2)
+    factor_0 = x @ w_0  # (100, 2)
+    factor_1 = x @ w_1  # (100, 2)
+    factor_2 = x @ w_2  # (100, 2)
     factored_beliefs = (factor_0, factor_1, factor_2)
     weights = jnp.ones(n_samples) / n_samples
 
@@ -506,11 +508,11 @@ def test_orthogonality_not_computed_by_default() -> None:
     key = jax.random.PRNGKey(0)
     x = jax.random.normal(key, (n_samples, n_features))
 
-    W_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]])
-    W_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    w_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]])
+    w_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
 
-    factor_0 = x @ W_0
-    factor_1 = x @ W_1
+    factor_0 = x @ w_0
+    factor_1 = x @ w_1
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.ones(n_samples) / n_samples
 
@@ -605,18 +607,18 @@ def test_use_svd_flag_equivalence() -> None:
 
     # Should produce identical results
     assert scalars_flag.keys() == scalars_wrapper.keys()
-    for key in scalars_flag:
-        assert scalars_flag[key] == pytest.approx(scalars_wrapper[key])
+    for key, value in scalars_flag.items():
+        assert value == pytest.approx(scalars_wrapper[key])
 
     assert arrays_flag.keys() == arrays_wrapper.keys()
-    for key in arrays_flag:
-        chex.assert_trees_all_close(arrays_flag[key], arrays_wrapper[key])
+    for key, value in arrays_flag.items():
+        chex.assert_trees_all_close(value, arrays_wrapper[key])
 
     # Test with factored belief states
-    W_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]])
-    W_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
-    factor_0 = x @ W_0
-    factor_1 = x @ W_1
+    w_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]])
+    w_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    factor_0 = x @ w_0
+    factor_1 = x @ w_1
     factored_beliefs = (factor_0, factor_1)
 
     # Method 1: use_svd=True with factored beliefs
@@ -638,12 +640,12 @@ def test_use_svd_flag_equivalence() -> None:
 
     # Should produce identical results
     assert scalars_flag_fact.keys() == scalars_wrapper_fact.keys()
-    for key in scalars_flag_fact:
-        assert scalars_flag_fact[key] == pytest.approx(scalars_wrapper_fact[key])
+    for key, value in scalars_flag_fact.items():
+        assert value == pytest.approx(scalars_wrapper_fact[key])
 
     assert arrays_flag_fact.keys() == arrays_wrapper_fact.keys()
-    for key in arrays_flag_fact:
-        chex.assert_trees_all_close(arrays_flag_fact[key], arrays_wrapper_fact[key])
+    for key, value in arrays_flag_fact.items():
+        chex.assert_trees_all_close(value, arrays_wrapper_fact[key])
 
 
 def test_use_svd_with_orthogonality() -> None:
@@ -654,11 +656,11 @@ def test_use_svd_with_orthogonality() -> None:
     x = jax.random.normal(key, (n_samples, n_features))
 
     # Create orthogonal coefficient matrices
-    W_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])
-    W_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    w_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])
+    w_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
 
-    factor_0 = x @ W_0
-    factor_1 = x @ W_1
+    factor_0 = x @ w_0
+    factor_1 = x @ w_1
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.ones(n_samples) / n_samples
 
@@ -705,7 +707,7 @@ def test_orthogonality_with_different_subspace_dimensions() -> None:
 
     # Create orthogonal coefficient matrices with different output dimensions
     # factor_0 has 2 output dimensions, factor_1 has 5 output dimensions
-    W_0 = jnp.array(
+    w_0 = jnp.array(
         [
             [1.0, 0.0],
             [0.0, 1.0],
@@ -717,7 +719,7 @@ def test_orthogonality_with_different_subspace_dimensions() -> None:
             [0.0, 0.0],
         ]
     )  # (8, 2)
-    W_1 = jnp.array(
+    w_1 = jnp.array(
         [
             [0.0, 0.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -730,8 +732,8 @@ def test_orthogonality_with_different_subspace_dimensions() -> None:
         ]
     )  # (8, 5)
 
-    factor_0 = x @ W_0  # (100, 2)
-    factor_1 = x @ W_1  # (100, 5)
+    factor_0 = x @ w_0  # (100, 2)
+    factor_1 = x @ w_1  # (100, 5)
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.ones(n_samples) / n_samples
 
@@ -774,7 +776,7 @@ def test_orthogonality_with_contained_subspace() -> None:
     # Create coefficient matrices where factor_0's subspace is contained in factor_1's
     # factor_0: 2D subspace using features [0, 1]
     # factor_1: 3D subspace using features [0, 1, 2] (contains factor_0's space)
-    W_0 = jnp.array(
+    w_0 = jnp.array(
         [
             [1.0, 0.0],
             [0.0, 1.0],
@@ -786,7 +788,7 @@ def test_orthogonality_with_contained_subspace() -> None:
             [0.0, 0.0],
         ]
     )  # (8, 2)
-    W_1 = jnp.array(
+    w_1 = jnp.array(
         [
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
@@ -799,8 +801,8 @@ def test_orthogonality_with_contained_subspace() -> None:
         ]
     )  # (8, 3)
 
-    factor_0 = x @ W_0  # (100, 2)
-    factor_1 = x @ W_1  # (100, 3)
+    factor_0 = x @ w_0  # (100, 2)
+    factor_1 = x @ w_1  # (100, 3)
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.ones(n_samples) / n_samples
 
@@ -840,15 +842,15 @@ def test_orthogonality_excludes_intercept() -> None:
     x = jax.random.normal(key, (n_samples, n_features))
 
     # Create orthogonal coefficient matrices
-    W_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])
-    W_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    w_0 = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])
+    w_1 = jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
 
     # Add different intercepts to the factors
     intercept_0 = jnp.array([[5.0, -3.0]])
     intercept_1 = jnp.array([[10.0, 7.0]])
 
-    factor_0 = x @ W_0 + intercept_0  # (100, 2)
-    factor_1 = x @ W_1 + intercept_1  # (100, 2)
+    factor_0 = x @ w_0 + intercept_0  # (100, 2)
+    factor_1 = x @ w_1 + intercept_1  # (100, 2)
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.ones(n_samples) / n_samples
 
@@ -897,7 +899,7 @@ def test_linear_regression_constant_targets_r2_and_dist() -> None:
     weights = jnp.array([0.1, 0.2, 0.3, 0.4])
 
     # With intercept -> perfect constant fit, but r2 should fallback to 0.0 when variance is zero
-    scalars, arrays = linear_regression(x, y, weights)
+    scalars, _ = linear_regression(x, y, weights)
     assert scalars["r2"] == 0.0
     assert jnp.isclose(scalars["rmse"], 0.0, atol=1e-6, rtol=0.0).item()
     assert jnp.isclose(scalars["mae"], 0.0, atol=1e-6, rtol=0.0).item()
@@ -923,7 +925,7 @@ def test_linear_regression_intercept_and_shapes_both_solvers() -> None:
     weights = jnp.ones(n) / n
 
     # Standard solver, with intercept
-    scalars, arrays = linear_regression(x, y, weights, fit_intercept=True)
+    _, arrays = linear_regression(x, y, weights, fit_intercept=True)
     assert "projected" in arrays
     assert "coeffs" in arrays
     assert "intercept" in arrays
@@ -932,7 +934,7 @@ def test_linear_regression_intercept_and_shapes_both_solvers() -> None:
     assert arrays["intercept"].shape == (1, t)
 
     # Standard solver, without intercept
-    scalars_no_int, arrays_no_int = linear_regression(x, y, weights, fit_intercept=False)
+    _, arrays_no_int = linear_regression(x, y, weights, fit_intercept=False)
     assert "projected" in arrays_no_int
     assert "coeffs" in arrays_no_int
     assert "intercept" not in arrays_no_int
@@ -940,7 +942,7 @@ def test_linear_regression_intercept_and_shapes_both_solvers() -> None:
     assert arrays_no_int["coeffs"].shape == (d, t)
 
     # SVD solver, with intercept
-    scalars_svd, arrays_svd = linear_regression_svd(x, y, weights, fit_intercept=True)
+    _, arrays_svd = linear_regression_svd(x, y, weights, fit_intercept=True)
     assert "projected" in arrays_svd
     assert "coeffs" in arrays_svd
     assert "intercept" in arrays_svd
@@ -949,7 +951,7 @@ def test_linear_regression_intercept_and_shapes_both_solvers() -> None:
     assert arrays_svd["intercept"].shape == (1, t)
 
     # SVD solver, without intercept
-    scalars_svd_no_int, arrays_svd_no_int = linear_regression_svd(x, y, weights, fit_intercept=False)
+    _, arrays_svd_no_int = linear_regression_svd(x, y, weights, fit_intercept=False)
     assert "projected" in arrays_svd_no_int
     assert "coeffs" in arrays_svd_no_int
     assert "intercept" not in arrays_svd_no_int
@@ -962,19 +964,19 @@ def test_layer_linear_regression_concat_vs_separate_equivalence() -> None:
     n, d = 6, 3
     x = jnp.arange(float(n * d)).reshape(n, d)
     # Two factors with different output dims
-    W0 = jnp.array([[1.0, 0.5], [0.0, -1.0], [2.0, 1.0]])  # (d, 2)
+    w_0 = jnp.array([[1.0, 0.5], [0.0, -1.0], [2.0, 1.0]])  # (d, 2)
     b0 = jnp.array([[0.3, -0.2]])  # (1, 2)
-    factor_0 = x @ W0 + b0
+    factor_0 = x @ w_0 + b0
 
-    W1 = jnp.array([[0.2, 0.0, -0.5], [1.0, 1.0, 0.0], [-1.0, 0.5, 0.3]])  # (d, 3)
+    w_1 = jnp.array([[0.2, 0.0, -0.5], [1.0, 1.0, 0.0], [-1.0, 0.5, 0.3]])  # (d, 3)
     b1 = jnp.array([[0.1, 0.2, -0.1]])  # (1, 3)
-    factor_1 = x @ W1 + b1
+    factor_1 = x @ w_1 + b1
 
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.array([0.05, 0.10, 0.15, 0.20, 0.25, 0.25])
 
     # Separate per-factor regression
-    scalars_sep, arrays_sep = layer_linear_regression(
+    _, arrays_sep = layer_linear_regression(
         x,
         weights,
         factored_beliefs,
@@ -982,7 +984,7 @@ def test_layer_linear_regression_concat_vs_separate_equivalence() -> None:
     )
 
     # Concatenated regression with splitting
-    scalars_cat, arrays_cat = layer_linear_regression(
+    _, arrays_cat = layer_linear_regression(
         x,
         weights,
         factored_beliefs,
@@ -1009,13 +1011,13 @@ def test_layer_linear_regression_svd_concat_vs_separate_equivalence_best_rcond()
     n, d = 6, 3
     x = jnp.arange(float(n * d)).reshape(n, d)
     # Two factors with different output dims
-    W0 = jnp.array([[1.0, 0.5], [0.0, -1.0], [2.0, 1.0]])  # (d, 2)
+    w_0 = jnp.array([[1.0, 0.5], [0.0, -1.0], [2.0, 1.0]])  # (d, 2)
     b0 = jnp.array([[0.3, -0.2]])  # (1, 2)
-    factor_0 = x @ W0 + b0
+    factor_0 = x @ w_0 + b0
 
-    W1 = jnp.array([[0.2, 0.0, -0.5], [1.0, 1.0, 0.0], [-1.0, 0.5, 0.3]])  # (d, 3)
+    w_1 = jnp.array([[0.2, 0.0, -0.5], [1.0, 1.0, 0.0], [-1.0, 0.5, 0.3]])  # (d, 3)
     b1 = jnp.array([[0.1, 0.2, -0.1]])  # (1, 3)
-    factor_1 = x @ W1 + b1
+    factor_1 = x @ w_1 + b1
 
     factored_beliefs = (factor_0, factor_1)
     weights = jnp.array([0.05, 0.10, 0.15, 0.20, 0.25, 0.25])
@@ -1048,8 +1050,10 @@ def test_layer_linear_regression_svd_concat_vs_separate_equivalence_best_rcond()
     assert scalars_cat["concat/best_rcond"] == pytest.approx(1e-3)
 
     # Separate path should include per-factor best_rcond; concat-split path should not
-    assert "factor_0/best_rcond" in scalars_sep and "factor_1/best_rcond" in scalars_sep
-    assert "factor_0/best_rcond" not in scalars_cat and "factor_1/best_rcond" not in scalars_cat
+    assert "factor_0/best_rcond" in scalars_sep
+    assert "factor_1/best_rcond" in scalars_sep
+    assert "factor_0/best_rcond" not in scalars_cat
+    assert "factor_1/best_rcond" not in scalars_cat
 
     # Per-factor arrays should match between separate and concat-split flows
     for k in ["projected", "coeffs", "intercept"]:
