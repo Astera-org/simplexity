@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import jax
+from jax.debug import callback
 import jax.numpy as jnp
 import numpy as np
 
@@ -289,58 +290,55 @@ def _compute_subspace_orthogonality(
     # Compute the singular values of the interaction matrix
     interaction_matrix = q1.T @ q2
     singular_values = jnp.linalg.svd(interaction_matrix, compute_uv=False)
-
-    # Clip the singular values to the range [0, 1]
     singular_values = jnp.clip(singular_values, 0, 1)
 
     # Compute the subspace overlap score
     min_dim = min(q1.shape[1], q2.shape[1])
-    subspace_overlap_score = jnp.sum(singular_values**2) / min_dim
+    sum_sq_sv = jnp.sum(singular_values**2)
+    sum_quad_sv = jnp.sum(singular_values**4)
 
-    # Compute the max singular value
-    max_singular_value = jnp.max(singular_values)
+    is_degenerate = sum_quad_sv == 0
 
-    # Compute the min singular value
-    min_singular_value = jnp.min(singular_values)
-
-    # Check if subspace is degenerate
-    if max_singular_value == 0:
+    def log_all_zeros(_):
         SIMPLEXITY_LOGGER.warning(
             "Degenerate subspace detected during orthogonality computation."
             " All singular values are zero."
-            " Setting probability values to zero."
-            " Setting participation ratio to zero."
+            " Setting probability values and participation ratio to zero."
         )
-        pratio_denominator = 1.0
-        probs_denominator = 1.0
-    else:
-        pratio_denominator = jnp.sum(singular_values**4)
-        probs_denominator = jnp.sum(singular_values**2)
+    
+    callback(log_all_zeros, sum_sq_sv, ordered=True, when=is_degenerate)
 
-    # Compute the participation ratio
-    participation_ratio = jnp.sum(singular_values**2) ** 2 / pratio_denominator
+    pratio_denominator_safe = jnp.where(is_degenerate, 1.0, sum_quad_sv)
+    probs_denominator_safe = jnp.where(is_degenerate, 1.0, sum_sq_sv)
+    participation_ratio = sum_sq_sv**2 / pratio_denominator_safe
 
-    # Compute the entropy
-    probs = singular_values**2 / probs_denominator
-    num_zeros = jnp.sum(probs == 0)
-    if num_zeros > 0:
+    subspace_overlap_score = sum_sq_sv / min_dim
+
+    # Compute the entropy probabilities
+    probs = singular_values**2 / probs_denominator_safe
+
+    def log_some_zeros(num_zeros_array: jax.Array) -> None:
+        num_zeros = num_zeros_array.item()
         SIMPLEXITY_LOGGER.warning(
             f"Encountered {num_zeros} probability values of zero during entropy computation."
             " This is likely due to numerical instability."
             " Setting corresponding entropy contribution to zero."
         )
-        nonzero_probs = probs[probs > 0]
-        entropy = -jnp.sum(nonzero_probs * jnp.log(nonzero_probs))
-    else:
-        entropy = -jnp.sum(probs * jnp.log(probs))
+    
+    num_zeros = jnp.sum(probs == 0)
+    has_some_zeros = num_zeros > 0
+    callback(log_some_zeros, num_zeros, ordered=True, when=has_some_zeros)
+
+    p_log_p = probs * jnp.log(probs)
+    entropy = -jnp.sum(jnp.where(probs > 0, p_log_p, 0.0))
 
     # Compute the effective rank
     effective_rank = jnp.exp(entropy)
 
     scalars = {
         "subspace_overlap": float(subspace_overlap_score),
-        "max_singular_value": float(max_singular_value),
-        "min_singular_value": float(min_singular_value),
+        "max_singular_value": float(jnp.max(singular_values)),
+        "min_singular_value": float(jnp.min(singular_values)),
         "participation_ratio": float(participation_ratio),
         "entropy": float(entropy),
         "effective_rank": float(effective_rank),
