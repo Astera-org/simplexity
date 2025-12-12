@@ -27,7 +27,7 @@ def _compute_orthogonality_threshold(
     Args:
         x: Input features array (used for dtype and dimension)
         *factors: Factor arrays being compared (used for output dimensions)
-        safety_factor: Multiplicative safety factor (default 1000)
+        safety_factor: Multiplicative safety factor (default 10)
 
     Returns:
         Threshold value for considering singular values as effectively zero
@@ -257,7 +257,6 @@ def test_layer_linear_regression_belief_states_tuple_default() -> None:
     assert arrays["factor_1/coeffs"].shape == (x.shape[1], factor_1.shape[1])
     assert arrays["factor_0/intercept"].shape == (1, factor_0.shape[1])
     assert arrays["factor_1/intercept"].shape == (1, factor_1.shape[1])
-
 
 
 def test_layer_linear_regression_svd_belief_states_tuple_default() -> None:
@@ -706,26 +705,30 @@ def test_orthogonality_with_different_subspace_dimensions() -> None:
 
     # Create orthogonal coefficient matrices with different output dimensions
     # factor_0 has 2 output dimensions, factor_1 has 5 output dimensions
-    W_0 = jnp.array([
-        [1.0, 0.0],
-        [0.0, 1.0],
-        [1.0, 1.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-    ])  # (8, 2)
-    W_1 = jnp.array([
-        [0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 1.0],
-    ])  # (8, 5)
+    W_0 = jnp.array(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 1.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+        ]
+    )  # (8, 2)
+    W_1 = jnp.array(
+        [
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0],
+        ]
+    )  # (8, 5)
 
     factor_0 = x @ W_0  # (100, 2)
     factor_1 = x @ W_1  # (100, 5)
@@ -771,26 +774,30 @@ def test_orthogonality_with_contained_subspace() -> None:
     # Create coefficient matrices where factor_0's subspace is contained in factor_1's
     # factor_0: 2D subspace using features [0, 1]
     # factor_1: 3D subspace using features [0, 1, 2] (contains factor_0's space)
-    W_0 = jnp.array([
-        [1.0, 0.0],
-        [0.0, 1.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
-    ])  # (8, 2)
-    W_1 = jnp.array([
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0],
-    ])  # (8, 3)
+    W_0 = jnp.array(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+        ]
+    )  # (8, 2)
+    W_1 = jnp.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+        ]
+    )  # (8, 3)
 
     factor_0 = x @ W_0  # (100, 2)
     factor_1 = x @ W_1  # (100, 3)
