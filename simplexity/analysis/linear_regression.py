@@ -88,7 +88,7 @@ def linear_regression(
     return scalars, arrays
 
 
-def _compute_regression_metrics(
+def _compute_regression_metrics(  # pylint: disable=too-many-arguments
     x: jax.Array,
     y: jax.Array,
     weights: jax.Array | np.ndarray | None,
