@@ -303,13 +303,37 @@ def _compute_subspace_orthogonality(
     # Compute the min singular value
     min_singular_value = jnp.min(singular_values)
 
+
+    # Check if subspace is degenerate
+    if max_singular_value == 0:
+        SIMPLEXITY_LOGGER.warning(
+            "Degenerate subspace detected during orthogonality computation."
+            "All singular values are zero."
+            "Setting probability values to zero."
+            "Setting participation ratio to zero."
+        )
+        pratio_denominator = 1.0
+        probs_denominator = 1.0
+    else:
+        pratio_denominator = jnp.sum(singular_values**4)
+        probs_denominator = jnp.sum(singular_values**2)
+
     # Compute the participation ratio
-    denom = jnp.sum(singular_values**4)
-    participation_ratio = jnp.where(denom == 0, 0.0, jnp.sum(singular_values**2) ** 2 / denom)
+    participation_ratio = jnp.sum(singular_values**2)**2 / pratio_denominator
+
     # Compute the entropy
-    probs = singular_values**2 / jnp.sum(singular_values**2)
-    log_probs = jnp.where(probs > 0, jnp.log(probs), 0.0)
-    entropy = -jnp.sum(probs * log_probs)
+    probs = singular_values**2 / probs_denominator
+    num_zeros = jnp.sum(probs == 0)
+    if num_zeros > 0:
+        SIMPLEXITY_LOGGER.warning(
+            f"Encountered {num_zeros} probability values of zero during entropy computation."
+            "This is likely due to numerical instability."
+            "Setting corresponding entropy contribution to zero."
+        )
+        nonzero_probs = probs[probs > 0]
+        entropy = -jnp.sum(nonzero_probs * jnp.log(nonzero_probs))
+    else:
+        entropy = -jnp.sum(probs * jnp.log(probs))
 
     # Compute the effective rank
     effective_rank = jnp.exp(entropy)
@@ -426,14 +450,25 @@ def layer_linear_regression(
         scalars: Dictionary of scalar metrics
         arrays: Dictionary of arrays (projected predictions, parameters, singular values if orthogonality computed)
     """
-    if belief_states is None:
+
+    # If no belief states are provided, raise an error
+    if (
+        belief_states is None
+        or (isinstance(belief_states, tuple) and len(belief_states) == 0)
+        or (isinstance(belief_states, jax.Array) and belief_states.size == 0)
+    ):
         raise ValueError("linear_regression requires belief_states")
 
     regression_fn = linear_regression_svd if use_svd else linear_regression
 
-    if not isinstance(belief_states, tuple):
+    if not isinstance(belief_states, tuple) or len(belief_states) == 1:
         if compute_subspace_orthogonality:
-            SIMPLEXITY_LOGGER.warning("Subspace orthogonality cannot be computed for a single belief state")
+            SIMPLEXITY_LOGGER.warning(
+                "Subspace orthogonality requires multiple factors."
+                "Received single factor of type %s; skipping orthogonality metrics.",
+                type(belief_states).__name__,
+            )
+        belief_states = belief_states[0] if isinstance(belief_states, tuple) else belief_states
         scalars, arrays = regression_fn(layer_activations, belief_states, weights, **kwargs)
         return scalars, arrays
 

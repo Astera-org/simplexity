@@ -308,7 +308,11 @@ def test_layer_linear_regression_svd_belief_states_tuple_default() -> None:
 
 
 def test_layer_linear_regression_belief_states_tuple_single_factor() -> None:
+<<<<<<< HEAD
     """Handles a single factor provided as a tuple of belief states."""
+=======
+    """Single-element tuple should behave the same as passing a single array."""
+>>>>>>> 8aad089 (Change single factor regre)
     x = jnp.arange(9.0).reshape(3, 3)
     weights = jnp.ones(3) / 3.0
 
@@ -322,17 +326,24 @@ def test_layer_linear_regression_belief_states_tuple_single_factor() -> None:
         factored_beliefs,
     )
 
-    # Should have ALL metrics, projections, coefficients, and intercept for single factor
-    assert "factor_0/r2" in scalars
-    assert "factor_0/rmse" in scalars
-    assert "factor_0/mae" in scalars
-    assert "factor_0/dist" in scalars
-    assert "factor_0/projected" in arrays
-    assert "factor_0/coeffs" in arrays
-    assert "factor_0/intercept" in arrays
-    assert arrays["factor_0/projected"].shape == factor_0.shape
-    assert arrays["factor_0/coeffs"].shape == (x.shape[1], factor_0.shape[1])
-    assert arrays["factor_0/intercept"].shape == (1, factor_0.shape[1])
+    # Should have same structure as non-tuple case
+    assert "r2" in scalars
+    assert "rmse" in scalars
+    assert "mae" in scalars
+    assert "dist" in scalars
+    assert "projected" in arrays
+    assert "coeffs" in arrays
+    assert "intercept" in arrays
+
+    # Verify it matches non-tuple behavior
+    scalars_non_tuple, arrays_non_tuple = layer_linear_regression(x, weights, factor_0)
+    
+    assert scalars.keys() == scalars_non_tuple.keys()
+    assert arrays.keys() == arrays_non_tuple.keys()
+    for key in scalars.keys():
+        assert scalars[key] == pytest.approx(scalars_non_tuple[key])
+    for key in arrays.keys():
+        assert arrays[key] == pytest.approx(arrays_non_tuple[key])
 
 
 def test_orthogonality_with_orthogonal_subspaces() -> None:
@@ -565,7 +576,7 @@ def test_orthogonality_warning_for_single_belief_state(caplog: pytest.LogCapture
         )
 
     # Should have logged a warning
-    assert "Subspace orthogonality cannot be computed for a single belief state" in caplog.text
+    assert "Subspace orthogonality requires multiple factors." in caplog.text
 
     # Should still run regression successfully
     assert "r2" in scalars
