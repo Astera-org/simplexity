@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 import itertools
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import jax
@@ -76,13 +76,13 @@ def linear_regression(
     if fit_intercept:
         arrays = {
             "projected": predictions,
-            "coeffs": beta[1:],      # Linear coefficients (excluding intercept)
+            "coeffs": beta[1:],  # Linear coefficients (excluding intercept)
             "intercept": beta[0:1],  # Intercept term (keep 2D: [1, n_targets])
         }
     else:
         arrays = {
             "projected": predictions,
-            "coeffs": beta,          # All parameters are coefficients when no intercept
+            "coeffs": beta,  # All parameters are coefficients when no intercept
         }
 
     return scalars, arrays
@@ -179,24 +179,24 @@ def linear_regression_svd(
     if fit_intercept:
         arrays = {
             "projected": best_pred,
-            "coeffs": best_beta[1:],      # Linear coefficients (excluding intercept)
+            "coeffs": best_beta[1:],  # Linear coefficients (excluding intercept)
             "intercept": best_beta[0:1],  # Intercept term (keep 2D: [1, n_targets])
         }
     else:
         arrays = {
             "projected": best_pred,
-            "coeffs": best_beta,          # All parameters are coefficients when no intercept
+            "coeffs": best_beta,  # All parameters are coefficients when no intercept
         }
 
     return scalars, arrays
 
 
 def _process_individual_factors(
-        layer_activations: jax.Array,
-        belief_states: tuple[jax.Array, ...],
-        weights: jax.Array,
-        use_svd: bool,
-        **kwargs: Any,
+    layer_activations: jax.Array,
+    belief_states: tuple[jax.Array, ...],
+    weights: jax.Array,
+    use_svd: bool,
+    **kwargs: Any,
 ) -> list[tuple[Mapping[str, float], Mapping[str, jax.Array]]]:
     """Process each factor individually using either standard or SVD regression."""
     results = []
@@ -245,7 +245,7 @@ def _split_concat_results(
 
     # Only recompute scalar metrics, reuse projections and coefficients
     # Filter out rcond_values from kwargs (only relevant for SVD during fitting, not metrics)
-    metrics_kwargs = {k: v for k, v in kwargs.items() if k != 'rcond_values'}
+    metrics_kwargs = {k: v for k, v in kwargs.items() if k != "rcond_values"}
     fit_intercept = kwargs.get("fit_intercept", True)
 
     results = []
@@ -304,7 +304,7 @@ def _compute_subspace_orthogonality(
     min_singular_value = jnp.min(singular_values)
 
     # Compute the participation ratio
-    participation_ratio = jnp.sum(singular_values**2)**2 / jnp.sum(singular_values**4)
+    participation_ratio = jnp.sum(singular_values**2) ** 2 / jnp.sum(singular_values**4)
 
     # Compute the entropy
     probs = singular_values**2 / jnp.sum(singular_values**2)
@@ -347,23 +347,21 @@ def _compute_all_pairwise_orthogonality(
             coeffs_list[j],
         ]
         orthogonality_scalars, orthogonality_singular_values = _compute_subspace_orthogonality(coeffs_pair)
-        scalars.update({
-            f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_scalars.items()
-        })
-        singular_values.update({
-            f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_singular_values.items()
-        })
+        scalars.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_scalars.items()})
+        singular_values.update(
+            {f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_singular_values.items()}
+        )
     return scalars, singular_values
 
 
 def _handle_factored_regression(
-        layer_activations: jax.Array,
-        weights: jax.Array,
-        belief_states: tuple[jax.Array, ...],
-        concat_belief_states: bool,
-        compute_subspace_orthogonality: bool,
-        use_svd: bool,
-        **kwargs: Any,
+    layer_activations: jax.Array,
+    weights: jax.Array,
+    belief_states: tuple[jax.Array, ...],
+    concat_belief_states: bool,
+    compute_subspace_orthogonality: bool,
+    use_svd: bool,
+    **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
     """Handle regression for factored belief states using either standard or SVD method."""
     scalars: dict[str, float] = {}
@@ -386,9 +384,7 @@ def _handle_factored_regression(
             **kwargs,
         )
     else:
-        factor_results = _process_individual_factors(
-            layer_activations, belief_states, weights, use_svd, **kwargs
-        )
+        factor_results = _process_individual_factors(layer_activations, belief_states, weights, use_svd, **kwargs)
 
     for factor_idx, factor_result in enumerate(factor_results):
         _merge_results_with_prefix(scalars, arrays, factor_result, f"factor_{factor_idx}")
@@ -440,8 +436,13 @@ def layer_linear_regression(
         return scalars, arrays
 
     return _handle_factored_regression(
-        layer_activations, weights, belief_states,
-        concat_belief_states, compute_subspace_orthogonality, use_svd, **kwargs
+        layer_activations,
+        weights,
+        belief_states,
+        concat_belief_states,
+        compute_subspace_orthogonality,
+        use_svd,
+        **kwargs,
     )
 
 
