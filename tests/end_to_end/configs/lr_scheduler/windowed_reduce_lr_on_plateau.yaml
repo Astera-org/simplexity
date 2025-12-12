@@ -1,0 +1,12 @@
+name: lr_scheduler_windowed_reduce_on_plateau
+instance:
+  _target_: simplexity.lr_schedulers.WindowedReduceLROnPlateau
+  window_size: 10
+  update_every: 100
+  mode: min
+  factor: 0.5
+  patience: 1000
+  threshold: 1e-6
+  threshold_mode: rel
+  cooldown: 200
+  min_lr: 1e-6

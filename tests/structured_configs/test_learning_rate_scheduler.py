@@ -13,6 +13,7 @@ from simplexity.structured_configs.learning_rate_scheduler import (
     is_lr_scheduler_target,
     is_reduce_lr_on_plateau_config,
     is_step_lr_config,
+    is_windowed_reduce_lr_on_plateau_config,
     validate_cosine_annealing_lr_instance_config,
     validate_cosine_annealing_warm_restarts_instance_config,
     validate_exponential_lr_instance_config,
@@ -20,6 +21,7 @@ from simplexity.structured_configs.learning_rate_scheduler import (
     validate_lr_scheduler_config,
     validate_reduce_lr_on_plateau_instance_config,
     validate_step_lr_instance_config,
+    validate_windowed_reduce_lr_on_plateau_instance_config,
 )
 
 
@@ -550,3 +552,134 @@ class TestValidateLrSchedulerConfig:
         )
         with pytest.raises(ConfigValidationError, match="must be a learning rate scheduler target"):
             validate_lr_scheduler_config(cfg)
+
+    def test_valid_windowed_reduce_lr_on_plateau(self):
+        """Test validation passes with valid WindowedReduceLROnPlateau config."""
+        cfg = OmegaConf.create(
+            {
+                "instance": {
+                    "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                    "window_size": 10,
+                    "update_every": 100,
+                    "patience": 5,
+                },
+            }
+        )
+        validate_lr_scheduler_config(cfg)
+
+
+class TestIsWindowedReduceLROnPlateauConfig:
+    """Tests for is_windowed_reduce_lr_on_plateau_config."""
+
+    def test_is_windowed_reduce_lr_on_plateau_config(self):
+        """Test that WindowedReduceLROnPlateau target is correctly identified."""
+        cfg = OmegaConf.create({"_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau"})
+        assert is_windowed_reduce_lr_on_plateau_config(cfg) is True
+
+    def test_is_windowed_reduce_lr_on_plateau_config_wrong_target(self):
+        """Test that non-WindowedReduceLROnPlateau target returns False."""
+        cfg = OmegaConf.create({"_target_": "torch.optim.lr_scheduler.ReduceLROnPlateau"})
+        assert is_windowed_reduce_lr_on_plateau_config(cfg) is False
+
+    def test_is_windowed_reduce_lr_on_plateau_config_no_target(self):
+        """Test that missing _target_ returns False."""
+        cfg = OmegaConf.create({})
+        assert is_windowed_reduce_lr_on_plateau_config(cfg) is False
+
+
+class TestValidateWindowedReduceLROnPlateau:
+    """Tests for validate_windowed_reduce_lr_on_plateau_instance_config."""
+
+    def test_valid_config(self):
+        """Test validation passes with valid WindowedReduceLROnPlateau config."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "window_size": 10,
+                "update_every": 100,
+                "mode": "min",
+                "factor": 0.1,
+                "patience": 10,
+                "threshold": 1e-4,
+                "cooldown": 0,
+                "min_lr": 0.0,
+                "eps": 1e-8,
+            }
+        )
+        validate_windowed_reduce_lr_on_plateau_instance_config(cfg)
+
+    def test_valid_max_mode(self):
+        """Test validation passes with mode='max'."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "mode": "max",
+            }
+        )
+        validate_windowed_reduce_lr_on_plateau_instance_config(cfg)
+
+    def test_invalid_mode(self):
+        """Test validation fails with invalid mode."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "mode": "invalid",
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="mode must be 'min' or 'max'"):
+            validate_windowed_reduce_lr_on_plateau_instance_config(cfg)
+
+    def test_invalid_window_size(self):
+        """Test validation fails with zero window_size."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "window_size": 0,
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_windowed_reduce_lr_on_plateau_instance_config(cfg)
+
+    def test_invalid_update_every(self):
+        """Test validation fails with zero update_every."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "update_every": 0,
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_windowed_reduce_lr_on_plateau_instance_config(cfg)
+
+    def test_invalid_factor(self):
+        """Test validation fails with zero factor."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "factor": 0.0,
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_windowed_reduce_lr_on_plateau_instance_config(cfg)
+
+    def test_invalid_patience(self):
+        """Test validation fails with negative patience."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "patience": -1,
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_windowed_reduce_lr_on_plateau_instance_config(cfg)
+
+    def test_invalid_cooldown(self):
+        """Test validation fails with negative cooldown."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "cooldown": -5,
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_windowed_reduce_lr_on_plateau_instance_config(cfg)

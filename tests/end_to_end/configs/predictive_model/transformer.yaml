@@ -3,12 +3,12 @@ instance:
   _target_: transformer_lens.HookedTransformer
   cfg:
     _target_: transformer_lens.HookedTransformerConfig
-    d_model: 64
-    d_head: 16
-    n_heads: 4
-    n_layers: 4
-    n_ctx: 11
-    d_mlp: 256
+    d_model: 384
+    d_head: 64
+    n_heads: 6
+    n_layers: 1
+    n_ctx: 9
+    d_mlp: 1536
     d_vocab: ???
     act_fn: "relu"
     normalization_type: "LN"

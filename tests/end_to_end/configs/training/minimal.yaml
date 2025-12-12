@@ -6,3 +6,4 @@ log_expensive_every: 2
 evaluate_every: 2
 checkpoint_every: 5
 validation_multiplier: 1
+scheduler_every: 1

@@ -42,7 +42,7 @@ from simplexity.structured_configs.persistence import PersistenceConfig
 from simplexity.structured_configs.predictive_model import PredictiveModelConfig
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
-CONFIG_NAME = "training_test.yaml"
+CONFIG_NAME = "training_factored.yaml"
 
 logging.getLogger("databricks.sdk").setLevel(logging.WARNING)
 
@@ -146,7 +146,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     loss_fn = torch.nn.CrossEntropyLoss()
 
     def get_loss(outputs: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        return loss_fn(outputs.reshape(-1, outputs.shape[-1]), labels.reshape(-1).long())
+        return loss_fn(outputs.reshape(-1, outputs.shape[-1]), labels.reshape(-1).long().to(outputs.device))
 
     def train_step(step: int):
         predictive_model.train()
@@ -157,6 +157,12 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         loss.backward()
         optimizer.step()
         training_metric_tracker.step(tokens=inputs, loss=loss)
+        old_lr = optimizer.param_groups[0]["lr"]
+        learning_rate_scheduler.step(loss.detach().item(), epoch=step)
+        new_lr = optimizer.param_groups[0]["lr"]
+        if new_lr != old_lr:
+            logging.info(f"Learning rate changed from {old_lr} to {new_lr} at step {step}")
+        logger.log_metrics(step, {"learning_rate": new_lr})
 
     def log_step(step: int, group: str) -> None:
         metrics = training_metric_tracker.get_metrics(group)
@@ -179,22 +185,16 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         metrics = eval_metric_tracker.get_metrics()
         metrics = add_key_prefix(metrics, "eval")
         logger.log_metrics(step, metrics)
-        if step != 0:
-            old_lr = optimizer.param_groups[0]["lr"]
-            learning_rate_scheduler.step(metrics["eval/loss/step"])
-            new_lr = optimizer.param_groups[0]["lr"]
-            if new_lr != old_lr:
-                logging.info(f"Learning rate changed from {old_lr} to {new_lr} at step {step}")
 
     def activation_tracker_step(step: int) -> None:
         predictive_model.eval()
         outs = generate_data_batch_with_full_history(
             _expand_init_state(
                 generative_process.initial_state,
-                cfg.training.batch_size * cfg.training.validation_multiplier,
+                int(cfg.training.batch_size * cfg.training.validation_multiplier),
             ),
             generative_process,
-            cfg.training.batch_size * cfg.training.validation_multiplier,
+            int(cfg.training.batch_size * cfg.training.validation_multiplier),
             cfg.training.sequence_len,
             jax.random.key(step),
             device=device_arg,
@@ -248,7 +248,12 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     step += 1  # pyright: ignore[reportPossiblyUnboundVariable]
     persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs, step=step)
 
+    visualization_path.cleanup()
+
 
 if __name__ == "__main__":
     main = hydra.main(config_path=CONFIG_DIR, config_name=CONFIG_NAME, version_base="1.2")(train)
     main()
+    import sys
+
+    sys.exit(0)

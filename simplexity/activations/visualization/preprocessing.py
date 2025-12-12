@@ -118,7 +118,7 @@ def _project_to_simplex(dataframe: pd.DataFrame, step: ActivationVisualizationPr
             raise ConfigValidationError(
                 f"Preprocessing step requires column '{column}' but it is missing from the dataframe."
             )
-    p0, p1, p2 = (dataframe[col].astype(float) for col in required)
+    _, p1, p2 = (dataframe[col].astype(float) for col in required)
     x = p1 + 0.5 * p2
     y = (np.sqrt(3.0) / 2.0) * p2
     dataframe[step.output_fields[0]] = x
@@ -149,12 +149,19 @@ def _combine_rgb(dataframe: pd.DataFrame, step: ActivationVisualizationPreproces
     def _channel_to_int(series: pd.Series) -> pd.Series:
         return (series.clip(0.0, 1.0) * 255).round().astype(int)
 
-    # ---- Case 1: exactly 3 inputs -> keep old behavior ----
+    # ---- Case 1: exactly 3 inputs -> normalize to [0, 1] then map to RGB ----
     if len(step.input_fields) == 3:
-        r, g, b = step.input_fields
-        r_vals = _channel_to_int(pd.Series(dataframe[r]))
-        g_vals = _channel_to_int(pd.Series(dataframe[g]))
-        b_vals = _channel_to_int(pd.Series(dataframe[b]))
+        rgb = dataframe[list(step.input_fields)].to_numpy(dtype=float)
+        mins = rgb.min(axis=0)
+        maxs = rgb.max(axis=0)
+        ranges = maxs - mins
+        ranges_safe = np.where(ranges > 0, ranges, 1.0)
+        rgb = (rgb - mins) / ranges_safe
+        rgb[:, ranges == 0] = 0.5
+
+        r_vals = _channel_to_int(pd.Series(rgb[:, 0], index=dataframe.index))
+        g_vals = _channel_to_int(pd.Series(rgb[:, 1], index=dataframe.index))
+        b_vals = _channel_to_int(pd.Series(rgb[:, 2], index=dataframe.index))
 
     # ---- Case 2: >3 inputs -> PCA to 3D, then map to RGB ----
     else:

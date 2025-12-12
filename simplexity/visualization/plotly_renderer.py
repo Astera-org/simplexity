@@ -161,6 +161,7 @@ def _build_faceted_figure(
 
     color_field = _optional_field(aes.color)
     size_field_name = _optional_field(aes.size)
+    size_value = _resolve_size_value(aes.size)
     opacity_value = _resolve_opacity(aes.opacity)
     hover_fields = _collect_tooltip_fields(aes.tooltip)
     color_map = _build_color_discrete_map(df, color_field, aes.color)
@@ -198,6 +199,7 @@ def _build_faceted_figure(
                         opacity_value,
                         color_specs,
                         layer_name=layer.name,
+                        size_value=size_value,
                     )
                     scene_idx = (row_idx - 1) * n_cols + col_idx
                     scene_name = "scene" if scene_idx == 1 else f"scene{scene_idx}"
@@ -214,6 +216,7 @@ def _build_faceted_figure(
                         opacity_value,
                         color_specs,
                         layer_name=layer.name,
+                        size_value=size_value,
                     )
 
                 # Control legend visibility
@@ -241,10 +244,7 @@ def _build_faceted_figure(
         traces_by_cell = build_facet_traces(initial_df)
         for (row_idx, col_idx), traces in traces_by_cell.items():
             for trace in traces:
-                if has_z:
-                    fig.add_trace(trace)
-                else:
-                    fig.add_trace(trace, row=row_idx, col=col_idx)
+                fig.add_trace(trace, row=row_idx, col=col_idx)
 
         # Build frames for slider animation
         frames = []
@@ -283,6 +283,7 @@ def _build_faceted_figure(
                 layer,
                 has_z,
                 n_cols,
+                size_value,
             )
 
     elif slider:
@@ -298,10 +299,7 @@ def _build_faceted_figure(
         traces_by_cell = build_facet_traces(initial_df)
         for (row_idx, col_idx), traces in traces_by_cell.items():
             for trace in traces:
-                if has_z:
-                    fig.add_trace(trace)
-                else:
-                    fig.add_trace(trace, row=row_idx, col=col_idx)
+                fig.add_trace(trace, row=row_idx, col=col_idx)
 
         # Build frames for slider animation
         frames = []
@@ -322,10 +320,7 @@ def _build_faceted_figure(
         traces_by_cell = build_facet_traces(working_df)
         for (row_idx, col_idx), traces in traces_by_cell.items():
             for trace in traces:
-                if has_z:
-                    fig.add_trace(trace)
-                else:
-                    fig.add_trace(trace, row=row_idx, col=col_idx)
+                fig.add_trace(trace, row=row_idx, col=col_idx)
 
         _add_faceted_layer_dropdown(
             fig,
@@ -349,16 +344,14 @@ def _build_faceted_figure(
             layer,
             has_z,
             n_cols,
+            size_value,
         )
     else:
         # No controls
         traces_by_cell = build_facet_traces(working_df)
         for (row_idx, col_idx), traces in traces_by_cell.items():
             for trace in traces:
-                if has_z:
-                    fig.add_trace(trace)
-                else:
-                    fig.add_trace(trace, row=row_idx, col=col_idx)
+                fig.add_trace(trace, row=row_idx, col=col_idx)
 
     # Apply size to individual subplots if specified
     subplot_width = size_cfg.width or 200
@@ -372,25 +365,42 @@ def _build_faceted_figure(
         showlegend=True,
     )
 
-    # For 3D, set axis titles on each scene
+    # For 3D, set axis titles, ranges, and aspect ratio on each scene
     if has_z:
         x_title = _axis_title(aes.x)
         y_title = _axis_title(aes.y)
         z_title = _axis_title(aes.z)
+        x_range = _axis_domain(aes.x)
+        y_range = _axis_domain(aes.y)
+        z_range = _axis_domain(aes.z)
         for row_idx in range(1, n_rows + 1):
             for col_idx in range(1, n_cols + 1):
                 scene_idx = (row_idx - 1) * n_cols + col_idx
                 scene_key = "scene" if scene_idx == 1 else f"scene{scene_idx}"
-                scene_update: dict[str, Any] = {}
+                scene_update: dict[str, Any] = {"aspectmode": "cube"}
+                xaxis_cfg: dict[str, Any] = {}
+                yaxis_cfg: dict[str, Any] = {}
+                zaxis_cfg: dict[str, Any] = {}
                 if x_title:
-                    scene_update["xaxis_title"] = x_title
+                    xaxis_cfg["title"] = x_title
                 if y_title:
-                    scene_update["yaxis_title"] = y_title
+                    yaxis_cfg["title"] = y_title
                 if z_title:
-                    scene_update["zaxis_title"] = z_title
-                if scene_update:
-                    layout_update: dict[str, Any] = {scene_key: scene_update}
-                    fig.update_layout(**layout_update)
+                    zaxis_cfg["title"] = z_title
+                if x_range:
+                    xaxis_cfg["range"] = x_range
+                if y_range:
+                    yaxis_cfg["range"] = y_range
+                if z_range:
+                    zaxis_cfg["range"] = z_range
+                if xaxis_cfg:
+                    scene_update["xaxis"] = xaxis_cfg
+                if yaxis_cfg:
+                    scene_update["yaxis"] = yaxis_cfg
+                if zaxis_cfg:
+                    scene_update["zaxis"] = zaxis_cfg
+                layout_update: dict[str, Any] = {scene_key: scene_update}
+                fig.update_layout(**layout_update)
 
     return fig
 
@@ -417,6 +427,7 @@ def _add_faceted_layer_dropdown(
     layer: LayerConfig,
     has_z: bool,
     n_cols: int,
+    size_value: float | None = None,
 ) -> None:
     """Add a layer dropdown menu that rebuilds traces for faceted figures."""
     # Get layer-independent rows (e.g., ground truth from belief states)
@@ -467,6 +478,7 @@ def _add_faceted_layer_dropdown(
                         opacity_value,
                         color_specs,
                         layer_name=layer.name,
+                        size_value=size_value,
                     )
                     scene_idx = (row_idx - 1) * n_cols + col_idx
                     scene_name = "scene" if scene_idx == 1 else f"scene{scene_idx}"
@@ -484,6 +496,7 @@ def _add_faceted_layer_dropdown(
                         opacity_value,
                         color_specs,
                         layer_name=layer.name,
+                        size_value=size_value,
                     )
                     for trace in traces:
                         trace.showlegend = False
@@ -530,6 +543,7 @@ def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
 
     color_field = _optional_field(aes.color)
     size_field = _optional_field(aes.size)
+    size_value = _resolve_size_value(aes.size)
     opacity_value = _resolve_opacity(aes.opacity)
     hover_fields = _collect_tooltip_fields(aes.tooltip)
 
@@ -554,6 +568,7 @@ def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
             color_specs,
             aes,
             layer,
+            size_value,
         )
     elif dropdown:
         figure = _build_layer_filtered_scatter3d(
@@ -569,6 +584,7 @@ def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
             color_specs,
             aes,
             layer,
+            size_value,
         )
     else:
         traces = _scatter3d_traces(
@@ -582,6 +598,7 @@ def _build_scatter3d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
             opacity_value,
             color_specs,
             layer_name=layer.name,
+            size_value=size_value,
         )
         figure = go.Figure(data=traces)
         figure = _apply_constant_channels(figure, aes)
@@ -599,6 +616,7 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
 
     color_field = _optional_field(aes.color)
     size_field = _optional_field(aes.size)
+    size_value = _resolve_size_value(aes.size)
     opacity_value = _resolve_opacity(aes.opacity)
     hover_fields = _collect_tooltip_fields(aes.tooltip)
 
@@ -622,6 +640,7 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
             color_specs,
             aes,
             layer,
+            size_value,
         )
     elif dropdown:
         figure = _build_layer_filtered_scatter2d(
@@ -636,6 +655,7 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
             color_specs,
             aes,
             layer,
+            size_value,
         )
     else:
         traces = _scatter2d_traces(
@@ -648,6 +668,7 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
             opacity_value,
             color_specs,
             layer_name=layer.name,
+            size_value=size_value,
         )
         figure = go.Figure(data=traces)
         figure = _apply_constant_channels(figure, aes)
@@ -740,10 +761,25 @@ def _resolve_opacity(channel: ChannelAestheticsConfig | None) -> float | None:
     return opacity
 
 
+def _resolve_size_value(channel: ChannelAestheticsConfig | None) -> float | None:
+    if channel is None or channel.value is None:
+        return None
+    try:
+        return float(channel.value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigValidationError("Size channel value must be numeric.") from exc
+
+
 def _axis_title(channel: ChannelAestheticsConfig | None) -> str | None:
     if channel is None:
         return None
     return channel.title or channel.field
+
+
+def _axis_domain(channel: ChannelAestheticsConfig | None) -> list[Any] | None:
+    if channel is None or channel.scale is None:
+        return None
+    return channel.scale.domain
 
 
 def _apply_constant_channels(figure, aes: AestheticsConfig):
@@ -836,6 +872,7 @@ def _build_layer_filtered_scatter3d(
     color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
+    size_value: float | None = None,
 ):
     field_name, options = dropdown
     traces: list[Any] = []
@@ -860,6 +897,7 @@ def _build_layer_filtered_scatter3d(
             opacity_value,
             color_specs,
             layer_name=str(option),
+            size_value=size_value,
         )
         for trace in subset_traces:
             trace.visible = layer_index == 0
@@ -879,6 +917,7 @@ def _build_layer_filtered_scatter3d(
             opacity_value,
             color_specs,
             layer_name=layer.name,
+            size_value=size_value,
         )
         figure = go.Figure(data=traces)
         figure = _apply_constant_channels(figure, aes)
@@ -904,6 +943,7 @@ def _build_layer_filtered_scatter2d(
     color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
+    size_value: float | None = None,
 ):
     field_name, options = dropdown
     traces: list[Any] = []
@@ -927,6 +967,7 @@ def _build_layer_filtered_scatter2d(
             opacity_value,
             color_specs,
             layer_name=str(option),
+            size_value=size_value,
         )
         for trace in subset_traces:
             trace.visible = layer_index == 0
@@ -945,6 +986,7 @@ def _build_layer_filtered_scatter2d(
             opacity_value,
             color_specs,
             layer_name=layer.name,
+            size_value=size_value,
         )
         figure = go.Figure(data=traces)
         figure = _apply_constant_channels(figure, aes)
@@ -972,6 +1014,7 @@ def _build_slider_scatter3d(
     color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
+    size_value: float | None = None,
 ):
     slider_field, slider_values = slider
     layer_field = dropdown[0] if dropdown else None
@@ -1004,6 +1047,7 @@ def _build_slider_scatter3d(
             color_specs,
             layer_name=layer_label,
             keep_empty=True,
+            size_value=size_value,
         )
         if dropdown:
             for trace in subset_traces:
@@ -1027,6 +1071,7 @@ def _build_slider_scatter3d(
                 color_specs,
                 layer_name=layer_label,
                 keep_empty=True,
+                size_value=size_value,
             )
             frames_by_value[str(slider_value)].extend(frame_traces)
 
@@ -1056,6 +1101,7 @@ def _build_slider_scatter2d(
     color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
+    size_value: float | None = None,
 ):
     slider_field, slider_values = slider
     layer_field = dropdown[0] if dropdown else None
@@ -1087,6 +1133,7 @@ def _build_slider_scatter2d(
             color_specs,
             layer_name=layer_label,
             keep_empty=True,
+            size_value=size_value,
         )
         for trace in subset_traces:
             trace.visible = layer_index == 0
@@ -1108,6 +1155,7 @@ def _build_slider_scatter2d(
                 color_specs,
                 layer_name=layer_label,
                 keep_empty=True,
+                size_value=size_value,
             )
             frames_by_value[str(slider_value)].extend(frame_traces)
 
@@ -1223,13 +1271,14 @@ def _scatter3d_traces(
     *,
     layer_name: str | None = None,
     keep_empty: bool = False,
+    size_value: float | None = None,
 ) -> list[go.Scatter3d]:
     traces: list[go.Scatter3d] = []
     for idx, spec in enumerate(color_specs):
         subset = _subset_for_spec(df, color_field, spec)
         if subset.empty and not keep_empty:
             continue
-        marker = _build_marker(subset, color_field, size_field, spec)
+        marker = _build_marker(subset, color_field, size_field, spec, size_value)
         customdata = _build_customdata(subset, hover_fields)
         trace = go.Scatter3d(
             x=subset[x_field].tolist(),
@@ -1266,13 +1315,14 @@ def _scatter2d_traces(
     *,
     layer_name: str | None = None,
     keep_empty: bool = False,
+    size_value: float | None = None,
 ) -> list[go.Scatter]:
     traces: list[go.Scatter] = []
     for idx, spec in enumerate(color_specs):
         subset = _subset_for_spec(df, color_field, spec)
         if subset.empty and not keep_empty:
             continue
-        marker = _build_marker(subset, color_field, size_field, spec)
+        marker = _build_marker(subset, color_field, size_field, spec, size_value)
         customdata = _build_customdata(subset, hover_fields)
         trace = go.Scatter(
             x=subset[x_field].tolist(),
@@ -1309,10 +1359,13 @@ def _build_marker(
     color_field: str | None,
     size_field: str | None,
     spec: ColorGroupSpec,
+    size_value: float | None = None,
 ) -> dict[str, Any]:
     marker: dict[str, Any] = {}
     if size_field and size_field in df.columns:
         marker["size"] = df[size_field].tolist()
+    elif size_value is not None:
+        marker["size"] = size_value
     if spec.mode == "literal" and color_field and color_field in df.columns:
         marker["color"] = df[color_field].tolist()
     elif spec.mode == "discrete" and spec.constant_color is not None:

@@ -6,7 +6,7 @@ defaults:
   - persistence: mlflow_persister
   - predictive_model: transformer
   - optimizer: pytorch_adam_factored
-  - lr_scheduler: reduce_lr_on_plateau
+  - lr_scheduler: windowed_reduce_lr_on_plateau
   - metric_tracker@training_metric_tracker: default
   - metric_tracker@eval_metric_tracker: loss_only
   - activation_tracker: with_factor_visuals

@@ -41,6 +41,7 @@ class PrepareOptions(NamedTuple):
     last_token_only: bool
     concat_layers: bool
     use_probs_as_weights: bool
+    skip_first_token: bool = False
 
 
 def _get_uniform_weights(n_samples: int, dtype: DTypeLike) -> jax.Array:
@@ -88,6 +89,7 @@ def prepare_activations(
         probs=probs,
         activations_by_layer=activations,
         select_last_token=prepare_options.last_token_only,
+        skip_first_token=prepare_options.skip_first_token,
     )
 
     layer_acts = dataset.activations_by_layer
@@ -156,6 +158,7 @@ class ActivationTracker:
                 analysis.last_token_only,
                 analysis.concat_layers,
                 analysis.use_probs_as_weights,
+                analysis.skip_first_token,
             )
             config_key = prepare_options
 
@@ -178,6 +181,7 @@ class ActivationTracker:
                 analysis.last_token_only,
                 analysis.concat_layers,
                 analysis.use_probs_as_weights,
+                analysis.skip_first_token,
             )
             prepared = preprocessing_cache[prepare_options]
 

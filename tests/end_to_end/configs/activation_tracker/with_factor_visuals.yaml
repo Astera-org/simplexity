@@ -11,6 +11,7 @@ instance:
         concat_layers: false
         use_probs_as_weights: false
         to_factors: true  # Enable per-factor projections
+        skip_first_token: true
       visualizations:
         # 2x5 grid: Top row = projections, Bottom row = ground truth beliefs
         # Uses combined mappings to merge two data sources with a data_type column
@@ -21,7 +22,7 @@ instance:
           data_mapping:
             # Combined mappings allow merging projections + belief states
             sampling:
-              max_points: 300
+              max_points: 2000
               seed: 42
             combined:
               - label: prediction
@@ -73,12 +74,89 @@ instance:
               column: factor      # 5 columns (one per factor)
               row: data_type      # 2 rows (prediction vs ground_truth)
             layers:
-              - geometry: {type: point, props: {size: 30, opacity: 0.7}}
+              - geometry: {type: point }
                 aesthetics:
                   x: {field: simplex_x, type: quantitative, title: "Simplex X"}
                   y: {field: simplex_y, type: quantitative, title: "Simplex Y"}
                   color: {field: point_color, type: nominal}
+                  size: {value: 3}
           size: {width: 200, height: 200}
           guides:
             title: "Prediction vs Ground Truth (Per Factor)"
             subtitle: "Top: Ground truth | Bottom: Model belief states"
+        # 3D scatter plot of belief states (no simplex projection)
+        - name: belief_states_3d
+          controls:
+            slider: step
+            dropdown: layer
+          data_mapping:
+            sampling:
+              max_points: 2000
+              seed: 42
+            combined:
+              - label: prediction
+                mappings:
+                  factor_*_prob_0:
+                    source: projections
+                    key: "factor_*/projected"
+                    component: 0
+                    group_as: factor
+                  factor_*_prob_1:
+                    source: projections
+                    key: "factor_*/projected"
+                    component: 1
+                    group_as: factor
+                  factor_*_prob_2:
+                    source: projections
+                    key: "factor_*/projected"
+                    component: 2
+                    group_as: factor
+              - label: ground_truth
+                mappings:
+                  factor_*_prob_0:
+                    source: belief_states
+                    factor: "*"
+                    component: 0
+                    group_as: factor
+                  factor_*_prob_1:
+                    source: belief_states
+                    factor: "*"
+                    component: 1
+                    group_as: factor
+                  factor_*_prob_2:
+                    source: belief_states
+                    factor: "*"
+                    component: 2
+                    group_as: factor
+            combine_as: data_type
+          preprocessing:
+            - type: combine_rgb
+              input_fields: [prob_0, prob_1, prob_2]
+              output_fields: [point_color]
+          backend: plotly
+          plot:
+            facet:
+              column: factor      # 5 columns (one per factor)
+              row: data_type      # 2 rows (prediction vs ground_truth)
+            layers:
+              - geometry: {type: point}
+                aesthetics:
+                  # scale.domain sets axis ranges to [0, 1] for probability space
+                  # This prevents auto-scaling artifacts when data is planar
+                  x: {field: prob_0, type: quantitative, title: "State 0", scale: {domain: [0, 1]}}
+                  y: {field: prob_1, type: quantitative, title: "State 1"}
+                  z: {field: prob_2, type: quantitative, title: "State 2"}
+                  color: {field: point_color, type: nominal}
+                  size: {value: 3}
+          size: {width: 200, height: 200}
+          guides:
+            title: "3D Belief States (Prediction vs Ground Truth)"
+            subtitle: "Top: Prediction | Bottom: Ground Truth"
+    # PCA analysis for visualizing first 3 principal components in 3D
+    pca_analysis:
+      instance:
+        _target_: simplexity.activations.activation_analyses.PcaAnalysis
+        n_components: 10
+        last_token_only: false
+        concat_layers: false
+        use_probs_as_weights: false
