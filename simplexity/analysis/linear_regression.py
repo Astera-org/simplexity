@@ -304,8 +304,8 @@ def _compute_subspace_orthogonality(
     min_singular_value = jnp.min(singular_values)
 
     # Compute the participation ratio
-    participation_ratio = jnp.sum(singular_values**2) ** 2 / jnp.sum(singular_values**4)
-
+    denom = jnp.sum(singular_values**4)
+    participation_ratio = jnp.where(denom == 0, 0.0, jnp.sum(singular_values**2) ** 2 / denom)
     # Compute the entropy
     probs = singular_values**2 / jnp.sum(singular_values**2)
     entropy = -jnp.sum(probs * jnp.log(probs))
