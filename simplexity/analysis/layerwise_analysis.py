@@ -45,7 +45,7 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     allowed = {"fit_intercept", "concat_belief_states", "compute_subspace_orthogonality", "use_svd", "rcond_values"}
     unexpected = set(provided) - allowed
     if unexpected:
-        raise ValueError(f"Unexpected linear_regression_svd kwargs: {sorted(unexpected)}")
+        raise ValueError(f"Unexpected linear_regression kwargs: {sorted(unexpected)}")
     fit_intercept = bool(provided.get("fit_intercept", True))
     concat_belief_states = bool(provided.get("concat_belief_states", False))
     compute_subspace_orthogonality = bool(provided.get("compute_subspace_orthogonality", False))
