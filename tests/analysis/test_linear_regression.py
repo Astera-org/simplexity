@@ -333,13 +333,13 @@ def test_layer_linear_regression_belief_states_tuple_single_factor() -> None:
 
     # Verify it matches non-tuple behavior
     scalars_non_tuple, arrays_non_tuple = layer_linear_regression(x, weights, factor_0)
-    
+
     assert scalars.keys() == scalars_non_tuple.keys()
     assert arrays.keys() == arrays_non_tuple.keys()
-    for key in scalars.keys():
-        assert scalars[key] == pytest.approx(scalars_non_tuple[key])
-    for key in arrays.keys():
-        assert arrays[key] == pytest.approx(arrays_non_tuple[key])
+    for key, value in scalars_non_tuple.items():
+        assert scalars[key] == pytest.approx(value)
+    for key, value in arrays_non_tuple.items():
+        assert arrays[key] == pytest.approx(value)
 
 
 def test_orthogonality_with_orthogonal_subspaces() -> None:

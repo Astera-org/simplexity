@@ -31,7 +31,14 @@ def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> No
     )
 
     assert set(scalars) >= {"layer_a_r2", "layer_b_r2"}
-    assert set(projections) == {"layer_a_projected", "layer_b_projected", "layer_a_coeffs", "layer_b_coeffs", "layer_a_intercept", "layer_b_intercept"}
+    assert set(projections) == {
+        "layer_a_projected",
+        "layer_b_projected",
+        "layer_a_coeffs",
+        "layer_b_coeffs",
+        "layer_a_intercept",
+        "layer_b_intercept",
+    }
 
 
 def test_layerwise_analysis_requires_targets(analysis_inputs) -> None:
@@ -101,7 +108,7 @@ def test_linear_regression_svd_kwargs_validation_errors() -> None:
 
 def test_linear_regression_svd_rejects_unexpected_kwargs() -> None:
     """Unexpected SVD kwargs should raise clear errors."""
-    with pytest.raises(ValueError, match="Unexpected linear_regression_svd kwargs"):
+    with pytest.raises(ValueError, match="Unexpected linear_regression kwargs"):
         LayerwiseAnalysis(
             "linear_regression_svd",
             analysis_kwargs={"bad": True},
@@ -190,6 +197,7 @@ def test_linear_regression_concat_belief_states_defaults_false() -> None:
 
     assert params["concat_belief_states"] is False
 
+
 def test_linear_regression_accepts_compute_subspace_orthogonality() -> None:
     """linear_regression validator should accept compute_subspace_orthogonality parameter."""
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
@@ -197,6 +205,7 @@ def test_linear_regression_accepts_compute_subspace_orthogonality() -> None:
 
     assert params["fit_intercept"] is True
     assert params["compute_subspace_orthogonality"] is True
+
 
 def test_linear_regression_svd_accepts_compute_subspace_orthogonality() -> None:
     """linear_regression_svd validator should accept compute_subspace_orthogonality parameter."""
@@ -206,6 +215,7 @@ def test_linear_regression_svd_accepts_compute_subspace_orthogonality() -> None:
     assert params["fit_intercept"] is True
     assert params["compute_subspace_orthogonality"] is True
     assert params["rcond_values"] == (0.001,)
+
 
 def test_linear_regression_compute_subspace_orthogonality_defaults_false() -> None:
     """compute_subspace_orthogonality should default to False when not provided."""

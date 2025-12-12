@@ -303,7 +303,6 @@ def _compute_subspace_orthogonality(
     # Compute the min singular value
     min_singular_value = jnp.min(singular_values)
 
-
     # Check if subspace is degenerate
     if max_singular_value == 0:
         SIMPLEXITY_LOGGER.warning(
@@ -319,7 +318,7 @@ def _compute_subspace_orthogonality(
         probs_denominator = jnp.sum(singular_values**2)
 
     # Compute the participation ratio
-    participation_ratio = jnp.sum(singular_values**2)**2 / pratio_denominator
+    participation_ratio = jnp.sum(singular_values**2) ** 2 / pratio_denominator
 
     # Compute the entropy
     probs = singular_values**2 / probs_denominator
@@ -450,7 +449,6 @@ def layer_linear_regression(
         scalars: Dictionary of scalar metrics
         arrays: Dictionary of arrays (projected predictions, parameters, singular values if orthogonality computed)
     """
-
     # If no belief states are provided, raise an error
     if (
         belief_states is None
