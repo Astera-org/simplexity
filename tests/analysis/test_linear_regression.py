@@ -306,7 +306,7 @@ def test_layer_linear_regression_svd_belief_states_tuple_default() -> None:
 
 
 def test_layer_linear_regression_belief_states_tuple_single_factor() -> None:
-    """to_factors=True should work with a single factor tuple."""
+    """Handles a single factor provided as a tuple of belief states."""
     x = jnp.arange(9.0).reshape(3, 3)
     weights = jnp.ones(3) / 3.0
 
