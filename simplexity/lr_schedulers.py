@@ -1,7 +1,7 @@
 """Custom learning rate schedulers with windowed averaging."""
 
 from collections import deque
-from typing import Any
+from typing import Any, Literal
 
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -37,11 +37,11 @@ class WindowedReduceLROnPlateau(ReduceLROnPlateau):  # pylint: disable=abstract-
         optimizer: Optimizer,
         window_size: int = 10,
         update_every: int = 1,
-        mode: str = "min",
+        mode: Literal["min", "max"] = "min",
         factor: float = 0.1,
         patience: int = 10,
         threshold: float = 1e-4,
-        threshold_mode: str = "rel",
+        threshold_mode: Literal["rel", "abs"] = "rel",
         cooldown: int = 0,
         min_lr: float | list[float] = 0,
         eps: float = 1e-8,
