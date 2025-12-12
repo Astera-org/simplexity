@@ -298,6 +298,15 @@ def _compute_subspace_orthogonality(
     sum_quad_sv = jnp.sum(singular_values**4)
 
     is_degenerate = sum_quad_sv == 0
+    
+    # Define the False branch function (does nothing)
+    def do_nothing_branch(x):
+        return None
+
+    # Define the True branch function (runs the callback)
+    def execute_all_zeros_warning_branch(x):
+        callback(log_all_zeros, x)
+        return None 
 
     def log_all_zeros(_):
         SIMPLEXITY_LOGGER.warning(
@@ -306,7 +315,7 @@ def _compute_subspace_orthogonality(
             " Setting probability values and participation ratio to zero."
         )
     
-    callback(log_all_zeros, sum_sq_sv, ordered=True, when=is_degenerate)
+    jax.lax.cond(is_degenerate, execute_all_zeros_warning_branch, do_nothing_branch, sum_sq_sv)
 
     pratio_denominator_safe = jnp.where(is_degenerate, 1.0, sum_quad_sv)
     probs_denominator_safe = jnp.where(is_degenerate, 1.0, sum_sq_sv)
@@ -316,6 +325,11 @@ def _compute_subspace_orthogonality(
 
     # Compute the entropy probabilities
     probs = singular_values**2 / probs_denominator_safe
+
+    def execute_some_zeros_warning_branch(x):
+        # This correctly calls the log_some_zeros function
+        callback(log_some_zeros, x)
+        return None
 
     def log_some_zeros(num_zeros_array: jax.Array) -> None:
         num_zeros = num_zeros_array.item()
@@ -327,7 +341,7 @@ def _compute_subspace_orthogonality(
     
     num_zeros = jnp.sum(probs == 0)
     has_some_zeros = num_zeros > 0
-    callback(log_some_zeros, num_zeros, ordered=True, when=has_some_zeros)
+    jax.lax.cond(has_some_zeros, execute_some_zeros_warning_branch, do_nothing_branch, num_zeros)
 
     p_log_p = probs * jnp.log(probs)
     entropy = -jnp.sum(jnp.where(probs > 0, p_log_p, 0.0))
