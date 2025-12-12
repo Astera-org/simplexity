@@ -372,21 +372,26 @@ def _compute_all_pairwise_orthogonality(
 
     Args:
         coeffs_list: List of coefficient matrices (one per factor, excludes intercepts)
+
+    Returns:
+        Tuple[dict[str, float], dict[str, jax.Array]]:
+            - scalars: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to scalar float metrics for
+            each pair of factors (i, j).
+            - arrays: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to array-valued
+            metrics for each pair of factors (i, j).
     """
     scalars = {}
-    singular_values = {}
+    arrays = {}
     factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
     for i, j in factor_pairs:
         coeffs_pair = [
             coeffs_list[i],
             coeffs_list[j],
         ]
-        orthogonality_scalars, orthogonality_singular_values = _compute_subspace_orthogonality(coeffs_pair)
+        orthogonality_scalars, orthogonality_arrays = _compute_subspace_orthogonality(coeffs_pair)
         scalars.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_scalars.items()})
-        singular_values.update(
-            {f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_singular_values.items()}
-        )
-    return scalars, singular_values
+        arrays.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_arrays.items()})
+    return scalars, arrays
 
 
 def _handle_factored_regression(
