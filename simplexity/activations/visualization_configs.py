@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
-from typing import Any, Literal, cast
+from dataclasses import dataclass, field, fields, is_dataclass
+from typing import Any, Literal, TypeVar, cast, get_args, get_origin, get_type_hints
 
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.utils.dataclass_conversion import convert_to_dataclass
 from simplexity.visualization.structured_configs import (
     DataConfig,
     LayerConfig,
@@ -22,6 +21,84 @@ FieldSource = Literal[
     "projections", "scalars", "belief_states", "weights", "metadata", "scalar_pattern", "scalar_history"
 ]
 ReducerType = Literal["argmax", "l2_norm"]
+
+T = TypeVar("T")
+
+
+def _dict_to_visualization_dataclass[T](data: dict[str, Any], schema: type[T]) -> T:
+    """Convert a dict to a visualization dataclass instance.
+
+    This is a simplified converter specifically for visualization config dataclasses.
+    It handles nested dataclasses, lists, dicts, and optional fields.
+    """
+    if not is_dataclass(schema):
+        return data  # type: ignore[return-value]
+
+    try:
+        type_hints = get_type_hints(schema)
+    except (NameError, TypeError):
+        type_hints = {f.name: f.type for f in fields(schema)}
+
+    kwargs: dict[str, Any] = {}
+    for f in fields(schema):
+        if f.name not in data:
+            continue
+        value = data[f.name]
+        field_type = type_hints.get(f.name, f.type)
+        kwargs[f.name] = _convert_field_value(value, field_type)
+
+    return schema(**kwargs)
+
+
+def _convert_field_value(value: Any, field_type: Any) -> Any:
+    """Convert a field value based on its type annotation."""
+    if value is None:
+        return None
+
+    origin = get_origin(field_type)
+    args = get_args(field_type)
+
+    # Handle list[T]
+    if origin is list:
+        item_type = args[0] if args else Any
+        if is_dataclass(item_type) and isinstance(item_type, type):
+            return [
+                item if isinstance(item, item_type) else _dict_to_visualization_dataclass(item, item_type)
+                for item in value
+            ]
+        return list(value)
+
+    # Handle dict[K, V]
+    if origin is dict:
+        value_type = args[1] if len(args) > 1 else Any
+        if is_dataclass(value_type) and isinstance(value_type, type):
+            return {
+                k: v if isinstance(v, value_type) else _dict_to_visualization_dataclass(v, value_type)
+                for k, v in value.items()
+            }
+        return dict(value)
+
+    # Handle Optional[T] (Union[T, None])
+    if origin is type(None) or (hasattr(origin, "__origin__") and origin.__origin__ is type(None)):
+        return value
+    # UnionType for T | None
+    import types
+
+    if origin in {types.UnionType, type(None).__class__}:
+        non_none_args = [arg for arg in args if arg is not type(None)]
+        if non_none_args:
+            return _convert_field_value(value, non_none_args[0])
+        return value
+
+    # Handle nested dataclass
+    if is_dataclass(field_type) and isinstance(field_type, type):
+        if isinstance(value, field_type):
+            return value
+        if isinstance(value, dict):
+            return _dict_to_visualization_dataclass(value, field_type)
+        return value
+
+    return value
 
 
 @dataclass
@@ -273,59 +350,27 @@ class ActivationVisualizationConfig:
         return plot_cfg
 
 
+def _to_dict(cfg: Mapping[str, Any] | DictConfig) -> dict[str, Any]:
+    """Convert OmegaConf or Mapping to a plain dict."""
+    if isinstance(cfg, DictConfig):
+        container = OmegaConf.to_container(cfg, resolve=False)
+        return cast(dict[str, Any], container) if isinstance(container, dict) else {}
+    if isinstance(cfg, dict):
+        return cfg
+    return dict(cfg)
+
+
 def build_activation_visualization_config(raw_cfg: Mapping[str, Any]) -> ActivationVisualizationConfig:
-    """Recursively convert dictionaries/OmegaConf nodes to visualization dataclasses."""
+    """Convert a dictionary/OmegaConf config into an ActivationVisualizationConfig dataclass."""
     if isinstance(raw_cfg, ActivationVisualizationConfig):
         return raw_cfg
 
-    # Handle both plain dicts and OmegaConf configs
-    if isinstance(raw_cfg, dict):
-        container = raw_cfg
-    else:
-        container = OmegaConf.to_container(raw_cfg, resolve=False)
-    if isinstance(container, dict):
-        config_dict = cast(dict[str, Any], container)
-    else:
-        config_dict = {}
-    data_mapping_cfg = config_dict.get("data_mapping")
-    if data_mapping_cfg is None:
-        raise ConfigValidationError("Visualization config must include a data_mapping block.")
-    if "scalar_series" in data_mapping_cfg and data_mapping_cfg["scalar_series"] is not None:
-        data_mapping_cfg["scalar_series"] = convert_to_dataclass(data_mapping_cfg["scalar_series"], ScalarSeriesMapping)
-    if "mappings" in data_mapping_cfg and data_mapping_cfg["mappings"] is not None:
-        data_mapping_cfg["mappings"] = {
-            key: convert_to_dataclass(value, ActivationVisualizationFieldRef)
-            for key, value in data_mapping_cfg["mappings"].items()
-        }
-    if "combined" in data_mapping_cfg and data_mapping_cfg["combined"] is not None:
-        converted_sections = []
-        for section in data_mapping_cfg["combined"]:
-            section_mappings = section.get("mappings", {})
-            converted_mappings = {
-                key: convert_to_dataclass(value, ActivationVisualizationFieldRef)
-                for key, value in section_mappings.items()
-            }
-            converted_sections.append(CombinedMappingSection(label=section["label"], mappings=converted_mappings))
-        data_mapping_cfg["combined"] = converted_sections
-    if "sampling" in data_mapping_cfg and data_mapping_cfg["sampling"] is not None:
-        data_mapping_cfg["sampling"] = convert_to_dataclass(data_mapping_cfg["sampling"], SamplingConfig)
-    config_dict["data_mapping"] = convert_to_dataclass(data_mapping_cfg, ActivationVisualizationDataMapping)
-    if "preprocessing" in config_dict:
-        config_dict["preprocessing"] = [
-            convert_to_dataclass(step, ActivationVisualizationPreprocessStep) for step in config_dict["preprocessing"]
-        ]
-    if "controls" in config_dict and config_dict["controls"] is not None:
-        config_dict["controls"] = convert_to_dataclass(config_dict["controls"], ActivationVisualizationControlsConfig)
-    if "plot" in config_dict and config_dict["plot"] is not None:
-        config_dict["plot"] = convert_to_dataclass(config_dict["plot"], PlotConfig)
-    if "layer" in config_dict and config_dict["layer"] is not None:
-        config_dict["layer"] = convert_to_dataclass(config_dict["layer"], LayerConfig)
-    if "size" in config_dict and config_dict["size"] is not None:
-        config_dict["size"] = convert_to_dataclass(config_dict["size"], PlotSizeConfig)
-    if "guides" in config_dict and config_dict["guides"] is not None:
-        config_dict["guides"] = convert_to_dataclass(config_dict["guides"], PlotLevelGuideConfig)
+    config_dict = _to_dict(raw_cfg)
 
-    return convert_to_dataclass(config_dict, ActivationVisualizationConfig)
+    if config_dict.get("data_mapping") is None:
+        raise ConfigValidationError("Visualization config must include a data_mapping block.")
+
+    return _dict_to_visualization_dataclass(config_dict, ActivationVisualizationConfig)
 
 
 __all__ = [
