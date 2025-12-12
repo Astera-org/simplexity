@@ -308,7 +308,8 @@ def _compute_subspace_orthogonality(
     participation_ratio = jnp.where(denom == 0, 0.0, jnp.sum(singular_values**2) ** 2 / denom)
     # Compute the entropy
     probs = singular_values**2 / jnp.sum(singular_values**2)
-    entropy = -jnp.sum(probs * jnp.log(probs))
+    log_probs = jnp.where(probs > 0, jnp.log(probs), 0.0)
+    entropy = -jnp.sum(probs * log_probs)
 
     # Compute the effective rank
     effective_rank = jnp.exp(entropy)
