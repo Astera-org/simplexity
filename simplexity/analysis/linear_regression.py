@@ -246,10 +246,11 @@ def _split_concat_results(
     # Only recompute scalar metrics, reuse projections and coefficients
     # Filter out rcond_values from kwargs (only relevant for SVD during fitting, not metrics)
     metrics_kwargs = {k: v for k, v in kwargs.items() if k != "rcond_values"}
-    fit_intercept = kwargs.get("fit_intercept", True)
 
     results = []
-    for factor, coeffs, intercept, projections in zip(belief_states, coeffs_list, intercepts_list, projections_list):
+    for factor, coeffs, intercept, projections in zip(
+        belief_states, coeffs_list, intercepts_list, projections_list, strict=True
+    ):
         # Reconstruct full beta for metrics computation
         if intercept is not None:
             beta = jnp.concatenate([intercept, coeffs], axis=0)
@@ -277,8 +278,7 @@ def _split_concat_results(
 def _compute_subspace_orthogonality(
     coeffs_pair: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
-    """
-    Compute orthogonality metrics between two coefficient subspaces.
+    """Compute orthogonality metrics between two coefficient subspaces.
 
     Args:
         coeffs_pair: List of two coefficient matrices (excludes intercept)
@@ -332,8 +332,7 @@ def _compute_subspace_orthogonality(
 def _compute_all_pairwise_orthogonality(
     coeffs_list: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
-    """
-    Compute pairwise orthogonality metrics for all factor pairs.
+    """Compute pairwise orthogonality metrics for all factor pairs.
 
     Args:
         coeffs_list: List of coefficient matrices (one per factor, excludes intercepts)
@@ -408,8 +407,7 @@ def layer_linear_regression(
     use_svd: bool = False,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """
-    Layer-wise regression helper that wraps :func:`linear_regression` or :func:`linear_regression_svd`.
+    """Layer-wise regression helper that wraps :func:`linear_regression` or :func:`linear_regression_svd`.
 
     Args:
         layer_activations: Neural network activations for a single layer
@@ -454,8 +452,7 @@ def layer_linear_regression_svd(
     compute_subspace_orthogonality: bool = False,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """
-    Layer-wise SVD regression helper (wrapper around layer_linear_regression with use_svd=True).
+    """Layer-wise SVD regression helper (wrapper around layer_linear_regression with use_svd=True).
 
     This function is provided for backward compatibility and convenience.
     Consider using layer_linear_regression with use_svd=True for new code.
