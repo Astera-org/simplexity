@@ -34,23 +34,31 @@ class AnalysisRegistration:
 
 def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     provided = dict(kwargs or {})
-    allowed = {"fit_intercept", "to_factors"}
+    allowed = {"fit_intercept", "concat_belief_states", "compute_subspace_orthogonality", "use_svd"}
     unexpected = set(provided) - allowed
     if unexpected:
         raise ValueError(f"Unexpected linear_regression kwargs: {sorted(unexpected)}")
     fit_intercept = bool(provided.get("fit_intercept", True))
-    to_factors = bool(provided.get("to_factors", False))
-    return {"fit_intercept": fit_intercept, "to_factors": to_factors}
+    concat_belief_states = bool(provided.get("concat_belief_states", False))
+    compute_subspace_orthogonality = bool(provided.get("compute_subspace_orthogonality", False))
+    use_svd = bool(provided.get("use_svd", False))
+    return {
+        "fit_intercept": fit_intercept,
+        "concat_belief_states": concat_belief_states,
+        "compute_subspace_orthogonality": compute_subspace_orthogonality,
+        "use_svd": use_svd,
+    }
 
 
 def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     provided = dict(kwargs or {})
-    allowed = {"fit_intercept", "rcond_values", "to_factors"}
+    allowed = {"fit_intercept", "rcond_values", "concat_belief_states", "compute_subspace_orthogonality"}
     unexpected = set(provided) - allowed
     if unexpected:
         raise ValueError(f"Unexpected linear_regression_svd kwargs: {sorted(unexpected)}")
     fit_intercept = bool(provided.get("fit_intercept", True))
-    to_factors = bool(provided.get("to_factors", False))
+    concat_belief_states = bool(provided.get("concat_belief_states", False))
+    compute_subspace_orthogonality = bool(provided.get("compute_subspace_orthogonality", False))
     rcond_values = provided.get("rcond_values")
     if rcond_values is not None:
         if not isinstance(rcond_values, (list, tuple)):
@@ -60,7 +68,8 @@ def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> 
         rcond_values = tuple(float(v) for v in rcond_values)
     return {
         "fit_intercept": fit_intercept,
-        "to_factors": to_factors,
+        "concat_belief_states": concat_belief_states,
+        "compute_subspace_orthogonality": compute_subspace_orthogonality,
         "rcond_values": rcond_values,
     }
 
