@@ -301,6 +301,8 @@ def _compute_subspace_orthogonality(
 
     # Define the False branch function (does nothing)
     def do_nothing_branch(x):
+        """JAX 'False' branch function. Serves only to return a value that matches the 'True' branch's type (None) for
+        jax.lax.cond."""
         return None
 
     # Define the True branch function (runs the callback)
@@ -327,7 +329,6 @@ def _compute_subspace_orthogonality(
     probs = singular_values**2 / probs_denominator_safe
 
     def execute_some_zeros_warning_branch(x):
-        # This correctly calls the log_some_zeros function
         callback(log_some_zeros, x)
         return None
 
