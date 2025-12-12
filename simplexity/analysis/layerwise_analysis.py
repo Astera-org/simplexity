@@ -32,33 +32,16 @@ class AnalysisRegistration:
     validator: ValidatorFn
 
 
-def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+def _base_validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     provided = dict(kwargs or {})
-    allowed = {"fit_intercept", "concat_belief_states", "compute_subspace_orthogonality", "use_svd"}
-    unexpected = set(provided) - allowed
-    if unexpected:
-        raise ValueError(f"Unexpected linear_regression kwargs: {sorted(unexpected)}")
-    fit_intercept = bool(provided.get("fit_intercept", True))
-    concat_belief_states = bool(provided.get("concat_belief_states", False))
-    compute_subspace_orthogonality = bool(provided.get("compute_subspace_orthogonality", False))
-    use_svd = bool(provided.get("use_svd", False))
-    return {
-        "fit_intercept": fit_intercept,
-        "concat_belief_states": concat_belief_states,
-        "compute_subspace_orthogonality": compute_subspace_orthogonality,
-        "use_svd": use_svd,
-    }
-
-
-def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
-    provided = dict(kwargs or {})
-    allowed = {"fit_intercept", "rcond_values", "concat_belief_states", "compute_subspace_orthogonality"}
+    allowed = {"fit_intercept", "concat_belief_states", "compute_subspace_orthogonality", "use_svd", "rcond_values"}
     unexpected = set(provided) - allowed
     if unexpected:
         raise ValueError(f"Unexpected linear_regression_svd kwargs: {sorted(unexpected)}")
     fit_intercept = bool(provided.get("fit_intercept", True))
     concat_belief_states = bool(provided.get("concat_belief_states", False))
     compute_subspace_orthogonality = bool(provided.get("compute_subspace_orthogonality", False))
+    use_svd = bool(provided.get("use_svd", False))
     rcond_values = provided.get("rcond_values")
     if rcond_values is not None:
         if not isinstance(rcond_values, (list, tuple)):
@@ -70,8 +53,21 @@ def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> 
         "fit_intercept": fit_intercept,
         "concat_belief_states": concat_belief_states,
         "compute_subspace_orthogonality": compute_subspace_orthogonality,
+        "use_svd": use_svd,
         "rcond_values": rcond_values,
     }
+
+
+def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    kwargs = _base_validate_linear_regression_kwargs(kwargs)
+    kwargs.pop("rcond_values")
+    return kwargs
+
+
+def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    kwargs = _base_validate_linear_regression_kwargs(kwargs)
+    kwargs.pop("use_svd")
+    return kwargs
 
 
 def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
