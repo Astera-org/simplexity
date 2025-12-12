@@ -333,7 +333,7 @@ def test_layer_linear_regression_belief_states_tuple_single_factor() -> None:
 
     # Verify it matches non-tuple behavior
     scalars_non_tuple, arrays_non_tuple = layer_linear_regression(x, weights, factor_0)
-    
+
     chex.assert_trees_all_close(scalars, scalars_non_tuple)
     chex.assert_trees_all_close(arrays, arrays_non_tuple)
 
