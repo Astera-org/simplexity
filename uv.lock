@@ -3640,6 +3640,7 @@ name = "simplexity"
 version = "0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "altair" },
     { name = "chex" },
     { name = "dotenv" },
     { name = "equinox" },
@@ -3656,9 +3657,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-altair = [
-    { name = "altair" },
-]
 aws = [
     { name = "boto3" },
 ]
@@ -3695,7 +3693,7 @@ penzai = [
 
 [package.metadata]
 requires-dist = [
-    { name = "altair", marker = "extra == 'altair'", specifier = ">=5.3.0" },
+    { name = "altair", specifier = ">=5.3.0" },
     { name = "boto3", marker = "extra == 'aws'", specifier = ">=1.37.24" },
     { name = "chex" },
     { name = "diff-cover", marker = "extra == 'dev'" },
