@@ -31,7 +31,7 @@ def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> No
     )
 
     assert set(scalars) >= {"layer_a_r2", "layer_b_r2"}
-    assert set(projections) == {"layer_a_projected", "layer_b_projected"}
+    assert set(projections) == {"layer_a_projected", "layer_b_projected", "layer_a_coeffs", "layer_b_coeffs", "layer_a_intercept", "layer_b_intercept"}
 
 
 def test_layerwise_analysis_requires_targets(analysis_inputs) -> None:
@@ -164,28 +164,68 @@ def test_layerwise_analysis_property_accessors() -> None:
     assert not analysis.requires_belief_states
 
 
-def test_linear_regression_accepts_to_factors() -> None:
-    """linear_regression validator should accept to_factors parameter."""
+def test_linear_regression_accepts_concat_belief_states() -> None:
+    """linear_regression validator should accept concat_belief_states parameter."""
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
-    params = validator({"fit_intercept": False, "to_factors": True})
+    params = validator({"fit_intercept": False, "concat_belief_states": True})
 
     assert params["fit_intercept"] is False
-    assert params["to_factors"] is True
+    assert params["concat_belief_states"] is True
 
 
-def test_linear_regression_svd_accepts_to_factors() -> None:
-    """linear_regression_svd validator should accept to_factors parameter."""
+def test_linear_regression_svd_accepts_concat_belief_states() -> None:
+    """linear_regression_svd validator should accept concat_belief_states parameter."""
     validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
-    params = validator({"fit_intercept": True, "to_factors": True, "rcond_values": [1e-3]})
+    params = validator({"fit_intercept": True, "concat_belief_states": True, "rcond_values": [1e-3]})
 
     assert params["fit_intercept"] is True
-    assert params["to_factors"] is True
+    assert params["concat_belief_states"] is True
     assert params["rcond_values"] == (0.001,)
 
 
-def test_linear_regression_to_factors_defaults_false() -> None:
-    """to_factors should default to False when not provided."""
+def test_linear_regression_concat_belief_states_defaults_false() -> None:
+    """concat_belief_states should default to False when not provided."""
     validator = ANALYSIS_REGISTRY["linear_regression"].validator
     params = validator({"fit_intercept": True})
 
-    assert params["to_factors"] is False
+    assert params["concat_belief_states"] is False
+
+def test_linear_regression_accepts_compute_subspace_orthogonality() -> None:
+    """linear_regression validator should accept compute_subspace_orthogonality parameter."""
+    validator = ANALYSIS_REGISTRY["linear_regression"].validator
+    params = validator({"fit_intercept": True, "compute_subspace_orthogonality": True})
+
+    assert params["fit_intercept"] is True
+    assert params["compute_subspace_orthogonality"] is True
+
+def test_linear_regression_svd_accepts_compute_subspace_orthogonality() -> None:
+    """linear_regression_svd validator should accept compute_subspace_orthogonality parameter."""
+    validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
+    params = validator({"fit_intercept": True, "compute_subspace_orthogonality": True, "rcond_values": [1e-3]})
+
+    assert params["fit_intercept"] is True
+    assert params["compute_subspace_orthogonality"] is True
+    assert params["rcond_values"] == (0.001,)
+
+def test_linear_regression_compute_subspace_orthogonality_defaults_false() -> None:
+    """compute_subspace_orthogonality should default to False when not provided."""
+    validator = ANALYSIS_REGISTRY["linear_regression"].validator
+    params = validator({"fit_intercept": True})
+
+    assert params["compute_subspace_orthogonality"] is False
+
+
+def test_linear_regression_accepts_use_svd() -> None:
+    """linear_regression validator should accept use_svd parameter."""
+    validator = ANALYSIS_REGISTRY["linear_regression"].validator
+    params = validator({"use_svd": True})
+
+    assert params["use_svd"] is True
+
+
+def test_linear_regression_use_svd_defaults_false() -> None:
+    """use_svd should default to False when not provided."""
+    validator = ANALYSIS_REGISTRY["linear_regression"].validator
+    params = validator({})
+
+    assert params["use_svd"] is False

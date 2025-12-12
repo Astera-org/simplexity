@@ -71,7 +71,20 @@ def linear_regression(
     beta, _, _, _ = jnp.linalg.lstsq(weighted_design, weighted_targets, rcond=None)
     predictions = design @ beta
     scalars = _regression_metrics(predictions, y_arr, w_arr)
-    arrays = {"projected": predictions, "parameters": beta}
+
+    # Separate intercept and coefficients
+    if fit_intercept:
+        arrays = {
+            "projected": predictions,
+            "coeffs": beta[1:],      # Linear coefficients (excluding intercept)
+            "intercept": beta[0:1],  # Intercept term (keep 2D: [1, n_targets])
+        }
+    else:
+        arrays = {
+            "projected": predictions,
+            "coeffs": beta,          # All parameters are coefficients when no intercept
+        }
+
     return scalars, arrays
 
 
@@ -161,7 +174,20 @@ def linear_regression_svd(
         raise RuntimeError("Unable to compute linear regression solution")
     scalars = dict(best_scalars)
     scalars["best_rcond"] = float(best_rcond)
-    arrays = {"projected": best_pred, "parameters": best_beta}
+
+    # Separate intercept and coefficients
+    if fit_intercept:
+        arrays = {
+            "projected": best_pred,
+            "coeffs": best_beta[1:],      # Linear coefficients (excluding intercept)
+            "intercept": best_beta[0:1],  # Intercept term (keep 2D: [1, n_targets])
+        }
+    else:
+        arrays = {
+            "projected": best_pred,
+            "coeffs": best_beta,          # All parameters are coefficients when no intercept
+        }
+
     return scalars, arrays
 
 
@@ -204,37 +230,62 @@ def _split_concat_results(
     """Split concatenated regression results into individual factors."""
     _, concat_arrays = concat_results
 
-    # Split the concatenated parameters and projections into the individual factors
+    # Split the concatenated coefficients and projections into the individual factors
     factor_dims = [factor.shape[-1] for factor in belief_states]
     split_indices = jnp.cumsum(jnp.array(factor_dims))[:-1]
 
-    parameters_list = jnp.split(concat_arrays["parameters"], split_indices, axis=-1)
+    coeffs_list = jnp.split(concat_arrays["coeffs"], split_indices, axis=-1)
     projections_list = jnp.split(concat_arrays["projected"], split_indices, axis=-1)
 
-    # Only recompute scalar metrics, reuse projections and parameters
+    # Handle intercept - split if present
+    if "intercept" in concat_arrays:
+        intercepts_list = jnp.split(concat_arrays["intercept"], split_indices, axis=-1)
+    else:
+        intercepts_list = [None] * len(belief_states)
+
+    # Only recompute scalar metrics, reuse projections and coefficients
     # Filter out rcond_values from kwargs (only relevant for SVD during fitting, not metrics)
     metrics_kwargs = {k: v for k, v in kwargs.items() if k != 'rcond_values'}
+    fit_intercept = kwargs.get("fit_intercept", True)
+
     results = []
-    for factor, parameters, projections in zip(belief_states, parameters_list, projections_list):
+    for factor, coeffs, intercept, projections in zip(belief_states, coeffs_list, intercepts_list, projections_list):
+        # Reconstruct full beta for metrics computation
+        if intercept is not None:
+            beta = jnp.concatenate([intercept, coeffs], axis=0)
+        else:
+            beta = coeffs
+
         factor_scalars = _compute_regression_metrics(
             layer_activations,
             factor,
             weights,
-            parameters,
+            beta,
             predictions=projections,
             **metrics_kwargs,
         )
-        factor_arrays = {"projected": projections, "parameters": parameters}
+
+        # Build factor arrays - include intercept only if present
+        factor_arrays = {"projected": projections, "coeffs": coeffs}
+        if intercept is not None:
+            factor_arrays["intercept"] = intercept
+
         results.append((factor_scalars, factor_arrays))
     return results
 
 
 def _compute_subspace_orthogonality(
-    parameters_pair: list[jax.Array],
+    coeffs_pair: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
+    """
+    Compute orthogonality metrics between two coefficient subspaces.
+
+    Args:
+        coeffs_pair: List of two coefficient matrices (excludes intercept)
+    """
     # Compute the orthonormal bases for the two subspaces using QR decomposition
-    q1, _ = jnp.linalg.qr(parameters_pair[0])
-    q2, _ = jnp.linalg.qr(parameters_pair[1])
+    q1, _ = jnp.linalg.qr(coeffs_pair[0])
+    q2, _ = jnp.linalg.qr(coeffs_pair[1])
     # Compute the singular values of the interaction matrix
     interaction_matrix = q1.T @ q2
     singular_values = jnp.linalg.svd(interaction_matrix, compute_uv=False)
@@ -279,17 +330,23 @@ def _compute_subspace_orthogonality(
 
 
 def _compute_all_pairwise_orthogonality(
-    parameters_list: list[jax.Array],
+    coeffs_list: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
+    """
+    Compute pairwise orthogonality metrics for all factor pairs.
+
+    Args:
+        coeffs_list: List of coefficient matrices (one per factor, excludes intercepts)
+    """
     scalars = {}
     singular_values = {}
-    factor_pairs = list(itertools.combinations(range(len(parameters_list)), 2))
+    factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
     for i, j in factor_pairs:
-        params_pair = [
-            parameters_list[i],
-            parameters_list[j],
+        coeffs_pair = [
+            coeffs_list[i],
+            coeffs_list[j],
         ]
-        orthogonality_scalars, orthogonality_singular_values = _compute_subspace_orthogonality(params_pair)
+        orthogonality_scalars, orthogonality_singular_values = _compute_subspace_orthogonality(coeffs_pair)
         scalars.update({
             f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_scalars.items()
         })
@@ -337,8 +394,9 @@ def _handle_factored_regression(
         _merge_results_with_prefix(scalars, arrays, factor_result, f"factor_{factor_idx}")
 
     if compute_subspace_orthogonality:
-        parameters_list = [factor_arrays["parameters"] for _, factor_arrays in factor_results]
-        orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(parameters_list)
+        # Extract coefficients (excludes intercept) for orthogonality computation
+        coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
+        orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
         scalars.update(orthogonality_scalars)
         arrays.update(orthogonality_singular_values)
 
