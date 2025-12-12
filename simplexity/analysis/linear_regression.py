@@ -358,11 +358,11 @@ def _compute_subspace_orthogonality(
         "effective_rank": float(effective_rank),
     }
 
-    singular_values = {
+    arrays = {
         "singular_values": singular_values,
     }
 
-    return scalars, singular_values
+    return scalars, arrays
 
 
 def _compute_all_pairwise_orthogonality(
