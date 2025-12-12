@@ -386,7 +386,10 @@ def _handle_factored_regression(
     use_svd: bool,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Handle regression for factored belief states using either standard or SVD method."""
+    """Handle regression for two or more factored belief states using either standard or SVD method."""
+    if len(belief_states) < 2:
+        raise ValueError("At least two factors are required for factored regression")
+    
     scalars: dict[str, float] = {}
     arrays: dict[str, jax.Array] = {}
 
@@ -413,14 +416,11 @@ def _handle_factored_regression(
         _merge_results_with_prefix(scalars, arrays, factor_result, f"factor_{factor_idx}")
 
     if compute_subspace_orthogonality:
-        if len(belief_states) > 1:
-            # Extract coefficients (excludes intercept) for orthogonality computation
-            coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
-            orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
-            scalars.update(orthogonality_scalars)
-            arrays.update(orthogonality_singular_values)
-        else:
-            SIMPLEXITY_LOGGER.warning("Subspace orthogonality cannot be computed for a single belief state")
+        # Extract coefficients (excludes intercept) for orthogonality computation
+        coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
+        orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
+        scalars.update(orthogonality_scalars)
+        arrays.update(orthogonality_singular_values)
 
     return scalars, arrays
 
