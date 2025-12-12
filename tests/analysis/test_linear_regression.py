@@ -1,6 +1,7 @@
 """Tests for reusable linear regression helpers."""
 
 # pylint: disable=too-many-lines
+# pylint: disable=too-many-locals
 
 import chex
 import jax
