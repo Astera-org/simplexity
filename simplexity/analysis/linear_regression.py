@@ -9,6 +9,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.debug import callback
 
 from simplexity.analysis.normalization import normalize_weights, standardize_features, standardize_targets
 from simplexity.logger import SIMPLEXITY_LOGGER
@@ -289,45 +290,82 @@ def _compute_subspace_orthogonality(
     # Compute the singular values of the interaction matrix
     interaction_matrix = q1.T @ q2
     singular_values = jnp.linalg.svd(interaction_matrix, compute_uv=False)
-
-    # Clip the singular values to the range [0, 1]
     singular_values = jnp.clip(singular_values, 0, 1)
 
     # Compute the subspace overlap score
     min_dim = min(q1.shape[1], q2.shape[1])
-    subspace_overlap_score = jnp.sum(singular_values**2) / min_dim
+    sum_sq_sv = jnp.sum(singular_values**2)
+    sum_quad_sv = jnp.sum(singular_values**4)
 
-    # Compute the max singular value
-    max_singular_value = jnp.max(singular_values)
+    is_degenerate = sum_quad_sv == 0
 
-    # Compute the min singular value
-    min_singular_value = jnp.min(singular_values)
+    # Define the False branch function (does nothing)
+    def do_nothing_branch(x):
+        """JAX 'False' branch function.
 
-    # Compute the participation ratio
-    denom = jnp.sum(singular_values**4)
-    participation_ratio = jnp.where(denom == 0, 0.0, jnp.sum(singular_values**2) ** 2 / denom)
-    # Compute the entropy
-    probs = singular_values**2 / jnp.sum(singular_values**2)
-    log_probs = jnp.where(probs > 0, jnp.log(probs), 0.0)
-    entropy = -jnp.sum(probs * log_probs)
+        Serves only to return a value that matches the 'True' branch's type (None) for jax.lax.cond.
+        """
+        return None
+
+    # Define the True branch function (runs the callback)
+    def execute_all_zeros_warning_branch(x):
+        callback(log_all_zeros, x)
+        return None
+
+    def log_all_zeros(_):
+        SIMPLEXITY_LOGGER.warning(
+            "Degenerate subspace detected during orthogonality computation."
+            " All singular values are zero."
+            " Setting probability values and participation ratio to zero."
+        )
+
+    jax.lax.cond(is_degenerate, execute_all_zeros_warning_branch, do_nothing_branch, sum_sq_sv)
+
+    pratio_denominator_safe = jnp.where(is_degenerate, 1.0, sum_quad_sv)
+    probs_denominator_safe = jnp.where(is_degenerate, 1.0, sum_sq_sv)
+    participation_ratio = sum_sq_sv**2 / pratio_denominator_safe
+
+    subspace_overlap_score = sum_sq_sv / min_dim
+
+    # Compute the entropy probabilities
+    probs = singular_values**2 / probs_denominator_safe
+
+    def execute_some_zeros_warning_branch(x):
+        callback(log_some_zeros, x)
+        return None
+
+    def log_some_zeros(num_zeros_array: jax.Array) -> None:
+        num_zeros = num_zeros_array.item()
+        SIMPLEXITY_LOGGER.warning(
+            f"Encountered {num_zeros} probability values of zero during entropy computation."
+            " This is likely due to numerical instability."
+            " Setting corresponding entropy contribution to zero."
+        )
+
+    num_zeros = jnp.sum(probs == 0)
+    has_some_zeros = num_zeros > 0
+    jax.lax.cond(has_some_zeros, execute_some_zeros_warning_branch, do_nothing_branch, num_zeros)
+
+    p_log_p = probs * jnp.log(probs)
+    entropy = -jnp.sum(jnp.where(probs > 0, p_log_p, 0.0))
 
     # Compute the effective rank
     effective_rank = jnp.exp(entropy)
 
     scalars = {
         "subspace_overlap": float(subspace_overlap_score),
-        "max_singular_value": float(max_singular_value),
-        "min_singular_value": float(min_singular_value),
+        "max_singular_value": float(jnp.max(singular_values)),
+        "min_singular_value": float(jnp.min(singular_values)),
         "participation_ratio": float(participation_ratio),
         "entropy": float(entropy),
         "effective_rank": float(effective_rank),
     }
 
-    singular_values = {
+    arrays = {
         "singular_values": singular_values,
     }
 
-    return scalars, singular_values
+    return scalars, arrays
 
 
 def _compute_all_pairwise_orthogonality(
@@ -337,21 +375,26 @@ def _compute_all_pairwise_orthogonality(
 
     Args:
         coeffs_list: List of coefficient matrices (one per factor, excludes intercepts)
+
+    Returns:
+        Tuple[dict[str, float], dict[str, jax.Array]]:
+            - scalars: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to scalar float metrics for
+            each pair of factors (i, j).
+            - arrays: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to array-valued
+            metrics for each pair of factors (i, j).
     """
     scalars = {}
-    singular_values = {}
+    arrays = {}
     factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
     for i, j in factor_pairs:
         coeffs_pair = [
             coeffs_list[i],
             coeffs_list[j],
         ]
-        orthogonality_scalars, orthogonality_singular_values = _compute_subspace_orthogonality(coeffs_pair)
+        orthogonality_scalars, orthogonality_arrays = _compute_subspace_orthogonality(coeffs_pair)
         scalars.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_scalars.items()})
-        singular_values.update(
-            {f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_singular_values.items()}
-        )
-    return scalars, singular_values
+        arrays.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_arrays.items()})
+    return scalars, arrays
 
 
 def _handle_factored_regression(
@@ -363,7 +406,10 @@ def _handle_factored_regression(
     use_svd: bool,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Handle regression for factored belief states using either standard or SVD method."""
+    """Handle regression for two or more factored belief states using either standard or SVD method."""
+    if len(belief_states) < 2:
+        raise ValueError("At least two factors are required for factored regression")
+
     scalars: dict[str, float] = {}
     arrays: dict[str, jax.Array] = {}
 
@@ -390,14 +436,11 @@ def _handle_factored_regression(
         _merge_results_with_prefix(scalars, arrays, factor_result, f"factor_{factor_idx}")
 
     if compute_subspace_orthogonality:
-        if len(belief_states) > 1:
-            # Extract coefficients (excludes intercept) for orthogonality computation
-            coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
-            orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
-            scalars.update(orthogonality_scalars)
-            arrays.update(orthogonality_singular_values)
-        else:
-            SIMPLEXITY_LOGGER.warning("Subspace orthogonality cannot be computed for a single belief state")
+        # Extract coefficients (excludes intercept) for orthogonality computation
+        coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
+        orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
+        scalars.update(orthogonality_scalars)
+        arrays.update(orthogonality_singular_values)
 
     return scalars, arrays
 
@@ -426,14 +469,24 @@ def layer_linear_regression(
         scalars: Dictionary of scalar metrics
         arrays: Dictionary of arrays (projected predictions, parameters, singular values if orthogonality computed)
     """
-    if belief_states is None:
+    # If no belief states are provided, raise an error
+    if (
+        belief_states is None
+        or (isinstance(belief_states, tuple) and len(belief_states) == 0)
+        or (isinstance(belief_states, jax.Array) and belief_states.size == 0)
+    ):
         raise ValueError("linear_regression requires belief_states")
 
     regression_fn = linear_regression_svd if use_svd else linear_regression
 
-    if not isinstance(belief_states, tuple):
+    if not isinstance(belief_states, tuple) or len(belief_states) == 1:
         if compute_subspace_orthogonality:
-            SIMPLEXITY_LOGGER.warning("Subspace orthogonality cannot be computed for a single belief state")
+            SIMPLEXITY_LOGGER.warning(
+                "Subspace orthogonality requires multiple factors."
+                " Received single factor of type %s; skipping orthogonality metrics.",
+                type(belief_states).__name__,
+            )
+        belief_states = belief_states[0] if isinstance(belief_states, tuple) else belief_states
         scalars, arrays = regression_fn(layer_activations, belief_states, weights, **kwargs)
         return scalars, arrays
 

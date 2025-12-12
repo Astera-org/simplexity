@@ -805,9 +805,9 @@ class TestTupleBeliefStates:
         assert isinstance(result.belief_states[0], jnp.ndarray)
         assert isinstance(result.belief_states[1], jnp.ndarray)
 
-    def test_linear_regression_with_to_factors_true(self, factored_belief_data):
-        """LinearRegressionAnalysis with to_factors=True should regress to each factor separately."""
-        analysis = LinearRegressionAnalysis(to_factors=True)
+    def test_linear_regression_with_multiple_factors(self, factored_belief_data):
+        """LinearRegressionAnalysis with multi-factor tuple should regress to each factor separately."""
+        analysis = LinearRegressionAnalysis()
 
         prepared = prepare_activations(
             factored_belief_data["inputs"],
@@ -852,9 +852,9 @@ class TestTupleBeliefStates:
         assert projections["layer_0_factor_0/projected"].shape == (batch_size, factored_belief_data["factor_0_dim"])
         assert projections["layer_0_factor_1/projected"].shape == (batch_size, factored_belief_data["factor_1_dim"])
 
-    def test_linear_regression_svd_with_to_factors_true(self, factored_belief_data):
-        """LinearRegressionSVDAnalysis with to_factors=True should regress to each factor separately."""
-        analysis = LinearRegressionSVDAnalysis(to_factors=True, rcond_values=[1e-10])
+    def test_linear_regression_svd_with_multiple_factors(self, factored_belief_data):
+        """LinearRegressionSVDAnalysis with multi-factor tuple should regress to each factor separately."""
+        analysis = LinearRegressionSVDAnalysis(rcond_values=[1e-10])
 
         prepared = prepare_activations(
             factored_belief_data["inputs"],
@@ -891,7 +891,6 @@ class TestTupleBeliefStates:
                 "regression": LinearRegressionAnalysis(
                     last_token_only=True,
                     concat_layers=False,
-                    to_factors=True,
                 ),
                 "pca": PcaAnalysis(
                     n_components=2,
@@ -941,6 +940,76 @@ class TestTupleBeliefStates:
         assert isinstance(result.belief_states, tuple)
         assert len(result.belief_states) == 1
         assert result.belief_states[0].shape == (synthetic_data["batch_size"], synthetic_data["belief_dim"])
+
+    def test_linear_regression_single_factor_tuple_behaves_like_non_tuple(self, synthetic_data):
+        """LinearRegressionAnalysis with single-factor tuple should behave like non-tuple (no factor keys)."""
+        single_factor = (synthetic_data["beliefs"],)
+        analysis = LinearRegressionAnalysis()
+
+        prepared = prepare_activations(
+            synthetic_data["inputs"],
+            single_factor,
+            synthetic_data["probs"],
+            synthetic_data["activations"],
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
+        )
+
+        scalars, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
+
+        # Should have simple keys without "factor_" prefix
+        assert "layer_0_r2" in scalars
+        assert "layer_0_rmse" in scalars
+        assert "layer_0_projected" in projections
+
+        # Should NOT have factor keys
+        assert "layer_0_factor_0/r2" not in scalars
+        assert "layer_0_factor_0/projected" not in projections
+
+    def test_linear_regression_concat_belief_states(self, factored_belief_data):
+        """LinearRegressionAnalysis with concat_belief_states=True should return both factor and concat results."""
+        analysis = LinearRegressionAnalysis(concat_belief_states=True)
+
+        prepared = prepare_activations(
+            factored_belief_data["inputs"],
+            factored_belief_data["factored_beliefs"],
+            factored_belief_data["probs"],
+            factored_belief_data["activations"],
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
+        )
+
+        scalars, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
+
+        # Should have per-factor results
+        assert "layer_0_factor_0/r2" in scalars
+        assert "layer_0_factor_1/r2" in scalars
+        assert "layer_0_factor_0/projected" in projections
+        assert "layer_0_factor_1/projected" in projections
+
+        # Should ALSO have concatenated results
+        assert "layer_0_concat/r2" in scalars
+        assert "layer_0_concat/rmse" in scalars
+        assert "layer_0_concat/projected" in projections
+
+        # Check concatenated projection shape (should be sum of factor dimensions)
+        batch_size = factored_belief_data["batch_size"]
+        total_dim = factored_belief_data["factor_0_dim"] + factored_belief_data["factor_1_dim"]
+        assert projections["layer_0_concat/projected"].shape == (batch_size, total_dim)
 
     def test_three_factor_tuple(self, factored_belief_data):
         """Test with three factors to ensure generalization."""
