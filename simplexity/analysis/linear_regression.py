@@ -307,9 +307,9 @@ def _compute_subspace_orthogonality(
     if max_singular_value == 0:
         SIMPLEXITY_LOGGER.warning(
             "Degenerate subspace detected during orthogonality computation."
-            "All singular values are zero."
-            "Setting probability values to zero."
-            "Setting participation ratio to zero."
+            " All singular values are zero."
+            " Setting probability values to zero."
+            " Setting participation ratio to zero."
         )
         pratio_denominator = 1.0
         probs_denominator = 1.0
@@ -326,8 +326,8 @@ def _compute_subspace_orthogonality(
     if num_zeros > 0:
         SIMPLEXITY_LOGGER.warning(
             f"Encountered {num_zeros} probability values of zero during entropy computation."
-            "This is likely due to numerical instability."
-            "Setting corresponding entropy contribution to zero."
+            " This is likely due to numerical instability."
+            " Setting corresponding entropy contribution to zero."
         )
         nonzero_probs = probs[probs > 0]
         entropy = -jnp.sum(nonzero_probs * jnp.log(nonzero_probs))
@@ -463,7 +463,7 @@ def layer_linear_regression(
         if compute_subspace_orthogonality:
             SIMPLEXITY_LOGGER.warning(
                 "Subspace orthogonality requires multiple factors."
-                "Received single factor of type %s; skipping orthogonality metrics.",
+                " Received single factor of type %s; skipping orthogonality metrics.",
                 type(belief_states).__name__,
             )
         belief_states = belief_states[0] if isinstance(belief_states, tuple) else belief_states
