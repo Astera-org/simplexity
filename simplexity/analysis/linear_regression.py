@@ -96,7 +96,7 @@ def _compute_regression_metrics(
     predictions: jax.Array | None = None,
     *,
     fit_intercept: bool = True,
-):
+) -> Mapping[str, float]:
     x_arr = standardize_features(x)
     y_arr = standardize_targets(y)
     if x_arr.shape[0] != y_arr.shape[0]:
