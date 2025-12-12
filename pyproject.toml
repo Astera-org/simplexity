@@ -25,7 +25,6 @@ dependencies = [
     "transformer-lens>=2.15.4",
     "treescope",
     "pydantic>=2.12.0",
-    "altair>=6.0.0",
 ]
 
 [project.optional-dependencies]
