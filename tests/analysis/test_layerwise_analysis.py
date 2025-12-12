@@ -10,7 +10,7 @@ from simplexity.analysis.layerwise_analysis import ANALYSIS_REGISTRY, LayerwiseA
 @pytest.fixture
 def analysis_inputs() -> tuple[dict[str, jax.Array], jax.Array, jax.Array]:
     """Provides sample activations, weights, and belief states for analysis tests."""
-    
+
     activations = {
         "layer_a": jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]),
         "layer_b": jnp.array([[2.0, 1.0], [1.0, 2.0], [0.0, 1.0]]),

@@ -7,9 +7,9 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import jax
-from jax.debug import callback
 import jax.numpy as jnp
 import numpy as np
+from jax.debug import callback
 
 from simplexity.analysis.normalization import normalize_weights, standardize_features, standardize_targets
 from simplexity.logger import SIMPLEXITY_LOGGER
