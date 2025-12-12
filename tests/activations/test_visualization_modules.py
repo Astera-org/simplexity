@@ -437,14 +437,18 @@ class TestPreprocessing:
             _combine_rgb(df, step)
 
     def test_combine_rgb_3_inputs(self):
-        """Test combine_rgb with exactly 3 inputs."""
-        df = pd.DataFrame({"r": [0.0, 1.0, 0.5], "g": [0.0, 0.0, 0.5], "b": [0.0, 0.0, 0.5]})
+        """Test combine_rgb with exactly 3 inputs.
+
+        Note: combine_rgb performs per-column min-max normalization, so to get
+        expected colors we need data where each column spans [0, 1].
+        """
+        df = pd.DataFrame({"r": [0.0, 1.0, 0.5], "g": [0.0, 1.0, 0.5], "b": [0.0, 1.0, 0.5]})
         step = ActivationVisualizationPreprocessStep(
             type="combine_rgb", input_fields=["r", "g", "b"], output_fields=["color"]
         )
         result = _combine_rgb(df, step)
         assert result["color"].iloc[0] == "#000000"  # black
-        assert result["color"].iloc[1] == "#ff0000"  # red
+        assert result["color"].iloc[1] == "#ffffff"  # white
         assert result["color"].iloc[2] == "#808080"  # gray
 
     def test_combine_rgb_more_than_3_inputs_pca(self):
