@@ -66,6 +66,19 @@ def substitute_pattern(text: str, index: int) -> str:
     return RANGE_PATTERN.sub(str(index), text, count=1)
 
 
+def substitute_range(text: str, index: int) -> str:
+    """Replace a range pattern (N...M) with an index.
+
+    Args:
+        text: String containing a range pattern
+        index: Index value to substitute
+
+    Returns:
+        Text with range pattern replaced by index
+    """
+    return RANGE_PATTERN.sub(str(index), text, count=1)
+
+
 def parse_range(text: str) -> tuple[int, int] | None:
     """Extract (start, end) from a range pattern.
 
@@ -79,6 +92,22 @@ def parse_range(text: str) -> tuple[int, int] | None:
     if match:
         return int(match.group(1)), int(match.group(2))
     return None
+
+
+def is_valid_range(text: str) -> bool:
+    """Check if text is a valid range pattern with start < end.
+
+    Args:
+        text: String to check (e.g., "0...10")
+
+    Returns:
+        True if text is a valid range pattern with start < end
+    """
+    result = parse_range(text)
+    if result is None:
+        return False
+    start, end = result
+    return start < end
 
 
 def build_wildcard_regex(pattern: str, capture: str = r"(\d+)") -> re.Pattern[str]:
@@ -102,7 +131,9 @@ __all__ = [
     "build_wildcard_regex",
     "count_patterns",
     "has_pattern",
+    "is_valid_range",
     "parse_range",
     "substitute_pattern",
+    "substitute_range",
     "validate_single_pattern",
 ]

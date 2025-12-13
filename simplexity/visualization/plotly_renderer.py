@@ -1000,13 +1000,12 @@ def _build_layer_filtered_scatter2d(
     return figure
 
 
-def _build_slider_scatter3d(
+def _build_slider_scatter(
     df: pd.DataFrame,
     slider: tuple[str, list[Any]],
     dropdown: tuple[str, list[Any]] | None,
     x_field: str,
     y_field: str,
-    z_field: str,
     color_field: str | None,
     size_field: str | None,
     hover_fields: list[str],
@@ -1014,8 +1013,11 @@ def _build_slider_scatter3d(
     color_specs: list[ColorGroupSpec],
     aes: AestheticsConfig,
     layer: LayerConfig,
+    *,
+    z_field: str | None = None,
     size_value: float | None = None,
 ):
+    """Build slider-controlled scatter plot (2D or 3D based on z_field presence)."""
     slider_field, slider_values = slider
     layer_field = dropdown[0] if dropdown else None
     layer_options = dropdown[1] if dropdown else [None]
@@ -1035,16 +1037,16 @@ def _build_slider_scatter3d(
 
         initial_subset = subset[subset[slider_field] == slider_values[0]]
         assert isinstance(initial_subset, pd.DataFrame)
-        subset_traces = _scatter3d_traces(
+        subset_traces = _scatter_traces(
             initial_subset,
             x_field,
             y_field,
-            z_field,
             color_field,
             size_field,
             hover_fields,
             opacity_value,
             color_specs,
+            z_field=z_field,
             layer_name=layer_label,
             keep_empty=True,
             size_value=size_value,
@@ -1059,16 +1061,16 @@ def _build_slider_scatter3d(
         for slider_value in slider_values:
             slider_subset = subset[subset[slider_field] == slider_value]
             assert isinstance(slider_subset, pd.DataFrame)
-            frame_traces = _scatter3d_traces(
+            frame_traces = _scatter_traces(
                 slider_subset,
                 x_field,
                 y_field,
-                z_field,
                 color_field,
                 size_field,
                 hover_fields,
                 opacity_value,
                 color_specs,
+                z_field=z_field,
                 layer_name=layer_label,
                 keep_empty=True,
                 size_value=size_value,
@@ -1086,6 +1088,41 @@ def _build_slider_scatter3d(
 
     figure = _apply_constant_channels(figure, aes)
     return figure
+
+
+def _build_slider_scatter3d(
+    df: pd.DataFrame,
+    slider: tuple[str, list[Any]],
+    dropdown: tuple[str, list[Any]] | None,
+    x_field: str,
+    y_field: str,
+    z_field: str,
+    color_field: str | None,
+    size_field: str | None,
+    hover_fields: list[str],
+    opacity_value: float | None,
+    color_specs: list[ColorGroupSpec],
+    aes: AestheticsConfig,
+    layer: LayerConfig,
+    size_value: float | None = None,
+):
+    """Build 3D slider scatter. Wrapper around _build_slider_scatter."""
+    return _build_slider_scatter(
+        df,
+        slider,
+        dropdown,
+        x_field,
+        y_field,
+        color_field,
+        size_field,
+        hover_fields,
+        opacity_value,
+        color_specs,
+        aes,
+        layer,
+        z_field=z_field,
+        size_value=size_value,
+    )
 
 
 def _build_slider_scatter2d(
@@ -1103,73 +1140,23 @@ def _build_slider_scatter2d(
     layer: LayerConfig,
     size_value: float | None = None,
 ):
-    slider_field, slider_values = slider
-    layer_field = dropdown[0] if dropdown else None
-    layer_options = dropdown[1] if dropdown else [None]
-
-    traces: list[Any] = []
-    trace_ranges: list[tuple[int, int]] = []
-    available_layers: list[Any] = []
-    frames_by_value: dict[str, list[Any]] = {str(value): [] for value in slider_values}
-
-    for option in layer_options:
-        subset = df if option is None else df[df[layer_field] == option]
-        if subset.empty:
-            continue
-        layer_index = len(available_layers)
-        available_layers.append(option)
-        layer_label = str(option) if option is not None else layer.name
-
-        initial_subset = subset[subset[slider_field] == slider_values[0]]
-        assert isinstance(initial_subset, pd.DataFrame)
-        subset_traces = _scatter2d_traces(
-            initial_subset,
-            x_field,
-            y_field,
-            color_field,
-            size_field,
-            hover_fields,
-            opacity_value,
-            color_specs,
-            layer_name=layer_label,
-            keep_empty=True,
-            size_value=size_value,
-        )
-        for trace in subset_traces:
-            trace.visible = layer_index == 0
-        start = len(traces)
-        traces.extend(subset_traces)
-        trace_ranges.append((start, len(traces)))
-
-        for slider_value in slider_values:
-            slider_subset = subset[subset[slider_field] == slider_value]
-            assert isinstance(slider_subset, pd.DataFrame)
-            frame_traces = _scatter2d_traces(
-                slider_subset,
-                x_field,
-                y_field,
-                color_field,
-                size_field,
-                hover_fields,
-                opacity_value,
-                color_specs,
-                layer_name=layer_label,
-                keep_empty=True,
-                size_value=size_value,
-            )
-            frames_by_value[str(slider_value)].extend(frame_traces)
-
-    figure = go.Figure(data=traces)
-    figure.frames = _build_slider_frames(frames_by_value, slider_values)
-    _add_slider_layout(figure, slider_field, slider_values)
-
-    if dropdown and available_layers:
-        _add_layer_dropdown_menu(figure, available_layers, trace_ranges)
-    else:
-        _maybe_update_trace_name(figure, layer, color_field)
-
-    figure = _apply_constant_channels(figure, aes)
-    return figure
+    """Build 2D slider scatter. Wrapper around _build_slider_scatter."""
+    return _build_slider_scatter(
+        df,
+        slider,
+        dropdown,
+        x_field,
+        y_field,
+        color_field,
+        size_field,
+        hover_fields,
+        opacity_value,
+        color_specs,
+        aes,
+        layer,
+        z_field=None,
+        size_value=size_value,
+    )
 
 
 def _add_layer_dropdown_menu(
@@ -1258,6 +1245,74 @@ class ColorGroupSpec:
     mode: Literal["none", "literal", "discrete", "field"] = "none"
 
 
+def _scatter_traces(
+    df: pd.DataFrame,
+    x_field: str,
+    y_field: str,
+    color_field: str | None,
+    size_field: str | None,
+    hover_fields: list[str],
+    opacity_value: float | None,
+    color_specs: list[ColorGroupSpec],
+    *,
+    z_field: str | None = None,
+    layer_name: str | None = None,
+    keep_empty: bool = False,
+    size_value: float | None = None,
+) -> list[go.Scatter3d] | list[go.Scatter]:
+    """Build scatter traces (2D or 3D based on z_field presence)."""
+    is_3d = z_field is not None
+    traces: list[Any] = []
+
+    for idx, spec in enumerate(color_specs):
+        subset = _subset_for_spec(df, color_field, spec)
+        if subset.empty and not keep_empty:
+            continue
+        marker = _build_marker(subset, color_field, size_field, spec, size_value)
+        customdata = _build_customdata(subset, hover_fields)
+
+        if is_3d:
+            assert z_field is not None
+            trace = go.Scatter3d(
+                x=subset[x_field].tolist(),
+                y=subset[y_field].tolist(),
+                z=subset[z_field].tolist(),
+                mode="markers",
+                name=_derive_trace_name(layer_name, spec, idx),
+                marker=marker,
+                customdata=customdata,
+                hovertemplate=_build_hovertemplate(hover_fields),
+            )
+        else:
+            trace = go.Scatter(
+                x=subset[x_field].tolist(),
+                y=subset[y_field].tolist(),
+                mode="markers",
+                name=_derive_trace_name(layer_name, spec, idx),
+                marker=marker,
+                customdata=customdata,
+                hovertemplate=_build_hovertemplate(hover_fields),
+            )
+
+        if spec.mode == "literal":
+            trace.showlegend = False
+        if opacity_value is not None:
+            trace.opacity = opacity_value
+        traces.append(trace)
+
+    if not traces:
+        default_name = layer_name or ("scatter3d" if is_3d else "scatter")
+        if is_3d:
+            empty_trace = go.Scatter3d(x=[], y=[], z=[], mode="markers", name=default_name)
+        else:
+            empty_trace = go.Scatter(x=[], y=[], mode="markers", name=default_name)
+        if opacity_value is not None:
+            empty_trace.opacity = opacity_value
+        traces.append(empty_trace)
+
+    return traces
+
+
 def _scatter3d_traces(
     df: pd.DataFrame,
     x_field: str,
@@ -1273,34 +1328,21 @@ def _scatter3d_traces(
     keep_empty: bool = False,
     size_value: float | None = None,
 ) -> list[go.Scatter3d]:
-    traces: list[go.Scatter3d] = []
-    for idx, spec in enumerate(color_specs):
-        subset = _subset_for_spec(df, color_field, spec)
-        if subset.empty and not keep_empty:
-            continue
-        marker = _build_marker(subset, color_field, size_field, spec, size_value)
-        customdata = _build_customdata(subset, hover_fields)
-        trace = go.Scatter3d(
-            x=subset[x_field].tolist(),
-            y=subset[y_field].tolist(),
-            z=subset[z_field].tolist(),
-            mode="markers",
-            name=_derive_trace_name(layer_name, spec, idx),
-            marker=marker,
-            customdata=customdata,
-            hovertemplate=_build_hovertemplate(hover_fields),
-        )
-        if spec.mode == "literal":
-            trace.showlegend = False
-        if opacity_value is not None:
-            trace.opacity = opacity_value
-        traces.append(trace)
-    if not traces:
-        empty_trace = go.Scatter3d(x=[], y=[], z=[], mode="markers", name=layer_name or "scatter3d")
-        if opacity_value is not None:
-            empty_trace.opacity = opacity_value
-        traces.append(empty_trace)
-    return traces
+    """Build 3D scatter traces. Wrapper around _scatter_traces for type safety."""
+    return _scatter_traces(
+        df,
+        x_field,
+        y_field,
+        color_field,
+        size_field,
+        hover_fields,
+        opacity_value,
+        color_specs,
+        z_field=z_field,
+        layer_name=layer_name,
+        keep_empty=keep_empty,
+        size_value=size_value,
+    )  # type: ignore[return-value]
 
 
 def _scatter2d_traces(
@@ -1317,33 +1359,21 @@ def _scatter2d_traces(
     keep_empty: bool = False,
     size_value: float | None = None,
 ) -> list[go.Scatter]:
-    traces: list[go.Scatter] = []
-    for idx, spec in enumerate(color_specs):
-        subset = _subset_for_spec(df, color_field, spec)
-        if subset.empty and not keep_empty:
-            continue
-        marker = _build_marker(subset, color_field, size_field, spec, size_value)
-        customdata = _build_customdata(subset, hover_fields)
-        trace = go.Scatter(
-            x=subset[x_field].tolist(),
-            y=subset[y_field].tolist(),
-            mode="markers",
-            name=_derive_trace_name(layer_name, spec, idx),
-            marker=marker,
-            customdata=customdata,
-            hovertemplate=_build_hovertemplate(hover_fields),
-        )
-        if spec.mode == "literal":
-            trace.showlegend = False
-        if opacity_value is not None:
-            trace.opacity = opacity_value
-        traces.append(trace)
-    if not traces:
-        empty_trace = go.Scatter(x=[], y=[], mode="markers", name=layer_name or "scatter")
-        if opacity_value is not None:
-            empty_trace.opacity = opacity_value
-        traces.append(empty_trace)
-    return traces
+    """Build 2D scatter traces. Wrapper around _scatter_traces for type safety."""
+    return _scatter_traces(
+        df,
+        x_field,
+        y_field,
+        color_field,
+        size_field,
+        hover_fields,
+        opacity_value,
+        color_specs,
+        z_field=None,
+        layer_name=layer_name,
+        keep_empty=keep_empty,
+        size_value=size_value,
+    )  # type: ignore[return-value]
 
 
 def _subset_for_spec(df: pd.DataFrame, color_field: str | None, spec: ColorGroupSpec) -> pd.DataFrame:

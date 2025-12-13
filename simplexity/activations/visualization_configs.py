@@ -8,6 +8,7 @@ from typing import Any, Literal, TypeVar, cast, get_args, get_origin, get_type_h
 
 from omegaconf import DictConfig, OmegaConf
 
+from simplexity.activations.visualization.pattern_utils import is_valid_range
 from simplexity.exceptions import ConfigValidationError
 from simplexity.visualization.structured_configs import (
     DataConfig,
@@ -149,7 +150,7 @@ class ActivationVisualizationFieldRef:
             raise ConfigValidationError("Metadata field references must specify the `key` to read from.")
 
         if isinstance(self.component, str):
-            if self.component != "*" and not self._is_valid_range(self.component):
+            if self.component != "*" and not is_valid_range(self.component):
                 raise ConfigValidationError(f"Component pattern '{self.component}' invalid. Use '*' or 'N...M'")
             if self.source not in ("projections", "belief_states"):
                 raise ConfigValidationError(
@@ -158,7 +159,7 @@ class ActivationVisualizationFieldRef:
 
         # Validate key patterns for projections
         if self.source == "projections" and self.key:
-            has_key_pattern = "*" in self.key or self._is_valid_range(self.key)
+            has_key_pattern = "*" in self.key or is_valid_range(self.key)
             # Key patterns require group_as to name the resulting column(s)
             if has_key_pattern and self.group_as is None:
                 raise ConfigValidationError(
@@ -170,7 +171,7 @@ class ActivationVisualizationFieldRef:
             if self.source != "belief_states":
                 raise ConfigValidationError(f"`factor` is only supported for belief_states, not '{self.source}'")
             if isinstance(self.factor, str):
-                has_factor_pattern = self.factor == "*" or self._is_valid_range(self.factor)
+                has_factor_pattern = self.factor == "*" or is_valid_range(self.factor)
                 if has_factor_pattern and self.group_as is None:
                     raise ConfigValidationError(
                         f"Factor pattern '{self.factor}' requires `group_as` to name the expanded column(s)"
@@ -181,20 +182,6 @@ class ActivationVisualizationFieldRef:
             raise ConfigValidationError(
                 f"`group_as` is only supported for projections/belief_states, not '{self.source}'"
             )
-
-    @staticmethod
-    def _is_valid_range(component: str) -> bool:
-        """Check if string matches 'N...M' range pattern."""
-        if "..." not in component:
-            return False
-        parts = component.split("...")
-        if len(parts) != 2:
-            return False
-        try:
-            start, end = int(parts[0]), int(parts[1])
-            return start < end
-        except ValueError:
-            return False
 
 
 @dataclass

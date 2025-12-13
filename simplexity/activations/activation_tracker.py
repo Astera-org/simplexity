@@ -19,6 +19,12 @@ from simplexity.activations.activation_visualizations import (
     PreparedMetadata,
     build_visualization_payloads,
 )
+from simplexity.activations.visualization.pattern_utils import (
+    build_wildcard_regex,
+    has_pattern,
+    parse_range,
+    substitute_range,
+)
 from simplexity.activations.visualization_configs import build_activation_visualization_config
 from simplexity.activations.visualization_persistence import save_visualization_payloads
 from simplexity.utils.analysis_utils import build_deduplicated_dataset
@@ -264,27 +270,15 @@ class ActivationTracker:
         if pattern is None:
             return dict(self._scalar_history)
 
-        import re
-
-        # Convert wildcard pattern to regex
-        has_star = "*" in pattern
-        has_range = bool(re.search(r"\d+\.\.\.\d+", pattern))
-
-        if not has_star and not has_range:
+        if not has_pattern(pattern):
             # No pattern, just exact match
             return {k: v for k, v in self._scalar_history.items() if k == pattern}
 
-        # Expand range patterns first
-        if has_range:
-            range_match = re.search(r"(\d+)\.\.\.(\d+)", pattern)
-            if range_match:
-                start_idx = int(range_match.group(1))
-                end_idx = int(range_match.group(2))
-                patterns = []
-                for idx in range(start_idx, end_idx):
-                    patterns.append(re.sub(r"\d+\.\.\.\d+", str(idx), pattern))
-            else:
-                patterns = [pattern]
+        # Expand range patterns to individual patterns
+        range_result = parse_range(pattern)
+        if range_result:
+            start_idx, end_idx = range_result
+            patterns = [substitute_range(pattern, idx) for idx in range(start_idx, end_idx)]
         else:
             patterns = [pattern]
 
@@ -292,8 +286,7 @@ class ActivationTracker:
         matched = {}
         for p in patterns:
             if "*" in p:
-                escaped = re.escape(p).replace(r"\*", r"([^/]+)")
-                regex = re.compile(f"^{escaped}$")
+                regex = build_wildcard_regex(p, capture=r"([^/]+)")
                 for key, history in self._scalar_history.items():
                     if regex.match(key):
                         matched[key] = history

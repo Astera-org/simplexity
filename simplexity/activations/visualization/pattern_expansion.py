@@ -304,20 +304,24 @@ def _expand_belief_factor_mapping(
     n_factors = np_beliefs.shape[1]
     n_states = np_beliefs.shape[2]
 
-    # Parse factor pattern
-    factor_spec = ref.factor
-    assert isinstance(factor_spec, str), "Factor should be a pattern string"
+    # Parse factor pattern using _parse_component_spec (same pattern syntax)
+    try:
+        factor_spec_type, factor_start, factor_end = _parse_component_spec(ref.factor)
+    except ConfigValidationError:
+        raise ConfigValidationError(f"Invalid factor pattern: {ref.factor}") from None
 
-    if factor_spec == "*":
+    if factor_spec_type == "wildcard":
         factors = list(range(n_factors))
-    elif "..." in factor_spec:
-        parts = factor_spec.split("...")
-        start_idx, end_idx = int(parts[0]), int(parts[1])
-        if end_idx > n_factors:
-            raise ConfigValidationError(f"Factor range {start_idx}...{end_idx} exceeds available factors ({n_factors})")
-        factors = list(range(start_idx, end_idx))
+    elif factor_spec_type == "range":
+        assert factor_start is not None
+        assert factor_end is not None
+        if factor_end > n_factors:
+            raise ConfigValidationError(
+                f"Factor range {factor_start}...{factor_end} exceeds available factors ({n_factors})"
+            )
+        factors = list(range(factor_start, factor_end))
     else:
-        raise ConfigValidationError(f"Invalid factor pattern: {factor_spec}")
+        raise ConfigValidationError(f"Invalid factor pattern: {ref.factor}")
 
     # Check if component expansion is also needed
     spec_type, start_idx, end_idx = _parse_component_spec(ref.component)

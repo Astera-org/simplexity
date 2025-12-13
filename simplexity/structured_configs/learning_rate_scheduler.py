@@ -30,24 +30,20 @@ class ReduceLROnPlateauInstanceConfig(InstanceConfig):
 
 
 @dataclass
-class WindowedReduceLROnPlateauInstanceConfig(InstanceConfig):
+class WindowedReduceLROnPlateauInstanceConfig(ReduceLROnPlateauInstanceConfig):
     """Configuration for WindowedReduceLROnPlateau scheduler.
 
     This scheduler compares the average loss over a sliding window instead of
     individual loss values, making the patience mechanism more effective for
     noisy batch losses.
+
+    Inherits all fields from ReduceLROnPlateauInstanceConfig and adds:
+    - window_size: Size of the sliding window for loss averaging
+    - update_every: Frequency of scheduler updates (steps between updates)
     """
 
     window_size: int = 10
     update_every: int = 1
-    mode: str = "min"
-    factor: float = 0.1
-    patience: int = 10
-    threshold: float = 1e-4
-    threshold_mode: str = "rel"
-    cooldown: int = 0
-    min_lr: float = 0.0
-    eps: float = 1e-8
 
 
 def is_reduce_lr_on_plateau_config(cfg: DictConfig) -> bool:
@@ -89,27 +85,12 @@ def is_windowed_reduce_lr_on_plateau_config(cfg: DictConfig) -> bool:
 
 def validate_windowed_reduce_lr_on_plateau_instance_config(cfg: DictConfig) -> None:
     """Validate a WindowedReduceLROnPlateauInstanceConfig."""
-    validate_instance_config(cfg)
+    validate_reduce_lr_on_plateau_instance_config(cfg)
     window_size = cfg.get("window_size")
     update_every = cfg.get("update_every")
-    mode = cfg.get("mode")
-    factor = cfg.get("factor")
-    patience = cfg.get("patience")
-    threshold = cfg.get("threshold")
-    cooldown = cfg.get("cooldown")
-    min_lr = cfg.get("min_lr")
-    eps = cfg.get("eps")
 
     validate_positive_int(window_size, "WindowedReduceLROnPlateauInstanceConfig.window_size", is_none_allowed=True)
     validate_positive_int(update_every, "WindowedReduceLROnPlateauInstanceConfig.update_every", is_none_allowed=True)
-    if mode is not None and mode not in ("min", "max"):
-        raise ConfigValidationError(f"WindowedReduceLROnPlateauInstanceConfig.mode must be 'min' or 'max', got {mode}")
-    validate_positive_float(factor, "WindowedReduceLROnPlateauInstanceConfig.factor", is_none_allowed=True)
-    validate_non_negative_int(patience, "WindowedReduceLROnPlateauInstanceConfig.patience", is_none_allowed=True)
-    validate_non_negative_float(threshold, "WindowedReduceLROnPlateauInstanceConfig.threshold", is_none_allowed=True)
-    validate_non_negative_int(cooldown, "WindowedReduceLROnPlateauInstanceConfig.cooldown", is_none_allowed=True)
-    validate_non_negative_float(min_lr, "WindowedReduceLROnPlateauInstanceConfig.min_lr", is_none_allowed=True)
-    validate_non_negative_float(eps, "WindowedReduceLROnPlateauInstanceConfig.eps", is_none_allowed=True)
 
 
 @dataclass
