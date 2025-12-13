@@ -1,5 +1,12 @@
 """Tests for reusable linear regression helpers."""
 
+# pylint: disable=all # Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all # Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 # pylint: disable=too-many-lines
 # pylint: disable=too-many-locals
 
@@ -10,7 +17,6 @@ import pytest
 
 from simplexity.analysis.linear_regression import (
     layer_linear_regression,
-    layer_linear_regression_svd,
     linear_regression,
     linear_regression_svd,
 )
@@ -80,9 +86,6 @@ def test_layer_regression_requires_targets() -> None:
 
     with pytest.raises(ValueError, match="requires belief_states"):
         layer_linear_regression(x, weights, None)
-
-    with pytest.raises(ValueError, match="requires belief_states"):
-        layer_linear_regression_svd(x, weights, None)
 
 
 def test_linear_regression_rejects_mismatched_weights() -> None:
@@ -198,16 +201,17 @@ def test_linear_regression_svd_falls_back_to_default_rcond() -> None:
     assert scalars["best_rcond"] == pytest.approx(1e-15)
 
 
-def test_layer_linear_regression_svd_runs_end_to_end() -> None:
+def test_layer_linear_regression_runs_end_to_end() -> None:
     """Layer helper should proxy through to the base implementation."""
     x = jnp.arange(6.0).reshape(3, 2)
     weights = jnp.ones(3) / 3.0
     beliefs = 2.0 * x.sum(axis=1, keepdims=True)
 
-    scalars, arrays = layer_linear_regression_svd(
+    scalars, arrays = layer_linear_regression(
         x,
         weights,
         beliefs,
+        use_svd=True,
         rcond_values=[1e-3],
     )
 
@@ -272,10 +276,11 @@ def test_layer_linear_regression_svd_belief_states_tuple_default() -> None:
     factor_1 = jnp.array([[0.2, 0.3, 0.5], [0.1, 0.6, 0.3], [0.4, 0.4, 0.2], [0.3, 0.3, 0.4]])  # [4, 3]
     factored_beliefs = (factor_0, factor_1)
 
-    scalars, arrays = layer_linear_regression_svd(
+    scalars, arrays = layer_linear_regression(
         x,
         weights,
         factored_beliefs,
+        use_svd=True,
         rcond_values=[1e-6],
     )
 
@@ -602,10 +607,11 @@ def test_use_svd_flag_equivalence() -> None:
     )
 
     # Method 2: layer_linear_regression_svd
-    scalars_wrapper, arrays_wrapper = layer_linear_regression_svd(
+    scalars_wrapper, arrays_wrapper = layer_linear_regression(
         x,
         weights,
         belief_state,
+        use_svd=True,
         rcond_values=rcond_values,
     )
 
@@ -635,10 +641,11 @@ def test_use_svd_flag_equivalence() -> None:
     )
 
     # Method 2: layer_linear_regression_svd with factored beliefs
-    scalars_wrapper_fact, arrays_wrapper_fact = layer_linear_regression_svd(
+    scalars_wrapper_fact, arrays_wrapper_fact = layer_linear_regression(
         x,
         weights,
         factored_beliefs,
+        use_svd=True,
         rcond_values=rcond_values,
     )
 
