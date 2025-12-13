@@ -67,14 +67,21 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     return resolved_kwargs
 
 
-def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
-    kwargs = _base_validate_linear_regression_kwargs(kwargs)
-    return {k: v for k, v in kwargs.items() if k != "rcond_values"}
+def set_use_svd(
+    fn: ValidatorFn,
+) -> ValidatorFn:
+    """Decorator to set use_svd to True in the kwargs and remove it from output to avoid duplicate with partial."""
 
+    def wrapper(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+        if kwargs and "use_svd" in kwargs and not kwargs["use_svd"]:
+            raise ValueError("use_svd cannot be set to False for linear_regression_svd")
+        modified_kwargs = dict(kwargs) if kwargs else {}  # Make a copy to avoid mutating the input
+        modified_kwargs["use_svd"] = True
+        resolved = fn(modified_kwargs)
+        resolved.pop("use_svd", None)  # Remove use_svd to avoid duplicate argument with partial
+        return resolved
 
-def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
-    kwargs = _base_validate_linear_regression_kwargs(kwargs)
-    return {k: v for k, v in kwargs.items() if k != "use_svd"}
+    return wrapper
 
 
 def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -111,7 +118,7 @@ ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
     "linear_regression_svd": AnalysisRegistration(
         fn=partial(layer_linear_regression, use_svd=True),
         requires_belief_states=True,
-        validator=_validate_linear_regression_kwargs,
+        validator=set_use_svd(_validate_linear_regression_kwargs),
     ),
     "pca": AnalysisRegistration(
         fn=layer_pca_analysis,
