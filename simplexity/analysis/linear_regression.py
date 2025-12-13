@@ -320,7 +320,7 @@ def _compute_subspace_orthogonality(
             - singular_values: A dictionary with a single key:
                 - 'singular_values': jax.Array of the singular values between the two subspaces.
     """
-    
+
     q1 = basis_pair[0]
     q2 = basis_pair[1]
 
@@ -423,12 +423,10 @@ def _compute_all_pairwise_orthogonality(
     scalars = {}
     arrays = {}
     factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
+    basis_list = [get_robust_basis(coeffs) for coeffs in coeffs_list] # ensures full rank and orthonormal basis
     for i, j in factor_pairs:
-        coeffs_pair = [
-            coeffs_list[i],
-            coeffs_list[j],
-        ]
-        orthogonality_scalars, orthogonality_arrays = _compute_subspace_orthogonality(coeffs_pair)
+        basis_pair = [basis_list[i], basis_list[j]]
+        orthogonality_scalars, orthogonality_arrays = _compute_subspace_orthogonality(basis_pair)
         scalars.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_scalars.items()})
         arrays.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_arrays.items()})
     return scalars, arrays
