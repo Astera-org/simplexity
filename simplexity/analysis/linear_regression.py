@@ -301,7 +301,7 @@ def get_robust_basis(matrix: jax.Array) -> jax.Array:
 
 
 def _compute_subspace_orthogonality(
-    coeffs_pair: list[jax.Array],
+    basis_pair: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
     """Compute orthogonality metrics between two coefficient subspaces.
 
@@ -320,10 +320,10 @@ def _compute_subspace_orthogonality(
             - singular_values: A dictionary with a single key:
                 - 'singular_values': jax.Array of the singular values between the two subspaces.
     """
-    # TODO: assumes coeff matrices are full ranks, should verify
-    # Compute the orthonormal bases for the two subspaces using QR decomposition
-    q1, _ = jnp.linalg.qr(coeffs_pair[0])
-    q2, _ = jnp.linalg.qr(coeffs_pair[1])
+    
+    q1 = basis_pair[0]
+    q2 = basis_pair[1]
+
     # Compute the singular values of the interaction matrix
     interaction_matrix = q1.T @ q2
     singular_values = jnp.linalg.svd(interaction_matrix, compute_uv=False)
