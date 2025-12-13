@@ -11,14 +11,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 import jax
 
-from simplexity.analysis.linear_regression import (
-    layer_linear_regression,
-    layer_linear_regression_svd,
-)
+from simplexity.analysis.linear_regression import layer_linear_regression
 from simplexity.analysis.pca import (
     DEFAULT_VARIANCE_THRESHOLDS,
     layer_pca_analysis,
@@ -100,7 +98,7 @@ ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
         validator=_validate_linear_regression_kwargs,
     ),
     "linear_regression_svd": AnalysisRegistration(
-        fn=layer_linear_regression_svd,
+        fn=partial(layer_linear_regression, use_svd=True),
         requires_belief_states=True,
         validator=_validate_linear_regression_kwargs,
     ),
