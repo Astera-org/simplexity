@@ -48,9 +48,10 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     resolved_kwargs["fit_intercept"] = bool(provided.get("fit_intercept", True))
     resolved_kwargs["concat_belief_states"] = bool(provided.get("concat_belief_states", False))
     resolved_kwargs["compute_subspace_orthogonality"] = bool(provided.get("compute_subspace_orthogonality", False))
-    use_svd = bool(provided.get("use_svd", False))
-    resolved_kwargs["use_svd"] = use_svd
     rcond_values = provided.get("rcond_values")
+    should_use_svd = rcond_values is not None
+    use_svd = bool(provided.get("use_svd", should_use_svd))
+    resolved_kwargs["use_svd"] = use_svd
     if use_svd:
         if rcond_values is not None:
             if not isinstance(rcond_values, (list, tuple)):
