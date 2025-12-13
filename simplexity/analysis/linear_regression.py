@@ -306,7 +306,7 @@ def _compute_subspace_orthogonality(
     """Compute orthogonality metrics between two coefficient subspaces.
 
     Args:
-        coeffs_pair: List of two coefficient matrices (excludes intercept)
+        basis_pair: List of two orthonormal basis matrices
 
     Returns:
         Tuple[dict[str, float], dict[str, jax.Array]]: A tuple containing:
@@ -320,7 +320,6 @@ def _compute_subspace_orthogonality(
             - singular_values: A dictionary with a single key:
                 - 'singular_values': jax.Array of the singular values between the two subspaces.
     """
-
     q1 = basis_pair[0]
     q2 = basis_pair[1]
 
@@ -423,7 +422,7 @@ def _compute_all_pairwise_orthogonality(
     scalars = {}
     arrays = {}
     factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
-    basis_list = [get_robust_basis(coeffs) for coeffs in coeffs_list] # ensures full rank and orthonormal basis
+    basis_list = [get_robust_basis(coeffs) for coeffs in coeffs_list]  # ensures full rank and orthonormal basis
     for i, j in factor_pairs:
         basis_pair = [basis_list[i], basis_list[j]]
         orthogonality_scalars, orthogonality_arrays = _compute_subspace_orthogonality(basis_pair)
