@@ -303,6 +303,7 @@ def _compute_subspace_orthogonality(
             - singular_values: A dictionary with a single key:
                 - 'singular_values': jax.Array of the singular values between the two subspaces.
     """
+    # TODO: assumes coeff matrices are full ranks, should verify
     # Compute the orthonormal bases for the two subspaces using QR decomposition
     q1, _ = jnp.linalg.qr(coeffs_pair[0])
     q2, _ = jnp.linalg.qr(coeffs_pair[1])
