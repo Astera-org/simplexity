@@ -16,6 +16,7 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.analysis.linear_regression import (
+    get_robust_basis,
     layer_linear_regression,
     linear_regression,
     linear_regression_svd,
@@ -1085,3 +1086,128 @@ def test_layer_linear_regression_svd_concat_vs_separate_equivalence_best_rcond()
             atol=1e-6,
             rtol=0.0,
         ).item()
+
+
+def test_get_robust_basis_full_rank():
+    """Full rank matrix should return all basis vectors."""
+    # Create a full rank 5x3 matrix
+    key = jax.random.PRNGKey(42)
+    matrix = jax.random.normal(key, (5, 3))
+
+    basis = get_robust_basis(matrix)
+
+    # Should return 3 basis vectors (all columns are linearly independent)
+    assert basis.shape == (5, 3)
+
+    # Basis should be orthonormal
+    # Error in Gram matrix scales with: n_basis * eps
+    eps = jnp.finfo(basis.dtype).eps
+    tol = basis.shape[1] * eps
+    gram = basis.T @ basis
+    assert jnp.allclose(gram, jnp.eye(3), atol=tol)
+
+
+def test_get_robust_basis_rank_deficient():
+    """Rank deficient matrix should filter out zero singular value directions."""
+    # Create a rank-2 matrix with 3 columns (third is linear combination)
+    col1 = jnp.array([[1.0], [0.0], [0.0], [0.0]])
+    col2 = jnp.array([[0.0], [1.0], [0.0], [0.0]])
+    col3 = 2.0 * col1 + 3.0 * col2  # Linear combination, rank deficient
+    matrix = jnp.hstack([col1, col2, col3])
+
+    basis = get_robust_basis(matrix)
+
+    # Should return only 2 basis vectors (true rank is 2)
+    assert basis.shape[1] == 2
+
+    # Basis should be orthonormal
+    # Error in Gram matrix scales with: n_basis * eps
+    eps = jnp.finfo(basis.dtype).eps
+    tol = basis.shape[1] * eps
+    gram = basis.T @ basis
+    assert jnp.allclose(gram, jnp.eye(2), atol=tol)
+
+
+def test_get_robust_basis_zero_matrix():
+    """Zero matrix should return empty basis."""
+    matrix = jnp.zeros((5, 3))
+    basis = get_robust_basis(matrix)
+
+    # Should return empty basis (no valid directions)
+    assert basis.shape == (5, 0)
+
+
+def test_get_robust_basis_near_rank_deficient():
+    """Matrix with very small singular value should filter it out."""
+    # Create matrix with controlled singular values using SVD construction
+    key = jax.random.PRNGKey(123)
+    u = jax.random.normal(key, (6, 3))
+    u, _ = jnp.linalg.qr(u)  # Orthonormalize
+
+    # Singular values: [10.0, 1.0, 1e-10] - last one is tiny
+    s = jnp.array([10.0, 1.0, 1e-10])
+    v = jnp.eye(3)
+
+    matrix = u @ jnp.diag(s) @ v
+    basis = get_robust_basis(matrix)
+
+    # Should filter out the tiny singular value, keeping only 2 vectors
+    assert basis.shape[1] == 2
+
+    # Basis should be orthonormal
+    # Error in Gram matrix scales with: n_basis * eps
+    eps = jnp.finfo(basis.dtype).eps
+    tol = basis.shape[1] * eps
+    gram = basis.T @ basis
+    assert jnp.allclose(gram, jnp.eye(2), atol=tol)
+
+
+def test_get_robust_basis_preserves_column_space():
+    """Basis should span the same space as the original matrix's columns."""
+    # Create a known rank-2 matrix
+    col1 = jnp.array([[1.0], [0.0], [0.0], [0.0]])
+    col2 = jnp.array([[0.0], [1.0], [0.0], [0.0]])
+    col3 = 2 * col1 + 3 * col2  # Linear combination
+    matrix = jnp.hstack([col1, col2, col3])
+
+    basis = get_robust_basis(matrix)
+
+    # Basis should be rank 2
+    assert basis.shape[1] == 2
+
+    # Compute principled tolerance based on matrix properties
+    # Error in projection scales with: max_dim * eps * max_singular_value
+    max_dim = max(matrix.shape)
+    eps = jnp.finfo(matrix.dtype).eps
+    max_sv = jnp.linalg.svd(matrix, compute_uv=False)[0]
+    tol = max_dim * eps * max_sv
+
+    # Each original column should be expressible as linear combination of basis
+    for i in range(3):
+        col = matrix[:, i : i + 1]
+        # Project onto basis
+        projection = basis @ (basis.T @ col)
+        # Should be very close to original (within numerical tolerance)
+        assert jnp.allclose(projection, col, atol=tol)
+
+
+def test_get_robust_basis_single_vector():
+    """Single non-zero column should return normalized version."""
+    vector = jnp.array([[3.0], [4.0], [0.0]])
+    basis = get_robust_basis(vector)
+
+    # Should return one basis vector
+    assert basis.shape == (3, 1)
+
+    # Should be unit norm
+    # Error in norm computation scales with: dimension * eps
+    dim = vector.shape[0]
+    eps = jnp.finfo(vector.dtype).eps
+    norm_tol = dim * eps
+    assert jnp.allclose(jnp.linalg.norm(basis), 1.0, atol=norm_tol)
+
+    # Should be parallel to input
+    # Error in dot product scales with: dimension * eps * magnitude
+    expected_norm = jnp.linalg.norm(vector)
+    parallel_tol = dim * eps * expected_norm
+    assert jnp.allclose(jnp.abs(basis.T @ vector), expected_norm, atol=parallel_tol)
