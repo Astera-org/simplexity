@@ -243,15 +243,14 @@ def test_linear_regression_svd_accepts_compute_subspace_orthogonality() -> None:
     assert params["rcond_values"] == (0.001,)
 
 
-def test_linear_regression_svd_rejects_use_svd() -> None:
+def test_linear_regression_svd_rejects_false_use_svd() -> None:
     """linear_regression_svd validator should reject explicit use_svd parameter since it's bound in partial."""
 
     validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
 
-    with pytest.raises(ValueError, match="use_svd cannot be specified for linear_regression_svd"):
-        validator({"use_svd": True})
+    validator({"use_svd": True})
 
-    with pytest.raises(ValueError, match="use_svd cannot be specified for linear_regression_svd"):
+    with pytest.raises(ValueError, match="use_svd cannot be set to False for linear_regression_svd"):
         validator({"use_svd": False})
 
 
