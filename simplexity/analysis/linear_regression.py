@@ -290,6 +290,18 @@ def _compute_subspace_orthogonality(
 
     Args:
         coeffs_pair: List of two coefficient matrices (excludes intercept)
+
+    Returns:
+        Tuple[dict[str, float], dict[str, jax.Array]]: A tuple containing:
+            - scalars: A dictionary with the following keys and float values:
+                - 'subspace_overlap': Average squared singular value (overlap score).
+                - 'max_singular_value': Largest singular value.
+                - 'min_singular_value': Smallest singular value.
+                - 'participation_ratio': Participation ratio of the singular values.
+                - 'entropy': Entropy of the squared singular values.
+                - 'effective_rank': Effective rank (exp(entropy)) of the singular value distribution.
+            - singular_values: A dictionary with a single key:
+                - 'singular_values': jax.Array of the singular values between the two subspaces.
     """
     # Compute the orthonormal bases for the two subspaces using QR decomposition
     q1, _ = jnp.linalg.qr(coeffs_pair[0])
