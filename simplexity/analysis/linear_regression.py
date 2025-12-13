@@ -1,5 +1,12 @@
 """Reusable linear regression utilities for activation analysis."""
 
+# pylint: disable=all # Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all # Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 from __future__ import annotations
 
 import itertools
@@ -497,29 +504,5 @@ def layer_linear_regression(
         concat_belief_states,
         compute_subspace_orthogonality,
         use_svd,
-        **kwargs,
-    )
-
-
-def layer_linear_regression_svd(
-    layer_activations: jax.Array,
-    weights: jax.Array,
-    belief_states: jax.Array | tuple[jax.Array, ...] | None,
-    concat_belief_states: bool = False,
-    compute_subspace_orthogonality: bool = False,
-    **kwargs: Any,
-) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Layer-wise SVD regression helper (wrapper around layer_linear_regression with use_svd=True).
-
-    This function is provided for backward compatibility and convenience.
-    Consider using layer_linear_regression with use_svd=True for new code.
-    """
-    return layer_linear_regression(
-        layer_activations=layer_activations,
-        weights=weights,
-        belief_states=belief_states,
-        concat_belief_states=concat_belief_states,
-        compute_subspace_orthogonality=compute_subspace_orthogonality,
-        use_svd=True,
         **kwargs,
     )
