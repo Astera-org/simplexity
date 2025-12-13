@@ -36,14 +36,18 @@ def compute_obs_dist_for_variant(
     if component_type == "hmm":
         # HMM: normalize by sum
         obs_state = state @ transition_matrix  # [V, S]
-        return jnp.sum(obs_state, axis=1)  # [V]
+        probs = jnp.sum(obs_state, axis=1)  # [V]
     else:  # ghmm
         # GHMM: normalize by eigenvector
         if normalizing_eigenvector is None:
             raise ValueError("GHMM requires normalizing_eigenvector")
         numer = state @ transition_matrix @ normalizing_eigenvector  # [V]
         denom = jnp.sum(state * normalizing_eigenvector)  # scalar
-        return numer / denom
+        probs = numer / denom
+
+    # Clamp to non-negative to handle numerical precision issues
+    # (small negative values can arise from GHMM eigenvector computations)
+    return jnp.maximum(probs, 0.0)
 
 
 def transition_with_obs(

@@ -328,7 +328,6 @@ class TestBuildPrefixDataset:
         assert jnp.allclose(jnp.sum(dataset.probs), 1.0)
 
         # Check shapes are consistent
-
         assert isinstance(dataset.beliefs, jax.Array)
         n_prefixes = dataset.beliefs.shape[0]
         assert dataset.probs.shape[0] == n_prefixes

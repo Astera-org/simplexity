@@ -1,0 +1,10 @@
+name: lr_scheduler_reduce_on_plateau
+instance:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  mode: min
+  factor: 0.5
+  patience: 100000
+  threshold: 1e-6
+  threshold_mode: rel
+  cooldown: 200
+  min_lr: 1e-6

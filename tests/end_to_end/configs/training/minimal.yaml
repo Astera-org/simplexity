@@ -1,7 +1,9 @@
 num_steps: 10
-batch_size: 1
-sequence_len: 2
+batch_size: 3
+sequence_len: 3
 log_cheap_every: 1
 log_expensive_every: 2
 evaluate_every: 2
 checkpoint_every: 5
+validation_multiplier: 1
+scheduler_every: 1

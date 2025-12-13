@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
+from simplexity.exceptions import ConfigValidationError
 from simplexity.run_management.run_management import (
     _instantiate_activation_tracker,
     _setup_activation_trackers,
@@ -13,9 +14,6 @@ from simplexity.structured_configs.activation_tracker import (
     is_activation_tracker_target,
     validate_activation_analysis_config,
     validate_activation_tracker_config,
-)
-from simplexity.structured_configs.base import (
-    ConfigValidationError,
 )
 
 
@@ -252,7 +250,7 @@ def test_instantiate_activation_tracker_builds_analysis_objects(tracker_cfg: Dic
     probs = jnp.ones((1, 2), dtype=jnp.float32) * 0.5
     activations = {"layer": jnp.ones((1, 2, 4), dtype=jnp.float32)}
 
-    scalars, projections = tracker.analyze(
+    scalars, projections, visualizations = tracker.analyze(
         inputs=inputs,
         beliefs=beliefs,
         probs=probs,
@@ -260,3 +258,48 @@ def test_instantiate_activation_tracker_builds_analysis_objects(tracker_cfg: Dic
     )
     assert "pca_custom/layer_cumvar_1" in scalars
     assert any(key.startswith("linear/") for key in projections)
+    assert visualizations == {}
+
+
+def test_instantiate_activation_tracker_with_visuals(tracker_cfg: DictConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tracker instantiation should preserve visualization configs."""
+
+    monkeypatch.setattr(
+        "simplexity.activations.activation_visualizations.build_altair_chart",
+        lambda plot_cfg, registry, controls=None: {"backend": "altair"},
+    )
+    monkeypatch.setattr(
+        "simplexity.activations.activation_visualizations.build_plotly_figure",
+        lambda plot_cfg, registry, controls=None: {"backend": "plotly"},
+    )
+
+    tracker_cfg.activation_tracker.instance.analyses.pca.visualizations = [
+        {
+            "name": "weights_only",
+            "data_mapping": {
+                "mappings": {
+                    "weight": {"source": "weights"},
+                }
+            },
+            "layer": {
+                "geometry": {"type": "point"},
+                "aesthetics": {"x": {"field": "weight", "type": "quantitative"}},
+            },
+        }
+    ]
+
+    tracker = _instantiate_activation_tracker(tracker_cfg, "activation_tracker.instance")
+
+    inputs = jnp.array([[0, 1]], dtype=jnp.int32)
+    beliefs = jnp.ones((1, 2, 2), dtype=jnp.float32) * 0.5
+    probs = jnp.ones((1, 2), dtype=jnp.float32) * 0.5
+    activations = {"layer": jnp.ones((1, 2, 4), dtype=jnp.float32)}
+
+    _, _, visualizations = tracker.analyze(
+        inputs=inputs,
+        beliefs=beliefs,
+        probs=probs,
+        activations=activations,
+    )
+
+    assert "pca_custom/weights_only" in visualizations

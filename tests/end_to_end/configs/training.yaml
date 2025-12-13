@@ -6,8 +6,10 @@ defaults:
   - persistence: mlflow_persister
   - predictive_model: transformer
   - optimizer: pytorch_adam
+  - lr_scheduler: reduce_lr_on_plateau
   - metric_tracker@training_metric_tracker: default
   - metric_tracker@eval_metric_tracker: loss_only
+  - activation_tracker: with_factor_visuals
   - training: full
 
 experiment_name: training_test
@@ -19,3 +21,4 @@ tags:
   retention: temp
   example_tag_1: value1
   example_tag_2: value2
+

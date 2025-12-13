@@ -9,6 +9,8 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+from typing import Any
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -18,14 +20,14 @@ from simplexity.generative_processes.generative_process import GenerativeProcess
 
 @eqx.filter_jit
 def generate_data_batch(
-    gen_states: jax.Array,
+    gen_states: jax.Array | tuple[jax.Array, ...],
     data_generator: GenerativeProcess,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array | tuple[jax.Array, ...], jax.Array, jax.Array]:
     """Generate a batch of data without tracking intermediate beliefs."""
     batch_keys = jax.random.split(key, batch_size)
     gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, False)
@@ -42,7 +44,7 @@ def generate_data_batch(
 
 @eqx.filter_jit
 def generate_data_batch_with_full_history(
-    gen_states: jax.Array,
+    gen_states: jax.Array | tuple[jax.Array, ...],
     data_generator: GenerativeProcess,
     batch_size: int,
     sequence_len: int,
@@ -73,6 +75,19 @@ def generate_data_batch_with_full_history(
     labels = tokens[:, 1:]
     prefix_probs = prefix_probs[:, : inputs.shape[1]]
 
+    if bos_token is None:
+        # Drop first belief state since it's the initial state before any token
+        if isinstance(belief_states, tuple):
+            belief_states = tuple(b[:, 1:, ...] for b in belief_states)
+        else:
+            belief_states = belief_states[:, 1:, ...]
+
+    input_len = inputs.shape[1]
+    if isinstance(belief_states, tuple):
+        belief_states = tuple(b[:, :input_len, ...] for b in belief_states)
+    else:
+        belief_states = belief_states[:, :input_len, ...]
+
     result = {
         "belief_states": belief_states,
         "prefix_probabilities": prefix_probs,
@@ -85,11 +100,11 @@ def generate_data_batch_with_full_history(
 
 def _compute_prefix_probabilities(
     data_generator: GenerativeProcess,
-    initial_states: jax.Array,
+    initial_states: jax.Array | tuple[jax.Array, ...],
     tokens: jax.Array,
 ) -> jax.Array:
-    def run_sequence(state: jax.Array, seq: jax.Array) -> jax.Array:
-        def step(carry_state: jax.Array, token: jax.Array) -> tuple[jax.Array, jax.Array]:
+    def run_sequence(state: jax.Array | tuple[jax.Array, ...], seq: jax.Array) -> jax.Array:
+        def step(carry_state: Any, token: jax.Array) -> tuple[Any, jax.Array]:
             obs_probs = data_generator.observation_probability_distribution(carry_state)
             token_prob = obs_probs[token]
             new_state = data_generator.transition_states(carry_state, token)

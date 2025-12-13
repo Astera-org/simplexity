@@ -20,6 +20,12 @@ from simplexity.activations.activation_analyses import (
     PcaAnalysis,
 )
 from simplexity.activations.activation_tracker import ActivationTracker, PrepareOptions, prepare_activations
+from simplexity.activations.visualization.dataframe_builders import _build_scalar_series_dataframe
+from simplexity.activations.visualization_configs import (
+    ActivationVisualizationControlsConfig,
+    ScalarSeriesMapping,
+)
+from simplexity.exceptions import ConfigValidationError
 
 
 @pytest.fixture
@@ -481,7 +487,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, projections = tracker.analyze(
+        scalars, projections, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -493,6 +499,7 @@ class TestActivationTracker:
 
         assert "regression/layer_0_projected" in projections
         assert "pca/layer_0_pca" in projections
+        assert visualizations == {}
 
     def test_all_tokens_mode(self, synthetic_data):
         """Test tracker with all tokens mode."""
@@ -505,7 +512,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, projections = tracker.analyze(
+        scalars, projections, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -514,6 +521,7 @@ class TestActivationTracker:
 
         assert "regression/layer_0_r2" in scalars
         assert "regression/layer_0_projected" in projections
+        assert visualizations == {}
 
     def test_mixed_requirements(self, synthetic_data):
         """Test tracker with analyses that have different requirements."""
@@ -531,7 +539,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, _ = tracker.analyze(
+        scalars, _, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -540,6 +548,7 @@ class TestActivationTracker:
 
         assert "regression/layer_0_r2" in scalars
         assert "pca/layer_0_variance_explained" in scalars
+        assert visualizations == {}
 
     def test_concatenated_layers(self, synthetic_data):
         """Test tracker with concatenated layers."""
@@ -557,7 +566,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, projections = tracker.analyze(
+        scalars, projections, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -569,6 +578,7 @@ class TestActivationTracker:
 
         assert "regression/concatenated_projected" in projections
         assert "pca/concatenated_pca" in projections
+        assert visualizations == {}
 
     def test_uniform_weights(self, synthetic_data):
         """Test tracker with uniform weights."""
@@ -582,7 +592,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, _ = tracker.analyze(
+        scalars, _, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -590,6 +600,7 @@ class TestActivationTracker:
         )
 
         assert "regression/layer_0_r2" in scalars
+        assert visualizations == {}
 
     def test_multiple_configs_efficiency(self, synthetic_data):
         """Test that tracker efficiently pre-computes only needed preprocessing modes."""
@@ -612,7 +623,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, projections = tracker.analyze(
+        scalars, projections, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -626,6 +637,7 @@ class TestActivationTracker:
         assert "pca_all_tokens/layer_0_pca" in projections
         assert "pca_last_token/layer_0_pca" in projections
         assert "regression_concat/concatenated_projected" in projections
+        assert visualizations == {}
 
     def test_tracker_accepts_torch_inputs(self, synthetic_data):
         """ActivationTracker should handle PyTorch tensors via conversion."""
@@ -651,7 +663,7 @@ class TestActivationTracker:
             name: torch.tensor(np.asarray(layer)) for name, layer in synthetic_data["activations"].items()
         }
 
-        scalars, projections = tracker.analyze(
+        scalars, projections, visualizations = tracker.analyze(
             inputs=torch_inputs,
             beliefs=torch_beliefs,
             probs=torch_probs,
@@ -660,314 +672,103 @@ class TestActivationTracker:
 
         assert "regression/layer_0_r2" in scalars
         assert "pca/layer_0_pca" in projections
+        assert visualizations == {}
 
-
-class TestTupleBeliefStates:
-    """Test activation tracker with tuple belief states for factored processes."""
-
-    @pytest.fixture
-    def factored_belief_data(self):
-        """Create synthetic data with factored belief states."""
-        batch_size = 4
-        seq_len = 5
-        d_layer0 = 8
-        d_layer1 = 12
-
-        inputs = jnp.array(
-            [
-                [1, 2, 3, 4, 5],
-                [1, 2, 3, 6, 7],
-                [1, 2, 8, 9, 10],
-                [1, 2, 3, 4, 11],
-            ]
+    def test_tracker_builds_visualizations(self, synthetic_data, monkeypatch):
+        """Tracker should build configured visualization payloads."""
+        monkeypatch.setattr(
+            "simplexity.activations.activation_visualizations.build_altair_chart",
+            lambda plot_cfg, registry, controls=None: {
+                "backend": "altair",
+                "layers": len(plot_cfg.layers),
+            },
         )
-
-        # Factored beliefs: 2 factors with dimensions 3 and 2
-        factor_0 = jnp.ones((batch_size, seq_len, 3)) * 0.3
-        factor_1 = jnp.ones((batch_size, seq_len, 2)) * 0.7
-        factored_beliefs = (factor_0, factor_1)
-
-        probs = jnp.ones((batch_size, seq_len)) * 0.1
-
-        activations = {
-            "layer_0": jnp.ones((batch_size, seq_len, d_layer0)) * 0.3,
-            "layer_1": jnp.ones((batch_size, seq_len, d_layer1)) * 0.7,
+        monkeypatch.setattr(
+            "simplexity.activations.activation_visualizations.build_plotly_figure",
+            lambda plot_cfg, registry, controls=None: {
+                "backend": "plotly",
+                "layers": len(plot_cfg.layers),
+            },
+        )
+        viz_cfg = {
+            "name": "pca_projection",
+            "data_mapping": {
+                "mappings": {
+                    "pc0": {"source": "projections", "key": "pca", "component": 0},
+                    "belief_state": {"source": "belief_states", "reducer": "argmax"},
+                }
+            },
+            "controls": {"slider": "step", "dropdown": "layer"},
+            "layer": {
+                "geometry": {"type": "point"},
+                "aesthetics": {
+                    "x": {"field": "pc0", "type": "quantitative"},
+                    "color": {"field": "belief_state", "type": "nominal"},
+                },
+            },
         }
-
-        return {
-            "inputs": inputs,
-            "factored_beliefs": factored_beliefs,
-            "probs": probs,
-            "activations": activations,
-            "batch_size": batch_size,
-            "seq_len": seq_len,
-            "factor_0_dim": 3,
-            "factor_1_dim": 2,
-            "d_layer0": d_layer0,
-            "d_layer1": d_layer1,
-        }
-
-    def test_prepare_activations_accepts_tuple_beliefs(self, factored_belief_data):
-        """prepare_activations should accept and preserve tuple belief states."""
-        result = prepare_activations(
-            factored_belief_data["inputs"],
-            factored_belief_data["factored_beliefs"],
-            factored_belief_data["probs"],
-            factored_belief_data["activations"],
-            prepare_options=PrepareOptions(
-                last_token_only=True,
-                concat_layers=False,
-                use_probs_as_weights=False,
-            ),
-        )
-
-        assert result.belief_states is not None
-        assert isinstance(result.belief_states, tuple)
-        assert len(result.belief_states) == 2
-
-        batch_size = factored_belief_data["batch_size"]
-        assert result.belief_states[0].shape == (batch_size, factored_belief_data["factor_0_dim"])
-        assert result.belief_states[1].shape == (batch_size, factored_belief_data["factor_1_dim"])
-
-    def test_prepare_activations_tuple_beliefs_all_tokens(self, factored_belief_data):
-        """Tuple beliefs should work with all tokens mode."""
-        result = prepare_activations(
-            factored_belief_data["inputs"],
-            factored_belief_data["factored_beliefs"],
-            factored_belief_data["probs"],
-            factored_belief_data["activations"],
-            prepare_options=PrepareOptions(
-                last_token_only=False,
-                concat_layers=False,
-                use_probs_as_weights=False,
-            ),
-        )
-
-        assert result.belief_states is not None
-        assert isinstance(result.belief_states, tuple)
-        assert len(result.belief_states) == 2
-
-        # With deduplication, we expect fewer samples than batch_size * seq_len
-        n_prefixes = result.belief_states[0].shape[0]
-        assert result.belief_states[0].shape == (n_prefixes, factored_belief_data["factor_0_dim"])
-        assert result.belief_states[1].shape == (n_prefixes, factored_belief_data["factor_1_dim"])
-        assert result.activations["layer_0"].shape[0] == n_prefixes
-
-    def test_prepare_activations_torch_tuple_beliefs(self, factored_belief_data):
-        """prepare_activations should accept tuple of PyTorch tensors."""
-        torch = pytest.importorskip("torch")
-
-        torch_factor_0 = torch.tensor(np.asarray(factored_belief_data["factored_beliefs"][0]))
-        torch_factor_1 = torch.tensor(np.asarray(factored_belief_data["factored_beliefs"][1]))
-        torch_beliefs = (torch_factor_0, torch_factor_1)
-
-        result = prepare_activations(
-            factored_belief_data["inputs"],
-            torch_beliefs,
-            factored_belief_data["probs"],
-            factored_belief_data["activations"],
-            prepare_options=PrepareOptions(
-                last_token_only=True,
-                concat_layers=False,
-                use_probs_as_weights=False,
-            ),
-        )
-
-        assert result.belief_states is not None
-        assert isinstance(result.belief_states, tuple)
-        assert len(result.belief_states) == 2
-        # Should be converted to JAX arrays
-        assert isinstance(result.belief_states[0], jnp.ndarray)
-        assert isinstance(result.belief_states[1], jnp.ndarray)
-
-    def test_prepare_activations_numpy_tuple_beliefs(self, factored_belief_data):
-        """prepare_activations should accept tuple of numpy arrays."""
-        np_factor_0 = np.asarray(factored_belief_data["factored_beliefs"][0])
-        np_factor_1 = np.asarray(factored_belief_data["factored_beliefs"][1])
-        np_beliefs = (np_factor_0, np_factor_1)
-
-        result = prepare_activations(
-            factored_belief_data["inputs"],
-            np_beliefs,
-            factored_belief_data["probs"],
-            factored_belief_data["activations"],
-            prepare_options=PrepareOptions(
-                last_token_only=True,
-                concat_layers=False,
-                use_probs_as_weights=False,
-            ),
-        )
-
-        assert result.belief_states is not None
-        assert isinstance(result.belief_states, tuple)
-        assert len(result.belief_states) == 2
-        # Should be converted to JAX arrays
-        assert isinstance(result.belief_states[0], jnp.ndarray)
-        assert isinstance(result.belief_states[1], jnp.ndarray)
-
-    def test_linear_regression_with_to_factors_true(self, factored_belief_data):
-        """LinearRegressionAnalysis with to_factors=True should regress to each factor separately."""
-        analysis = LinearRegressionAnalysis(to_factors=True)
-
-        prepared = prepare_activations(
-            factored_belief_data["inputs"],
-            factored_belief_data["factored_beliefs"],
-            factored_belief_data["probs"],
-            factored_belief_data["activations"],
-            prepare_options=PrepareOptions(
-                last_token_only=True,
-                concat_layers=False,
-                use_probs_as_weights=False,
-            ),
-        )
-
-        scalars, projections = analysis.analyze(
-            activations=prepared.activations,
-            belief_states=prepared.belief_states,
-            weights=prepared.weights,
-        )
-
-        # Should have separate metrics for each factor
-        # Format is: layer_name_factor_idx/metric_name
-        assert "layer_0_factor_0/r2" in scalars
-        assert "layer_0_factor_1/r2" in scalars
-        assert "layer_0_factor_0/rmse" in scalars
-        assert "layer_0_factor_1/rmse" in scalars
-        assert "layer_0_factor_0/mae" in scalars
-        assert "layer_0_factor_1/mae" in scalars
-        assert "layer_0_factor_0/dist" in scalars
-        assert "layer_0_factor_1/dist" in scalars
-
-        assert "layer_1_factor_0/r2" in scalars
-        assert "layer_1_factor_1/r2" in scalars
-
-        # Should have separate projections for each factor
-        assert "layer_0_factor_0/projected" in projections
-        assert "layer_0_factor_1/projected" in projections
-        assert "layer_1_factor_0/projected" in projections
-        assert "layer_1_factor_1/projected" in projections
-
-        # Check projection shapes
-        batch_size = factored_belief_data["batch_size"]
-        assert projections["layer_0_factor_0/projected"].shape == (batch_size, factored_belief_data["factor_0_dim"])
-        assert projections["layer_0_factor_1/projected"].shape == (batch_size, factored_belief_data["factor_1_dim"])
-
-    def test_linear_regression_svd_with_to_factors_true(self, factored_belief_data):
-        """LinearRegressionSVDAnalysis with to_factors=True should regress to each factor separately."""
-        analysis = LinearRegressionSVDAnalysis(to_factors=True, rcond_values=[1e-10])
-
-        prepared = prepare_activations(
-            factored_belief_data["inputs"],
-            factored_belief_data["factored_beliefs"],
-            factored_belief_data["probs"],
-            factored_belief_data["activations"],
-            prepare_options=PrepareOptions(
-                last_token_only=True,
-                concat_layers=False,
-                use_probs_as_weights=False,
-            ),
-        )
-
-        scalars, projections = analysis.analyze(
-            activations=prepared.activations,
-            belief_states=prepared.belief_states,
-            weights=prepared.weights,
-        )
-
-        # Should have separate metrics for each factor including best_rcond
-        assert "layer_0_factor_0/r2" in scalars
-        assert "layer_0_factor_1/r2" in scalars
-        assert "layer_0_factor_0/best_rcond" in scalars
-        assert "layer_0_factor_1/best_rcond" in scalars
-
-        # Should have separate projections for each factor
-        assert "layer_0_factor_0/projected" in projections
-        assert "layer_0_factor_1/projected" in projections
-
-    def test_tracker_with_factored_beliefs(self, factored_belief_data):
-        """ActivationTracker should work with tuple belief states."""
         tracker = ActivationTracker(
             {
-                "regression": LinearRegressionAnalysis(
-                    last_token_only=True,
-                    concat_layers=False,
-                    to_factors=True,
-                ),
                 "pca": PcaAnalysis(
-                    n_components=2,
-                    last_token_only=True,
+                    n_components=1,
+                    last_token_only=False,
                     concat_layers=False,
                 ),
-            }
+            },
+            visualizations={"pca": [viz_cfg]},
         )
 
-        scalars, projections = tracker.analyze(
-            inputs=factored_belief_data["inputs"],
-            beliefs=factored_belief_data["factored_beliefs"],
-            probs=factored_belief_data["probs"],
-            activations=factored_belief_data["activations"],
+        _, _, visualizations = tracker.analyze(
+            inputs=synthetic_data["inputs"],
+            beliefs=synthetic_data["beliefs"],
+            probs=synthetic_data["probs"],
+            activations=synthetic_data["activations"],
         )
 
-        # Regression should have per-factor metrics
-        assert "regression/layer_0_factor_0/r2" in scalars
-        assert "regression/layer_0_factor_1/r2" in scalars
+        key = "pca/pca_projection"
+        assert key in visualizations
+        payload = visualizations[key]
+        assert not payload.dataframe.empty
+        assert payload.controls is not None
+        assert payload.controls.slider is not None
+        assert payload.controls.slider.field == "step"
+        assert set(payload.dataframe["layer"]) == {"layer_0", "layer_1"}
 
-        # PCA should still work (doesn't use belief states)
-        assert "pca/layer_0_variance_explained" in scalars
+    def test_controls_accumulate_steps_conflict(self):
+        """Controls should forbid accumulate_steps with slider targeting step."""
+        with pytest.raises(ConfigValidationError):
+            ActivationVisualizationControlsConfig(slider="step", accumulate_steps=True)
 
-        # Projections should be present
-        assert "regression/layer_0_factor_0/projected" in projections
-        assert "regression/layer_0_factor_1/projected" in projections
-        assert "pca/layer_0_pca" in projections
 
-    def test_single_factor_tuple(self, synthetic_data):
-        """Test with a single-factor tuple (edge case)."""
-        # Create single-factor tuple
-        single_factor = (synthetic_data["beliefs"],)
+class TestScalarSeriesMapping:
+    """Tests for scalar_series dataframe construction."""
 
-        result = prepare_activations(
-            synthetic_data["inputs"],
-            single_factor,
-            synthetic_data["probs"],
-            synthetic_data["activations"],
-            prepare_options=PrepareOptions(
-                last_token_only=True,
-                concat_layers=False,
-                use_probs_as_weights=False,
-            ),
+    def test_infers_indices_when_not_provided(self):
+        mapping = ScalarSeriesMapping(
+            key_template="{layer}_metric_{index}",
+            index_field="component",
+            value_field="score",
         )
+        metadata_columns = {"step": np.array([0])}
+        scalars = {
+            "test_analysis/layer_0_metric_1": 0.1,
+            "test_analysis/layer_0_metric_2": 0.2,
+            "test_analysis/layer_1_metric_1": 0.3,
+        }
+        df = _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0", "layer_1"], "test_analysis")
 
-        assert result.belief_states is not None
-        assert isinstance(result.belief_states, tuple)
-        assert len(result.belief_states) == 1
-        assert result.belief_states[0].shape == (synthetic_data["batch_size"], synthetic_data["belief_dim"])
+        assert set(df["component"]) == {1, 2}
+        assert set(df[df["layer"] == "layer_0"]["component"]) == {1, 2}
+        assert set(df[df["layer"] == "layer_1"]["component"]) == {1}
 
-    def test_three_factor_tuple(self, factored_belief_data):
-        """Test with three factors to ensure generalization."""
-        batch_size = factored_belief_data["batch_size"]
-        seq_len = factored_belief_data["seq_len"]
-
-        # Add a third factor
-        factor_0 = jnp.ones((batch_size, seq_len, 3)) * 0.3
-        factor_1 = jnp.ones((batch_size, seq_len, 2)) * 0.5
-        factor_2 = jnp.ones((batch_size, seq_len, 4)) * 0.7
-        three_factor_beliefs = (factor_0, factor_1, factor_2)
-
-        result = prepare_activations(
-            factored_belief_data["inputs"],
-            three_factor_beliefs,
-            factored_belief_data["probs"],
-            factored_belief_data["activations"],
-            prepare_options=PrepareOptions(
-                last_token_only=True,
-                concat_layers=False,
-                use_probs_as_weights=False,
-            ),
+    def test_infer_indices_errors_when_missing(self):
+        mapping = ScalarSeriesMapping(
+            key_template="{layer}_metric_{index}",
+            index_field="k",
+            value_field="value",
         )
+        metadata_columns = {"step": np.array([0])}
+        scalars = {}
 
-        assert result.belief_states is not None
-        assert isinstance(result.belief_states, tuple)
-        assert len(result.belief_states) == 3
-        assert result.belief_states[0].shape == (batch_size, 3)
-        assert result.belief_states[1].shape == (batch_size, 2)
-        assert result.belief_states[2].shape == (batch_size, 4)
+        with pytest.raises(ConfigValidationError):
+            _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0"], "test_analysis")
