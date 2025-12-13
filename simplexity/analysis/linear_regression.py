@@ -283,6 +283,23 @@ def _split_concat_results(
     return results
 
 
+def get_robust_basis(matrix: jax.Array) -> jax.Array:
+    """Extracts an orthonormal basis for the column space of the matrx.
+
+    Handles rank deficiency gracefully by discarding directions associated with singular values below a
+    certain tolerance.
+    """
+    u, s, _ = jnp.linalg.svd(matrix, full_matrices=False)
+
+    max_dim = max(matrix.shape)
+    eps = jnp.finfo(matrix.dtype).eps
+    tol = s[0] * max_dim * eps
+
+    valid_dims = s > tol
+    basis = u[:, valid_dims]
+    return basis
+
+
 def _compute_subspace_orthogonality(
     coeffs_pair: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
