@@ -422,7 +422,7 @@ def _compute_all_pairwise_orthogonality(
     scalars = {}
     arrays = {}
     factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
-    basis_list = [get_robust_basis(coeffs) for coeffs in coeffs_list]  # ensures full rank and orthonormal basis
+    basis_list = [get_robust_basis(coeffs) for coeffs in coeffs_list]  # computes orthonormal basis of coeff matrix
     for i, j in factor_pairs:
         basis_pair = [basis_list[i], basis_list[j]]
         orthogonality_scalars, orthogonality_arrays = _compute_subspace_orthogonality(basis_pair)
