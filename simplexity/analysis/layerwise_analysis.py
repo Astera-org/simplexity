@@ -44,26 +44,26 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     unexpected = set(provided) - allowed
     if unexpected:
         raise ValueError(f"Unexpected linear_regression kwargs: {sorted(unexpected)}")
-    fit_intercept = bool(provided.get("fit_intercept", True))
-    concat_belief_states = bool(provided.get("concat_belief_states", False))
-    compute_subspace_orthogonality = bool(provided.get("compute_subspace_orthogonality", False))
+    resolved_kwargs = {}
+    resolved_kwargs["fit_intercept"] = bool(provided.get("fit_intercept", True))
+    resolved_kwargs["concat_belief_states"] = bool(provided.get("concat_belief_states", False))
+    resolved_kwargs["compute_subspace_orthogonality"] = bool(provided.get("compute_subspace_orthogonality", False))
     use_svd = bool(provided.get("use_svd", False))
+    resolved_kwargs["use_svd"] = use_svd
     rcond_values = provided.get("rcond_values")
-    if rcond_values is not None:
-        if not isinstance(rcond_values, (list, tuple)):
-            raise TypeError("rcond_values must be a sequence of floats")
-        if len(rcond_values) == 0:
-            raise ValueError("rcond_values must not be empty")
-        if not use_svd:
-            SIMPLEXITY_LOGGER.warning("rcond_values are only used when use_svd is True")
-        rcond_values = tuple(float(v) for v in rcond_values)
-    return {
-        "fit_intercept": fit_intercept,
-        "concat_belief_states": concat_belief_states,
-        "compute_subspace_orthogonality": compute_subspace_orthogonality,
-        "use_svd": use_svd,
-        "rcond_values": rcond_values,
-    }
+    if use_svd:
+        if rcond_values is not None:
+            if not isinstance(rcond_values, (list, tuple)):
+                raise TypeError("rcond_values must be a sequence of floats")
+            if len(rcond_values) == 0:
+                raise ValueError("rcond_values must not be empty")
+            if not use_svd:
+                SIMPLEXITY_LOGGER.warning("rcond_values are only used when use_svd is True")
+            rcond_values = tuple(float(v) for v in rcond_values)
+        resolved_kwargs["rcond_values"] = rcond_values
+    elif rcond_values is not None:
+        raise ValueError("rcond_values are only used when use_svd is True")
+    return resolved_kwargs
 
 
 def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
