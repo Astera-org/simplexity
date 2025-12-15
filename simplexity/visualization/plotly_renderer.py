@@ -172,13 +172,9 @@ def _build_faceted_figure(
             for col_idx, col_val in enumerate(col_values, start=1):
                 cell_df = source_df.copy()
                 if row_field:
-                    filtered = cell_df[cell_df[row_field].astype(str) == row_val]
-                    assert isinstance(filtered, pd.DataFrame)
-                    cell_df = filtered
+                    cell_df = cell_df.loc[cell_df[row_field].astype(str) == row_val]
                 if col_field:
-                    filtered = cell_df[cell_df[col_field].astype(str) == col_val]
-                    assert isinstance(filtered, pd.DataFrame)
-                    cell_df = filtered
+                    cell_df = cell_df.loc[cell_df[col_field].astype(str) == col_val]
 
                 if cell_df.empty:
                     traces_by_cell[(row_idx, col_idx)] = []
@@ -235,9 +231,7 @@ def _build_faceted_figure(
         initial_step = slider_values[0] if slider_values else None
         initial_df = working_df
         if initial_step is not None and slider_field in working_df.columns:
-            filtered = working_df[working_df[slider_field] == initial_step]
-            assert isinstance(filtered, pd.DataFrame)
-            initial_df = filtered
+            initial_df = working_df.loc[working_df[slider_field] == initial_step]
 
         traces_by_cell = build_facet_traces(initial_df)
         for (row_idx, col_idx), traces in traces_by_cell.items():
@@ -247,8 +241,7 @@ def _build_faceted_figure(
         # Build frames for slider animation
         frames = []
         for step_val in slider_values:
-            step_filtered = working_df[working_df[slider_field] == step_val]
-            assert isinstance(step_filtered, pd.DataFrame)
+            step_filtered = working_df.loc[working_df[slider_field] == step_val]
             frame_traces_by_cell = build_facet_traces(step_filtered, show_legend=False)
             frame_traces: list[Any] = []
             for row_idx, col_idx in sorted(frame_traces_by_cell.keys()):
@@ -290,9 +283,7 @@ def _build_faceted_figure(
         initial_step = slider_values[0] if slider_values else None
         initial_df = working_df
         if initial_step is not None and slider_field in working_df.columns:
-            filtered = working_df[working_df[slider_field] == initial_step]
-            assert isinstance(filtered, pd.DataFrame)
-            initial_df = filtered
+            initial_df = working_df.loc[working_df[slider_field] == initial_step]
 
         traces_by_cell = build_facet_traces(initial_df)
         for (row_idx, col_idx), traces in traces_by_cell.items():
@@ -302,8 +293,7 @@ def _build_faceted_figure(
         # Build frames for slider animation
         frames = []
         for step_val in slider_values:
-            step_filtered = working_df[working_df[slider_field] == step_val]
-            assert isinstance(step_filtered, pd.DataFrame)
+            step_filtered = working_df.loc[working_df[slider_field] == step_val]
             frame_traces_by_cell = build_facet_traces(step_filtered, show_legend=False)
             frame_traces: list[Any] = []
             for row_idx, col_idx in sorted(frame_traces_by_cell.keys()):
@@ -869,8 +859,7 @@ def _build_layer_filtered_scatter3d(
     available: list[Any] = []
 
     for option in options:
-        subset = df[df[field_name] == option]
-        assert isinstance(subset, pd.DataFrame)
+        subset = df.loc[df[field_name] == option]
         if subset.empty:
             continue
         layer_index = len(available)
@@ -940,8 +929,7 @@ def _build_layer_filtered_scatter2d(
     available: list[Any] = []
 
     for option in options:
-        subset = df[df[field_name] == option]
-        assert isinstance(subset, pd.DataFrame)
+        subset = df.loc[df[field_name] == option]
         if subset.empty:
             continue
         layer_index = len(available)
@@ -1017,15 +1005,14 @@ def _build_slider_scatter(
     frames_by_value: dict[str, list[Any]] = {str(value): [] for value in slider_values}
 
     for option in layer_options:
-        subset = df if option is None else df[df[layer_field] == option]
+        subset = df if option is None else df.loc[df[layer_field] == option]
         if subset.empty:
             continue
         layer_index = len(available_layers)
         available_layers.append(option)
         layer_label = str(option) if option is not None else layer.name
 
-        initial_subset = subset[subset[slider_field] == slider_values[0]]
-        assert isinstance(initial_subset, pd.DataFrame)
+        initial_subset = subset.loc[subset[slider_field] == slider_values[0]]
         subset_traces = _scatter_traces(
             initial_subset,
             x_field,
@@ -1048,8 +1035,7 @@ def _build_slider_scatter(
         trace_ranges.append((start, len(traces)))
 
         for slider_value in slider_values:
-            slider_subset = subset[subset[slider_field] == slider_value]
-            assert isinstance(slider_subset, pd.DataFrame)
+            slider_subset = subset.loc[subset[slider_field] == slider_value]
             frame_traces = _scatter_traces(
                 slider_subset,
                 x_field,
@@ -1368,9 +1354,7 @@ def _scatter2d_traces(
 def _subset_for_spec(df: pd.DataFrame, color_field: str | None, spec: ColorGroupSpec) -> pd.DataFrame:
     if spec.mode != "discrete" or color_field is None:
         return df
-    result = df[df[color_field] == spec.value]
-    assert isinstance(result, pd.DataFrame)
-    return result
+    return df.loc[df[color_field] == spec.value]
 
 
 def _build_marker(
@@ -1429,8 +1413,7 @@ def _build_color_discrete_map(
         return None
     if color_field not in df.columns:
         return None
-    series = df[color_field]
-    assert isinstance(series, pd.Series)
+    series: pd.Series = df.loc[:, color_field]
     if _series_is_literal_color(series):
         return None
     palette = qualitative_colors.Plotly
@@ -1446,8 +1429,7 @@ def _build_color_group_specs(
 ) -> list[ColorGroupSpec]:
     if color_field is None or color_field not in df.columns:
         return [ColorGroupSpec(label=None, value=None, constant_color=None, mode="none")]
-    series = df[color_field]
-    assert isinstance(series, pd.Series)
+    series: pd.Series = df.loc[:, color_field]
     if _series_is_literal_color(series):
         return [ColorGroupSpec(label=None, value=None, constant_color=None, mode="literal")]
     if color_cfg and color_cfg.type in {"nominal", "ordinal"}:

@@ -94,7 +94,8 @@ def _resolve_belief_states(belief_states: np.ndarray, ref: ActivationVisualizati
         return np.argmax(np_array, axis=1)
     if ref.reducer == "l2_norm":
         return np.linalg.norm(np_array, axis=1)
-    assert not isinstance(ref.component, str), "Component patterns should be expanded before resolution"
+    if isinstance(ref.component, str):
+        raise ConfigValidationError("Component indices should be expanded before resolution")
     component = ref.component if ref.component is not None else 0
     if component < 0 or component >= np_array.shape[1]:
         raise ConfigValidationError(
@@ -130,7 +131,8 @@ def _resolve_field(
 
     if ref.source == "projections":
         array = _lookup_projection_array(projections, layer_name, ref.key, analysis_concat_layers)
-        assert not isinstance(ref.component, str), "Component patterns should be expanded before resolution"
+        if isinstance(ref.component, str):
+            raise ConfigValidationError("Component indices should be expanded before resolution")
         return _maybe_component(array, ref.component)
 
     if ref.source == "belief_states":

@@ -33,8 +33,7 @@ def _dict_to_visualization_dataclass[T](data: dict[str, Any], schema: type[T]) -
     It handles nested dataclasses, lists, dicts, and optional fields.
     """
     if not is_dataclass(schema):
-        # Not a dataclass, return as-is
-        return data  # type: ignore[return-value]
+        raise TypeError(f"Expected a dataclass type, got {schema}")
 
     try:
         type_hints = get_type_hints(schema)
@@ -80,13 +79,8 @@ def _convert_field_value(value: Any, field_type: Any) -> Any:
             }
         return dict(value)
 
-    # Handle Optional[T] (Union[T, None])
-    if origin is type(None) or (hasattr(origin, "__origin__") and origin.__origin__ is type(None)):
-        return value
-    # UnionType for T | None
-    import types
-
-    if origin in {types.UnionType, type(None).__class__}:
+    # Handle Optional[T] / T | None (any Union containing None)
+    if type(None) in args:
         non_none_args = [arg for arg in args if arg is not type(None)]
         if non_none_args:
             return _convert_field_value(value, non_none_args[0])
