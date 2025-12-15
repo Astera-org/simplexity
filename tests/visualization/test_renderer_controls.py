@@ -176,13 +176,16 @@ def test_plotly_renderer_adds_layer_dropdown_menu():
 
     figure = build_plotly_figure(plot_cfg, registry, controls=controls)
 
-    assert figure.layout.updatemenus
-    menu = figure.layout.updatemenus[0]
+    layout = figure.to_dict()["layout"]
+    assert layout["updatemenus"]
+    menu = layout["updatemenus"][0]
     assert len(menu["buttons"]) == 2
     assert [button["label"] for button in menu["buttons"]] == ["layer_0", "layer_1"]
     # First trace should be visible initially, remaining traces hidden until selected.
-    assert figure.data[0].visible is True
-    assert all(trace.visible is False for trace in figure.data[1:])
+    figure_dict = figure.to_dict()
+    traces = figure_dict["data"]
+    assert traces[0]["visible"] is True
+    assert all(trace.get("visible") is False for trace in traces[1:])
 
 
 def test_plotly_renderer_adds_step_slider():
@@ -205,7 +208,8 @@ def test_plotly_renderer_adds_step_slider():
 
     figure = build_plotly_figure(plot_cfg, registry, controls=controls)
 
-    assert figure.layout.sliders
+    layout = figure.to_dict()["layout"]
+    assert layout["sliders"]
     assert len(figure.frames) == 3
 
 
@@ -225,5 +229,6 @@ def test_plotly_renderer_preserves_literal_colors():
 
     figure = build_plotly_figure(plot_cfg, registry)
 
-    assert figure.data
-    assert list(figure.data[0].marker.color) == ["#00ff00", "#ff0000"]
+    traces = figure.to_dict()["data"]
+    assert traces
+    assert list(traces[0]["marker"]["color"]) == ["#00ff00", "#ff0000"]

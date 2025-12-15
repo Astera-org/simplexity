@@ -5,7 +5,7 @@ import pytest
 import torch
 from torch.optim import SGD
 
-from simplexity.lr_schedulers import WindowedReduceLROnPlateau
+from simplexity.optimization.lr_schedulers import WindowedReduceLROnPlateau
 
 
 @pytest.fixture

@@ -49,7 +49,7 @@ def _build_metadata_columns(
     return base
 
 
-def _extract_base_column_name(column: str, group_value: str, original_field_pattern: str | None) -> str:
+def _extract_base_column_name(column: str, group_value: str) -> str:
     """Extract base column name by removing group index from expanded column name.
 
     For column='factor_0_prob_0' with group_value='0', returns 'prob_0'.
@@ -302,7 +302,7 @@ def _build_dataframe_for_mappings(
 
                 # Add group-specific columns with base names (strip group index)
                 for column, ref in group_col_refs.items():
-                    base_col_name = _extract_base_column_name(column, group_val, None)
+                    base_col_name = _extract_base_column_name(column, group_val)
                     group_data[base_col_name] = _resolve_field(
                         ref,
                         layer_name,

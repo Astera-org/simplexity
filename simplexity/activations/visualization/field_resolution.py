@@ -72,7 +72,8 @@ def _resolve_belief_states(belief_states: np.ndarray, ref: ActivationVisualizati
                 f"Belief states have 3 dimensions (samples, factors, states) but no `factor` was specified. "
                 f"Shape: {np_array.shape}"
             )
-        assert not isinstance(ref.factor, str), "Factor patterns should be expanded before resolution"
+        if isinstance(ref.factor, str):
+            raise ConfigValidationError("Factor patterns should be expanded before resolution")
         factor_idx = ref.factor
         if factor_idx < 0 or factor_idx >= np_array.shape[1]:
             raise ConfigValidationError(

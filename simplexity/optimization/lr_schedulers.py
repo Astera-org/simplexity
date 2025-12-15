@@ -7,7 +7,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
-class WindowedReduceLROnPlateau(ReduceLROnPlateau):  # pylint: disable=abstract-method
+class WindowedReduceLROnPlateau(ReduceLROnPlateau):
     """ReduceLROnPlateau with windowed average loss comparison.
 
     Instead of comparing individual loss values, this scheduler compares the
@@ -62,7 +62,7 @@ class WindowedReduceLROnPlateau(ReduceLROnPlateau):  # pylint: disable=abstract-
         self._loss_window: deque[float] = deque(maxlen=window_size)
         self._step_count = 0
 
-    def step(self, metrics: float | Any, epoch: int | None = None) -> None:  # type: ignore[override]
+    def step(self, metrics: float, epoch: int | None = None) -> None:  # type: ignore[override]
         """Record a loss value and potentially update LR based on windowed average.
 
         Losses are accumulated every call. The underlying scheduler is only

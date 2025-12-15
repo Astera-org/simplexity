@@ -521,17 +521,17 @@ class TestDataframeBuilders:
 
     def test_extract_base_column_name_with_group_pattern(self):
         """Test extracting base column name with group value pattern."""
-        result = _extract_base_column_name("factor_0_projected", "0", "factor_*")
+        result = _extract_base_column_name("factor_0_projected", "0")
         assert result == "projected"
 
     def test_extract_base_column_name_no_pattern(self):
         """Test extracting base column name when no pattern."""
-        result = _extract_base_column_name("my_column", "0", None)
+        result = _extract_base_column_name("my_column", "0")
         assert result == "my_column"
 
     def test_extract_base_column_name_no_match(self):
         """Test extracting base column name when pattern doesn't match."""
-        result = _extract_base_column_name("other_column", "0", "factor_*")
+        result = _extract_base_column_name("other_column", "0")
         assert result == "other_column"
 
     def test_scalar_series_metadata_with_arrays(self):

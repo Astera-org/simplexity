@@ -38,7 +38,7 @@ def build_plotly_figure(
     plot_cfg: PlotConfig,
     data_registry: DataRegistry | Mapping[str, pd.DataFrame],
     controls: Any | None = None,
-):
+) -> go.Figure:
     """Render a PlotConfig into a Plotly Figure (currently 3D scatter only)."""
     if not plot_cfg.layers:
         raise ConfigValidationError("PlotConfig.layers must include at least one layer for Plotly rendering.")
@@ -100,10 +100,8 @@ def _build_faceted_figure(
     if layer_field is None:
         working_df = df
     else:
-        layer_independent_filter = df[df[layer_field] == "_no_layer_"]
-        layer_dependent_filter = df[(df[layer_field] != "_no_layer_") & (df[layer_field] == layer_options[0])]
-        assert isinstance(layer_independent_filter, pd.DataFrame)
-        assert isinstance(layer_dependent_filter, pd.DataFrame)
+        layer_independent_filter = df.loc[df[layer_field] == "_no_layer_"]
+        layer_dependent_filter = df.loc[(df[layer_field] != "_no_layer_") & (df[layer_field] == layer_options[0])]
         working_df = pd.concat([layer_dependent_filter, layer_independent_filter], ignore_index=True)
 
     # Get unique values for faceting dimensions
@@ -431,22 +429,17 @@ def _add_faceted_layer_dropdown(
 ) -> None:
     """Add a layer dropdown menu that rebuilds traces for faceted figures."""
     # Get layer-independent rows (e.g., ground truth from belief states)
-    layer_independent_filtered = df[df[layer_field] == "_no_layer_"]
-    assert isinstance(layer_independent_filtered, pd.DataFrame)
-    layer_independent = layer_independent_filtered
+    layer_independent = df.loc[df[layer_field] == "_no_layer_"]
 
     buttons = []
     for layer_opt in layer_options:
         # Combine layer-specific rows with layer-independent rows
-        layer_specific_filtered = df[(df[layer_field] != "_no_layer_") & (df[layer_field] == layer_opt)]
-        assert isinstance(layer_specific_filtered, pd.DataFrame)
+        layer_specific_filtered = df.loc[(df[layer_field] != "_no_layer_") & (df[layer_field] == layer_opt)]
         layer_df = pd.concat([layer_specific_filtered, layer_independent], ignore_index=True)
 
         # If there's a slider, filter to initial step
         if slider_field and slider_values:
-            filtered = layer_df[layer_df[slider_field] == slider_values[0]]
-            assert isinstance(filtered, pd.DataFrame)
-            layer_df = filtered
+            layer_df = layer_df.loc[layer_df[slider_field] == slider_values[0]]
 
         # Build traces for this layer
         all_traces: list[Any] = []
@@ -454,13 +447,9 @@ def _add_faceted_layer_dropdown(
             for col_idx, col_val in enumerate(col_values, start=1):
                 cell_df = layer_df.copy()
                 if row_field:
-                    filtered = cell_df[cell_df[row_field].astype(str) == row_val]
-                    assert isinstance(filtered, pd.DataFrame)
-                    cell_df = filtered
+                    cell_df = cell_df.loc[cell_df[row_field].astype(str) == row_val]
                 if col_field:
-                    filtered = cell_df[cell_df[col_field].astype(str) == col_val]
-                    assert isinstance(filtered, pd.DataFrame)
-                    cell_df = filtered
+                    cell_df = cell_df.loc[cell_df[col_field].astype(str) == col_val]
 
                 if cell_df.empty:
                     continue
@@ -1492,7 +1481,7 @@ def _normalize_option(value: Any) -> Any:
 def _series_is_literal_color(series: pd.Series) -> bool:
     if series.empty:
         return False
-    return series.dropna().map(_value_is_color_string).all()
+    return bool(series.dropna().map(_value_is_color_string).all())
 
 
 def _value_is_color_string(value: Any) -> bool:

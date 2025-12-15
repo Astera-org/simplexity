@@ -33,6 +33,7 @@ def _dict_to_visualization_dataclass[T](data: dict[str, Any], schema: type[T]) -
     It handles nested dataclasses, lists, dicts, and optional fields.
     """
     if not is_dataclass(schema):
+        # Not a dataclass, return as-is
         return data  # type: ignore[return-value]
 
     try:

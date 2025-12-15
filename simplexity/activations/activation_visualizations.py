@@ -6,8 +6,10 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+import altair
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 
 from simplexity.activations.visualization.data_structures import (
     _SCALAR_INDEX_SENTINEL,
@@ -220,7 +222,7 @@ def render_visualization(
     plot_cfg: PlotConfig,
     dataframe: pd.DataFrame,
     controls: VisualizationControlsState | None,
-) -> Any:
+) -> altair.Chart | go.Figure:
     """Render a visualization figure from plot configuration and dataframe."""
     registry = DictDataRegistry({plot_cfg.data.source: dataframe})
     return _render_plot(plot_cfg, registry, controls)

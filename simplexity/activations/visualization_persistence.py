@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import pandas as pd
+import plotly.graph_objects as go
 
 from simplexity.activations.activation_visualizations import (
     ActivationVisualizationPayload,
@@ -38,7 +39,7 @@ def save_visualization_payloads(
         analysis_dir = step_dir / payload.analysis
         analysis_dir.mkdir(parents=True, exist_ok=True)
         output_path = analysis_dir / f"{payload.name}.html"
-        if payload.backend == "plotly":
+        if isinstance(figure, go.Figure):
             figure.write_html(str(output_path))
         else:
             figure.save(str(output_path), format="html")

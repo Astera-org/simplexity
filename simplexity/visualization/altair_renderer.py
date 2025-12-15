@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 try:
-    import altair as alt  # type: ignore import-not-found
+    import altair as alt  # type: ignore [import-not-found]
 except ImportError as exc:  # pragma: no cover - dependency missing only in unsupported envs
     raise ImportError("Altair is required for visualization rendering. Install `altair` to continue.") from exc
 

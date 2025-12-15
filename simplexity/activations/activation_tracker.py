@@ -25,7 +25,10 @@ from simplexity.activations.visualization.pattern_utils import (
     parse_range,
     substitute_range,
 )
-from simplexity.activations.visualization_configs import build_activation_visualization_config
+from simplexity.activations.visualization_configs import (
+    ActivationVisualizationConfig,
+    build_activation_visualization_config,
+)
 from simplexity.activations.visualization_persistence import save_visualization_payloads
 from simplexity.utils.analysis_utils import build_deduplicated_dataset
 from simplexity.utils.pytorch_utils import torch_to_jax
@@ -137,7 +140,7 @@ class ActivationTracker:
         """Initialize the tracker with named analyses."""
         self._analyses = analyses
         self._default_backend = default_backend
-        self._visualization_specs: dict[str, list[Any]] = {}
+        self._visualization_specs: dict[str, list[ActivationVisualizationConfig]] = {}
         self._scalar_history: dict[str, list[tuple[int, float]]] = {}
         if visualizations:
             for name, cfgs in visualizations.items():

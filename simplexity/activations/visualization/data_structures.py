@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import altair
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 
 from simplexity.visualization.structured_configs import PlotConfig
 
@@ -27,7 +29,7 @@ class ActivationVisualizationPayload:
     analysis: str
     name: str
     backend: str
-    figure: Any
+    figure: altair.Chart | go.Figure
     dataframe: pd.DataFrame
     controls: VisualizationControlsState | None
     plot_config: PlotConfig

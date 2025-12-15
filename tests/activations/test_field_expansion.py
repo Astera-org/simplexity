@@ -694,21 +694,21 @@ class TestExtractBaseColumnName:
 
     def test_extract_prefix_pattern(self):
         """Test that base column names are correctly extracted from prefixed patterns."""
-        assert _extract_base_column_name("factor_0_prob_0", "0", None) == "prob_0"
-        assert _extract_base_column_name("factor_1_prob_0", "1", None) == "prob_0"
-        assert _extract_base_column_name("factor_2_belief", "2", None) == "belief"
+        assert _extract_base_column_name("factor_0_prob_0", "0") == "prob_0"
+        assert _extract_base_column_name("factor_1_prob_0", "1") == "prob_0"
+        assert _extract_base_column_name("factor_2_belief", "2") == "belief"
 
     def test_extract_suffix_only_pattern_returns_original(self):
         """Test that base column names are unchanged when no prefix pattern is present."""
         # Columns without a _N_suffix pattern are returned unchanged
         # This ensures we don't strip meaningful parts of column names
-        assert _extract_base_column_name("factor_0", "0", None) == "factor_0"
-        assert _extract_base_column_name("group_1", "1", None) == "group_1"
+        assert _extract_base_column_name("factor_0", "0") == "factor_0"
+        assert _extract_base_column_name("group_1", "1") == "group_1"
 
     def test_no_pattern_match_returns_original(self):
         """Test that base column names are unchanged when no pattern match is found."""
-        assert _extract_base_column_name("prob_0", "0", None) == "prob_0"
-        assert _extract_base_column_name("some_column", "1", None) == "some_column"
+        assert _extract_base_column_name("prob_0", "0") == "prob_0"
+        assert _extract_base_column_name("some_column", "1") == "some_column"
 
 
 class TestCombinedMappingSection:

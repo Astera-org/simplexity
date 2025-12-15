@@ -215,7 +215,8 @@ class TestBuildPlotlyFigure:
         plot_cfg = PlotConfig(data=DataConfig(source="main"), layers=[layer], guides=guides)
         registry = DictDataRegistry({"main": df})
         fig = build_plotly_figure(plot_cfg, registry)
-        assert "My Plot" in fig.layout.title.text
+        layout = fig.to_dict()["layout"]
+        assert "My Plot" in layout["title"]["text"]
 
     def test_applies_size(self):
         """Test that plot size is applied."""
@@ -231,8 +232,9 @@ class TestBuildPlotlyFigure:
         plot_cfg = PlotConfig(data=DataConfig(source="main"), layers=[layer], size=size)
         registry = DictDataRegistry({"main": df})
         fig = build_plotly_figure(plot_cfg, registry)
-        assert fig.layout.width == 800
-        assert fig.layout.height == 600
+        layout = fig.to_dict()["layout"]
+        assert layout["width"] == 800
+        assert layout["height"] == 600
 
 
 class TestFacetedFigures:
@@ -381,7 +383,8 @@ class TestScatterWithEncodings:
         )
         registry = DictDataRegistry({"main": df})
         fig = build_plotly_figure(plot_cfg, registry)
-        assert fig.layout.plot_bgcolor == "#f0f0f0"
+        layout = fig.to_dict()["layout"]
+        assert layout["plot_bgcolor"] == "#f0f0f0"
 
     def test_faceted_figure_with_color_encoding(self):
         """Test faceted figure with color encoding."""
