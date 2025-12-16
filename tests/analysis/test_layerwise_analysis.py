@@ -7,7 +7,6 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-import jax
 import jax.numpy as jnp
 import pytest
 

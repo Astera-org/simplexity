@@ -1120,7 +1120,6 @@ class TestTupleBeliefStates:
         assert result.belief_states[2].shape == (batch_size, 4)
 
 
-
 class TestScalarSeriesMapping:
     """Tests for scalar_series dataframe construction."""
 
