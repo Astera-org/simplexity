@@ -85,6 +85,7 @@ class LinearRegressionAnalysis(LayerwiseAnalysis):
         skip_first_token: bool = False,
         fit_intercept: bool = True,
         concat_belief_states: bool = False,
+        compute_subspace_orthogonality: bool = False,
     ) -> None:
         super().__init__(
             analysis_type="linear_regression",
@@ -92,7 +93,11 @@ class LinearRegressionAnalysis(LayerwiseAnalysis):
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,
             skip_first_token=skip_first_token,
-            analysis_kwargs={"fit_intercept": fit_intercept, "concat_belief_states": concat_belief_states},
+            analysis_kwargs={
+                "fit_intercept": fit_intercept,
+                "concat_belief_states": concat_belief_states,
+                "compute_subspace_orthogonality": compute_subspace_orthogonality,
+            },
         )
 
 
@@ -109,8 +114,13 @@ class LinearRegressionSVDAnalysis(LayerwiseAnalysis):
         rcond_values: Sequence[float] | None = None,
         fit_intercept: bool = True,
         concat_belief_states: bool = False,
+        compute_subspace_orthogonality: bool = False,
     ) -> None:
-        analysis_kwargs: dict[str, Any] = {"fit_intercept": fit_intercept, "concat_belief_states": concat_belief_states}
+        analysis_kwargs: dict[str, Any] = {
+            "fit_intercept": fit_intercept,
+            "concat_belief_states": concat_belief_states,
+            "compute_subspace_orthogonality": compute_subspace_orthogonality,
+        }
         if rcond_values is not None:
             analysis_kwargs["rcond_values"] = tuple(rcond_values)
         super().__init__(
