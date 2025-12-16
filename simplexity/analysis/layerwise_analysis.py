@@ -1,21 +1,27 @@
 """Composable layer-wise analysis orchestration."""
 
+# pylint: disable=all # Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all # Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 import jax
 
-from simplexity.analysis.linear_regression import (
-    layer_linear_regression,
-    layer_linear_regression_svd,
-)
+from simplexity.analysis.linear_regression import layer_linear_regression
 from simplexity.analysis.pca import (
     DEFAULT_VARIANCE_THRESHOLDS,
     layer_pca_analysis,
 )
+from simplexity.logger import SIMPLEXITY_LOGGER
 
 AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]]
 
@@ -34,35 +40,48 @@ class AnalysisRegistration:
 
 def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     provided = dict(kwargs or {})
-    allowed = {"fit_intercept", "to_factors"}
+    allowed = {"fit_intercept", "concat_belief_states", "compute_subspace_orthogonality", "use_svd", "rcond_values"}
     unexpected = set(provided) - allowed
     if unexpected:
         raise ValueError(f"Unexpected linear_regression kwargs: {sorted(unexpected)}")
-    fit_intercept = bool(provided.get("fit_intercept", True))
-    to_factors = bool(provided.get("to_factors", False))
-    return {"fit_intercept": fit_intercept, "to_factors": to_factors}
-
-
-def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
-    provided = dict(kwargs or {})
-    allowed = {"fit_intercept", "rcond_values", "to_factors"}
-    unexpected = set(provided) - allowed
-    if unexpected:
-        raise ValueError(f"Unexpected linear_regression_svd kwargs: {sorted(unexpected)}")
-    fit_intercept = bool(provided.get("fit_intercept", True))
-    to_factors = bool(provided.get("to_factors", False))
+    resolved_kwargs = {}
+    resolved_kwargs["fit_intercept"] = bool(provided.get("fit_intercept", True))
+    resolved_kwargs["concat_belief_states"] = bool(provided.get("concat_belief_states", False))
+    resolved_kwargs["compute_subspace_orthogonality"] = bool(provided.get("compute_subspace_orthogonality", False))
     rcond_values = provided.get("rcond_values")
-    if rcond_values is not None:
-        if not isinstance(rcond_values, (list, tuple)):
-            raise TypeError("rcond_values must be a sequence of floats")
-        if len(rcond_values) == 0:
-            raise ValueError("rcond_values must not be empty")
-        rcond_values = tuple(float(v) for v in rcond_values)
-    return {
-        "fit_intercept": fit_intercept,
-        "to_factors": to_factors,
-        "rcond_values": rcond_values,
-    }
+    should_use_svd = rcond_values is not None
+    use_svd = bool(provided.get("use_svd", should_use_svd))
+    resolved_kwargs["use_svd"] = use_svd
+    if use_svd:
+        if rcond_values is not None:
+            if not isinstance(rcond_values, (list, tuple)):
+                raise TypeError("rcond_values must be a sequence of floats")
+            if len(rcond_values) == 0:
+                raise ValueError("rcond_values must not be empty")
+            if not use_svd:
+                SIMPLEXITY_LOGGER.warning("rcond_values are only used when use_svd is True")
+            rcond_values = tuple(float(v) for v in rcond_values)
+        resolved_kwargs["rcond_values"] = rcond_values
+    elif rcond_values is not None:
+        raise ValueError("rcond_values are only used when use_svd is True")
+    return resolved_kwargs
+
+
+def set_use_svd(
+    fn: ValidatorFn,
+) -> ValidatorFn:
+    """Decorator to set use_svd to True in the kwargs and remove it from output to avoid duplicate with partial."""
+
+    def wrapper(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+        if kwargs and "use_svd" in kwargs and not kwargs["use_svd"]:
+            raise ValueError("use_svd cannot be set to False for linear_regression_svd")
+        modified_kwargs = dict(kwargs) if kwargs else {}  # Make a copy to avoid mutating the input
+        modified_kwargs["use_svd"] = True
+        resolved = fn(modified_kwargs)
+        resolved.pop("use_svd", None)  # Remove use_svd to avoid duplicate argument with partial
+        return resolved
+
+    return wrapper
 
 
 def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -97,9 +116,9 @@ ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
         validator=_validate_linear_regression_kwargs,
     ),
     "linear_regression_svd": AnalysisRegistration(
-        fn=layer_linear_regression_svd,
+        fn=partial(layer_linear_regression, use_svd=True),
         requires_belief_states=True,
-        validator=_validate_linear_regression_svd_kwargs,
+        validator=set_use_svd(_validate_linear_regression_kwargs),
     ),
     "pca": AnalysisRegistration(
         fn=layer_pca_analysis,
