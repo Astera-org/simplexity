@@ -1,0 +1,5 @@
+defaults:
+  - data: synthetic_cloud
+  - plot: scatter3d
+
+output_html: scatter3d_demo.html

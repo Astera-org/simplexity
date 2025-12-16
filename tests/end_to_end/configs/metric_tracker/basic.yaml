@@ -1,0 +1,14 @@
+# @package _global_
+
+metric_tracker:
+  name: basic_tracker
+  instance:
+    _target_: simplexity.metrics.metric_tracker.MetricTracker
+    metric_names:
+      - tokens
+      - learning_rate
+      - loss
+      - parameter_norm
+    metric_kwargs:
+      ma_window_size: 100
+      ema_gamma: 0.9

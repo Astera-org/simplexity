@@ -23,7 +23,7 @@ from simplexity.utils.pytorch_utils import jax_to_torch
 
 
 def generate_data_batch(
-    gen_states: jax.Array,
+    gen_states: jax.Array | tuple[jax.Array, ...],
     data_generator: GenerativeProcess,
     batch_size: int,
     sequence_len: int,
@@ -31,7 +31,7 @@ def generate_data_batch(
     bos_token: int | None = None,
     eos_token: int | None = None,
     device: str | torch.device | None = None,
-) -> tuple[jax.Array, torch.Tensor, torch.Tensor]:
+) -> tuple[jax.Array | tuple[jax.Array, ...], torch.Tensor, torch.Tensor]:
     """Generate a batch of data.
 
     Args:
@@ -60,7 +60,7 @@ def generate_data_batch(
 
 
 def generate_data_batch_with_full_history(
-    gen_states: jax.Array,
+    gen_states: jax.Array | tuple[jax.Array, ...],
     data_generator: GenerativeProcess,
     batch_size: int,
     sequence_len: int,

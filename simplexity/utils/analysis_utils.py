@@ -179,6 +179,7 @@ def build_deduplicated_dataset(
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
     select_last_token: bool = False,
+    skip_first_token: bool = False,
 ) -> DeduplicatedDataset:
     """Deduplicate everything by prefix."""
     if select_last_token:
@@ -187,6 +188,7 @@ def build_deduplicated_dataset(
             beliefs,
             probs,
             activations_by_layer,
+            skip_first_token=skip_first_token,
         )
     else:
         return build_prefix_dataset(
@@ -194,6 +196,7 @@ def build_deduplicated_dataset(
             beliefs,
             probs,
             activations_by_layer,
+            skip_first_token=skip_first_token,
         )
 
 
@@ -202,8 +205,17 @@ def build_prefix_dataset(
     beliefs: jax.Array | tuple[jax.Array, ...],
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
+    skip_first_token: bool = False,
 ) -> DeduplicatedDataset:
     """Deduplicate everything by prefix."""
+    if skip_first_token:
+        inputs = inputs[:, 1:]
+        if isinstance(beliefs, tuple):
+            beliefs = tuple(b[:, 1:, ...] for b in beliefs)
+        else:
+            beliefs = beliefs[:, 1:, ...]
+        probs = probs[:, 1:]
+        activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
     prefix_to_indices = make_prefix_groups(inputs)
 
     dedup_beliefs, prefixes = (
@@ -236,8 +248,17 @@ def build_last_token_dataset(
     beliefs: jax.Array | tuple[jax.Array, ...],
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
+    skip_first_token: bool = False,
 ) -> DeduplicatedDataset:
     """Deduplicate everything by full sequence."""
+    if skip_first_token:
+        inputs = inputs[:, 1:]
+        if isinstance(beliefs, tuple):
+            beliefs = tuple(b[:, 1:, ...] for b in beliefs)
+        else:
+            beliefs = beliefs[:, 1:, ...]
+        probs = probs[:, 1:]
+        activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
     if isinstance(beliefs, tuple):
         beliefs = tuple(b[:, -1, :] for b in beliefs)
     else:

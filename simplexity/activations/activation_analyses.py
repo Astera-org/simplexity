@@ -27,6 +27,11 @@ class ActivationAnalysis(Protocol):
         ...
 
     @property
+    def skip_first_token(self) -> bool:
+        """Whether to skip the first token (useful for off-manifold initial states)."""
+        ...
+
+    @property
     def requires_belief_states(self) -> bool:
         """Whether the analysis needs belief state targets."""
         ...
@@ -52,6 +57,7 @@ class PcaAnalysis(LayerwiseAnalysis):
         last_token_only: bool = False,
         concat_layers: bool = False,
         use_probs_as_weights: bool = True,
+        skip_first_token: bool = False,
     ) -> None:
         analysis_kwargs: dict[str, Any] = {
             "n_components": n_components,
@@ -62,6 +68,7 @@ class PcaAnalysis(LayerwiseAnalysis):
             last_token_only=last_token_only,
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,
+            skip_first_token=skip_first_token,
             analysis_kwargs=analysis_kwargs,
         )
 
@@ -75,15 +82,17 @@ class LinearRegressionAnalysis(LayerwiseAnalysis):
         last_token_only: bool = False,
         concat_layers: bool = False,
         use_probs_as_weights: bool = True,
+        skip_first_token: bool = False,
         fit_intercept: bool = True,
-        to_factors: bool = False,
+        concat_belief_states: bool = False,
     ) -> None:
         super().__init__(
             analysis_type="linear_regression",
             last_token_only=last_token_only,
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,
-            analysis_kwargs={"fit_intercept": fit_intercept, "to_factors": to_factors},
+            skip_first_token=skip_first_token,
+            analysis_kwargs={"fit_intercept": fit_intercept, "concat_belief_states": concat_belief_states},
         )
 
 
@@ -96,11 +105,12 @@ class LinearRegressionSVDAnalysis(LayerwiseAnalysis):
         last_token_only: bool = False,
         concat_layers: bool = False,
         use_probs_as_weights: bool = True,
+        skip_first_token: bool = False,
         rcond_values: Sequence[float] | None = None,
         fit_intercept: bool = True,
-        to_factors: bool = False,
+        concat_belief_states: bool = False,
     ) -> None:
-        analysis_kwargs: dict[str, Any] = {"fit_intercept": fit_intercept, "to_factors": to_factors}
+        analysis_kwargs: dict[str, Any] = {"fit_intercept": fit_intercept, "concat_belief_states": concat_belief_states}
         if rcond_values is not None:
             analysis_kwargs["rcond_values"] = tuple(rcond_values)
         super().__init__(
@@ -108,5 +118,6 @@ class LinearRegressionSVDAnalysis(LayerwiseAnalysis):
             last_token_only=last_token_only,
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,
+            skip_first_token=skip_first_token,
             analysis_kwargs=analysis_kwargs,
         )

@@ -1,0 +1,37 @@
+# Example: Plot RMSE value over training steps, split by layer
+# This demonstrates the scalar_pattern feature for temporal metric visualization
+
+name: tracker_with_rmse_tracking
+instance:
+  _target_: simplexity.activations.activation_tracker.ActivationTracker
+  analyses:
+    regression:
+      instance:
+        _target_: simplexity.activations.activation_analyses.LinearRegressionSVDAnalysis
+        last_token_only: false
+        concat_layers: false
+        use_probs_as_weights: true
+        rcond_values: [1e-15, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]
+      visualizations:
+        # Temporal visualization: RMSE over training steps
+        - name: rmse_over_time
+          controls:
+            accumulate_steps: true
+            dropdown: layer  # User can filter by layer in UI
+          data_mapping:
+            mappings:
+              rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_post_rmse"}
+          backend: altair
+          layer:
+            geometry:
+              type: line
+              props: {}
+            aesthetics:
+              x: {field: step, type: quantitative, title: "Training Step"}
+              y: {field: rmse, type: quantitative, title: "RMSE"}
+              color: {field: layer, type: nominal, title: "Layer"}
+              strokeDash: {field: layer, type: nominal}
+          size: {width: 800, height: 400}
+          guides:
+            title: "RMSE Evolution Across Training"
+            subtitle: "Tracking model convergence by layer"
