@@ -1,7 +1,9 @@
-num_steps: 100000
-batch_size: 64
-sequence_len: 65
+num_steps: 500000
+batch_size: 128
+sequence_len: 8
 log_cheap_every: 10
-log_expensive_every: 1000
+log_expensive_every: 10000
 evaluate_every: 100
 checkpoint_every: 20000
+validation_multiplier: 10
+scheduler_every: 100

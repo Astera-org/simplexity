@@ -119,6 +119,7 @@ class LayerwiseAnalysis:
         last_token_only: bool = False,
         concat_layers: bool = False,
         use_probs_as_weights: bool = True,
+        skip_first_token: bool = False,
         analysis_kwargs: Mapping[str, Any] | None = None,
     ) -> None:
         if analysis_type not in ANALYSIS_REGISTRY:
@@ -130,6 +131,7 @@ class LayerwiseAnalysis:
         self._last_token_only = last_token_only
         self._concat_layers = concat_layers
         self._use_probs_as_weights = use_probs_as_weights
+        self._skip_first_token = skip_first_token
 
     @property
     def last_token_only(self) -> bool:
@@ -150,6 +152,11 @@ class LayerwiseAnalysis:
     def requires_belief_states(self) -> bool:
         """Whether the analysis needs belief state targets."""
         return self._requires_belief_states
+
+    @property
+    def skip_first_token(self) -> bool:
+        """Whether to skip the first token (useful for off-manifold initial states)."""
+        return self._skip_first_token
 
     def analyze(
         self,

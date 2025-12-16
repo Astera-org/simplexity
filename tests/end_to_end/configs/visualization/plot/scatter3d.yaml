@@ -1,0 +1,26 @@
+backend: plotly
+data:
+  source: cloud
+layers:
+  - name: cluster_cloud
+    geometry:
+      type: point
+      props:
+        size: 8
+    aesthetics:
+      x: { field: x, type: quantitative, title: "X position" }
+      y: { field: y, type: quantitative, title: "Y position" }
+      z: { field: z, type: quantitative, title: "Z position" }
+      color: { field: cluster, type: nominal, title: Cluster }
+      size: { field: magnitude, type: quantitative }
+      opacity: { value: 0.85 }
+      tooltip:
+        - { field: cluster, type: nominal, title: Cluster }
+        - { field: magnitude, type: quantitative, title: Magnitude }
+size:
+  width: 800
+  height: 600
+guides:
+  title: "Synthetic 3D Scatter"
+  subtitle: "Points sampled from multivariate Gaussians"
+  caption: "Configured entirely via Hydra YAML"
