@@ -978,7 +978,7 @@ class TestTupleBeliefStates:
             }
         )
 
-        scalars, projections = tracker.analyze(
+        scalars, projections, _ = tracker.analyze(
             inputs=factored_belief_data["inputs"],
             beliefs=factored_belief_data["factored_beliefs"],
             probs=factored_belief_data["probs"],

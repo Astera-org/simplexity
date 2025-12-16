@@ -15,7 +15,7 @@ from simplexity.activations.visualization_configs import (
     ActivationVisualizationFieldRef,
     CombinedMappingSection,
 )
-from simplexity.analysis.linear_regression import layer_linear_regression_svd
+from simplexity.analysis.linear_regression import layer_linear_regression
 from simplexity.exceptions import ConfigValidationError
 
 
@@ -339,8 +339,8 @@ class TestProjectionDataframeIntegration:
         beliefs_softmax = beliefs_softmax / beliefs_softmax.sum(axis=2, keepdims=True)
 
         belief_states = tuple(jnp.array(beliefs_softmax[:, f, :]) for f in range(n_factors))
-        scalars, projections = layer_linear_regression_svd(
-            jnp.array(ds), jnp.ones(n_samples) / n_samples, belief_states, to_factors=True
+        scalars, projections = layer_linear_regression(
+            jnp.array(ds), jnp.ones(n_samples) / n_samples, belief_states, use_svd=True
         )
 
         for f in range(n_factors):
