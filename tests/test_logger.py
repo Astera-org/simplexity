@@ -52,6 +52,7 @@ def test_get_log_files_with_files(tmp_path: Path) -> None:
     """Test that the log files are returned correctly."""
     test_1_log_file = str(tmp_path / "test_1.log")
     test_2_log_file = str(tmp_path / "test_2.log")
+    test_3_log_file = str(tmp_path / "test_3.log")
     logging.config.dictConfig(
         {
             "version": 1,
@@ -68,18 +69,25 @@ def test_get_log_files_with_files(tmp_path: Path) -> None:
                     "class": "logging.FileHandler",
                     "filename": test_2_log_file,
                 },
+                "file_3": {
+                    "class": "logging.FileHandler",
+                    "filename": test_3_log_file,
+                },
             },
             "loggers": {
                 "root": {
                     "handlers": ["stream", "file_2"],
                 },
                 "simplexity": {
-                    "handlers": ["file_1", "file_2"],
+                    "handlers": ["file_1", "file_3"],
+                },
+                "other": {
+                    "handlers": ["file_1"],
                 },
             },
         }
     )
 
     log_files = get_log_files()
-    assert len(log_files) == 2
-    assert set(log_files) == {test_1_log_file, test_2_log_file}
+    assert len(log_files) == 3
+    assert set(log_files) == {test_1_log_file, test_2_log_file, test_3_log_file}
