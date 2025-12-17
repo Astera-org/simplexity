@@ -10,6 +10,7 @@
 # the problematic imports checker that would crash during AST traversal.
 
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -147,6 +148,19 @@ def validate_uri(uri: str | None, field_name: str, is_none_allowed: bool = False
             raise ConfigValidationError(f"{field_name} must have a valid URI scheme (e.g., file://, http://, https://)")
     except Exception as e:
         raise ConfigValidationError(f"{field_name} is not a valid URI: {e}") from e
+
+
+def validate_path(path: str | None, field_name: str, is_none_allowed: bool = False, must_exist: bool = True) -> None:
+    """Validate that a string is a valid path."""
+    if is_none_allowed and path is None:
+        return
+    if not isinstance(path, str):
+        allowed_types = "a string or None" if is_none_allowed else "a string"
+        raise ConfigValidationError(f"{field_name} must be {allowed_types}, got {type(path)}")
+    if not path.strip():
+        raise ConfigValidationError(f"{field_name} cannot be empty")
+    if must_exist and not Path(path).exists():
+        raise ConfigValidationError(f"{field_name} does not exist: {path}")
 
 
 def validate_transition_matrices(transition_matrices: Any, field_name: str) -> None:
