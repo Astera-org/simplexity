@@ -38,7 +38,7 @@ class TestIsWindowedReduceLROnPlateauConfig:
 
     def test_is_windowed_reduce_lr_on_plateau_config(self):
         """Test that WindowedReduceLROnPlateau target is correctly identified."""
-        cfg = OmegaConf.create({"_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau"})
+        cfg = OmegaConf.create({"_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau"})
         assert is_windowed_reduce_lr_on_plateau_config(cfg) is True
 
     def test_is_windowed_reduce_lr_on_plateau_config_wrong_target(self):
@@ -62,7 +62,7 @@ class TestIsLrSchedulerConfig:
 
     def test_is_lr_scheduler_config_windowed(self):
         """Test is_lr_scheduler_config with WindowedReduceLROnPlateau target."""
-        cfg = OmegaConf.create({"_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau"})
+        cfg = OmegaConf.create({"_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau"})
         assert is_lr_scheduler_config(cfg) is True
 
     def test_is_lr_scheduler_config_other_scheduler(self):
@@ -162,7 +162,7 @@ class TestValidateWindowedReduceLROnPlateau:
         """Test validation passes with valid WindowedReduceLROnPlateau config."""
         cfg = OmegaConf.create(
             {
-                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                 "window_size": 10,
                 "update_every": 100,
                 "mode": "min",
@@ -180,7 +180,7 @@ class TestValidateWindowedReduceLROnPlateau:
         """Test validation passes with mode='max'."""
         cfg = OmegaConf.create(
             {
-                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                 "mode": "max",
             }
         )
@@ -190,7 +190,7 @@ class TestValidateWindowedReduceLROnPlateau:
         """Test validation fails with invalid mode."""
         cfg = OmegaConf.create(
             {
-                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                 "mode": "invalid",
             }
         )
@@ -201,7 +201,7 @@ class TestValidateWindowedReduceLROnPlateau:
         """Test validation fails with zero window_size."""
         cfg = OmegaConf.create(
             {
-                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                 "window_size": 0,
             }
         )
@@ -212,7 +212,7 @@ class TestValidateWindowedReduceLROnPlateau:
         """Test validation fails with zero update_every."""
         cfg = OmegaConf.create(
             {
-                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                 "update_every": 0,
             }
         )
@@ -223,7 +223,7 @@ class TestValidateWindowedReduceLROnPlateau:
         """Test validation fails with zero factor."""
         cfg = OmegaConf.create(
             {
-                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                 "factor": 0.0,
             }
         )
@@ -234,7 +234,7 @@ class TestValidateWindowedReduceLROnPlateau:
         """Test validation fails with negative patience."""
         cfg = OmegaConf.create(
             {
-                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                 "patience": -1,
             }
         )
@@ -245,7 +245,7 @@ class TestValidateWindowedReduceLROnPlateau:
         """Test validation fails with negative cooldown."""
         cfg = OmegaConf.create(
             {
-                "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                 "cooldown": -5,
             }
         )
@@ -273,7 +273,7 @@ class TestValidateLrSchedulerConfig:
         cfg = OmegaConf.create(
             {
                 "instance": {
-                    "_target_": "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+                    "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
                     "window_size": 10,
                     "update_every": 100,
                     "patience": 5,

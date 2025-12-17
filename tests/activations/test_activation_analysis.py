@@ -1119,6 +1119,51 @@ class TestTupleBeliefStates:
         assert result.belief_states[1].shape == (batch_size, 2)
         assert result.belief_states[2].shape == (batch_size, 4)
 
+    def test_compute_subspace_orthogonality(self, factored_belief_data):
+        """Test compute_subspace_orthogonality flag exposes metrics."""
+        prepared = prepare_activations(
+            factored_belief_data["inputs"],
+            factored_belief_data["factored_beliefs"],
+            factored_belief_data["probs"],
+            factored_belief_data["activations"],
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
+        )
+
+        # Standard Linear Regression
+        analysis = LinearRegressionAnalysis(
+            last_token_only=True,
+            compute_subspace_orthogonality=True,
+        )
+
+        scalars, projections = analysis.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
+
+        assert "layer_0_orthogonality_0_1/subspace_overlap" in scalars
+        assert "layer_0_orthogonality_0_1/max_singular_value" in scalars
+        assert "layer_0_orthogonality_0_1/participation_ratio" in scalars
+        assert "layer_0_orthogonality_0_1/effective_rank" in scalars
+
+        # SVD Linear Regression
+        analysis_svd = LinearRegressionSVDAnalysis(
+            last_token_only=True,
+            compute_subspace_orthogonality=True,
+        )
+
+        scalars_svd, _ = analysis_svd.analyze(
+            activations=prepared.activations,
+            belief_states=prepared.belief_states,
+            weights=prepared.weights,
+        )
+
+        assert "layer_0_orthogonality_0_1/subspace_overlap" in scalars_svd
+
 
 class TestScalarSeriesMapping:
     """Tests for scalar_series dataframe construction."""
