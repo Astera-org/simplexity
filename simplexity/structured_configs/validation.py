@@ -160,7 +160,7 @@ def validate_path(path: str | None, field_name: str, is_none_allowed: bool = Fal
     if not path.strip():
         raise ConfigValidationError(f"{field_name} cannot be empty")
     if must_exist and not Path(path).exists():
-        raise ConfigValidationError(f"{field_name} does not exist")
+        raise ConfigValidationError(f"{field_name} does not exist: {path}")
 
 
 def validate_transition_matrices(transition_matrices: Any, field_name: str) -> None:
