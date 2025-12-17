@@ -79,7 +79,7 @@ def is_windowed_reduce_lr_on_plateau_config(cfg: DictConfig) -> bool:
     """Check if the configuration is a WindowedReduceLROnPlateau scheduler configuration."""
     target = cfg.get("_target_", None)
     if isinstance(target, str):
-        return target == "simplexity.lr_schedulers.WindowedReduceLROnPlateau"
+        return target == "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau"
     return False
 
 
@@ -105,7 +105,7 @@ def is_lr_scheduler_target(target: str) -> bool:
     """Check if the target is a supported learning rate scheduler target."""
     return target in (
         "torch.optim.lr_scheduler.ReduceLROnPlateau",
-        "simplexity.lr_schedulers.WindowedReduceLROnPlateau",
+        "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
     )
 
 
