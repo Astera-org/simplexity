@@ -37,7 +37,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.logger import SIMPLEXITY_LOGGER, add_handlers_to_existing_loggers, get_log_files
+from simplexity.logger import SIMPLEXITY_LOGGER, add_handlers_to_existing_loggers, get_log_files, remove_log_files
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
@@ -693,38 +693,31 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     return components
 
 
-def _log_log_files(logger: Logger, log_files: list[str], logger_name: str | None = None) -> None:
+def _log_log_files(logger: Logger, log_files: list[str], logger_name: str | None = None) -> list[str]:
     """Log the log files to the loggers."""
     logger_name = logger_name or type(logger).__name__
+    successfully_saved: list[str] = []
     for log_file in log_files:
         try:
             logger.log_artifact(log_file)
-            SIMPLEXITY_LOGGER.info("[run] uploaded log file %s to logger %s", log_file, logger_name)
         except (MlflowException, RestException, FileNotFoundError, IsADirectoryError, PermissionError) as e:
             SIMPLEXITY_LOGGER.warning(
                 "[run] failed to upload log file %s to logger %s: %s", log_file, logger_name, e, exc_info=True
             )
-
-
-def _remove_log_files(log_files: list[str]) -> None:
-    """Remove the log files."""
-    for log_file in log_files:
-        try:
-            Path(log_file).unlink()
-        except FileNotFoundError:
-            SIMPLEXITY_LOGGER.debug("[run] log file %s does not exist", log_file)
-        except IsADirectoryError:
-            SIMPLEXITY_LOGGER.error("[run] log file %s is a directory", log_file)
-        except PermissionError as e:
-            SIMPLEXITY_LOGGER.error("[run] permission denied when removing log file %s: %s", log_file, e)
+        else:
+            successfully_saved.append(log_file)
+            SIMPLEXITY_LOGGER.info("[run] uploaded log file %s to logger %s", log_file, logger_name)
+    return successfully_saved
 
 
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
     log_files = get_log_files()
+    successfully_saved: set[str] = set()
     if components.loggers:
         for logger_key, logger in components.loggers.items():
-            _log_log_files(logger, log_files, logger_name=logger_key)
+            successfully_saved_to_logger = _log_log_files(logger, log_files, logger_name=logger_key)
+            successfully_saved.update(successfully_saved_to_logger)
             try:
                 logger.close()
             except Exception as e:
@@ -733,7 +726,7 @@ def _cleanup(components: Components) -> None:
     if components.persisters:
         for persister in components.persisters.values():
             persister.cleanup()
-    _remove_log_files(log_files)
+    remove_log_files(successfully_saved)
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:

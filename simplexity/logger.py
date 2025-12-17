@@ -5,7 +5,10 @@ It configures Python's warnings system to be captured by the logging system
 and creates a logger instance named "simplexity" for use throughout the package.
 """
 
+import contextlib
 import logging
+from collections.abc import Iterable
+from pathlib import Path
 
 # Configure Python's warnings system to be captured by the logging system.
 # This ensures that warnings issued by the warnings module are redirected to
@@ -77,3 +80,42 @@ def get_log_files() -> list[str]:
             [handler.baseFilename for handler in logger.handlers if isinstance(handler, logging.FileHandler)]
         )
     return list(set(log_files))
+
+
+def remove_file_handlers(logger: logging.Logger, log_file: str | None = None) -> None:
+    """Remove the file handlers for the log file."""
+    # Iterate over a copy because we mutate logger.handlers during removal.
+    for handler in list(logger.handlers):
+        if not isinstance(handler, logging.FileHandler):
+            continue
+
+        if log_file is None or handler.baseFilename == log_file:
+            logger.removeHandler(handler)
+            # Close to release file descriptors (important on some platforms).
+            with contextlib.suppress(OSError, ValueError):
+                handler.close()
+
+
+def remove_log_file(log_file: str | Path) -> None:
+    """Remove the log files."""
+    root_logger = logging.getLogger()
+    remove_file_handlers(root_logger, str(log_file))
+    for logger_name in logging.Logger.manager.loggerDict:
+        logger = logging.getLogger(logger_name)
+        remove_file_handlers(logger, str(log_file))
+    try:
+        Path(log_file).unlink()
+    except FileNotFoundError:
+        SIMPLEXITY_LOGGER.debug("[logger] log file %s does not exist", log_file)
+    except IsADirectoryError:
+        SIMPLEXITY_LOGGER.warning("[logger] log file %s is a directory", log_file)
+    except PermissionError:
+        SIMPLEXITY_LOGGER.error("[logger] permission denied when removing log file %s", log_file)
+
+
+def remove_log_files(log_files: Iterable[str] | None = None) -> None:
+    """Remove the log files."""
+    if log_files is None:
+        log_files = get_log_files()
+    for log_file in log_files:
+        remove_log_file(log_file)
