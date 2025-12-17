@@ -30,6 +30,7 @@ import jax
 import mlflow
 import torch
 from jax._src.config import StateContextManager
+from mlflow.exceptions import MlflowException, RestException
 from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
@@ -682,19 +683,47 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     return components
 
 
+def _log_log_files(logger: Logger, log_files: list[str], logger_name: str | None = None) -> None:
+    """Log the log files to the loggers."""
+    logger_name = logger_name or type(logger).__name__
+    for log_file in log_files:
+        try:
+            logger.log_artifact(log_file)
+            SIMPLEXITY_LOGGER.info("[run] uploaded log file %s to logger %s", log_file, logger_name)
+        except (MlflowException, RestException, FileNotFoundError, IsADirectoryError, PermissionError) as e:
+            SIMPLEXITY_LOGGER.warning(
+                "[run] failed to upload log file %s to logger %s: %s", log_file, logger_name, e, exc_info=True
+            )
+
+
+def _remove_log_files(log_files: list[str]) -> None:
+    """Remove the log files."""
+    for log_file in log_files:
+        try:
+            Path(log_file).unlink()
+        except FileNotFoundError:
+            SIMPLEXITY_LOGGER.debug("[run] log file %s does not exist", log_file)
+        except IsADirectoryError:
+            SIMPLEXITY_LOGGER.error("[run] log file %s is a directory", log_file)
+        except PermissionError as e:
+            SIMPLEXITY_LOGGER.error("[run] permission denied when removing log file %s: %s", log_file, e)
+
+
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
     log_files = get_log_files()
     if components.loggers:
-        for logger in components.loggers.values():
-            for log_file in log_files:
-                logger.log_artifact(log_file)
-            logger.close()
+        for logger_key, logger in components.loggers.items():
+            _log_log_files(logger, log_files, logger_name=logger_key)
+            try:
+                logger.close()
+            except Exception as e:
+                logging.warning(f"Failed to close logger {type(logger).__name__}: {e}", exc_info=True)
+
     if components.persisters:
         for persister in components.persisters.values():
             persister.cleanup()
-    for log_file in log_files:
-        os.remove(log_file)
+    _remove_log_files(log_files)
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -715,8 +744,11 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 return output
             except Exception as e:
                 SIMPLEXITY_LOGGER.error("[run] error: %s", e)
-                _cleanup(components)
-                raise e
+                try:
+                    _cleanup(components)
+                except Exception as cleanup_error:
+                    SIMPLEXITY_LOGGER.error("[run] error during cleanup: %s", cleanup_error, exc_info=True)
+                raise
 
         return wrapper
 
