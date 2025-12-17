@@ -14,11 +14,13 @@ management, and cleanup via the `managed_run` decorator.
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import configparser
 import logging
 import logging.config
 import os
 import random
 import subprocess
+import traceback
 import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
@@ -136,16 +138,24 @@ def _setup_python_logging(cfg: DictConfig) -> None:
     """Setup the logging."""
     logging_config_path = cfg.get("logging_config_path")
     if not logging_config_path:
+        SIMPLEXITY_LOGGER.debug("[logging] config path not found")
         return
     config_path = Path(logging_config_path)
-    if not config_path.is_absolute():
-        config_path = Path.cwd() / config_path
     if not config_path.exists():
-        config_path = Path.cwd().parent / config_path
-    if not config_path.exists():
+        SIMPLEXITY_LOGGER.warning("[Logging] config file not found: %s", config_path)
         return
-    logging.config.fileConfig(str(config_path), disable_existing_loggers=False)
-    add_handlers_to_existing_loggers()
+
+    try:
+        logging.config.fileConfig(str(config_path), disable_existing_loggers=False)
+        add_handlers_to_existing_loggers()
+    except (configparser.Error, ValueError, OSError) as e:
+        SIMPLEXITY_LOGGER.error(
+            "[logging] failed to load config from %s: %s\n%s",
+            config_path,
+            e,
+            "".join(traceback.format_exception(type(e), e, e.__traceback__)),
+            exc_info=True,
+        )
 
 
 def _setup_environment() -> None:
