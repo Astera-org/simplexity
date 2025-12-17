@@ -257,7 +257,7 @@ def _build_faceted_figure(
                 step_df = layer_df.loc[layer_df[slider_field] == step_val]
 
                 traces_by_cell = build_facet_traces(step_df, show_legend=False)
-                for (row_idx, col_idx) in sorted(traces_by_cell.keys()):
+                for row_idx, col_idx in sorted(traces_by_cell.keys()):
                     frame_traces.extend(traces_by_cell[(row_idx, col_idx)])
 
             frames.append(go.Frame(name=str(step_val), data=frame_traces))
