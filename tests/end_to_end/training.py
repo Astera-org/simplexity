@@ -82,6 +82,7 @@ class TrainingRunConfig:
     run_name: str
     seed: int
     tags: dict[str, str]
+    logging_config_path: str | None = None
 
 
 def _expand_init_state(

@@ -13,6 +13,7 @@ including validation of seed, tags, and MLFlow configuration fields.
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+from pathlib import Path
 from unittest.mock import call, patch
 
 import pytest
@@ -25,16 +26,20 @@ from simplexity.structured_configs.base import resolve_base_config, validate_bas
 class TestValidateBaseConfig:
     """Test validate_base_config."""
 
-    def test_validate_base_config_valid(self) -> None:
+    def test_validate_base_config_valid(self, tmp_path: Path) -> None:
         """Test validate_base_config with valid configs."""
         cfg = DictConfig({})
         validate_base_config(cfg)
+
+        logging_config_path = tmp_path / "logging.ini"
+        logging_config_path.touch()
 
         cfg = DictConfig(
             {
                 "device": "auto",
                 "seed": 42,
                 "tags": DictConfig({"key": "value"}),
+                "logging_config_path": str(logging_config_path),
                 "mlflow": DictConfig({"experiment_name": "test", "run_name": "test"}),
             }
         )
@@ -87,6 +92,12 @@ class TestValidateBaseConfig:
         # Tags with non-string values
         cfg = DictConfig({"tags": {"key": 123}})
         with pytest.raises(ConfigValidationError, match="BaseConfig.tags values must be strs"):
+            validate_base_config(cfg)
+
+    def test_validate_base_config_invalid_logging_config_path(self) -> None:
+        """Test validate_base_config with invalid logging_config_path."""
+        cfg = DictConfig({"logging_config_path": "does/not/exist.ini"})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.logging_config_path does not exist"):
             validate_base_config(cfg)
 
     def test_validate_base_config_invalid_mlflow(self) -> None:

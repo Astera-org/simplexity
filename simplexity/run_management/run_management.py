@@ -14,12 +14,15 @@ management, and cleanup via the `managed_run` decorator.
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import logging
+import logging.config
 import os
 import random
 import subprocess
 import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
+from pathlib import Path
 from typing import Any
 
 import hydra
@@ -31,7 +34,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.logger import SIMPLEXITY_LOGGER
+from simplexity.logger import SIMPLEXITY_LOGGER, add_handlers_to_existing_loggers, get_log_files
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
@@ -126,6 +129,22 @@ def _suppress_pydantic_field_attribute_warning() -> Iterator[None]:
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
         yield
+
+
+def _setup_python_logging(cfg: DictConfig) -> None:
+    """Setup the logging."""
+    logging_config_path = cfg.get("logging_config_path")
+    if not logging_config_path:
+        return
+    config_path = Path(logging_config_path)
+    if not config_path.is_absolute():
+        config_path = Path.cwd() / config_path
+    if not config_path.exists():
+        config_path = Path.cwd().parent / config_path
+    if not config_path.exists():
+        return
+    logging.config.fileConfig(str(config_path), disable_existing_loggers=False)
+    add_handlers_to_existing_loggers()
 
 
 def _setup_environment() -> None:
@@ -665,12 +684,17 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
 
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
+    log_files = get_log_files()
     if components.loggers:
         for logger in components.loggers.values():
+            for log_file in log_files:
+                logger.log_artifact(log_file)
             logger.close()
     if components.persisters:
         for persister in components.persisters.values():
             persister.cleanup()
+    for log_file in log_files:
+        os.remove(log_file)
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -678,8 +702,10 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            components = Components()
             try:
                 cfg = get_config(args, kwargs)
+                _setup_python_logging(cfg)
                 validate_base_config(cfg)
                 resolve_base_config(cfg, strict=strict)
                 with _setup_device(cfg), _setup_mlflow(cfg):
@@ -689,7 +715,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 return output
             except Exception as e:
                 SIMPLEXITY_LOGGER.error("[run] error: %s", e)
-                # TODO: cleanup
+                _cleanup(components)
                 raise e
 
         return wrapper
