@@ -9,11 +9,45 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import contextlib
+import functools
 import logging
 import logging.config
 from pathlib import Path
 
 from simplexity.logger import SIMPLEXITY_LOGGER, get_log_files
+
+
+@contextlib.contextmanager
+def preserve_logging_state():
+    """Context manager that preserves and restores the global logging configuration."""
+    # Save current logging state
+    saved_logger_dict = logging.root.manager.loggerDict.copy()
+    saved_root_handlers = logging.root.handlers.copy()
+    saved_root_level = logging.root.level
+
+    try:
+        yield
+    finally:
+        # Restore logging state
+        logging.shutdown()
+        # Clear current loggerDict and restore saved one
+        logging.root.manager.loggerDict.clear()
+        logging.root.manager.loggerDict.update(saved_logger_dict)
+        # Restore root handlers and level
+        logging.root.handlers = saved_root_handlers
+        logging.root.level = saved_root_level
+
+
+def with_preserved_logging_state(func):
+    """Decorator that preserves and restores the global logging configuration for a test function."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with preserve_logging_state():
+            return func(*args, **kwargs)
+
+    return wrapper
 
 
 def test_simplexity_logger() -> None:
@@ -22,6 +56,7 @@ def test_simplexity_logger() -> None:
     assert isinstance(SIMPLEXITY_LOGGER, logging.Logger)
 
 
+@with_preserved_logging_state
 def test_get_log_files_no_files() -> None:
     """Test that the log files are returned correctly."""
     assert not get_log_files()
@@ -32,7 +67,7 @@ def test_get_log_files_no_files() -> None:
             "handlers": {
                 "stream": {
                     "class": "logging.StreamHandler",
-                    "stream": "sys.stdout",
+                    "stream": "ext://sys.stdout",
                 }
             },
             "loggers": {
@@ -48,18 +83,20 @@ def test_get_log_files_no_files() -> None:
     assert not get_log_files()
 
 
+@with_preserved_logging_state
 def test_get_log_files_with_files(tmp_path: Path) -> None:
     """Test that the log files are returned correctly."""
     test_1_log_file = str(tmp_path / "test_1.log")
     test_2_log_file = str(tmp_path / "test_2.log")
     test_3_log_file = str(tmp_path / "test_3.log")
+
     logging.config.dictConfig(
         {
             "version": 1,
             "handlers": {
                 "stream": {
                     "class": "logging.StreamHandler",
-                    "stream": "sys.stdout",
+                    "stream": "ext://sys.stdout",
                 },
                 "file_1": {
                     "class": "logging.FileHandler",
