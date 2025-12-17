@@ -58,7 +58,7 @@ def add_handlers_to_existing_loggers() -> None:
 
         # Only add handlers to loggers that don't propagate (they need their own handlers)
         # or loggers that were created before fileConfig and might not have handlers
-        if not logger.propagate or not logger.handlers:
+        if not logger.propagate:
             for handler in root_logger.handlers:
                 # Check if logger already has this exact handler object (by identity, not similarity)
                 # This allows loggers to have multiple handlers of the same type (e.g., multiple
@@ -69,7 +69,8 @@ def add_handlers_to_existing_loggers() -> None:
 
 def get_log_files() -> list[str]:
     """Get the log files from all loggers."""
-    log_files = []
+    root_logger = logging.getLogger()
+    log_files = [handler.baseFilename for handler in root_logger.handlers if isinstance(handler, logging.FileHandler)]
     for logger_name in logging.Logger.manager.loggerDict:
         logger = logging.getLogger(logger_name)
         log_files.extend(
