@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run multiple Hydra experiments in parallel across GPUs or CPU.
+r"""Run multiple Hydra experiments in parallel across GPUs or CPU.
 
 simplexity-multirun is a CLI tool for running multiple Hydra experiments in
 parallel with proper device isolation. It's a simpler alternative to Ray or
@@ -143,13 +143,13 @@ def generate_override_combinations(sweeps: list[str]) -> list[str]:
 
     combinations = []
     for values in itertools.product(*value_lists):
-        override = " ".join(f"{k}={v}" for k, v in zip(keys, values))
+        override = " ".join(f"{k}={v}" for k, v in zip(keys, values, strict=True))
         combinations.append(override)
 
     return combinations
 
 
-def run_experiment(
+def run_experiment(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     script: str,
     config_name: str,
     overrides: str,
@@ -213,7 +213,7 @@ def run_experiment(
             "stdout": result.stdout[-2000:] if result.stdout else "",
             "stderr": result.stderr[-2000:] if result.stderr else "",
         }
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return {
             "job_num": job_num,
             "gpu": gpu_id,
@@ -223,7 +223,7 @@ def run_experiment(
         }
 
 
-def main() -> None:
+def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
         description="Run multiple Hydra experiments in parallel across GPUs",
@@ -295,6 +295,10 @@ def main() -> None:
     args = parser.parse_args()
 
     # Determine devices (GPUs or CPU workers)
+    gpus: list[int] | None = None
+    n_workers: int = 0
+    device_desc: str = ""
+
     if args.cpu:
         if args.workers is None:
             parser.error("--workers is required when using --cpu")
