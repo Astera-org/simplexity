@@ -9,6 +9,7 @@ class TestJob:
     """Tests for the Job dataclass."""
 
     def test_to_cmd_without_overrides(self) -> None:
+        """Verify to_cmd() produces correct command without overrides."""
         job = Job(
             script="train.py",
             config_name="config",
@@ -19,6 +20,7 @@ class TestJob:
         assert job.to_cmd() == ["uv", "run", "python", "train.py", "--config-name=config"]
 
     def test_to_cmd_with_overrides(self) -> None:
+        """Verify to_cmd() appends overrides to the command."""
         job = Job(
             script="train.py",
             config_name="config",
@@ -37,10 +39,12 @@ class TestJob:
         ]
 
     def test_device_str_gpu(self) -> None:
+        """Verify device_str shows GPU ID when gpu_id is set."""
         job = Job(script="train.py", config_name="config", overrides="", gpu_id=2, job_num=0)
         assert job.device_str == "GPU 2"
 
     def test_device_str_cpu(self) -> None:
+        """Verify device_str shows CPU when gpu_id is None."""
         job = Job(script="train.py", config_name="config", overrides="", gpu_id=None, job_num=0)
         assert job.device_str == "CPU"
 
