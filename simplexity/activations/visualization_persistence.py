@@ -25,20 +25,31 @@ def save_visualization_payloads(
     root: Path,
     step: int,
 ) -> Mapping[str, str]:
-    """Persist visualization payloads, accumulating history for slider controls."""
+    """Persist visualization payloads, accumulating history for slider controls.
+
+    Non-accumulated visualizations are saved to step-specific directories:
+        root/analysis/step_XXXXX/name.html
+
+    Accumulated visualizations (with slider on step) are saved to:
+        root/analysis/accumulated/name.html
+    """
     if not visualizations:
         return {}
 
     figure_names_to_paths = {}
-    step_dir = root / f"step_{step:05d}"
-    step_dir.mkdir(parents=True, exist_ok=True)
 
     for key, payload in visualizations.items():
         safe_name = key.replace("/", "_")
+        accumulated = _should_accumulate_steps(payload)
         figure = _maybe_accumulate_history(payload, root, safe_name, step)
-        analysis_dir = step_dir / payload.analysis
-        analysis_dir.mkdir(parents=True, exist_ok=True)
-        output_path = analysis_dir / f"{payload.name}.html"
+
+        if accumulated:
+            output_dir = root / payload.analysis / "accumulated"
+        else:
+            output_dir = root / payload.analysis / f"step_{step:05d}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        output_path = output_dir / f"{payload.name}.html"
         if isinstance(figure, go.Figure):
             figure.write_html(str(output_path))
         else:
