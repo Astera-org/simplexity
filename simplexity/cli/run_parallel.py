@@ -84,12 +84,56 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 
 from omegaconf import OmegaConf
 
 # Delay between starting jobs to avoid initialization race conditions
 JOB_START_DELAY_SECONDS = 5
+
+
+@dataclass(frozen=True)
+class Job:
+    """Represents a single experiment job to be executed.
+
+    Attributes:
+        script: Path to the Python script to run.
+        config_name: Hydra config name.
+        overrides: Space-separated Hydra overrides.
+        gpu_id: GPU ID to assign via CUDA_VISIBLE_DEVICES, or None for CPU-only.
+        job_num: Job number for logging and identification.
+    """
+
+    script: str
+    config_name: str
+    overrides: str
+    gpu_id: int | None
+    job_num: int
+
+    def to_cmd(self) -> list[str]:
+        """Render the full command list for this job.
+
+        Returns:
+            List of command arguments suitable for subprocess execution.
+        """
+        cmd = [
+            "uv",
+            "run",
+            "python",
+            self.script,
+            f"--config-name={self.config_name}",
+        ]
+
+        if self.overrides:
+            cmd.extend(self.overrides.split())
+
+        return cmd
+
+    @property
+    def device_str(self) -> str:
+        """Human-readable device description."""
+        return f"GPU {self.gpu_id}" if self.gpu_id is not None else "CPU"
 
 
 def load_sweep_file(path: str) -> list[str]:
@@ -149,49 +193,69 @@ def generate_override_combinations(sweeps: list[str]) -> list[str]:
     return combinations
 
 
-def run_experiment(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def generate_jobs(
     script: str,
     config_name: str,
-    overrides: str,
-    gpu_id: int | None,
-    job_num: int,
-    dry_run: bool = False,
-) -> dict:
-    """Run a single experiment on a specific GPU or CPU.
+    sweeps: list[str],
+    overrides: list[str],
+    gpus: list[int] | None,
+) -> list[Job]:
+    """Generate a list of jobs from sweep parameters and device configuration.
+
+    This is a pure function with no side effects, making it trivially testable.
 
     Args:
         script: Path to the Python script to run.
         config_name: Hydra config name.
-        overrides: Space-separated Hydra overrides.
-        gpu_id: GPU ID to assign via CUDA_VISIBLE_DEVICES, or None for CPU-only.
-        job_num: Job number for logging.
-        dry_run: If True, print command without executing.
+        sweeps: List of sweep strings like ['a=1,2', 'b=x,y']. Should include
+            any sweeps loaded from sweep files.
+        overrides: Explicit override strings (alternative to sweeps).
+        gpus: List of GPU IDs for round-robin assignment, or None for CPU mode.
+
+    Returns:
+        List of Job objects ready for dispatch.
+    """
+    if overrides:
+        override_list = overrides
+    elif sweeps:
+        override_list = generate_override_combinations(sweeps)
+    else:
+        override_list = [""]
+
+    jobs = []
+    for i, override_str in enumerate(override_list):
+        gpu_id = gpus[i % len(gpus)] if gpus is not None else None
+        jobs.append(
+            Job(
+                script=script,
+                config_name=config_name,
+                overrides=override_str,
+                gpu_id=gpu_id,
+                job_num=i,
+            )
+        )
+
+    return jobs
+
+
+def _run_single_job(job: Job) -> dict:
+    """Run a single experiment job.
+
+    This is an internal function called by dispatch_jobs via ProcessPoolExecutor.
+
+    Args:
+        job: The Job to execute.
 
     Returns:
         Dict with job results including status, stdout, stderr.
     """
     env = os.environ.copy()
-    if gpu_id is not None:
-        env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    if job.gpu_id is not None:
+        env["CUDA_VISIBLE_DEVICES"] = str(job.gpu_id)
     else:
-        env["CUDA_VISIBLE_DEVICES"] = ""  # Disable GPU
+        env["CUDA_VISIBLE_DEVICES"] = ""
 
-    cmd = [
-        "uv",
-        "run",
-        "python",
-        script,
-        f"--config-name={config_name}",
-    ]
-
-    if overrides:
-        cmd.extend(overrides.split())
-
-    device_str = f"GPU {gpu_id}" if gpu_id is not None else "CPU"
-    print(f"[Job {job_num}] {device_str}: {' '.join(cmd)}")
-
-    if dry_run:
-        return {"job_num": job_num, "gpu": gpu_id, "status": "dry_run", "overrides": overrides}
+    cmd = job.to_cmd()
 
     try:
         result = subprocess.run(
@@ -205,25 +269,61 @@ def run_experiment(  # pylint: disable=too-many-arguments,too-many-positional-ar
 
         status = "success" if result.returncode == 0 else "failed"
         return {
-            "job_num": job_num,
-            "gpu": gpu_id,
+            "job_num": job.job_num,
+            "gpu": job.gpu_id,
             "status": status,
             "returncode": result.returncode,
-            "overrides": overrides,
+            "overrides": job.overrides,
             "stdout": result.stdout[-2000:] if result.stdout else "",
             "stderr": result.stderr[-2000:] if result.stderr else "",
         }
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return {
-            "job_num": job_num,
-            "gpu": gpu_id,
+            "job_num": job.job_num,
+            "gpu": job.gpu_id,
             "status": "error",
             "error": str(e),
-            "overrides": overrides,
+            "overrides": job.overrides,
         }
 
 
-def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+def dispatch_jobs(jobs: list[Job], max_parallel: int) -> list[dict]:
+    """Execute jobs in parallel with staggered starts.
+
+    Args:
+        jobs: List of Job objects to execute.
+        max_parallel: Maximum number of jobs to run concurrently.
+
+    Returns:
+        List of result dictionaries, one per job.
+    """
+    results = []
+
+    with ProcessPoolExecutor(max_workers=max_parallel) as executor:
+        futures = {}
+
+        for i, job in enumerate(jobs):
+            if i > 0:
+                time.sleep(JOB_START_DELAY_SECONDS)
+
+            print(f"[Job {job.job_num}] {job.device_str}: {' '.join(job.to_cmd())}")
+            future = executor.submit(_run_single_job, job)
+            futures[future] = job.job_num
+
+        for future in as_completed(futures):
+            result = future.result()
+            results.append(result)
+            status_symbol = "\u2713" if result["status"] == "success" else "\u2717"
+            device_str = f"GPU {result['gpu']}" if result["gpu"] is not None else "CPU"
+            print(f"[Job {result['job_num']}] {status_symbol} {device_str}: {result['status']}")
+
+            if result["status"] == "failed":
+                print(f"  stderr: {result.get('stderr', '')[:500]}")
+
+    return results
+
+
+def main() -> None:
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
         description="Run multiple Hydra experiments in parallel across GPUs",
@@ -320,65 +420,34 @@ def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-man
             "  simplexity-multirun run.py -c config --cpu --workers 4 --sweep 'seed=1,2,3,4'"
         )
 
-    # Collect sweep parameters from --sweep and --sweep-file
-    all_sweeps = list(args.sweep)  # Copy to avoid modifying args
+    # Phase 1: Generate jobs (pure, no I/O except sweep file loading)
+    all_sweeps = list(args.sweep)
     if args.sweep_file:
         all_sweeps.extend(load_sweep_file(args.sweep_file))
 
-    # Generate list of override strings
-    if args.overrides:
-        override_list = args.overrides
-    elif all_sweeps:
-        override_list = generate_override_combinations(all_sweeps)
-    else:
-        override_list = [""]  # Single run with no overrides
+    jobs = generate_jobs(
+        script=args.script,
+        config_name=args.config_name,
+        sweeps=all_sweeps,
+        overrides=args.overrides,
+        gpus=gpus,
+    )
 
-    n_jobs = len(override_list)
+    n_jobs = len(jobs)
     max_parallel = args.max_parallel or n_workers
 
     print(f"Running {n_jobs} experiments across {device_desc}")
     print(f"Max parallel: {max_parallel}")
     print()
 
-    # Assign devices round-robin (GPU IDs or None for CPU)
-    jobs = []
-    for i, overrides in enumerate(override_list):
-        if gpus is not None:
-            gpu_id = gpus[i % len(gpus)]
-        else:
-            gpu_id = None  # CPU mode
-        jobs.append((args.script, args.config_name, overrides, gpu_id, i))
+    # Handle dry-run: print commands and exit before dispatch
+    if args.dry_run:
+        for job in jobs:
+            print(f"[Job {job.job_num}] {job.device_str}: {' '.join(job.to_cmd())}")
+        return
 
-    # Run in parallel with staggered starts
-    results = []
-    with ProcessPoolExecutor(max_workers=max_parallel) as executor:
-        futures = {}
-
-        # Submit jobs with delay between starts to avoid race conditions
-        for i, job in enumerate(jobs):
-            if i > 0 and not args.dry_run:
-                time.sleep(JOB_START_DELAY_SECONDS)
-
-            future = executor.submit(
-                run_experiment,
-                script=job[0],
-                config_name=job[1],
-                overrides=job[2],
-                gpu_id=job[3],
-                job_num=job[4],
-                dry_run=args.dry_run,
-            )
-            futures[future] = job[4]
-
-        for future in as_completed(futures):
-            result = future.result()
-            results.append(result)
-            status_symbol = "\u2713" if result["status"] == "success" else "\u2717"
-            device_str = f"GPU {result['gpu']}" if result["gpu"] is not None else "CPU"
-            print(f"[Job {result['job_num']}] {status_symbol} {device_str}: {result['status']}")
-
-            if result["status"] == "failed" and not args.dry_run:
-                print(f"  stderr: {result.get('stderr', '')[:500]}")
+    # Phase 2: Dispatch jobs (handles all subprocess/parallelism complexity)
+    results = dispatch_jobs(jobs, max_parallel)
 
     # Summary
     print()
