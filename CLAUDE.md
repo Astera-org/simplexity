@@ -4,7 +4,13 @@ This document provides guidance for Claude when working on the Simplexity codeba
 
 ## Project Overview
 
-Simplexity is a research-oriented machine learning library focused on computational mechanics perspectives of sequence prediction. The codebase uses JAX/Equinox for neural network implementations and follows functional programming patterns.
+Simplexity is a research-oriented machine learning library focused on computational mechanics perspectives of sequence prediction. The codebase uses:
+- **JAX/Equinox** for generative processes and numerical computations
+- **PyTorch/TransformerLens** for predictive models and training
+- **Hydra** for configuration management
+- **MLFlow** for experiment tracking, logging, and model persistence
+
+The library follows functional programming patterns and emphasizes type safety.
 
 ## Code Style and Conventions
 
@@ -33,6 +39,98 @@ Simplexity is a research-oriented machine learning library focused on computatio
 - **Constants**: Use UPPER_SNAKE_CASE
 - **Type Variables**: Use PascalCase (e.g., `State`, `Model`)
 
+## Architecture
+
+### Module Structure
+
+```
+simplexity/
+├── activations/          # Activation tracking and analysis for transformer layers
+├── analysis/             # PCA, linear regression, and other analysis utilities
+├── data_structures/      # Core data structures (heap, queue, stack, collection)
+├── generative_processes/ # Generative model implementations (HMMs, etc.)
+├── logging/              # Logger interface and implementations (MLFlow, file, print)
+├── metrics/              # Metric tracking for training loops (PyTorch-based)
+├── persistence/          # Model checkpointing (local, S3, MLFlow)
+├── predictive_models/    # Predictive model type definitions
+├── run_management/       # Managed run infrastructure and component orchestration
+├── structured_configs/   # Hydra/Pydantic configuration dataclasses
+└── utils/                # Helper functions (config, JAX, PyTorch, MLFlow, etc.)
+```
+
+### Key Components
+
+#### Managed Runs (`simplexity.managed_run`)
+
+The `@managed_run` decorator provides dependency injection and lifecycle management:
+
+```python
+import simplexity
+
+@simplexity.managed_run(strict=False, verbose=True)
+def train(cfg: MyConfig, components: simplexity.Components) -> None:
+    logger = components.get_logger()
+    generative_process = components.get_generative_process()
+    persister = components.get_persister()
+    predictive_model = components.get_predictive_model()
+    optimizer = components.get_optimizer()
+    metric_tracker = components.get_metric_tracker("training")
+```
+
+#### Structured Configs
+
+Configuration is managed via dataclasses in `simplexity/structured_configs/`:
+- `BaseConfig`: Common fields (device, seed, tags, mlflow)
+- `GenerativeProcessConfig`: HMM and generative process settings
+- `PredictiveModelConfig`: Model architecture settings
+- `OptimizerConfig`: Optimizer configuration
+- `LoggingConfig`: Logger settings
+- `PersistenceConfig`: Checkpointing configuration
+- `MetricTrackerConfig`: Training metrics settings
+
+#### Metric Tracking
+
+The `MetricTracker` class tracks training metrics for PyTorch models:
+
+```python
+from simplexity.metrics.metric_tracker import MetricTracker
+
+tracker = MetricTracker(
+    model=model,
+    optimizer=optimizer,
+    metric_kwargs={"lr_schedule": lr_schedule},
+)
+
+for step, batch in enumerate(train_loader):
+    # ... training step ...
+    tracker.step(tokens=inputs, loss=loss)
+    metrics = tracker.get_metrics()  # Returns dict with loss/step, lr/step, etc.
+```
+
+#### Generative Processes
+
+Abstract base class for generative models using JAX/Equinox:
+
+```python
+from simplexity.generative_processes.generative_process import GenerativeProcess
+
+class MyProcess(GenerativeProcess[State]):
+    @property
+    def vocab_size(self) -> int: ...
+    @property
+    def initial_state(self) -> State: ...
+    def emit_observation(self, state: State, key: chex.PRNGKey) -> chex.Array: ...
+    def transition_states(self, state: State, obs: chex.Array) -> State: ...
+```
+
+### Design Patterns
+
+1. **Protocol Classes**: Use `typing.Protocol` for defining interfaces
+2. **Abstract Base Classes**: Use `eqx.Module` with `@abstractmethod` for base classes
+3. **Dataclass Configs**: Use `@dataclass` for structured configuration
+4. **Dependency Injection**: Use `Components` class for runtime component access
+5. **Separation of Concerns**: Keep model definitions, training logic, and evaluation separate
+
 ## Testing Guidelines
 
 ### Test Structure
@@ -41,6 +139,7 @@ Simplexity is a research-oriented machine learning library focused on computatio
 - Use pytest fixtures for common test setup
 - Test files must start with `test_`
 - Test functions must start with `test_`
+- End-to-end tests go in `tests/end_to_end/` (run separately in CI)
 
 ### Test Patterns
 
@@ -69,36 +168,10 @@ def test_functionality(model_fixture: Model):
 ### Coverage Requirements
 
 - **New code**: Minimum 80% coverage (strictly enforced in PRs via `diff-cover`)
-- **Existing code**: Overall coverage is monitored but won't block updates (allowing gradual improvement)
-- **PRs**: Only new/changed code must meet 80% threshold (checked via `diff-cover`)
-- **Main branch**: Overall coverage is tracked but not enforced (to allow updates while improving coverage)
-- HTML coverage reports are generated in `htmlcov/` directory
-- Diff coverage reports show coverage of only new/changed lines in PRs
-- **Goal**: Gradually improve overall coverage while ensuring all new code meets standards
-
-## Architecture Patterns
-
-### Module Structure
-
-```
-simplexity/
-├── configs/          # Hydra configuration files
-├── data_structures/  # Core data structures
-├── evaluation/       # Model evaluation functions
-├── generative_processes/  # Generative model implementations
-├── logging/          # Logging utilities
-├── persistence/      # Model checkpointing
-├── predictive_models/  # Neural network models
-├── training/         # Training loops and utilities
-└── utils/           # Helper functions
-```
-
-### Design Patterns
-
-1. **Protocol Classes**: Use `typing.Protocol` for defining interfaces
-2. **Abstract Base Classes**: Use `eqx.Module` with `@abstractmethod` for base classes
-3. **Builder Pattern**: Provide builder functions for complex object construction
-4. **Separation of Concerns**: Keep model definitions, training logic, and evaluation separate
+- **Existing code**: Overall coverage is monitored but won't block updates
+- **PRs**: Only new/changed code must meet 80% threshold
+- HTML coverage reports are generated in `htmlcov/`
+- Diff coverage reports show coverage of only new/changed lines
 
 ## JAX/Equinox Best Practices
 
@@ -108,22 +181,43 @@ simplexity/
 4. **Tree Operations**: Use JAX tree operations for nested structures
 5. **JIT Compilation**: Consider JIT compatibility when writing functions
 
+## PyTorch/JAX Interoperability
+
+The codebase uses both JAX (for generative processes) and PyTorch (for predictive models):
+
+- Use `simplexity.utils.pytorch_utils.torch_to_jax()` for tensor conversion
+- Use `simplexity.generative_processes.torch_generator.generate_data_batch()` for data generation
+- Handle device placement carefully when using MPS (JAX doesn't support it)
+
 ## Dependency Management
 
 - **Package Manager**: Use `uv` for dependency management
 - **Dependencies**: Add to `pyproject.toml` in appropriate sections
-- **Optional Dependencies**: Use extras for optional features (aws, cuda, dev, mac, pytorch)
-- **Version Pinning**: Specify minimum versions with `>=`
+- **Optional Dependencies**: Use extras for optional features:
+  - `aws`: S3 persistence (deprecated)
+  - `cuda`: GPU acceleration
+  - `dev`: Development tools (ruff, pytest, pyright, etc.)
+  - `penzai`: Penzai integration (deprecated)
 
 ## CI/CD Requirements
+
+### Workflows
+
+1. **simplexity.yaml**: Main CI workflow (linting, type checking, unit tests)
+2. **e2e-tests.yaml**: End-to-end tests (separate workflow)
+3. **claude.yml**: Claude Code integration
+4. **merge-tests.yaml**: Merge validation
+
+### Pre-submission Checklist
 
 Before submitting code, ensure it passes:
 
 1. `uv run --extra dev ruff check` - Linting
 2. `uv run --extra dev ruff format --check` - Formatting
-3. `uv run --extra dev --extra pytorch pyright` - Type checking
-4. `uv run --extra dev --extra pytorch pytest` - Tests
-5. `uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=80` - New code coverage (must meet 80% threshold)
+3. `uv run --extra dev pylint simplexity tests` - Pylint checks
+4. `uv run --extra dev pyright` - Type checking
+5. `uv run --extra dev pytest --ignore=tests/end_to_end` - Unit tests
+6. `uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=80` - New code coverage
 
 ## Common Commands
 
@@ -134,29 +228,32 @@ uv sync --extra dev
 # Run linting
 uv run --extra dev ruff check
 
+# Auto-fix linting issues
+uv run --extra dev ruff check --fix
+
 # Format code
 uv run --extra dev ruff format
 
 # Type check
-uv run --extra dev --extra pytorch pyright
+uv run --extra dev pyright
 
-# Run tests (coverage is tracked but won't fail)
-uv run --extra dev --extra pytorch pytest
+# Run unit tests (excluding e2e)
+uv run --extra dev pytest --ignore=tests/end_to_end
 
-# Check overall coverage threshold (optional - will fail if below 80%)
-uv run --extra dev --extra pytorch pytest --cov-fail-under=80
+# Run end-to-end tests
+uv run --extra cuda --extra dev pytest tests/end_to_end/
+
+# Run tests with coverage
+uv run --extra dev pytest --cov-fail-under=0
 
 # Check coverage for new code only (compares against main branch)
-# This is what CI checks - new code must meet 80% threshold
-# Note: Requires pytest to be run first to generate coverage.xml
-uv run --extra dev --extra pytorch pytest --cov-fail-under=0
 uv run --extra dev diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
 
 # View HTML coverage report (generated in htmlcov/)
 # After running pytest, open htmlcov/index.html in a browser
 
-# Train a model
-uv run python simplexity/train_model.py
+# Run pylint
+uv run --extra dev pylint simplexity tests
 ```
 
 ## Pull Request Guidelines
@@ -164,7 +261,7 @@ uv run python simplexity/train_model.py
 When reviewing or creating PRs:
 
 1. Ensure all CI checks pass
-2. Maintain or improve test coverage
+2. Maintain or improve test coverage (80% for new code)
 3. Follow existing patterns and conventions
 4. Keep changes focused and atomic
 5. Update relevant documentation
@@ -191,3 +288,17 @@ When reviewing or creating PRs:
 - Update README.md for user-facing changes
 - Use type hints as primary documentation
 - Provide usage examples in docstrings when helpful
+
+## Known Issues
+
+### Pylint AST Traversal Bug
+
+Due to a [pylint/astroid bug](https://github.com/pylint-dev/pylint/issues/10185), files that import from the `simplexity` package need special handling:
+
+```python
+# pylint: disable-all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# pylint: enable=all
+```
+
+This is applied in files like `__init__.py`, `components.py`, and `base.py`.
