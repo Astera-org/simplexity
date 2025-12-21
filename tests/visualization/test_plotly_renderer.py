@@ -162,13 +162,29 @@ class TestBuildPlotlyFigure:
         with pytest.raises(ConfigValidationError, match="exactly one layer"):
             build_plotly_figure(plot_cfg, registry)
 
-    def test_raises_when_non_point_geometry(self):
-        """Test that non-point geometry raises error."""
-        layer = LayerConfig(geometry=GeometryConfig(type="line"))
+    def test_raises_when_unsupported_geometry(self):
+        """Test that unsupported geometry raises error."""
+        layer = LayerConfig(geometry=GeometryConfig(type="bar"))
         plot_cfg = PlotConfig(data=DataConfig(source="main"), layers=[layer])
         registry = DictDataRegistry({"main": pd.DataFrame({"x": [1], "y": [2]})})
-        with pytest.raises(ConfigValidationError, match="point geometry"):
+        with pytest.raises(ConfigValidationError, match="point and line geometry"):
             build_plotly_figure(plot_cfg, registry)
+
+    def test_builds_line_figure(self):
+        """Test building a basic line figure."""
+        df = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]})
+        layer = LayerConfig(
+            geometry=GeometryConfig(type="line"),
+            aesthetics=AestheticsConfig(
+                x=ChannelAestheticsConfig(field="x", type="quantitative"),
+                y=ChannelAestheticsConfig(field="y", type="quantitative"),
+            ),
+        )
+        plot_cfg = PlotConfig(data=DataConfig(source="main"), layers=[layer])
+        registry = DictDataRegistry({"main": df})
+        fig = build_plotly_figure(plot_cfg, registry)
+        assert len(fig.data) == 1
+        assert fig.data[0].mode == "lines"
 
     def test_builds_2d_figure(self):
         """Test building a basic 2D figure."""
