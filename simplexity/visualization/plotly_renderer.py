@@ -46,8 +46,8 @@ def build_plotly_figure(
         raise ConfigValidationError("Plotly renderer currently supports exactly one layer.")
 
     layer = plot_cfg.layers[0]
-    if layer.geometry.type != "point":
-        raise ConfigValidationError("Plotly renderer currently supports point geometry.")
+    if layer.geometry.type not in ("point", "line"):
+        raise ConfigValidationError("Plotly renderer currently supports point and line geometry.")
 
     plot_df = build_plot_level_dataframe(plot_cfg.data, plot_cfg.transforms, data_registry)
     layer_df = resolve_layer_dataframe(layer, plot_df, data_registry)
@@ -63,8 +63,11 @@ def build_plotly_figure(
         return figure
 
     has_z = bool(layer.aesthetics and layer.aesthetics.z and layer.aesthetics.z.field)
+    is_line = layer.geometry.type == "line"
     if has_z:
         figure = _build_scatter3d(layer, layer_df, controls)
+    elif is_line:
+        figure = _build_line2d(layer, layer_df, controls)
     else:
         figure = _build_scatter2d(layer, layer_df, controls)
     figure = _apply_plot_level_properties(figure, plot_cfg.guides, plot_cfg.size, plot_cfg.background, layer.aesthetics)
@@ -517,6 +520,114 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
 
     _apply_legend_visibility(figure, aes)
     return figure
+
+
+def _build_line2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None):
+    """Build a 2D line chart."""
+    aes = layer.aesthetics
+    x_field = _require_field(aes.x, "x")
+    y_field = _require_field(aes.y, "y")
+
+    color_field = _optional_field(aes.color)
+    opacity_value = _resolve_opacity(aes.opacity)
+    hover_fields = _collect_tooltip_fields(aes.tooltip)
+
+    # Handle layer dropdown control
+    dropdown = _resolve_layer_dropdown(df, controls)
+
+    if dropdown and len(dropdown[1]) > 1:
+        # Build with layer dropdown menu
+        figure = _build_layer_filtered_line2d(
+            df, dropdown, x_field, y_field, color_field, opacity_value, aes, layer
+        )
+    else:
+        # Filter to first layer if dropdown exists, otherwise use all data
+        working_df = df
+        if dropdown:
+            layer_field, layer_options = dropdown
+            working_df = df.loc[df[layer_field] == layer_options[0]]
+
+        traces = _line2d_traces(working_df, x_field, y_field, color_field, opacity_value, layer.name)
+        figure = go.Figure(data=traces)
+
+    _apply_legend_visibility(figure, aes)
+    return figure
+
+
+def _build_layer_filtered_line2d(
+    df: pd.DataFrame,
+    dropdown: tuple[str, list[Any]],
+    x_field: str,
+    y_field: str,
+    color_field: str | None,
+    opacity_value: float | None,
+    aes: AestheticsConfig,
+    layer: LayerConfig,
+):
+    """Build line chart with layer dropdown for filtering."""
+    layer_field, layer_options = dropdown
+    all_traces: list[Any] = []
+    trace_ranges: list[tuple[int, int]] = []
+
+    for layer_idx, layer_opt in enumerate(layer_options):
+        subset = df.loc[df[layer_field] == layer_opt]
+        traces = _line2d_traces(subset, x_field, y_field, color_field, opacity_value, str(layer_opt))
+
+        # Set visibility - only first layer visible initially
+        for trace in traces:
+            trace.visible = layer_idx == 0
+
+        start = len(all_traces)
+        all_traces.extend(traces)
+        trace_ranges.append((start, len(all_traces)))
+
+    figure = go.Figure(data=all_traces)
+    _add_layer_dropdown_menu(figure, layer_options, trace_ranges)
+    return figure
+
+
+def _line2d_traces(
+    df: pd.DataFrame,
+    x_field: str,
+    y_field: str,
+    color_field: str | None,
+    opacity_value: float | None,
+    default_name: str | None = None,
+) -> list[go.Scatter]:
+    """Build line traces grouped by color field."""
+    traces: list[go.Scatter] = []
+
+    if color_field and color_field in df.columns:
+        # Get unique color values and build color map
+        color_values = list(pd.unique(df[color_field]))
+        palette = qualitative_colors.Plotly
+
+        for idx, color_val in enumerate(color_values):
+            subset = df.loc[df[color_field] == color_val].sort_values(by=x_field)
+            trace = go.Scatter(
+                x=subset[x_field].tolist(),
+                y=subset[y_field].tolist(),
+                mode="lines",
+                name=str(color_val),
+                line={"color": palette[idx % len(palette)]},
+            )
+            if opacity_value is not None:
+                trace.opacity = opacity_value
+            traces.append(trace)
+    else:
+        # Single line, no color grouping
+        sorted_df = df.sort_values(by=x_field)
+        trace = go.Scatter(
+            x=sorted_df[x_field].tolist(),
+            y=sorted_df[y_field].tolist(),
+            mode="lines",
+            name=default_name or "line",
+        )
+        if opacity_value is not None:
+            trace.opacity = opacity_value
+        traces.append(trace)
+
+    return traces
 
 
 def _apply_plot_level_properties(
