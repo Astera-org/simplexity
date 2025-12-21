@@ -522,7 +522,7 @@ def _build_scatter2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None)
     return figure
 
 
-def _build_line2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None):
+def _build_line2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None) -> go.Figure:
     """Build a 2D line chart."""
     aes = layer.aesthetics
     x_field = _require_field(aes.x, "x")
@@ -564,7 +564,7 @@ def _build_layer_filtered_line2d(
     hover_fields: list[str],
     aes: AestheticsConfig,
     layer: LayerConfig,
-):
+) -> go.Figure:
     """Build line chart with layer dropdown for filtering."""
     layer_field, layer_options = dropdown
     all_traces: list[Any] = []
