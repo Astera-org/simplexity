@@ -538,7 +538,7 @@ def _build_line2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None):
     if dropdown and len(dropdown[1]) > 1:
         # Build with layer dropdown menu
         figure = _build_layer_filtered_line2d(
-            df, dropdown, x_field, y_field, color_field, opacity_value, aes, layer
+            df, dropdown, x_field, y_field, color_field, opacity_value, hover_fields, aes, layer
         )
     else:
         # Filter to first layer if dropdown exists, otherwise use all data
@@ -547,7 +547,7 @@ def _build_line2d(layer: LayerConfig, df: pd.DataFrame, controls: Any | None):
             layer_field, layer_options = dropdown
             working_df = df.loc[df[layer_field] == layer_options[0]]
 
-        traces = _line2d_traces(working_df, x_field, y_field, color_field, opacity_value, layer.name)
+        traces = _line2d_traces(working_df, x_field, y_field, color_field, opacity_value, hover_fields, layer.name)
         figure = go.Figure(data=traces)
 
     _apply_legend_visibility(figure, aes)
@@ -561,6 +561,7 @@ def _build_layer_filtered_line2d(
     y_field: str,
     color_field: str | None,
     opacity_value: float | None,
+    hover_fields: list[str],
     aes: AestheticsConfig,
     layer: LayerConfig,
 ):
@@ -571,7 +572,7 @@ def _build_layer_filtered_line2d(
 
     for layer_idx, layer_opt in enumerate(layer_options):
         subset = df.loc[df[layer_field] == layer_opt]
-        traces = _line2d_traces(subset, x_field, y_field, color_field, opacity_value, str(layer_opt))
+        traces = _line2d_traces(subset, x_field, y_field, color_field, opacity_value, hover_fields, str(layer_opt))
 
         # Set visibility - only first layer visible initially
         for trace in traces:
@@ -592,10 +593,12 @@ def _line2d_traces(
     y_field: str,
     color_field: str | None,
     opacity_value: float | None,
+    hover_fields: list[str],
     default_name: str | None = None,
 ) -> list[go.Scatter]:
     """Build line traces grouped by color field."""
     traces: list[go.Scatter] = []
+    hovertemplate = _build_hovertemplate(hover_fields)
 
     if color_field and color_field in df.columns:
         # Get unique color values and build color map
@@ -604,12 +607,15 @@ def _line2d_traces(
 
         for idx, color_val in enumerate(color_values):
             subset = df.loc[df[color_field] == color_val].sort_values(by=x_field)
+            customdata = _build_customdata(subset, hover_fields)
             trace = go.Scatter(
                 x=subset[x_field].tolist(),
                 y=subset[y_field].tolist(),
                 mode="lines",
                 name=str(color_val),
                 line={"color": palette[idx % len(palette)]},
+                customdata=customdata,
+                hovertemplate=hovertemplate,
             )
             if opacity_value is not None:
                 trace.opacity = opacity_value
@@ -617,11 +623,14 @@ def _line2d_traces(
     else:
         # Single line, no color grouping
         sorted_df = df.sort_values(by=x_field)
+        customdata = _build_customdata(sorted_df, hover_fields)
         trace = go.Scatter(
             x=sorted_df[x_field].tolist(),
             y=sorted_df[y_field].tolist(),
             mode="lines",
             name=default_name or "line",
+            customdata=customdata,
+            hovertemplate=hovertemplate,
         )
         if opacity_value is not None:
             trace.opacity = opacity_value
