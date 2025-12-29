@@ -22,6 +22,7 @@ from simplexity.analysis.pca import (
     layer_pca_analysis,
 )
 from simplexity.logger import SIMPLEXITY_LOGGER
+from simplexity.analysis.metric_keys import construct_layer_specific_key
 
 AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]]
 
@@ -196,9 +197,11 @@ class LayerwiseAnalysis:
                 **self._analysis_kwargs,
             )
             for key, value in layer_scalars.items():
-                scalars[f"{layer_name}_{key}"] = value
+                constructed_key = construct_layer_specific_key(key, layer_name)
+                scalars[constructed_key] = value
             for key, value in layer_projections.items():
-                projections[f"{layer_name}_{key}"] = value
+                constructed_key = construct_layer_specific_key(key, layer_name)
+                projections[constructed_key] = value
         return scalars, projections
 
 
