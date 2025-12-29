@@ -389,12 +389,12 @@ def _compute_subspace_orthogonality(
     effective_rank = jnp.exp(entropy)
 
     scalars = {
-        "subspace_overlap": float(subspace_overlap_score),
-        "max_singular_value": float(jnp.max(singular_values)),
-        "min_singular_value": float(jnp.min(singular_values)),
-        "participation_ratio": float(participation_ratio),
+        "overlap": float(subspace_overlap_score),
+        "sv_max": float(jnp.max(singular_values)),
+        "sv_min": float(jnp.min(singular_values)),
+        "p_ratio": float(participation_ratio),
         "entropy": float(entropy),
-        "effective_rank": float(effective_rank),
+        "eff_rank": float(effective_rank),
     }
 
     arrays = {
