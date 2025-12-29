@@ -196,11 +196,12 @@ class LayerwiseAnalysis:
                 belief_states,
                 **self._analysis_kwargs,
             )
+            formatted_layer_name = format_layer_spec(layer_name)
             for key, value in layer_scalars.items():
-                constructed_key = construct_layer_specific_key(key, layer_name)
+                constructed_key = construct_layer_specific_key(key, formatted_layer_name)
                 scalars[constructed_key] = value
             for key, value in layer_projections.items():
-                constructed_key = construct_layer_specific_key(key, layer_name)
+                constructed_key = construct_layer_specific_key(key, formatted_layer_name)
                 projections[constructed_key] = value
         return scalars, projections
 
