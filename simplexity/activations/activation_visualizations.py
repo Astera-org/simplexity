@@ -164,7 +164,7 @@ def build_visualization_payloads(
     default_backend: str,
     prepared_metadata: PreparedMetadata,
     weights: np.ndarray,
-    belief_states: np.ndarray | None,
+    belief_states: np.ndarray | list[np.ndarray] | None,
     projections: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
     scalar_history: Mapping[str, list[tuple[int, float]]],

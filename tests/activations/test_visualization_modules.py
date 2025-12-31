@@ -131,7 +131,7 @@ class TestFieldResolution:
     def test_resolve_belief_states_2d_with_factor(self):
         """Test that 2D beliefs with factor raises error."""
         ref = ActivationVisualizationFieldRef(source="belief_states", factor=0)
-        with pytest.raises(ConfigValidationError, match="Factor selection requires 3D"):
+        with pytest.raises(ConfigValidationError, match="Factor selection requires factored"):
             _resolve_belief_states(np.ones((5, 4)), ref)
 
     def test_resolve_belief_states_factor_out_of_bounds(self):
@@ -145,6 +145,26 @@ class TestFieldResolution:
         ref = ActivationVisualizationFieldRef(source="belief_states", component=10)
         with pytest.raises(ConfigValidationError, match="out of bounds"):
             _resolve_belief_states(np.ones((5, 4)), ref)
+
+    def test_resolve_belief_states_list_format(self):
+        """Test list format for heterogeneous factored belief states."""
+        beliefs = [np.ones((10, 3)), np.ones((10, 5)) * 2]  # 3 and 5 states
+        ref = ActivationVisualizationFieldRef(source="belief_states", factor=0, component=1)
+        result = _resolve_belief_states(beliefs, ref)
+        np.testing.assert_array_equal(result, np.ones(10))
+        # Access second factor with more states
+        ref2 = ActivationVisualizationFieldRef(source="belief_states", factor=1, component=3)
+        np.testing.assert_array_equal(_resolve_belief_states(beliefs, ref2), np.ones(10) * 2)
+
+    def test_resolve_belief_states_list_errors(self):
+        """Test error cases for list belief states."""
+        beliefs = [np.ones((10, 3)), np.ones((10, 5))]
+        # No factor specified
+        with pytest.raises(ConfigValidationError, match="no `factor` was specified"):
+            _resolve_belief_states(beliefs, ActivationVisualizationFieldRef(source="belief_states"))
+        # Factor out of bounds
+        with pytest.raises(ConfigValidationError, match="out of bounds"):
+            _resolve_belief_states(beliefs, ActivationVisualizationFieldRef(source="belief_states", factor=5))
 
     def test_resolve_field_metadata_existing_key(self):
         """Test metadata source with existing key."""

@@ -61,33 +61,58 @@ def _maybe_component(array: np.ndarray, component: int | None) -> np.ndarray:
     return np_array[:, component]
 
 
-def _resolve_belief_states(belief_states: np.ndarray, ref: ActivationVisualizationFieldRef) -> np.ndarray:
-    """Resolve belief states to a 1D array based on field reference configuration."""
-    np_array = np.asarray(belief_states)
+def _resolve_belief_states(
+    belief_states: np.ndarray | list[np.ndarray], ref: ActivationVisualizationFieldRef
+) -> np.ndarray:
+    """Resolve belief states to a 1D array based on field reference configuration.
 
-    # Handle factor dimension for 3D belief states (samples, factors, states)
-    if np_array.ndim == 3:
+    Supports three input formats:
+    - List of 2D arrays: factored beliefs with potentially different state counts per factor
+    - 3D array (samples, factors, states): legacy format for homogeneous factored beliefs
+    - 2D array (samples, states): single (non-factored) beliefs
+    """
+    # Handle list of arrays (factored, potentially heterogeneous state dimensions)
+    if isinstance(belief_states, list):
         if ref.factor is None:
             raise ConfigValidationError(
-                f"Belief states have 3 dimensions (samples, factors, states) but no `factor` was specified. "
-                f"Shape: {np_array.shape}"
+                f"Belief states are factored (list of {len(belief_states)} factors) but no `factor` was specified."
             )
         if isinstance(ref.factor, str):
             raise ConfigValidationError("Factor patterns should be expanded before resolution")
         factor_idx = ref.factor
-        if factor_idx < 0 or factor_idx >= np_array.shape[1]:
+        if factor_idx < 0 or factor_idx >= len(belief_states):
             raise ConfigValidationError(
-                f"Belief state factor {factor_idx} is out of bounds for dimension {np_array.shape[1]}"
+                f"Belief state factor {factor_idx} is out of bounds for {len(belief_states)} factors"
             )
-        np_array = np_array[:, factor_idx, :]  # Now 2D: (samples, states)
-    elif np_array.ndim == 2:
-        if ref.factor is not None:
-            raise ConfigValidationError(
-                f"Belief states are 2D but `factor={ref.factor}` was specified. "
-                f"Factor selection requires 3D belief states (samples, factors, states)."
-            )
+        np_array = np.asarray(belief_states[factor_idx])  # 2D: (samples, states)
     else:
-        raise ConfigValidationError(f"Belief states must be 2D or 3D, got {np_array.ndim}D")
+        np_array = np.asarray(belief_states)
+
+        # Handle factor dimension for 3D belief states (samples, factors, states) - legacy format
+        if np_array.ndim == 3:
+            if ref.factor is None:
+                raise ConfigValidationError(
+                    f"Belief states have 3 dimensions (samples, factors, states) but no `factor` was specified. "
+                    f"Shape: {np_array.shape}"
+                )
+            if isinstance(ref.factor, str):
+                raise ConfigValidationError("Factor patterns should be expanded before resolution")
+            factor_idx = ref.factor
+            if factor_idx < 0 or factor_idx >= np_array.shape[1]:
+                raise ConfigValidationError(
+                    f"Belief state factor {factor_idx} is out of bounds for dimension {np_array.shape[1]}"
+                )
+            np_array = np_array[:, factor_idx, :]  # Now 2D: (samples, states)
+        elif np_array.ndim == 2:
+            if ref.factor is not None:
+                raise ConfigValidationError(
+                    f"Belief states are 2D but `factor={ref.factor}` was specified. "
+                    f"Factor selection requires factored belief states (list or 3D array)."
+                )
+        else:
+            raise ConfigValidationError(
+                f"Belief states must be 2D or 3D array, or list of 2D arrays, got {np_array.ndim}D"
+            )
 
     # Now np_array is 2D: (samples, states)
     if ref.reducer == "argmax":
@@ -109,7 +134,7 @@ def _resolve_field(
     layer_name: str,
     projections: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
-    belief_states: np.ndarray | None,
+    belief_states: np.ndarray | list[np.ndarray] | None,
     analysis_concat_layers: bool,
     num_rows: int,
     metadata_columns: Mapping[str, object],

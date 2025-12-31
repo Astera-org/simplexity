@@ -222,12 +222,13 @@ class ActivationTracker:
             viz_configs = self._visualization_specs.get(analysis_name)
             if viz_configs:
                 np_weights = np.asarray(prepared_weights)
-                # Handle tuple belief states (factored processes) by stacking to (samples, factors, states)
+                # Handle tuple belief states (factored processes) - keep as list to support
+                # heterogeneous state dimensions across factors
                 if prepared_beliefs is None:
                     np_beliefs = None
                 elif isinstance(prepared_beliefs, tuple):
-                    # Stack tuple of (samples, states) arrays into (samples, factors, states)
-                    np_beliefs = np.stack([np.asarray(b) for b in prepared_beliefs], axis=1)
+                    # Keep as list of 2D arrays, each (samples, states) - allows different state counts per factor
+                    np_beliefs = [np.asarray(b) for b in prepared_beliefs]
                 else:
                     np_beliefs = np.asarray(prepared_beliefs)
                 np_projections = {key: np.asarray(value) for key, value in projections.items()}

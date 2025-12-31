@@ -229,7 +229,7 @@ def _build_dataframe_for_mappings(
     metadata_columns: Mapping[str, Any],
     projections: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
-    belief_states: np.ndarray | None,
+    belief_states: np.ndarray | list[np.ndarray] | None,
     analysis_concat_layers: bool,
     layer_names: list[str],
 ) -> pd.DataFrame:
@@ -343,7 +343,7 @@ def _build_dataframe(
     scalars: Mapping[str, float],
     scalar_history: Mapping[str, list[tuple[int, float]]],
     scalar_history_step: int | None,
-    belief_states: np.ndarray | None,
+    belief_states: np.ndarray | list[np.ndarray] | None,
     analysis_concat_layers: bool,
     layer_names: list[str],
 ) -> pd.DataFrame:

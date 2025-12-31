@@ -104,7 +104,7 @@ def _get_component_count(
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
     projections: Mapping[str, np.ndarray],
-    belief_states: np.ndarray | None,
+    belief_states: np.ndarray | list[np.ndarray] | None,
     analysis_concat_layers: bool,
 ) -> int:
     """Get number of components available for expansion."""
@@ -122,6 +122,11 @@ def _get_component_count(
     elif ref.source == "belief_states":
         if belief_states is None:
             raise ConfigValidationError("Belief states not available")
+        if isinstance(belief_states, list):
+            raise ConfigValidationError(
+                "Component expansion for factored belief states requires a factor specifier. "
+                "Use factor: '*' or a specific factor index."
+            )
         np_array = np.asarray(belief_states)
         if np_array.ndim != 2:
             raise ConfigValidationError(f"Belief states must be 2D, got {np_array.ndim}D")
@@ -201,7 +206,7 @@ def _expand_projection_key_mapping(
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
     projections: Mapping[str, np.ndarray],
-    belief_states: np.ndarray | None,
+    belief_states: np.ndarray | list[np.ndarray] | None,
     analysis_concat_layers: bool,
 ) -> dict[str, ActivationVisualizationFieldRef]:
     """Expand projection key patterns, optionally combined with component patterns.
@@ -288,21 +293,34 @@ def _expand_projection_key_mapping(
 def _expand_belief_factor_mapping(
     field_name: str,
     ref: ActivationVisualizationFieldRef,
-    belief_states: np.ndarray,
+    belief_states: np.ndarray | list[np.ndarray],
 ) -> dict[str, ActivationVisualizationFieldRef]:
     """Expand belief state factor patterns, optionally combined with component patterns.
 
     Handles cross-product expansion when both factor and component patterns are present.
     Sets _group_value on expanded refs for DataFrame construction.
-    """
-    np_beliefs = np.asarray(belief_states)
-    if np_beliefs.ndim != 3:
-        raise ConfigValidationError(
-            f"Belief state factor patterns require 3D beliefs (samples, factors, states), got {np_beliefs.ndim}D"
-        )
 
-    n_factors = np_beliefs.shape[1]
-    n_states = np_beliefs.shape[2]
+    Supports two input formats:
+    - List of 2D arrays: factored beliefs with potentially different state counts per factor
+    - 3D array (samples, factors, states): legacy format for homogeneous factored beliefs
+    """
+    # Handle both list and 3D array formats
+    if isinstance(belief_states, list):
+        n_factors = len(belief_states)
+
+        def get_n_states(factor_idx: int) -> int:
+            return belief_states[factor_idx].shape[1]
+    else:
+        np_beliefs = np.asarray(belief_states)
+        if np_beliefs.ndim != 3:
+            raise ConfigValidationError(
+                f"Belief state factor patterns require 3D beliefs (samples, factors, states), got {np_beliefs.ndim}D"
+            )
+        n_factors = np_beliefs.shape[1]
+        n_states_uniform = np_beliefs.shape[2]
+
+        def get_n_states(factor_idx: int) -> int:
+            return n_states_uniform
 
     # Parse factor pattern using _parse_component_spec (same pattern syntax)
     try:
@@ -334,14 +352,17 @@ def _expand_belief_factor_mapping(
 
     for factor_idx in factors:
         if needs_component_expansion:
-            # Get component range
+            # Get component range - n_states is per-factor for heterogeneous beliefs
+            n_states = get_n_states(factor_idx)
             if spec_type == "wildcard":
                 components = list(range(n_states))
             else:
                 assert start_idx is not None
                 assert end_idx is not None
                 if end_idx > n_states:
-                    raise ConfigValidationError(f"Component range {start_idx}...{end_idx} exceeds states ({n_states})")
+                    raise ConfigValidationError(
+                        f"Component range {start_idx}...{end_idx} exceeds states ({n_states}) for factor {factor_idx}"
+                    )
                 components = list(range(start_idx, end_idx))
 
             # Cross-product: expand both factor and component
@@ -485,7 +506,7 @@ def _expand_field_mapping(
     layer_name: str,
     projections: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
-    belief_states: np.ndarray | None,
+    belief_states: np.ndarray | list[np.ndarray] | None,
     analysis_concat_layers: bool,
 ) -> dict[str, ActivationVisualizationFieldRef]:
     """Expand pattern-based mapping into concrete mappings.
