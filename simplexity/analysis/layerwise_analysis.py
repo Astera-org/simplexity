@@ -22,7 +22,7 @@ from simplexity.analysis.pca import (
     layer_pca_analysis,
 )
 from simplexity.logger import SIMPLEXITY_LOGGER
-from simplexity.analysis.metric_keys import construct_layer_specific_key
+from simplexity.analysis.metric_keys import construct_layer_specific_key, format_layer_spec
 
 AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]]
 

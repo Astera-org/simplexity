@@ -13,32 +13,71 @@ from simplexity.exceptions import ConfigValidationError
 def _lookup_projection_array(
     projections: Mapping[str, np.ndarray], layer_name: str, key: str | None, concat_layers: bool
 ) -> np.ndarray:
-    """Look up a projection array by key, handling layer naming conventions."""
+    """Look up a projection array by key, handling layer naming conventions.
+
+    Supports keys in the format "{analysis}/{layer_spec}" (e.g., "pca/L0.resid.pre")
+    or "{analysis}/{layer_spec}-{factor_spec}" (e.g., "reg/L0.resid.pre-F0").
+
+    When key contains a factor suffix (e.g., "projected/F0"), looks for the full key
+    "{analysis}/{layer}-{factor}" (e.g., "projected/layer_0-F0").
+    """
     if key is None:
         raise ConfigValidationError("Projection references must supply a `key` value.")
-    suffix = f"_{key}"
+
     for full_key, value in projections.items():
         if concat_layers:
-            if full_key.endswith(suffix) or full_key == key:
+            if full_key.startswith(f"{key}/") or full_key == key:
                 return np.asarray(value)
         else:
-            if not full_key.endswith(suffix):
-                continue
-            candidate_layer = full_key[: -len(suffix)]
-            if candidate_layer == layer_name:
+            if _key_matches_layer(full_key, key, layer_name):
                 return np.asarray(value)
     raise ConfigValidationError(f"Projection '{key}' not available for layer '{layer_name}'.")
 
 
+def _key_matches_layer(full_key: str, key: str, layer_name: str) -> bool:
+    """Check if a full key matches the given key pattern and layer name.
+
+    Handles two formats:
+    - Simple: key="pca" matches full_key="pca/layer_0"
+    - Factor: key="projected/F0" matches full_key="projected/layer_0-F0"
+    """
+    if "/" not in full_key:
+        return False
+
+    # Check if key has a factor suffix (e.g., "projected/F0")
+    if "/" in key:
+        key_parts = key.rsplit("/", 1)
+        analysis_prefix, factor_suffix = key_parts
+        # Look for {analysis}/{layer}-{factor} format
+        expected_key = f"{analysis_prefix}/{layer_name}-{factor_suffix}"
+        return full_key == expected_key
+
+    # Simple key format: key="pca" matches "pca/layer_0"
+    prefix = f"{key}/"
+    if not full_key.startswith(prefix):
+        return False
+    layer_part = full_key[len(prefix) :]
+    candidate_layer = layer_part.split("-")[0]
+    return candidate_layer == layer_name
+
+
 def _lookup_scalar_value(scalars: Mapping[str, float], layer_name: str, key: str, concat_layers: bool) -> float:
-    """Look up a scalar value by key, handling layer naming conventions."""
-    suffix = f"_{key}"
+    """Look up a scalar value by key, handling layer naming conventions.
+
+    Supports keys in the format "{metric}/{layer_spec}" (e.g., "r2/L0.resid.pre")
+    or "{metric}/{layer_spec}-{factor_spec}" (e.g., "r2/L0.resid.pre-F0").
+    """
+    prefix = f"{key}/"
     for full_key, value in scalars.items():
         if concat_layers:
-            if full_key.endswith(suffix) or full_key == key:
+            if full_key.startswith(prefix) or full_key == key:
                 return float(value)
         else:
-            if full_key.endswith(suffix) and full_key[: -len(suffix)] == layer_name:
+            if not full_key.startswith(prefix):
+                continue
+            layer_part = full_key[len(prefix) :]
+            candidate_layer = layer_part.split("-")[0]
+            if candidate_layer == layer_name:
                 return float(value)
     raise ConfigValidationError(f"Scalar '{key}' not available for layer '{layer_name}'.")
 

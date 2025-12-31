@@ -170,16 +170,33 @@ def _expand_projection_key_pattern(
     # Match against available projection keys
     result: dict[str, str] = {}
     for full_key in projections:
-        # Extract the key suffix (part after layer name)
+        # Extract the key suffix for pattern matching
         if analysis_concat_layers:
-            # Keys are like "factor_0/projected" directly
+            # Keys are like "analysis/Lcat" or "analysis/Lcat-F0" directly
             key_suffix = full_key
         else:
-            # Keys are like "layer_name_factor_0/projected"
-            prefix = f"{layer_name}_"
-            if not full_key.startswith(prefix):
+            # New format: keys are like "analysis/layer_name" or "analysis/layer_name-F0"
+            # Extract the analysis prefix and factor suffix for matching
+            if "/" not in full_key:
                 continue
-            key_suffix = full_key[len(prefix) :]
+            parts = full_key.rsplit("/", 1)
+            if len(parts) != 2:
+                continue
+            analysis_prefix, layer_part = parts
+
+            # Check if this key is for the current layer
+            if not layer_part.startswith(layer_name):
+                continue
+
+            # Extract factor suffix if present (e.g., "layer_0-F0" -> "-F0")
+            factor_suffix = layer_part[len(layer_name) :]
+
+            # Reconstruct a pattern-matchable key suffix
+            # Convert "projected/layer_0-F0" to "projected/F0" for pattern matching
+            if factor_suffix.startswith("-"):
+                key_suffix = f"{analysis_prefix}/{factor_suffix[1:]}"
+            else:
+                key_suffix = analysis_prefix
 
         match = regex_pattern.match(key_suffix)
         if match:
@@ -419,14 +436,14 @@ def _expand_scalar_pattern_keys(
 ) -> list[str]:
     """Expand wildcard/range pattern against available scalar keys."""
     keys = list(available_keys)
-    has_prefixed_keys = any("/" in key for key in keys)
     prefix = f"{analysis_name}/"
+    keys_have_prefix = any(key.startswith(prefix) for key in keys)
 
     normalized_pattern = pattern
-    if "/" not in normalized_pattern and has_prefixed_keys:
-        normalized_pattern = f"{analysis_name}/{normalized_pattern}"
-    elif "/" in normalized_pattern and not has_prefixed_keys and normalized_pattern.startswith(prefix):
-        normalized_pattern = normalized_pattern[len(prefix) :]
+    if keys_have_prefix and not pattern.startswith(prefix):
+        normalized_pattern = f"{prefix}{pattern}"
+    elif not keys_have_prefix and pattern.startswith(prefix):
+        normalized_pattern = pattern[len(prefix) :]
 
     pattern_variants = _expand_scalar_pattern_ranges(normalized_pattern)
     matched: list[str] = []

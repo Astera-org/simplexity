@@ -34,8 +34,8 @@ class TestProjectionDataframeIntegration:
         factor_1_data = np.array([[0.5, 0.5], [0.4, 0.6], [0.3, 0.7]])
 
         projections = {
-            "layer_0_factor_0/projected": factor_0_data,
-            "layer_0_factor_1/projected": factor_1_data,
+            "projected/layer_0-F0": factor_0_data,
+            "projected/layer_0-F1": factor_1_data,
         }
 
         # Metadata columns with 3 samples
@@ -49,13 +49,13 @@ class TestProjectionDataframeIntegration:
         mappings = {
             "factor_*_prob_0": ActivationVisualizationFieldRef(
                 source="projections",
-                key="factor_*/projected",
+                key="projected/F*",
                 component=0,
                 group_as="factor",
             ),
             "factor_*_prob_1": ActivationVisualizationFieldRef(
                 source="projections",
-                key="factor_*/projected",
+                key="projected/F*",
                 component=1,
                 group_as="factor",
             ),
@@ -124,8 +124,8 @@ class TestProjectionDataframeIntegration:
         factor_1_data = np.array([[0.5, 0.5], [0.4, 0.6]])  # 2 components
 
         projections = {
-            "layer_0_factor_0/projected": factor_0_data,
-            "layer_0_factor_1/projected": factor_1_data,
+            "projected/layer_0-F0": factor_0_data,
+            "projected/layer_0-F1": factor_1_data,
         }
 
         metadata_columns = {
@@ -137,7 +137,7 @@ class TestProjectionDataframeIntegration:
         mappings = {
             "factor_*_prob_2": ActivationVisualizationFieldRef(
                 source="projections",
-                key="factor_*/projected",
+                key="projected/F*",
                 component=2,
                 group_as="factor",
             ),
@@ -174,8 +174,8 @@ class TestProjectionDataframeIntegration:
         projected_values = belief_states + noise
 
         projections = {
-            "layer_0_factor_0/projected": projected_values[:, 0, :],
-            "layer_0_factor_1/projected": projected_values[:, 1, :],
+            "projected/layer_0-F0": projected_values[:, 0, :],
+            "projected/layer_0-F1": projected_values[:, 1, :],
         }
 
         metadata_columns = {
@@ -194,7 +194,7 @@ class TestProjectionDataframeIntegration:
                         label="prediction",
                         mappings={
                             f"factor_*_prob_{i}": ActivationVisualizationFieldRef(
-                                source="projections", key="factor_*/projected", component=i, group_as="factor"
+                                source="projections", key="projected/F*", component=i, group_as="factor"
                             )
                             for i in range(n_states)
                         },
@@ -238,7 +238,7 @@ class TestProjectionDataframeIntegration:
 
         belief_states = np.random.rand(n_samples, n_factors, n_states)
         projections = {
-            f"layer_{layer_idx}_factor_{factor_idx}/projected": np.random.rand(n_samples, n_states)
+            f"projected/layer_{layer_idx}-F{factor_idx}": np.random.rand(n_samples, n_states)
             for layer_idx in range(n_layers)
             for factor_idx in range(n_factors)
         }
@@ -259,7 +259,7 @@ class TestProjectionDataframeIntegration:
                         label="prediction",
                         mappings={
                             "factor_*_prob_0": ActivationVisualizationFieldRef(
-                                source="projections", key="factor_*/projected", component=0, group_as="factor"
+                                source="projections", key="projected/F*", component=0, group_as="factor"
                             ),
                         },
                     ),
@@ -301,7 +301,7 @@ class TestProjectionDataframeIntegration:
         nf_df = _build_dataframe_for_mappings(
             mappings={"prob_0": ActivationVisualizationFieldRef(source="projections", key="projected", component=0)},
             metadata_columns=metadata,
-            projections={"layer_0_projected": projection_data},
+            projections={"projected/layer_0": projection_data},
             scalars={},
             belief_states=None,
             analysis_concat_layers=False,
@@ -310,11 +310,11 @@ class TestProjectionDataframeIntegration:
         f_df = _build_dataframe_for_mappings(
             mappings={
                 "factor_*_prob_0": ActivationVisualizationFieldRef(
-                    source="projections", key="factor_*/projected", component=0, group_as="factor"
+                    source="projections", key="projected/F*", component=0, group_as="factor"
                 )
             },
             metadata_columns=metadata,
-            projections={"layer_0_factor_0/projected": projection_data},
+            projections={"projected/layer_0-F0": projection_data},
             scalars={},
             belief_states=None,
             analysis_concat_layers=False,
@@ -344,6 +344,6 @@ class TestProjectionDataframeIntegration:
         )
 
         for f in range(n_factors):
-            assert scalars[f"factor_{f}/r2"] > 0.8, f"Factor {f} R² too low"
-            diff = np.abs(np.asarray(projections[f"factor_{f}/projected"]) - np.asarray(belief_states[f]))
+            assert scalars[f"r2/F{f}"] > 0.8, f"Factor {f} R² too low"
+            diff = np.abs(np.asarray(projections[f"projected/F{f}"]) - np.asarray(belief_states[f]))
             assert diff.max() < 0.2, f"Factor {f} projections differ too much from beliefs"
