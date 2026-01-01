@@ -57,16 +57,17 @@ from simplexity.exceptions import ConfigValidationError
 class TestFieldResolution:
     """Tests for field_resolution.py functions."""
 
-    def test_lookup_projection_array_none_key(self):
-        """Test that None key raises error."""
-        with pytest.raises(ConfigValidationError, match="must supply a `key` value"):
-            _lookup_projection_array({}, "layer_0", None, False)
-
-    def test_lookup_projection_array_not_found(self):
-        """Test that missing projection raises error."""
-        projections = {"layer_0_other": np.array([1, 2, 3])}
-        with pytest.raises(ConfigValidationError, match="not available for layer"):
-            _lookup_projection_array(projections, "layer_0", "missing", False)
+    @pytest.mark.parametrize(
+        ("projections", "key", "match"),
+        [
+            ({}, None, "must supply a `key` value"),
+            ({"layer_0_other": np.array([1, 2, 3])}, "missing", "not available for layer"),
+        ],
+    )
+    def test_lookup_projection_array_errors(self, projections, key, match):
+        """Test that lookup_projection_array raises expected errors."""
+        with pytest.raises(ConfigValidationError, match=match):
+            _lookup_projection_array(projections, "layer_0", key, False)
 
     def test_lookup_projection_array_concat_layers_exact_match(self):
         """Test exact key match with concat_layers."""
@@ -80,72 +81,52 @@ class TestFieldResolution:
         result = _lookup_projection_array(projections, "layer_0", "my_key", True)
         np.testing.assert_array_equal(result, [4, 5, 6])
 
-    def test_lookup_scalar_value_concat_layers_exact(self):
-        """Test scalar lookup with concat_layers exact match."""
-        scalars = {"my_scalar": 0.5}
-        result = _lookup_scalar_value(scalars, "layer_0", "my_scalar", True)
-        assert result == 0.5
-
-    def test_lookup_scalar_value_concat_layers_suffix(self):
-        """Test scalar lookup with concat_layers suffix match."""
-        scalars = {"prefix_my_scalar": 0.7}
-        result = _lookup_scalar_value(scalars, "layer_0", "my_scalar", True)
-        assert result == 0.7
+    @pytest.mark.parametrize(
+        ("scalars", "key", "concat_layers", "expected"),
+        [
+            ({"my_scalar": 0.5}, "my_scalar", True, 0.5),
+            ({"prefix_my_scalar": 0.7}, "my_scalar", True, 0.7),
+        ],
+    )
+    def test_lookup_scalar_value_success(self, scalars, key, concat_layers, expected):
+        """Test successful scalar value lookup."""
+        result = _lookup_scalar_value(scalars, "layer_0", key, concat_layers)
+        assert result == expected
 
     def test_lookup_scalar_value_not_found(self):
         """Test that missing scalar raises error."""
         with pytest.raises(ConfigValidationError, match="not available for layer"):
             _lookup_scalar_value({"other": 1.0}, "layer_0", "missing", False)
 
-    def test_maybe_component_1d_with_component(self):
-        """Test that 1D array with component raises error."""
-        with pytest.raises(ConfigValidationError, match="invalid for 1D"):
-            _maybe_component(np.array([1, 2, 3]), 0)
+    @pytest.mark.parametrize(
+        ("array", "component", "match"),
+        [
+            (np.array([1, 2, 3]), 0, "invalid for 1D"),
+            (np.ones((2, 3, 4)), None, "must be 1D or 2D"),
+            (np.ones((3, 4)), None, "must specify `component`"),
+            (np.ones((3, 4)), 10, "out of bounds"),
+        ],
+    )
+    def test_maybe_component_errors(self, array, component, match):
+        """Test that maybe_component raises expected errors."""
+        with pytest.raises(ConfigValidationError, match=match):
+            _maybe_component(array, component)
 
-    def test_maybe_component_wrong_dim(self):
-        """Test that 3D array raises error."""
-        with pytest.raises(ConfigValidationError, match="must be 1D or 2D"):
-            _maybe_component(np.ones((2, 3, 4)), None)
-
-    def test_maybe_component_2d_no_component(self):
-        """Test that 2D array without component raises error."""
-        with pytest.raises(ConfigValidationError, match="must specify `component`"):
-            _maybe_component(np.ones((3, 4)), None)
-
-    def test_maybe_component_out_of_bounds(self):
-        """Test that out of bounds component raises error."""
-        with pytest.raises(ConfigValidationError, match="out of bounds"):
-            _maybe_component(np.ones((3, 4)), 10)
-
-    def test_resolve_belief_states_wrong_dim(self):
-        """Test that 1D belief states raise error."""
-        ref = ActivationVisualizationFieldRef(source="belief_states")
-        with pytest.raises(ConfigValidationError, match="must be 2D or 3D"):
-            _resolve_belief_states(np.array([1, 2, 3]), ref)
-
-    def test_resolve_belief_states_3d_no_factor(self):
-        """Test that 3D beliefs without factor raises error."""
-        ref = ActivationVisualizationFieldRef(source="belief_states", factor=None)
-        with pytest.raises(ConfigValidationError, match="no `factor` was specified"):
-            _resolve_belief_states(np.ones((5, 3, 4)), ref)
-
-    def test_resolve_belief_states_2d_with_factor(self):
-        """Test that 2D beliefs with factor raises error."""
-        ref = ActivationVisualizationFieldRef(source="belief_states", factor=0)
-        with pytest.raises(ConfigValidationError, match="Factor selection requires 3D"):
-            _resolve_belief_states(np.ones((5, 4)), ref)
-
-    def test_resolve_belief_states_factor_out_of_bounds(self):
-        """Test that out of bounds factor raises error."""
-        ref = ActivationVisualizationFieldRef(source="belief_states", factor=10)
-        with pytest.raises(ConfigValidationError, match="out of bounds"):
-            _resolve_belief_states(np.ones((5, 3, 4)), ref)
-
-    def test_resolve_belief_states_component_out_of_bounds(self):
-        """Test that out of bounds component raises error."""
-        ref = ActivationVisualizationFieldRef(source="belief_states", component=10)
-        with pytest.raises(ConfigValidationError, match="out of bounds"):
-            _resolve_belief_states(np.ones((5, 4)), ref)
+    @pytest.mark.parametrize(
+        ("beliefs", "ref_kwargs", "match"),
+        [
+            (np.array([1, 2, 3]), {}, "must be 2D or 3D"),
+            (np.ones((5, 3, 4)), {"factor": None}, "no `factor` was specified"),
+            (np.ones((5, 4)), {"factor": 0}, "Factor selection requires 3D"),
+            (np.ones((5, 3, 4)), {"factor": 10}, "out of bounds"),
+            (np.ones((5, 4)), {"component": 10}, "out of bounds"),
+        ],
+    )
+    def test_resolve_belief_states_errors(self, beliefs, ref_kwargs, match):
+        """Test that resolve_belief_states raises expected errors."""
+        ref = ActivationVisualizationFieldRef(source="belief_states", **ref_kwargs)
+        with pytest.raises(ConfigValidationError, match=match):
+            _resolve_belief_states(beliefs, ref)
 
     def test_resolve_field_metadata_existing_key(self):
         """Test metadata source with existing key."""
@@ -160,22 +141,18 @@ class TestFieldResolution:
         result = _resolve_field(ref, "layer_0", {}, {}, None, False, 3, {})
         assert list(result) == ["layer_0", "layer_0", "layer_0"]
 
-    def test_resolve_field_metadata_missing_key(self):
-        """Test metadata source with missing key."""
-        ref = ActivationVisualizationFieldRef(source="metadata", key="missing")
-        with pytest.raises(ConfigValidationError, match="not available"):
-            _resolve_field(ref, "layer_0", {}, {}, None, False, 3, {})
-
-    def test_resolve_field_weights_missing(self):
-        """Test weights source when not available."""
-        ref = ActivationVisualizationFieldRef(source="weights")
-        with pytest.raises(ConfigValidationError, match="unavailable"):
-            _resolve_field(ref, "layer_0", {}, {}, None, False, 3, {})
-
-    def test_resolve_field_belief_states_missing(self):
-        """Test belief_states source when not available."""
-        ref = ActivationVisualizationFieldRef(source="belief_states")
-        with pytest.raises(ConfigValidationError, match="were not retained"):
+    @pytest.mark.parametrize(
+        ("source", "key", "match"),
+        [
+            ("metadata", "missing", "not available"),
+            ("weights", None, "unavailable"),
+            ("belief_states", None, "were not retained"),
+        ],
+    )
+    def test_resolve_field_missing_sources(self, source, key, match):
+        """Test that missing sources raise expected errors."""
+        ref = ActivationVisualizationFieldRef(source=source, key=key)
+        with pytest.raises(ConfigValidationError, match=match):
             _resolve_field(ref, "layer_0", {}, {}, None, False, 3, {})
 
     def test_resolve_field_scalars_success(self):
@@ -196,35 +173,31 @@ class TestFieldResolution:
 class TestPatternExpansion:
     """Tests for pattern_expansion.py functions."""
 
-    def test_parse_component_spec_invalid_range_parts(self):
-        """Test that malformed range raises error."""
-        with pytest.raises(ConfigValidationError, match="Invalid range"):
-            _parse_component_spec("1...2...3")
+    @pytest.mark.parametrize(
+        ("spec", "match"),
+        [
+            ("1...2...3", "Invalid range"),
+            ("5...3", "start must be < end"),
+            ("a...b", "Invalid range"),
+            ("invalid", "Unrecognized component pattern"),
+        ],
+    )
+    def test_parse_component_spec_errors(self, spec, match):
+        """Test that parse_component_spec raises expected errors."""
+        with pytest.raises(ConfigValidationError, match=match):
+            _parse_component_spec(spec)
 
-    def test_parse_component_spec_range_not_ascending(self):
-        """Test that descending range raises error."""
-        with pytest.raises(ConfigValidationError, match="start must be < end"):
-            _parse_component_spec("5...3")
-
-    def test_parse_component_spec_non_numeric_range(self):
-        """Test that non-numeric range raises error."""
-        with pytest.raises(ConfigValidationError, match="Invalid range"):
-            _parse_component_spec("a...b")
-
-    def test_parse_component_spec_unrecognized(self):
-        """Test that unrecognized pattern raises error."""
-        with pytest.raises(ConfigValidationError, match="Unrecognized component pattern"):
-            _parse_component_spec("invalid")
-
-    def test_expand_pattern_to_indices_no_pattern(self):
-        """Test that pattern without wildcards raises error."""
-        with pytest.raises(ConfigValidationError, match="has no wildcard or range"):
-            _expand_pattern_to_indices("plain_key", ["key_0", "key_1"])
-
-    def test_expand_pattern_to_indices_no_matches(self):
-        """Test that no matches raises error."""
-        with pytest.raises(ConfigValidationError, match="No keys found"):
-            _expand_pattern_to_indices("missing_*", ["key_0", "key_1"])
+    @pytest.mark.parametrize(
+        ("pattern", "keys", "match"),
+        [
+            ("plain_key", ["key_0", "key_1"], "has no wildcard or range"),
+            ("missing_*", ["key_0", "key_1"], "No keys found"),
+        ],
+    )
+    def test_expand_pattern_to_indices_errors(self, pattern, keys, match):
+        """Test that expand_pattern_to_indices raises expected errors."""
+        with pytest.raises(ConfigValidationError, match=match):
+            _expand_pattern_to_indices(pattern, keys)
 
     def test_expand_pattern_to_indices_non_numeric_ignored(self):
         """Test that non-numeric matches are ignored."""
@@ -239,46 +212,33 @@ class TestPatternExpansion:
         result = _get_component_count(ref, "layer_0", projections, None, False)
         assert result == 5
 
-    def test_get_component_count_1d_projection(self):
-        """Test that 1D projection raises error for expansion."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="proj")
-        projections = {"layer_0_proj": np.array([1, 2, 3])}
-        with pytest.raises(ConfigValidationError, match="Cannot expand 1D"):
-            _get_component_count(ref, "layer_0", projections, None, False)
+    @pytest.mark.parametrize(
+        ("ref_kwargs", "projections", "beliefs", "match"),
+        [
+            ({"source": "projections", "key": "proj"}, {"layer_0_proj": np.array([1, 2, 3])}, None, "Cannot expand 1D"),
+            ({"source": "belief_states"}, {}, None, "not available"),
+            ({"source": "belief_states"}, {}, np.ones((2, 3, 4)), "must be 2D"),
+            ({"source": "metadata", "key": "test"}, {}, None, "not supported"),
+        ],
+    )
+    def test_get_component_count_errors(self, ref_kwargs, projections, beliefs, match):
+        """Test that get_component_count raises expected errors."""
+        ref = ActivationVisualizationFieldRef(**ref_kwargs)
+        with pytest.raises(ConfigValidationError, match=match):
+            _get_component_count(ref, "layer_0", projections, beliefs, False)
 
-    def test_get_component_count_belief_states_missing(self):
-        """Test that missing belief states raises error."""
-        ref = ActivationVisualizationFieldRef(source="belief_states")
-        with pytest.raises(ConfigValidationError, match="not available"):
-            _get_component_count(ref, "layer_0", {}, None, False)
-
-    def test_get_component_count_belief_states_wrong_dim(self):
-        """Test that non-2D belief states raises error."""
-        ref = ActivationVisualizationFieldRef(source="belief_states")
-        with pytest.raises(ConfigValidationError, match="must be 2D"):
-            _get_component_count(ref, "layer_0", {}, np.ones((2, 3, 4)), False)
-
-    def test_get_component_count_unsupported_source(self):
-        """Test that unsupported source raises error."""
-        ref = ActivationVisualizationFieldRef(source="metadata", key="test")
-        with pytest.raises(ConfigValidationError, match="not supported"):
-            _get_component_count(ref, "layer_0", {}, None, False)
-
-    def test_expand_projection_key_pattern_invalid(self):
-        """Test that invalid key pattern raises error."""
-        with pytest.raises(ConfigValidationError, match="Invalid key pattern"):
-            _expand_projection_key_pattern("plain_key", "layer_0", {}, False)
-
-    def test_expand_projection_key_pattern_invalid_range(self):
-        """Test that invalid range in key pattern raises error."""
-        with pytest.raises(ConfigValidationError, match="Invalid range"):
-            _expand_projection_key_pattern("key_5...3", "layer_0", {}, False)
-
-    def test_expand_projection_key_pattern_no_matches(self):
-        """Test that no matching projections raises error."""
-        projections = {"layer_0_other": np.ones((3, 4))}
-        with pytest.raises(ConfigValidationError, match="No projection keys found"):
-            _expand_projection_key_pattern("key_*", "layer_0", projections, False)
+    @pytest.mark.parametrize(
+        ("key_pattern", "projections", "match"),
+        [
+            ("plain_key", {}, "Invalid key pattern"),
+            ("key_5...3", {}, "Invalid range"),
+            ("key_*", {"layer_0_other": np.ones((3, 4))}, "No projection keys found"),
+        ],
+    )
+    def test_expand_projection_key_pattern_errors(self, key_pattern, projections, match):
+        """Test that expand_projection_key_pattern raises expected errors."""
+        with pytest.raises(ConfigValidationError, match=match):
+            _expand_projection_key_pattern(key_pattern, "layer_0", projections, False)
 
     def test_expand_belief_factor_mapping_wrong_dim(self):
         """Test that non-3D beliefs for factor expansion raises error."""
@@ -355,30 +315,24 @@ class TestPatternExpansion:
 class TestPreprocessing:
     """Tests for preprocessing.py functions."""
 
-    def test_expand_preprocessing_fields_no_matches(self):
-        """Test that wildcard with no matches raises error."""
-        with pytest.raises(ConfigValidationError, match="did not match any columns"):
-            _expand_preprocessing_fields(["missing_*"], ["col_a", "col_b"])
+    @pytest.mark.parametrize(
+        ("fields", "columns", "match"),
+        [
+            (["missing_*"], ["col_a", "col_b"], "did not match any columns"),
+            (["col_0...3"], ["col_0", "col_1"], "column not found"),
+        ],
+    )
+    def test_expand_preprocessing_fields_errors(self, fields, columns, match):
+        """Test that expand_preprocessing_fields raises expected errors."""
+        with pytest.raises(ConfigValidationError, match=match):
+            _expand_preprocessing_fields(fields, columns)
 
-    def test_expand_preprocessing_fields_range_missing_column(self):
-        """Test that range expanding to missing column raises error."""
-        with pytest.raises(ConfigValidationError, match="column not found"):
-            _expand_preprocessing_fields(["col_0...3"], ["col_0", "col_1"])
-
-    def test_apply_preprocessing_output_pattern_error(self):
-        """Test that output field with pattern raises error."""
+    @pytest.mark.parametrize("output_fields", [["out_*", "out_y"], ["out_0...3", "out_y"]])
+    def test_apply_preprocessing_output_pattern_error(self, output_fields):
+        """Test that output fields with patterns raise error."""
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": [7, 8, 9]})
         step = ActivationVisualizationPreprocessStep(
-            type="project_to_simplex", input_fields=["a", "b", "c"], output_fields=["out_*", "out_y"]
-        )
-        with pytest.raises(ConfigValidationError, match="cannot contain patterns"):
-            _apply_preprocessing(df, [step])
-
-    def test_apply_preprocessing_output_range_pattern_error(self):
-        """Test that output field with range pattern raises error."""
-        df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": [7, 8, 9]})
-        step = ActivationVisualizationPreprocessStep(
-            type="project_to_simplex", input_fields=["a", "b", "c"], output_fields=["out_0...3", "out_y"]
+            type="project_to_simplex", input_fields=["a", "b", "c"], output_fields=output_fields
         )
         with pytest.raises(ConfigValidationError, match="cannot contain patterns"):
             _apply_preprocessing(df, [step])
@@ -406,26 +360,22 @@ class TestPreprocessing:
         # y = sqrt(3)/2 * p2
         np.testing.assert_allclose(result["y"], [0.2 * np.sqrt(3) / 2, 0.3 * np.sqrt(3) / 2])
 
-    def test_combine_rgb_wrong_output_count(self):
-        """Test that combine_rgb with wrong output count raises error."""
-        df = pd.DataFrame({"r": [0.5], "g": [0.5], "b": [0.5]})
+    @pytest.mark.parametrize(
+        ("input_fields", "output_fields", "match"),
+        [
+            (["r", "g", "b"], ["color1", "color2"], "exactly one output_field"),
+            (["r", "g"], ["color"], "at least three"),
+        ],
+    )
+    def test_combine_rgb_validation_errors(self, input_fields, output_fields, match):
+        """Test that combine_rgb raises expected validation errors."""
+        df = pd.DataFrame({field: [0.5] for field in input_fields})
         # Create step manually to bypass validation
         step = ActivationVisualizationPreprocessStep.__new__(ActivationVisualizationPreprocessStep)
         object.__setattr__(step, "type", "combine_rgb")
-        object.__setattr__(step, "input_fields", ["r", "g", "b"])
-        object.__setattr__(step, "output_fields", ["color1", "color2"])
-        with pytest.raises(ConfigValidationError, match="exactly one output_field"):
-            _combine_rgb(df, step)
-
-    def test_combine_rgb_too_few_inputs(self):
-        """Test that combine_rgb with <3 inputs raises error."""
-        df = pd.DataFrame({"r": [0.5], "g": [0.5]})
-        # Create step manually to bypass validation
-        step = ActivationVisualizationPreprocessStep.__new__(ActivationVisualizationPreprocessStep)
-        object.__setattr__(step, "type", "combine_rgb")
-        object.__setattr__(step, "input_fields", ["r", "g"])
-        object.__setattr__(step, "output_fields", ["color"])
-        with pytest.raises(ConfigValidationError, match="at least three"):
+        object.__setattr__(step, "input_fields", input_fields)
+        object.__setattr__(step, "output_fields", output_fields)
+        with pytest.raises(ConfigValidationError, match=match):
             _combine_rgb(df, step)
 
     def test_combine_rgb_missing_column(self):
@@ -480,40 +430,21 @@ class TestPreprocessing:
         assert "color" in result.columns
         assert len(result) == 2
 
-    def test_apply_preprocessing_project_to_simplex(self):
-        """Test full preprocessing pipeline with project_to_simplex."""
-        df = pd.DataFrame({"p0": [0.5, 0.3], "p1": [0.3, 0.4], "p2": [0.2, 0.3]})
-        steps = [
-            ActivationVisualizationPreprocessStep(
-                type="project_to_simplex", input_fields=["p0", "p1", "p2"], output_fields=["x", "y"]
-            )
-        ]
+    @pytest.mark.parametrize(
+        ("df_dict", "step_type", "input_fields", "output_fields", "expected_cols"),
+        [
+            ({"p0": [0.5, 0.3], "p1": [0.3, 0.4], "p2": [0.2, 0.3]}, "project_to_simplex", ["p0", "p1", "p2"], ["x", "y"], ["x", "y"]),
+            ({"r": [0.5], "g": [0.5], "b": [0.5]}, "combine_rgb", ["r", "g", "b"], ["color"], ["color"]),
+            ({"val_0": [0.2], "val_1": [0.3], "val_2": [0.5]}, "project_to_simplex", ["val_*"], ["x", "y"], ["x", "y"]),
+        ],
+    )
+    def test_apply_preprocessing_pipeline(self, df_dict, step_type, input_fields, output_fields, expected_cols):
+        """Test full preprocessing pipeline with various step types."""
+        df = pd.DataFrame(df_dict)
+        steps = [ActivationVisualizationPreprocessStep(type=step_type, input_fields=input_fields, output_fields=output_fields)]
         result = _apply_preprocessing(df, steps)
-        assert "x" in result.columns
-        assert "y" in result.columns
-
-    def test_apply_preprocessing_combine_rgb(self):
-        """Test full preprocessing pipeline with combine_rgb."""
-        df = pd.DataFrame({"r": [0.5], "g": [0.5], "b": [0.5]})
-        steps = [
-            ActivationVisualizationPreprocessStep(
-                type="combine_rgb", input_fields=["r", "g", "b"], output_fields=["color"]
-            )
-        ]
-        result = _apply_preprocessing(df, steps)
-        assert "color" in result.columns
-
-    def test_apply_preprocessing_with_pattern_expansion(self):
-        """Test preprocessing with pattern expansion in input fields."""
-        df = pd.DataFrame({"val_0": [0.2], "val_1": [0.3], "val_2": [0.5]})
-        steps = [
-            ActivationVisualizationPreprocessStep(
-                type="project_to_simplex", input_fields=["val_*"], output_fields=["x", "y"]
-            )
-        ]
-        result = _apply_preprocessing(df, steps)
-        assert "x" in result.columns
-        assert "y" in result.columns
+        for col in expected_cols:
+            assert col in result.columns
 
     # ---- pca_project tests ----
 
@@ -589,37 +520,23 @@ class TestPreprocessing:
         assert "pca_1d" in result.columns
         assert len(result) == 10
 
-    def test_apply_preprocessing_pca_project(self):
+    @pytest.mark.parametrize(
+        ("input_fields",),
+        [
+            (["f0", "f1", "f2", "f3"],),
+            (["prob_*"],),
+        ],
+    )
+    def test_apply_preprocessing_pca_project(self, input_fields):
         """Test full preprocessing pipeline with pca_project."""
         np.random.seed(42)
-        df = pd.DataFrame(
-            {"f0": np.random.rand(10), "f1": np.random.rand(10), "f2": np.random.rand(10), "f3": np.random.rand(10)}
-        )
+        if "*" in input_fields[0]:
+            df = pd.DataFrame({f"prob_{i}": np.random.rand(10) for i in range(5)})
+        else:
+            df = pd.DataFrame({f: np.random.rand(10) for f in input_fields})
         steps = [
             ActivationVisualizationPreprocessStep(
-                type="pca_project", input_fields=["f0", "f1", "f2", "f3"], output_fields=["pca_x", "pca_y", "pca_z"]
-            )
-        ]
-        result = _apply_preprocessing(df, steps)
-        assert "pca_x" in result.columns
-        assert "pca_y" in result.columns
-        assert "pca_z" in result.columns
-
-    def test_apply_preprocessing_pca_project_with_pattern(self):
-        """Test pca_project with wildcard pattern expansion."""
-        np.random.seed(42)
-        df = pd.DataFrame(
-            {
-                "prob_0": np.random.rand(10),
-                "prob_1": np.random.rand(10),
-                "prob_2": np.random.rand(10),
-                "prob_3": np.random.rand(10),
-                "prob_4": np.random.rand(10),
-            }
-        )
-        steps = [
-            ActivationVisualizationPreprocessStep(
-                type="pca_project", input_fields=["prob_*"], output_fields=["pca_x", "pca_y", "pca_z"]
+                type="pca_project", input_fields=input_fields, output_fields=["pca_x", "pca_y", "pca_z"]
             )
         ]
         result = _apply_preprocessing(df, steps)
@@ -662,41 +579,35 @@ class TestPreprocessing:
 class TestDataframeBuilders:
     """Tests for dataframe_builders.py functions."""
 
-    def test_extract_base_column_name_with_group_pattern(self):
-        """Test extracting base column name with group value pattern."""
-        result = _extract_base_column_name("factor_0_projected", "0")
-        assert result == "projected"
+    @pytest.mark.parametrize(
+        ("column_name", "group_value", "expected"),
+        [
+            ("factor_0_projected", "0", "projected"),
+            ("my_column", "0", "my_column"),
+            ("other_column", "0", "other_column"),
+        ],
+    )
+    def test_extract_base_column_name(self, column_name, group_value, expected):
+        """Test extracting base column name."""
+        result = _extract_base_column_name(column_name, group_value)
+        assert result == expected
 
-    def test_extract_base_column_name_no_pattern(self):
-        """Test extracting base column name when no pattern."""
-        result = _extract_base_column_name("my_column", "0")
-        assert result == "my_column"
-
-    def test_extract_base_column_name_no_match(self):
-        """Test extracting base column name when pattern doesn't match."""
-        result = _extract_base_column_name("other_column", "0")
-        assert result == "other_column"
-
-    def test_scalar_series_metadata_with_arrays(self):
-        """Test extracting metadata from arrays."""
-        metadata = {"step": np.array([10]), "name": np.array(["test"])}
+    @pytest.mark.parametrize(
+        ("metadata", "expected"),
+        [
+            ({"step": np.array([10]), "name": np.array(["test"])}, {"step": 10, "name": "test"}),
+            ({"step": np.array([10]), "empty": np.array([])}, {"step": 10}),
+            ({"step": 10, "name": "test"}, {"step": 10, "name": "test"}),
+        ],
+    )
+    def test_scalar_series_metadata(self, metadata, expected):
+        """Test extracting metadata from various inputs."""
         result = _scalar_series_metadata(metadata)
-        assert result["step"] == 10
-        assert result["name"] == "test"
-
-    def test_scalar_series_metadata_with_empty_array(self):
-        """Test that empty arrays are skipped."""
-        metadata = {"step": np.array([10]), "empty": np.array([])}
-        result = _scalar_series_metadata(metadata)
-        assert result["step"] == 10
-        assert "empty" not in result
-
-    def test_scalar_series_metadata_with_scalar(self):
-        """Test extracting metadata from scalar values."""
-        metadata = {"step": 10, "name": "test"}
-        result = _scalar_series_metadata(metadata)
-        assert result["step"] == 10
-        assert result["name"] == "test"
+        for key, value in expected.items():
+            assert result[key] == value
+        for key in metadata:
+            if key not in expected:
+                assert key not in result
 
     def test_infer_scalar_series_indices_success(self):
         """Test inferring scalar series indices from available keys."""
@@ -804,34 +715,25 @@ class TestDataframeBuilders:
     def test_build_scalar_dataframe_scalar_pattern(self):
         """Test building scalar dataframe with scalar_pattern source."""
         mappings = {"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="layer_*_rmse")}
-        scalars = {
-            "analysis/layer_0_rmse": 0.1,
-            "analysis/layer_1_rmse": 0.2,
-        }
+        scalars = {"analysis/layer_0_rmse": 0.1, "analysis/layer_1_rmse": 0.2}
         result = _build_scalar_dataframe(mappings, scalars, {}, "analysis", 5)
         assert len(result) == 2
-        assert "step" in result.columns
-        assert "rmse" in result.columns
-        assert all(result["step"] == 5)
+        assert "step" in result.columns and "rmse" in result.columns and all(result["step"] == 5)
 
-    def test_build_scalar_dataframe_scalar_history(self):
+    @pytest.mark.parametrize(
+        ("scalar_history", "scalars", "expected_len", "expected_steps"),
+        [
+            ({"analysis/metric": [(0, 0.5), (10, 0.3), (20, 0.1)]}, {}, 3, [0, 10, 20]),
+            ({}, {"analysis/metric": 0.42}, 1, [5]),
+        ],
+    )
+    def test_build_scalar_dataframe_scalar_history(self, scalar_history, scalars, expected_len, expected_steps):
         """Test building scalar dataframe with scalar_history source."""
         mappings = {"rmse": ActivationVisualizationFieldRef(source="scalar_history", key="metric")}
-        scalars = {}
-        scalar_history = {"analysis/metric": [(0, 0.5), (10, 0.3), (20, 0.1)]}
-        result = _build_scalar_dataframe(mappings, scalars, scalar_history, "analysis", 20)
-        assert len(result) == 3
-        assert list(result["step"]) == [0, 10, 20]
-
-    def test_build_scalar_dataframe_scalar_history_fallback(self):
-        """Test scalar_history falls back to current scalars when no history."""
-        mappings = {"rmse": ActivationVisualizationFieldRef(source="scalar_history", key="metric")}
-        scalars = {"analysis/metric": 0.42}
-        scalar_history = {}
-        result = _build_scalar_dataframe(mappings, scalars, scalar_history, "analysis", 5)
-        assert len(result) == 1
-        assert result["step"].iloc[0] == 5
-        assert result["rmse"].iloc[0] == 0.42
+        step = 20 if scalar_history else 5
+        result = _build_scalar_dataframe(mappings, scalars, scalar_history, "analysis", step)
+        assert len(result) == expected_len
+        assert list(result["step"]) == expected_steps
 
     def test_build_scalar_dataframe_no_matches(self):
         """Test that no matching scalars raises error."""
@@ -854,13 +756,9 @@ class TestDataframeBuilders:
 
     def test_build_scalar_dataframe_simple_key(self):
         """Test scalar_pattern with non-pattern key."""
-        # Use field name "value" to avoid conflict with hardcoded "metric" column
         mappings = {"value": ActivationVisualizationFieldRef(source="scalar_pattern", key="my_metric")}
-        scalars = {"analysis/my_metric": 0.42}
-        result = _build_scalar_dataframe(mappings, scalars, {}, "analysis", 10)
-        assert len(result) == 1
-        assert result["value"].iloc[0] == 0.42
-        assert result["metric"].iloc[0] == "analysis/my_metric"  # Check the metric key column
+        result = _build_scalar_dataframe(mappings, {"analysis/my_metric": 0.42}, {}, "analysis", 10)
+        assert len(result) == 1 and result["value"].iloc[0] == 0.42 and result["metric"].iloc[0] == "analysis/my_metric"
 
     def test_build_scalar_dataframe_key_none(self):
         """Test that scalar_pattern with key=None raises error."""
@@ -881,21 +779,13 @@ class TestDataframeBuilders:
 
     def test_build_metadata_columns(self):
         """Test building metadata columns."""
-
         sequences: list[tuple[int, ...]] = [(1, 2, 3), (4, 5)]
-        steps = np.array([3, 2])
-        metadata = PreparedMetadata(sequences=sequences, steps=steps, select_last_token=False)
-        weights = np.array([1.0, 0.5])
-        result = _build_metadata_columns("my_analysis", metadata, weights)
-        assert "analysis" in result
-        assert "step" in result
-        assert "sequence_length" in result
-        assert "sequence" in result
-        assert "sample_index" in result
-        assert "weight" in result
+        metadata = PreparedMetadata(sequences=sequences, steps=np.array([3, 2]), select_last_token=False)
+        result = _build_metadata_columns("my_analysis", metadata, np.array([1.0, 0.5]))
+        for col in ["analysis", "step", "sequence_length", "sequence", "sample_index", "weight"]:
+            assert col in result
         assert list(result["analysis"]) == ["my_analysis", "my_analysis"]
-        assert list(result["step"]) == [3, 2]
-        assert list(result["weight"]) == [1.0, 0.5]
+        assert list(result["step"]) == [3, 2] and list(result["weight"]) == [1.0, 0.5]
 
     def test_build_dataframe_for_mappings_simple(self):
         """Test _build_dataframe_for_mappings with simple projection mapping."""
@@ -995,25 +885,21 @@ class TestDataframeBuilders:
         assert set(result["source"]) == {"projected", "raw"}
         assert len(result) == 2
 
-    def test_build_dataframe_scalar_pattern_no_step(self):
-        """Test that scalar_pattern without step raises error."""
+    @pytest.mark.parametrize(
+        ("metadata", "step", "match"),
+        [
+            ({"step": np.array([1]), "analysis": np.array(["test"])}, None, "without the `step` parameter"),
+            ({"step": np.array([1])}, 10, "requires 'analysis'"),
+        ],
+    )
+    def test_build_dataframe_scalar_pattern_validation(self, metadata, step, match):
+        """Test that scalar_pattern validates required parameters."""
         data_mapping = ActivationVisualizationDataMapping(
             mappings={"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="metric")}
         )
         viz_cfg = ActivationVisualizationConfig(name="test", data_mapping=data_mapping)
-        metadata = {"step": np.array([1]), "analysis": np.array(["test"])}
-        with pytest.raises(ConfigValidationError, match="without the `step` parameter"):
-            _build_dataframe(viz_cfg, metadata, {}, {"test/metric": 0.1}, {}, None, None, False, [])
-
-    def test_build_dataframe_scalar_pattern_no_analysis(self):
-        """Test that scalar_pattern without analysis metadata raises error."""
-        data_mapping = ActivationVisualizationDataMapping(
-            mappings={"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="metric")}
-        )
-        viz_cfg = ActivationVisualizationConfig(name="test", data_mapping=data_mapping)
-        metadata = {"step": np.array([1])}  # No "analysis" key
-        with pytest.raises(ConfigValidationError, match="requires 'analysis'"):
-            _build_dataframe(viz_cfg, metadata, {}, {"test/metric": 0.1}, {}, 10, None, False, [])
+        with pytest.raises(ConfigValidationError, match=match):
+            _build_dataframe(viz_cfg, metadata, {}, {"test/metric": 0.1}, {}, step, None, False, [])
 
     def test_build_dataframe_scalar_series_no_analysis(self):
         """Test that scalar_series without analysis metadata raises error."""
@@ -1030,20 +916,19 @@ class TestDataframeBuilders:
 class TestSampling:
     """Tests for DataFrame sampling functionality."""
 
-    def test_sampling_reduces_size_no_facets(self):
-        """Test that sampling reduces DataFrame size when no facet columns present."""
-        df = pd.DataFrame({"a": range(100), "b": range(100)})
-        config = SamplingConfig(max_points=20, seed=42)
+    @pytest.mark.parametrize(
+        ("df_size", "max_points", "expected_len"),
+        [
+            (100, 20, 20),  # Should sample
+            (10, 20, 10),  # Should not sample
+        ],
+    )
+    def test_sampling_basic(self, df_size, max_points, expected_len):
+        """Test basic sampling behavior."""
+        df = pd.DataFrame({"a": range(df_size), "b": range(df_size)})
+        config = SamplingConfig(max_points=max_points, seed=42)
         result = _apply_sampling(df, config, facet_columns=[])
-        assert len(result) == 20
-
-    def test_sampling_no_reduction_when_under_limit(self):
-        """Test that sampling returns original DataFrame when size <= max_points."""
-        df = pd.DataFrame({"a": range(10), "b": range(10)})
-        config = SamplingConfig(max_points=20, seed=42)
-        result = _apply_sampling(df, config, facet_columns=[])
-        assert len(result) == 10
-        pd.testing.assert_frame_equal(result, df)
+        assert len(result) == expected_len
 
     def test_sampling_per_facet_group(self):
         """Test that sampling applies per facet group."""
@@ -1106,12 +991,8 @@ class TestSampling:
         result = _apply_sampling(df, config, facet_columns=[])
         pd.testing.assert_frame_equal(result, df)
 
-    def test_sampling_config_validation_negative(self):
-        """Test that negative max_points raises error."""
+    @pytest.mark.parametrize("max_points", [-1, 0])
+    def test_sampling_config_validation(self, max_points):
+        """Test that invalid max_points raises error."""
         with pytest.raises(ConfigValidationError, match="positive integer"):
-            SamplingConfig(max_points=-1)
-
-    def test_sampling_config_validation_zero(self):
-        """Test that zero max_points raises error."""
-        with pytest.raises(ConfigValidationError, match="positive integer"):
-            SamplingConfig(max_points=0)
+            SamplingConfig(max_points=max_points)
