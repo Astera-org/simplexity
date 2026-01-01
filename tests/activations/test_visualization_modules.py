@@ -38,6 +38,7 @@ from simplexity.activations.visualization.preprocessing import (
     _apply_preprocessing,
     _combine_rgb,
     _expand_preprocessing_fields,
+    _pca_project,
     _project_to_simplex,
 )
 from simplexity.activations.visualization_configs import (
@@ -513,6 +514,148 @@ class TestPreprocessing:
         result = _apply_preprocessing(df, steps)
         assert "x" in result.columns
         assert "y" in result.columns
+
+    # ---- pca_project tests ----
+
+    def test_pca_project_basic(self):
+        """Test basic PCA projection (5 dims -> 3 dims)."""
+        np.random.seed(42)
+        df = pd.DataFrame(
+            {
+                "f0": np.random.rand(10),
+                "f1": np.random.rand(10),
+                "f2": np.random.rand(10),
+                "f3": np.random.rand(10),
+                "f4": np.random.rand(10),
+            }
+        )
+        step = ActivationVisualizationPreprocessStep(
+            type="pca_project", input_fields=["f0", "f1", "f2", "f3", "f4"], output_fields=["pca_x", "pca_y", "pca_z"]
+        )
+        result = _pca_project(df, step)
+        assert "pca_x" in result.columns
+        assert "pca_y" in result.columns
+        assert "pca_z" in result.columns
+        assert len(result) == 10
+
+    def test_pca_project_fewer_samples_than_components(self):
+        """Test PCA projection with fewer samples than requested components."""
+        # 2 samples, 4 features -> max 2 components, but requesting 3
+        df = pd.DataFrame({"f0": [0.1, 0.9], "f1": [0.2, 0.8], "f2": [0.3, 0.7], "f3": [0.4, 0.6]})
+        step = ActivationVisualizationPreprocessStep(
+            type="pca_project", input_fields=["f0", "f1", "f2", "f3"], output_fields=["pca_x", "pca_y", "pca_z"]
+        )
+        result = _pca_project(df, step)
+        assert "pca_x" in result.columns
+        assert "pca_y" in result.columns
+        assert "pca_z" in result.columns
+        # Third component should be padded with zeros
+        np.testing.assert_array_equal(result["pca_z"], [0.0, 0.0])
+
+    def test_pca_project_more_output_than_input(self):
+        """Test PCA projection requesting more outputs than inputs (should pad)."""
+        # 3 features, requesting 5 outputs -> pad with zeros
+        np.random.seed(42)
+        df = pd.DataFrame({"f0": np.random.rand(10), "f1": np.random.rand(10), "f2": np.random.rand(10)})
+        step = ActivationVisualizationPreprocessStep(
+            type="pca_project",
+            input_fields=["f0", "f1", "f2"],
+            output_fields=["pca_0", "pca_1", "pca_2", "pca_3", "pca_4"],
+        )
+        result = _pca_project(df, step)
+        assert "pca_0" in result.columns
+        assert "pca_4" in result.columns
+        # Components 3 and 4 should be zeros (only 3 input features)
+        np.testing.assert_array_equal(result["pca_3"], np.zeros(10))
+        np.testing.assert_array_equal(result["pca_4"], np.zeros(10))
+
+    def test_pca_project_missing_column(self):
+        """Test that missing input column raises error."""
+        df = pd.DataFrame({"f0": [0.5], "f1": [0.5]})
+        step = ActivationVisualizationPreprocessStep(
+            type="pca_project", input_fields=["f0", "f1", "missing"], output_fields=["pca_x"]
+        )
+        with pytest.raises(ConfigValidationError, match="missing from the dataframe"):
+            _pca_project(df, step)
+
+    def test_pca_project_single_output(self):
+        """Test PCA projection to a single dimension."""
+        np.random.seed(42)
+        df = pd.DataFrame({"f0": np.random.rand(10), "f1": np.random.rand(10), "f2": np.random.rand(10)})
+        step = ActivationVisualizationPreprocessStep(
+            type="pca_project", input_fields=["f0", "f1", "f2"], output_fields=["pca_1d"]
+        )
+        result = _pca_project(df, step)
+        assert "pca_1d" in result.columns
+        assert len(result) == 10
+
+    def test_apply_preprocessing_pca_project(self):
+        """Test full preprocessing pipeline with pca_project."""
+        np.random.seed(42)
+        df = pd.DataFrame(
+            {"f0": np.random.rand(10), "f1": np.random.rand(10), "f2": np.random.rand(10), "f3": np.random.rand(10)}
+        )
+        steps = [
+            ActivationVisualizationPreprocessStep(
+                type="pca_project", input_fields=["f0", "f1", "f2", "f3"], output_fields=["pca_x", "pca_y", "pca_z"]
+            )
+        ]
+        result = _apply_preprocessing(df, steps)
+        assert "pca_x" in result.columns
+        assert "pca_y" in result.columns
+        assert "pca_z" in result.columns
+
+    def test_apply_preprocessing_pca_project_with_pattern(self):
+        """Test pca_project with wildcard pattern expansion."""
+        np.random.seed(42)
+        df = pd.DataFrame(
+            {
+                "prob_0": np.random.rand(10),
+                "prob_1": np.random.rand(10),
+                "prob_2": np.random.rand(10),
+                "prob_3": np.random.rand(10),
+                "prob_4": np.random.rand(10),
+            }
+        )
+        steps = [
+            ActivationVisualizationPreprocessStep(
+                type="pca_project", input_fields=["prob_*"], output_fields=["pca_x", "pca_y", "pca_z"]
+            )
+        ]
+        result = _apply_preprocessing(df, steps)
+        assert "pca_x" in result.columns
+        assert "pca_y" in result.columns
+        assert "pca_z" in result.columns
+
+    def test_pca_project_then_combine_rgb(self):
+        """Test chaining pca_project with combine_rgb."""
+        np.random.seed(42)
+        df = pd.DataFrame(
+            {
+                "prob_0": np.random.rand(10),
+                "prob_1": np.random.rand(10),
+                "prob_2": np.random.rand(10),
+                "prob_3": np.random.rand(10),
+                "prob_4": np.random.rand(10),
+            }
+        )
+        steps = [
+            ActivationVisualizationPreprocessStep(
+                type="pca_project", input_fields=["prob_*"], output_fields=["pca_x", "pca_y", "pca_z"]
+            ),
+            ActivationVisualizationPreprocessStep(
+                type="combine_rgb", input_fields=["pca_x", "pca_y", "pca_z"], output_fields=["point_color"]
+            ),
+        ]
+        result = _apply_preprocessing(df, steps)
+        assert "pca_x" in result.columns
+        assert "pca_y" in result.columns
+        assert "pca_z" in result.columns
+        assert "point_color" in result.columns
+        # All colors should be valid hex colors
+        for color in result["point_color"]:
+            assert color.startswith("#")
+            assert len(color) == 7
 
 
 # pylint: disable=too-many-public-methods

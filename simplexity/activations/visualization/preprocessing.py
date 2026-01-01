@@ -101,6 +101,8 @@ def _apply_preprocessing(dataframe: pd.DataFrame, steps: list[ActivationVisualiz
             result = _project_to_simplex(result, expanded_step)
         elif step.type == "combine_rgb":
             result = _combine_rgb(result, expanded_step)
+        elif step.type == "pca_project":
+            result = _pca_project(result, expanded_step)
         else:  # pragma: no cover - defensive for future types
             raise ConfigValidationError(f"Unsupported preprocessing op '{step.type}'")
 
@@ -215,9 +217,59 @@ def _combine_rgb(dataframe: pd.DataFrame, step: ActivationVisualizationPreproces
     return dataframe
 
 
+def _pca_project(dataframe: pd.DataFrame, step: ActivationVisualizationPreprocessStep) -> pd.DataFrame:
+    """Project input fields to lower dimensions via PCA.
+
+    Takes multiple input fields and projects them to N dimensions
+    (specified by the number of output_fields), outputting N new columns.
+    """
+    import jax.numpy as jnp
+
+    n_components = len(step.output_fields)
+
+    # ---- Validation ----
+    if n_components < 1:
+        raise ConfigValidationError("pca_project requires at least one output_field.")
+
+    for field in step.input_fields:
+        if field not in dataframe:
+            raise ConfigValidationError(f"pca_project requires column '{field}' but it is missing from the dataframe.")
+
+    # ---- Processing ----
+    # Stack input columns into (n_samples, n_features) matrix
+    X_np = dataframe[step.input_fields].to_numpy(dtype=float)
+    X_jax = jnp.asarray(X_np)
+
+    # Compute PCA
+    pca_res = compute_weighted_pca(
+        X_jax,
+        n_components=None,  # Let it pick max_rank, we'll slice/pad as needed
+        weights=None,
+        center=True,
+    )
+
+    # Get projected coordinates
+    proj = np.asarray(pca_res["X_proj"])
+
+    # Ensure we have n_components dimensions: take first N, pad with zeros if fewer
+    if proj.shape[1] >= n_components:
+        proj_out = proj[:, :n_components]
+    else:
+        # Rare case: fewer components available than requested (e.g., n_samples < n_components)
+        pad_width = n_components - proj.shape[1]
+        proj_out = np.pad(proj, ((0, 0), (0, pad_width)), mode="constant")
+
+    # Write output columns
+    for i, col_name in enumerate(step.output_fields):
+        dataframe[col_name] = proj_out[:, i]
+
+    return dataframe
+
+
 __all__ = [
     "_apply_preprocessing",
     "_combine_rgb",
     "_expand_preprocessing_fields",
+    "_pca_project",
     "_project_to_simplex",
 ]

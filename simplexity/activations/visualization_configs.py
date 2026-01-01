@@ -249,7 +249,7 @@ class ActivationVisualizationDataMapping:
 class ActivationVisualizationPreprocessStep:
     """Preprocessing directives applied after the base DataFrame is built."""
 
-    type: Literal["project_to_simplex", "combine_rgb"]
+    type: Literal["project_to_simplex", "combine_rgb", "pca_project"]
     input_fields: list[str]
     output_fields: list[str]
 
@@ -269,6 +269,12 @@ class ActivationVisualizationPreprocessStep:
                 raise ConfigValidationError("combine_rgb requires at least three input_fields.")
             if len(self.output_fields) != 1:
                 raise ConfigValidationError("combine_rgb requires exactly one output_field.")
+        elif self.type == "pca_project":
+            # Skip input validation if patterns present (will be validated at runtime)
+            if not has_pattern and len(self.input_fields) < 1:
+                raise ConfigValidationError("pca_project requires at least one input_field.")
+            if len(self.output_fields) < 1:
+                raise ConfigValidationError("pca_project requires at least one output_field.")
 
 
 @dataclass
