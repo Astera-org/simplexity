@@ -90,7 +90,7 @@ def test_pca_analysis_does_not_require_beliefs(analysis_inputs) -> None:
         belief_states=None,
     )
     assert "cumvar_1/layer_a" in scalars
-    assert "n_components_50pct/layer_a" in scalars
+    assert "nc_50/layer_a" in scalars
     assert "pca/layer_a" in projections
 
 
