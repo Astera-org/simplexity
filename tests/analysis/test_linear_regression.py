@@ -237,34 +237,34 @@ def test_layer_linear_regression_belief_states_tuple_default() -> None:
     )
 
     # Should have separate metrics for each factor
-    assert "factor_0/r2" in scalars
-    assert "factor_1/r2" in scalars
-    assert "factor_0/rmse" in scalars
-    assert "factor_1/rmse" in scalars
-    assert "factor_0/mae" in scalars
-    assert "factor_1/mae" in scalars
-    assert "factor_0/dist" in scalars
-    assert "factor_1/dist" in scalars
+    assert "r2/F0" in scalars
+    assert "r2/F1" in scalars
+    assert "rmse/F0" in scalars
+    assert "rmse/F1" in scalars
+    assert "mae/F0" in scalars
+    assert "mae/F1" in scalars
+    assert "dist/F0" in scalars
+    assert "dist/F1" in scalars
 
     # Should have separate projections for each factor
-    assert "factor_0/projected" in arrays
-    assert "factor_1/projected" in arrays
+    assert "projected/F0" in arrays
+    assert "projected/F1" in arrays
 
     # Should have separate parameters for each factor
-    assert "factor_0/coeffs" in arrays
-    assert "factor_1/coeffs" in arrays
+    assert "coeffs/F0" in arrays
+    assert "coeffs/F1" in arrays
 
     # Should have separate intercepts for each factor by default
-    assert "factor_0/intercept" in arrays
-    assert "factor_1/intercept" in arrays
+    assert "intercept/F0" in arrays
+    assert "intercept/F1" in arrays
 
     # Check shapes
-    assert arrays["factor_0/projected"].shape == factor_0.shape
-    assert arrays["factor_1/projected"].shape == factor_1.shape
-    assert arrays["factor_0/coeffs"].shape == (x.shape[1], factor_0.shape[1])
-    assert arrays["factor_1/coeffs"].shape == (x.shape[1], factor_1.shape[1])
-    assert arrays["factor_0/intercept"].shape == (1, factor_0.shape[1])
-    assert arrays["factor_1/intercept"].shape == (1, factor_1.shape[1])
+    assert arrays["projected/F0"].shape == factor_0.shape
+    assert arrays["projected/F1"].shape == factor_1.shape
+    assert arrays["coeffs/F0"].shape == (x.shape[1], factor_0.shape[1])
+    assert arrays["coeffs/F1"].shape == (x.shape[1], factor_1.shape[1])
+    assert arrays["intercept/F0"].shape == (1, factor_0.shape[1])
+    assert arrays["intercept/F1"].shape == (1, factor_1.shape[1])
 
 
 def test_layer_linear_regression_svd_belief_states_tuple_default() -> None:
@@ -287,31 +287,31 @@ def test_layer_linear_regression_svd_belief_states_tuple_default() -> None:
 
     # Should have ALL regression metrics for each factor including best_rcond
     for factor in [0, 1]:
-        assert f"factor_{factor}/r2" in scalars
-        assert f"factor_{factor}/rmse" in scalars
-        assert f"factor_{factor}/mae" in scalars
-        assert f"factor_{factor}/dist" in scalars
-        assert f"factor_{factor}/best_rcond" in scalars
+        assert f"r2/F{factor}" in scalars
+        assert f"rmse/F{factor}" in scalars
+        assert f"mae/F{factor}" in scalars
+        assert f"dist/F{factor}" in scalars
+        assert f"best_rcond/F{factor}" in scalars
 
     # Should have separate projections for each factor
-    assert "factor_0/projected" in arrays
-    assert "factor_1/projected" in arrays
+    assert "projected/F0" in arrays
+    assert "projected/F1" in arrays
 
     # Should have separate coefficients for each factor
-    assert "factor_0/coeffs" in arrays
-    assert "factor_1/coeffs" in arrays
+    assert "coeffs/F0" in arrays
+    assert "coeffs/F1" in arrays
 
     # Should have separate intercepts for each factor by default
-    assert "factor_0/intercept" in arrays
-    assert "factor_1/intercept" in arrays
+    assert "intercept/F0" in arrays
+    assert "intercept/F1" in arrays
 
     # Check shapes
-    assert arrays["factor_0/projected"].shape == factor_0.shape
-    assert arrays["factor_1/projected"].shape == factor_1.shape
-    assert arrays["factor_0/coeffs"].shape == (x.shape[1], factor_0.shape[1])
-    assert arrays["factor_1/coeffs"].shape == (x.shape[1], factor_1.shape[1])
-    assert arrays["factor_0/intercept"].shape == (1, factor_0.shape[1])
-    assert arrays["factor_1/intercept"].shape == (1, factor_1.shape[1])
+    assert arrays["projected/F0"].shape == factor_0.shape
+    assert arrays["projected/F1"].shape == factor_1.shape
+    assert arrays["coeffs/F0"].shape == (x.shape[1], factor_0.shape[1])
+    assert arrays["coeffs/F1"].shape == (x.shape[1], factor_1.shape[1])
+    assert arrays["intercept/F0"].shape == (1, factor_0.shape[1])
+    assert arrays["intercept/F1"].shape == (1, factor_1.shape[1])
 
 
 def test_layer_linear_regression_belief_states_tuple_single_factor() -> None:
@@ -373,30 +373,30 @@ def test_orthogonality_with_orthogonal_subspaces() -> None:
     )
 
     # Should have standard factor metrics with perfect fit
-    assert scalars["factor_0/r2"] > 0.99  # Should fit nearly perfectly
-    assert scalars["factor_1/r2"] > 0.99
+    assert scalars["r2/F0"] > 0.99  # Should fit nearly perfectly
+    assert scalars["r2/F1"] > 0.99
 
     # Should have ALL orthogonality metrics
-    assert "orthogonality_0_1/subspace_overlap" in scalars
-    assert "orthogonality_0_1/max_singular_value" in scalars
-    assert "orthogonality_0_1/min_singular_value" in scalars
-    assert "orthogonality_0_1/participation_ratio" in scalars
-    assert "orthogonality_0_1/entropy" in scalars
-    assert "orthogonality_0_1/effective_rank" in scalars
+    assert "orth/overlap/F0,1" in scalars
+    assert "orth/sv_max/F0,1" in scalars
+    assert "orth/sv_min/F0,1" in scalars
+    assert "orth/p_ratio/F0,1" in scalars
+    assert "orth/entropy/F0,1" in scalars
+    assert "orth/eff_rank/F0,1" in scalars
 
     # Compute principled threshold based on machine precision and problem size
     threshold = _compute_orthogonality_threshold(x, factor_0, factor_1)
 
     # Should indicate near-zero overlap (orthogonal by construction)
-    assert scalars["orthogonality_0_1/subspace_overlap"] < threshold
-    assert scalars["orthogonality_0_1/max_singular_value"] < threshold
+    assert scalars["orth/overlap/F0,1"] < threshold
+    assert scalars["orth/sv_max/F0,1"] < threshold
 
     # Should have singular values in arrays
-    assert "orthogonality_0_1/singular_values" in arrays
+    assert "orth/singular_values/F0,1" in arrays
     # Both factors have 2 dimensions, so min(2, 2) = 2 singular values
-    assert arrays["orthogonality_0_1/singular_values"].shape[0] == 2
+    assert arrays["orth/singular_values/F0,1"].shape[0] == 2
     # All singular values should be near zero (orthogonal)
-    assert jnp.all(arrays["orthogonality_0_1/singular_values"] < threshold)
+    assert jnp.all(arrays["orth/singular_values/F0,1"] < threshold)
 
 
 def test_orthogonality_with_aligned_subspaces() -> None:
@@ -427,27 +427,27 @@ def test_orthogonality_with_aligned_subspaces() -> None:
     )
 
     # Should have standard factor metrics with perfect fit
-    assert scalars["factor_0/r2"] > 0.99  # Should fit nearly perfectly
-    assert scalars["factor_1/r2"] > 0.99
+    assert scalars["r2/F0"] > 0.99  # Should fit nearly perfectly
+    assert scalars["r2/F1"] > 0.99
 
     # Should have ALL orthogonality metrics
-    assert "orthogonality_0_1/subspace_overlap" in scalars
-    assert "orthogonality_0_1/max_singular_value" in scalars
-    assert "orthogonality_0_1/min_singular_value" in scalars
-    assert "orthogonality_0_1/participation_ratio" in scalars
-    assert "orthogonality_0_1/entropy" in scalars
-    assert "orthogonality_0_1/effective_rank" in scalars
+    assert "orth/overlap/F0,1" in scalars
+    assert "orth/sv_max/F0,1" in scalars
+    assert "orth/sv_min/F0,1" in scalars
+    assert "orth/p_ratio/F0,1" in scalars
+    assert "orth/entropy/F0,1" in scalars
+    assert "orth/eff_rank/F0,1" in scalars
 
     # Should indicate high overlap (aligned by construction)
-    assert scalars["orthogonality_0_1/subspace_overlap"] > 0.99
-    assert scalars["orthogonality_0_1/max_singular_value"] > 0.99
+    assert scalars["orth/overlap/F0,1"] > 0.99
+    assert scalars["orth/sv_max/F0,1"] > 0.99
 
     # Should have singular values in arrays
-    assert "orthogonality_0_1/singular_values" in arrays
+    assert "orth/singular_values/F0,1" in arrays
     # Both factors have 2 dimensions, so min(2, 2) = 2 singular values
-    assert arrays["orthogonality_0_1/singular_values"].shape[0] == 2
+    assert arrays["orth/singular_values/F0,1"].shape[0] == 2
     # All singular values should be near 1.0 (perfectly aligned)
-    assert jnp.all(arrays["orthogonality_0_1/singular_values"] > 0.99)
+    assert jnp.all(arrays["orth/singular_values/F0,1"] > 0.99)
 
 
 def test_orthogonality_with_three_factors() -> None:
@@ -479,34 +479,34 @@ def test_orthogonality_with_three_factors() -> None:
     )
 
     # Should have standard factor metrics for all three factors
-    assert scalars["factor_0/r2"] > 0.99
-    assert scalars["factor_1/r2"] > 0.99
-    assert scalars["factor_2/r2"] > 0.99
+    assert scalars["r2/F0"] > 0.99
+    assert scalars["r2/F1"] > 0.99
+    assert scalars["r2/F2"] > 0.99
 
     # Compute principled threshold based on machine precision and problem size
     threshold = _compute_orthogonality_threshold(x, factor_0, factor_1, factor_2)
 
     # Should have ALL three pairwise orthogonality combinations
-    pairwise_keys = ["orthogonality_0_1", "orthogonality_0_2", "orthogonality_1_2"]
+    pairwise_keys = ["F0,1", "F0,2", "F1,2"]
     for pair_key in pairwise_keys:
-        assert f"{pair_key}/subspace_overlap" in scalars
-        assert f"{pair_key}/max_singular_value" in scalars
-        assert f"{pair_key}/min_singular_value" in scalars
-        assert f"{pair_key}/participation_ratio" in scalars
-        assert f"{pair_key}/entropy" in scalars
-        assert f"{pair_key}/effective_rank" in scalars
-        assert f"{pair_key}/singular_values" in arrays
+        assert f"orth/overlap/{pair_key}" in scalars
+        assert f"orth/sv_max/{pair_key}" in scalars
+        assert f"orth/sv_min/{pair_key}" in scalars
+        assert f"orth/p_ratio/{pair_key}" in scalars
+        assert f"orth/entropy/{pair_key}" in scalars
+        assert f"orth/eff_rank/{pair_key}" in scalars
+        assert f"orth/singular_values/{pair_key}" in arrays
 
         # All pairs should be orthogonal (near-zero overlap)
-        overlap = scalars[f"{pair_key}/subspace_overlap"]
-        assert overlap < threshold, f"{pair_key} subspace_overlap={overlap} >= threshold={threshold}"
+        overlap = scalars[f"orth/overlap/{pair_key}"]
+        assert overlap < threshold, f"{pair_key} overlap={overlap} >= threshold={threshold}"
 
-        max_sv = scalars[f"{pair_key}/max_singular_value"]
-        assert max_sv < threshold, f"{pair_key} max_singular_value={max_sv} >= threshold={threshold}"
+        max_sv = scalars[f"orth/sv_max/{pair_key}"]
+        assert max_sv < threshold, f"{pair_key} sv_max={max_sv} >= threshold={threshold}"
 
         # Each pair has 2D subspaces, so 2 singular values
-        assert arrays[f"{pair_key}/singular_values"].shape[0] == 2
-        svs = arrays[f"{pair_key}/singular_values"]
+        assert arrays[f"orth/singular_values/{pair_key}"].shape[0] == 2
+        svs = arrays[f"orth/singular_values/{pair_key}"]
         assert jnp.all(svs < threshold), f"{pair_key} singular_values={svs} not all < threshold={threshold}"
 
 
@@ -535,23 +535,23 @@ def test_orthogonality_not_computed_by_default() -> None:
     )
 
     # Should have standard factor metrics
-    assert "factor_0/r2" in scalars
-    assert "factor_1/r2" in scalars
+    assert "r2/F0" in scalars
+    assert "r2/F1" in scalars
 
     # Should NOT have any orthogonality metrics
     orthogonality_keys = [
-        "orthogonality_0_1/subspace_overlap",
-        "orthogonality_0_1/max_singular_value",
-        "orthogonality_0_1/min_singular_value",
-        "orthogonality_0_1/participation_ratio",
-        "orthogonality_0_1/entropy",
-        "orthogonality_0_1/effective_rank",
+        "orth/overlap/F0,1",
+        "orth/sv_max/F0,1",
+        "orth/sv_min/F0,1",
+        "orth/p_ratio/F0,1",
+        "orth/entropy/F0,1",
+        "orth/eff_rank/F0,1",
     ]
     for key in orthogonality_keys:
         assert key not in scalars
 
     # Should NOT have orthogonality singular values in arrays
-    assert "orthogonality_0_1/singular_values" not in arrays
+    assert "orth/singular_values/F0,1" not in arrays
 
 
 def test_orthogonality_warning_for_single_belief_state(caplog: pytest.LogCaptureFixture) -> None:
@@ -582,8 +582,8 @@ def test_orthogonality_warning_for_single_belief_state(caplog: pytest.LogCapture
     assert "projected" in arrays
 
     # Should NOT have orthogonality metrics
-    assert "orthogonality_0_1/subspace_overlap" not in scalars
-    assert "orthogonality_0_1/singular_values" not in arrays
+    assert "orth/overlap/F0,1" not in scalars
+    assert "orth/singular_values/F0,1" not in arrays
 
 
 def test_use_svd_flag_equivalence() -> None:
@@ -688,26 +688,26 @@ def test_use_svd_with_orthogonality() -> None:
     )
 
     # Should have standard factor metrics with SVD
-    assert "factor_0/r2" in scalars
-    assert "factor_1/r2" in scalars
-    assert "factor_0/best_rcond" in scalars
-    assert "factor_1/best_rcond" in scalars
+    assert "r2/F0" in scalars
+    assert "r2/F1" in scalars
+    assert "best_rcond/F0" in scalars
+    assert "best_rcond/F1" in scalars
 
     # Should have orthogonality metrics
-    assert "orthogonality_0_1/subspace_overlap" in scalars
-    assert "orthogonality_0_1/max_singular_value" in scalars
-    assert "orthogonality_0_1/singular_values" in arrays
+    assert "orth/overlap/F0,1" in scalars
+    assert "orth/sv_max/F0,1" in scalars
+    assert "orth/singular_values/F0,1" in arrays
 
     # Compute principled threshold
     threshold = _compute_orthogonality_threshold(x, factor_0, factor_1)
 
     # Should indicate near-zero overlap (orthogonal by construction)
-    assert scalars["orthogonality_0_1/subspace_overlap"] < threshold
-    assert scalars["orthogonality_0_1/max_singular_value"] < threshold
+    assert scalars["orth/overlap/F0,1"] < threshold
+    assert scalars["orth/sv_max/F0,1"] < threshold
 
     # Should have good regression fit
-    assert scalars["factor_0/r2"] > 0.99
-    assert scalars["factor_1/r2"] > 0.99
+    assert scalars["r2/F0"] > 0.99
+    assert scalars["r2/F1"] > 0.99
 
 
 def test_orthogonality_with_different_subspace_dimensions() -> None:
@@ -758,24 +758,24 @@ def test_orthogonality_with_different_subspace_dimensions() -> None:
     )
 
     # Should have standard factor metrics
-    assert scalars["factor_0/r2"] > 0.99
-    assert scalars["factor_1/r2"] > 0.99
+    assert scalars["r2/F0"] > 0.99
+    assert scalars["r2/F1"] > 0.99
 
     # Should have orthogonality metrics
-    assert "orthogonality_0_1/subspace_overlap" in scalars
-    assert "orthogonality_0_1/max_singular_value" in scalars
-    assert "orthogonality_0_1/singular_values" in arrays
+    assert "orth/overlap/F0,1" in scalars
+    assert "orth/sv_max/F0,1" in scalars
+    assert "orth/singular_values/F0,1" in arrays
 
     # Compute principled threshold
     threshold = _compute_orthogonality_threshold(x, factor_0, factor_1)
 
     # Should indicate near-zero overlap (orthogonal by construction)
-    assert scalars["orthogonality_0_1/subspace_overlap"] < threshold
-    assert scalars["orthogonality_0_1/max_singular_value"] < threshold
+    assert scalars["orth/overlap/F0,1"] < threshold
+    assert scalars["orth/sv_max/F0,1"] < threshold
 
     # Singular values shape should be min(2, 5) = 2
-    assert arrays["orthogonality_0_1/singular_values"].shape[0] == 2
-    assert jnp.all(arrays["orthogonality_0_1/singular_values"] < threshold)
+    assert arrays["orth/singular_values/F0,1"].shape[0] == 2
+    assert jnp.all(arrays["orth/singular_values/F0,1"] < threshold)
 
 
 def test_orthogonality_with_contained_subspace() -> None:
@@ -827,23 +827,23 @@ def test_orthogonality_with_contained_subspace() -> None:
     )
 
     # Should have standard factor metrics
-    assert scalars["factor_0/r2"] > 0.99
-    assert scalars["factor_1/r2"] > 0.99
+    assert scalars["r2/F0"] > 0.99
+    assert scalars["r2/F1"] > 0.99
 
     # Should have orthogonality metrics
-    assert "orthogonality_0_1/subspace_overlap" in scalars
-    assert "orthogonality_0_1/max_singular_value" in scalars
-    assert "orthogonality_0_1/singular_values" in arrays
+    assert "orth/overlap/F0,1" in scalars
+    assert "orth/sv_max/F0,1" in scalars
+    assert "orth/singular_values/F0,1" in arrays
 
     # Singular values shape should be min(2, 3) = 2
-    assert arrays["orthogonality_0_1/singular_values"].shape[0] == 2
+    assert arrays["orth/singular_values/F0,1"].shape[0] == 2
 
     # Since factor_0's subspace is contained in factor_1's, singular values should be near 1.0
     # (indicating perfect alignment in the 2D shared subspace)
-    assert scalars["orthogonality_0_1/subspace_overlap"] > 0.99
-    assert scalars["orthogonality_0_1/max_singular_value"] > 0.99
-    assert scalars["orthogonality_0_1/min_singular_value"] > 0.99
-    assert jnp.all(arrays["orthogonality_0_1/singular_values"] > 0.99)
+    assert scalars["orth/overlap/F0,1"] > 0.99
+    assert scalars["orth/sv_max/F0,1"] > 0.99
+    assert scalars["orth/sv_min/F0,1"] > 0.99
+    assert jnp.all(arrays["orth/singular_values/F0,1"] > 0.99)
 
 
 def test_orthogonality_excludes_intercept() -> None:
@@ -876,27 +876,27 @@ def test_orthogonality_excludes_intercept() -> None:
     )
 
     # Should have intercepts for both factors
-    assert "factor_0/intercept" in arrays
-    assert "factor_1/intercept" in arrays
+    assert "intercept/F0" in arrays
+    assert "intercept/F1" in arrays
 
     # Should have good regression fit
-    assert scalars["factor_0/r2"] > 0.99
-    assert scalars["factor_1/r2"] > 0.99
+    assert scalars["r2/F0"] > 0.99
+    assert scalars["r2/F1"] > 0.99
 
     # Orthogonality should still be near-zero (computed from coefficients only, not intercepts)
     threshold = _compute_orthogonality_threshold(x, factor_0, factor_1)
 
-    assert "orthogonality_0_1/subspace_overlap" in scalars
-    assert "orthogonality_0_1/max_singular_value" in scalars
+    assert "orth/overlap/F0,1" in scalars
+    assert "orth/sv_max/F0,1" in scalars
 
-    overlap = scalars["orthogonality_0_1/subspace_overlap"]
-    assert overlap < threshold, f"subspace_overlap={overlap} >= threshold={threshold}"
+    overlap = scalars["orth/overlap/F0,1"]
+    assert overlap < threshold, f"overlap={overlap} >= threshold={threshold}"
 
-    max_sv = scalars["orthogonality_0_1/max_singular_value"]
-    assert max_sv < threshold, f"max_singular_value={max_sv} >= threshold={threshold}"
+    max_sv = scalars["orth/sv_max/F0,1"]
+    assert max_sv < threshold, f"sv_max={max_sv} >= threshold={threshold}"
 
     # The different intercepts should not affect orthogonality
-    svs = arrays["orthogonality_0_1/singular_values"]
+    svs = arrays["orth/singular_values/F0,1"]
     assert jnp.all(svs < threshold), f"singular_values={svs} not all < threshold={threshold}"
 
 
@@ -1004,14 +1004,14 @@ def test_layer_linear_regression_concat_vs_separate_equivalence() -> None:
     )
 
     # Concat path should also provide combined arrays
-    assert "concat/projected" in arrays_cat
-    assert "concat/coeffs" in arrays_cat
-    assert "concat/intercept" in arrays_cat
+    assert "projected/Fcat" in arrays_cat
+    assert "coeffs/Fcat" in arrays_cat
+    assert "intercept/Fcat" in arrays_cat
 
     # Per-factor arrays should match between separate and concatenated flows
     for k in ["projected", "coeffs", "intercept"]:
-        chex.assert_trees_all_close(arrays_sep[f"factor_0/{k}"], arrays_cat[f"factor_0/{k}"])
-        chex.assert_trees_all_close(arrays_sep[f"factor_1/{k}"], arrays_cat[f"factor_1/{k}"])
+        chex.assert_trees_all_close(arrays_sep[f"{k}/F0"], arrays_cat[f"{k}/F0"])
+        chex.assert_trees_all_close(arrays_sep[f"{k}/F1"], arrays_cat[f"{k}/F1"])
 
 
 def test_layer_linear_regression_svd_concat_vs_separate_equivalence_best_rcond() -> None:
@@ -1055,34 +1055,34 @@ def test_layer_linear_regression_svd_concat_vs_separate_equivalence_best_rcond()
     )
 
     # Concat path should provide combined arrays and best_rcond
-    assert "concat/projected" in arrays_cat
-    assert "concat/coeffs" in arrays_cat
-    assert "concat/intercept" in arrays_cat
-    assert "concat/best_rcond" in scalars_cat
-    assert scalars_cat["concat/best_rcond"] == pytest.approx(1e-3)
+    assert "projected/Fcat" in arrays_cat
+    assert "coeffs/Fcat" in arrays_cat
+    assert "intercept/Fcat" in arrays_cat
+    assert "best_rcond/Fcat" in scalars_cat
+    assert scalars_cat["best_rcond/Fcat"] == pytest.approx(1e-3)
 
     # Separate path should include per-factor best_rcond; concat-split path should not
-    assert "factor_0/best_rcond" in scalars_sep
-    assert "factor_1/best_rcond" in scalars_sep
-    assert "factor_0/best_rcond" not in scalars_cat
-    assert "factor_1/best_rcond" not in scalars_cat
+    assert "best_rcond/F0" in scalars_sep
+    assert "best_rcond/F1" in scalars_sep
+    assert "best_rcond/F0" not in scalars_cat
+    assert "best_rcond/F1" not in scalars_cat
 
     # Per-factor arrays should match between separate and concat-split flows
     for k in ["projected", "coeffs", "intercept"]:
-        chex.assert_trees_all_close(arrays_sep[f"factor_0/{k}"], arrays_cat[f"factor_0/{k}"])
-        chex.assert_trees_all_close(arrays_sep[f"factor_1/{k}"], arrays_cat[f"factor_1/{k}"])
+        chex.assert_trees_all_close(arrays_sep[f"{k}/F0"], arrays_cat[f"{k}/F0"])
+        chex.assert_trees_all_close(arrays_sep[f"{k}/F1"], arrays_cat[f"{k}/F1"])
 
     # Overlapping scalar metrics should agree closely across flows
     for metric in ["r2", "rmse", "mae", "dist"]:
         assert jnp.isclose(
-            jnp.asarray(scalars_sep[f"factor_0/{metric}"]),
-            jnp.asarray(scalars_cat[f"factor_0/{metric}"]),
+            jnp.asarray(scalars_sep[f"{metric}/F0"]),
+            jnp.asarray(scalars_cat[f"{metric}/F0"]),
             atol=1e-6,
             rtol=0.0,
         ).item()
         assert jnp.isclose(
-            jnp.asarray(scalars_sep[f"factor_1/{metric}"]),
-            jnp.asarray(scalars_cat[f"factor_1/{metric}"]),
+            jnp.asarray(scalars_sep[f"{metric}/F1"]),
+            jnp.asarray(scalars_cat[f"{metric}/F1"]),
             atol=1e-6,
             rtol=0.0,
         ).item()

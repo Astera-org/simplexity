@@ -26,6 +26,7 @@ from simplexity.activations.visualization_configs import (
     SamplingConfig,
     ScalarSeriesMapping,
 )
+from simplexity.analysis.metric_keys import format_layer_spec
 from simplexity.exceptions import ConfigValidationError
 
 
@@ -155,9 +156,10 @@ def _build_scalar_series_dataframe(
     base_metadata = _scalar_series_metadata(metadata_columns)
     rows: list[dict[str, Any]] = []
     for layer_name in layer_names:
+        formatted_layer = format_layer_spec(layer_name)
         index_values = mapping.index_values or _infer_scalar_series_indices(mapping, scalars, layer_name, analysis_name)
         for index_value in index_values:
-            raw_key = mapping.key_template.format(layer=layer_name, index=index_value)
+            raw_key = mapping.key_template.format(layer=formatted_layer, index=index_value)
             scalar_key = f"{analysis_name}/{raw_key}"
             scalar_value = scalars.get(scalar_key)
             if scalar_value is None:
@@ -183,7 +185,8 @@ def _infer_scalar_series_indices(
     analysis_name: str,
 ) -> list[int]:
     """Infer available indices for scalar series from available scalar keys."""
-    raw_template = mapping.key_template.format(layer=layer_name, index=_SCALAR_INDEX_SENTINEL)
+    formatted_layer = format_layer_spec(layer_name)
+    raw_template = mapping.key_template.format(layer=formatted_layer, index=_SCALAR_INDEX_SENTINEL)
     template = f"{analysis_name}/{raw_template}"
     if _SCALAR_INDEX_SENTINEL not in template:
         raise ConfigValidationError(

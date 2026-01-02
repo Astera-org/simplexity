@@ -48,7 +48,7 @@ instance:
             cumulative: false
           data_mapping:
             scalar_series:
-              key_template: "{layer}_cumvar_{index}"
+              key_template: "cumvar_{index}/{layer}"
               index_field: n_components
               value_field: cumulative_explained_variance
           backend: altair
@@ -173,7 +173,7 @@ instance:
             dropdown: layer  # User can filter by layer in UI
           data_mapping:
             mappings:
-              rmse: {source: scalar_pattern, key: "blocks.*.hook_resid_post_rmse"}  # Wildcard expands to all layers
+              rmse: {source: scalar_pattern, key: "rmse/L*.resid.post"}  # Wildcard expands to all layers
           backend: altair
           layer:
             geometry:

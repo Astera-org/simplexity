@@ -7,6 +7,7 @@ from collections.abc import Mapping
 import numpy as np
 
 from simplexity.activations.visualization_configs import ActivationVisualizationFieldRef
+from simplexity.analysis.metric_keys import format_layer_spec
 from simplexity.exceptions import ConfigValidationError
 
 
@@ -38,27 +39,31 @@ def _key_matches_layer(full_key: str, key: str, layer_name: str) -> bool:
     """Check if a full key matches the given key pattern and layer name.
 
     Handles two formats:
-    - Simple: key="pca" matches full_key="pca/layer_0"
-    - Factor: key="projected/F0" matches full_key="projected/layer_0-F0"
+    - Simple: key="pca" matches full_key="pca/L0.resid.pre"
+    - Factor: key="projected/F0" matches full_key="projected/L0.resid.pre-F0"
+
+    The layer_name is formatted using format_layer_spec before matching.
     """
     if "/" not in full_key:
         return False
+
+    formatted_layer = format_layer_spec(layer_name)
 
     # Check if key has a factor suffix (e.g., "projected/F0")
     if "/" in key:
         key_parts = key.rsplit("/", 1)
         analysis_prefix, factor_suffix = key_parts
         # Look for {analysis}/{layer}-{factor} format
-        expected_key = f"{analysis_prefix}/{layer_name}-{factor_suffix}"
+        expected_key = f"{analysis_prefix}/{formatted_layer}-{factor_suffix}"
         return full_key == expected_key
 
-    # Simple key format: key="pca" matches "pca/layer_0"
+    # Simple key format: key="pca" matches "pca/L0.resid.pre"
     prefix = f"{key}/"
     if not full_key.startswith(prefix):
         return False
     layer_part = full_key[len(prefix) :]
     candidate_layer = layer_part.split("-")[0]
-    return candidate_layer == layer_name
+    return candidate_layer == formatted_layer
 
 
 def _lookup_scalar_value(scalars: Mapping[str, float], layer_name: str, key: str, concat_layers: bool) -> float:
@@ -66,7 +71,10 @@ def _lookup_scalar_value(scalars: Mapping[str, float], layer_name: str, key: str
 
     Supports keys in the format "{metric}/{layer_spec}" (e.g., "r2/L0.resid.pre")
     or "{metric}/{layer_spec}-{factor_spec}" (e.g., "r2/L0.resid.pre-F0").
+
+    The layer_name is formatted using format_layer_spec before matching.
     """
+    formatted_layer = format_layer_spec(layer_name)
     prefix = f"{key}/"
     for full_key, value in scalars.items():
         if concat_layers:
@@ -77,7 +85,7 @@ def _lookup_scalar_value(scalars: Mapping[str, float], layer_name: str, key: str
                 continue
             layer_part = full_key[len(prefix) :]
             candidate_layer = layer_part.split("-")[0]
-            if candidate_layer == layer_name:
+            if candidate_layer == formatted_layer:
                 return float(value)
     raise ConfigValidationError(f"Scalar '{key}' not available for layer '{layer_name}'.")
 
