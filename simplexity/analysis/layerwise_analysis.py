@@ -17,12 +17,12 @@ from typing import Any
 import jax
 
 from simplexity.analysis.linear_regression import layer_linear_regression
+from simplexity.analysis.metric_keys import construct_layer_specific_key, format_layer_spec
 from simplexity.analysis.pca import (
     DEFAULT_VARIANCE_THRESHOLDS,
     layer_pca_analysis,
 )
 from simplexity.logger import SIMPLEXITY_LOGGER
-from simplexity.analysis.metric_keys import construct_layer_specific_key, format_layer_spec
 
 AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]]
 

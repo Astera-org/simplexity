@@ -227,6 +227,7 @@ def _merge_results_with_prefix(
     scalars.update({f"{prefix}/{key}": value for key, value in results_scalars.items()})
     arrays.update({f"{prefix}/{key}": value for key, value in results_arrays.items()})
 
+
 def _merge_results_with_suffix(
     scalars: dict[str, float],
     arrays: dict[str, jax.Array],
