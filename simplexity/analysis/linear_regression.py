@@ -84,12 +84,14 @@ def linear_regression(
     if fit_intercept:
         arrays = {
             "projected": predictions,
+            "targets": y_arr,
             "coeffs": beta[1:],  # Linear coefficients (excluding intercept)
             "intercept": beta[:1],  # Intercept term (keep 2D: [1, n_targets])
         }
     else:
         arrays = {
             "projected": predictions,
+            "targets": y_arr,
             "coeffs": beta,  # All parameters are coefficients when no intercept
         }
 
@@ -187,12 +189,14 @@ def linear_regression_svd(
     if fit_intercept:
         arrays = {
             "projected": best_pred,
+            "targets": y_arr,
             "coeffs": best_beta[1:],  # Linear coefficients (excluding intercept)
             "intercept": best_beta[:1],  # Intercept term (keep 2D: [1, n_targets])
         }
     else:
         arrays = {
             "projected": best_pred,
+            "targets": y_arr,
             "coeffs": best_beta,  # All parameters are coefficients when no intercept
         }
 
@@ -244,6 +248,7 @@ def _split_concat_results(
 
     coeffs_list = jnp.split(concat_arrays["coeffs"], split_indices, axis=-1)
     projections_list = jnp.split(concat_arrays["projected"], split_indices, axis=-1)
+    targets_list = jnp.split(concat_arrays["targets"], split_indices, axis=-1)
 
     # Handle intercept - split if present
     if "intercept" in concat_arrays:
@@ -256,8 +261,8 @@ def _split_concat_results(
     metrics_kwargs = {k: v for k, v in kwargs.items() if k != "rcond_values"}
 
     results = []
-    for factor, coeffs, intercept, projections in zip(
-        belief_states, coeffs_list, intercepts_list, projections_list, strict=True
+    for factor, coeffs, intercept, projections, targets in zip(
+        belief_states, coeffs_list, intercepts_list, projections_list, targets_list, strict=True
     ):
         # Reconstruct full beta for metrics computation
         if intercept is not None:
@@ -275,7 +280,7 @@ def _split_concat_results(
         )
 
         # Build factor arrays - include intercept only if present
-        factor_arrays = {"projected": projections, "coeffs": coeffs}
+        factor_arrays = {"projected": projections, "targets": targets, "coeffs": coeffs}
         if intercept is not None:
             factor_arrays["intercept"] = intercept
 
