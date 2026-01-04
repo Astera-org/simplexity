@@ -17,6 +17,7 @@ from simplexity.activations.visualization.pattern_utils import (
     validate_single_pattern,
 )
 from simplexity.activations.visualization_configs import ActivationVisualizationFieldRef
+from simplexity.analysis.metric_keys import format_layer_spec
 from simplexity.exceptions import ConfigValidationError
 
 
@@ -149,6 +150,9 @@ def _expand_projection_key_pattern(
         Dict mapping extracted index (as string) to the concrete key suffix.
         E.g., {"0": "factor_0/projected", "1": "factor_1/projected"}
     """
+    # Format layer name to match against projection keys which use formatted names
+    formatted_layer = format_layer_spec(layer_name)
+
     # Build regex from pattern
     if "*" in key_pattern:
         regex_pattern = build_wildcard_regex(key_pattern)
@@ -185,11 +189,11 @@ def _expand_projection_key_pattern(
             analysis_prefix, layer_part = parts
 
             # Check if this key is for the current layer
-            if not layer_part.startswith(layer_name):
+            if not layer_part.startswith(formatted_layer):
                 continue
 
-            # Extract factor suffix if present (e.g., "layer_0-F0" -> "-F0")
-            factor_suffix = layer_part[len(layer_name) :]
+            # Extract factor suffix if present (e.g., "L0.resid.pre-F0" -> "-F0")
+            factor_suffix = layer_part[len(formatted_layer) :]
 
             # Reconstruct a pattern-matchable key suffix
             # Convert "projected/layer_0-F0" to "projected/F0" for pattern matching
