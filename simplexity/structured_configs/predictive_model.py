@@ -24,6 +24,8 @@ from simplexity.structured_configs.validation import (
 from simplexity.utils.config_utils import dynamic_resolve
 from simplexity.utils.pytorch_utils import resolve_device
 
+CUSTOM_PREDICTIVE_MODEL_KEY = "_custom_"
+
 
 @dataclass
 class HookedTransformerConfigConfig(InstanceConfig):
@@ -199,16 +201,18 @@ def is_predictive_model_target(target: str) -> bool:
             return True
         if "models" in parts[1]:  # penzai.models
             return True
-    if parts[0] == "transformer_lens":
-        return True
-    class_name = parts[-1]
-    if class_name.startswith(("Simplex", "Custom")):
-        return True
-    return False
+    return parts[0] == "transformer_lens"
+
+
+def is_custom_predictive_model(cfg: DictConfig) -> bool:
+    """Check if the configuration has the _custom_ flag set."""
+    return cfg.get(CUSTOM_PREDICTIVE_MODEL_KEY, False) is True
 
 
 def is_predictive_model_config(cfg: DictConfig) -> bool:
     """Check if the configuration is a model config."""
+    if is_custom_predictive_model(cfg):
+        return True
     target = cfg.get("_target_", None)
     if isinstance(target, str):
         return is_predictive_model_target(target)

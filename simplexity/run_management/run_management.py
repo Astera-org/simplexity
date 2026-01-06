@@ -85,6 +85,7 @@ from simplexity.structured_configs.persistence import (
     validate_persistence_config,
 )
 from simplexity.structured_configs.predictive_model import (
+    is_custom_predictive_model,
     is_hooked_transformer_config,
     is_predictive_model_target,
     resolve_hooked_transformer_config,
@@ -457,13 +458,25 @@ def _load_checkpoint(model: Any, persisters: dict[str, ModelPersister] | None, l
         raise RuntimeError("Unable to load model checkpoint")
 
 
+def _find_custom_predictive_model_keys(cfg: DictConfig, instance_keys: list[str]) -> list[str]:
+    """Find instance keys for custom predictive models marked with _custom_: true."""
+    custom_keys: list[str] = []
+    for instance_key in instance_keys:
+        instance_config: DictConfig | None = OmegaConf.select(cfg, instance_key, throw_on_missing=False)
+        if instance_config is not None and is_custom_predictive_model(instance_config):
+            custom_keys.append(instance_key)
+    return custom_keys
+
+
 def _setup_predictive_models(
     cfg: DictConfig, instance_keys: list[str], persisters: dict[str, ModelPersister] | None
 ) -> dict[str, Any] | None:
     """Setup the predictive model."""
     models = {}
     model_instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
-    for instance_key in model_instance_keys:
+    custom_instance_keys = _find_custom_predictive_model_keys(cfg, instance_keys)
+    all_model_keys = list(dict.fromkeys(model_instance_keys + custom_instance_keys))
+    for instance_key in all_model_keys:
         instance_config: DictConfig | None = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
         if instance_config and is_hooked_transformer_config(instance_config):
             instance_config_config: DictConfig | None = instance_config.get("cfg", None)
