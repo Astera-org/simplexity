@@ -75,7 +75,7 @@ def test_save_visualization_payloads_accumulates_step_history(tmp_path):
     assert len(history_df) == len(df_first)
     assert set(history_df["step"]) == {1}
     assert set(history_df["sequence_step"]) == {0}
-    assert (tmp_path / "step_00001" / "analysis" / "viz.html").exists()
+    assert (tmp_path / "analysis" / "accumulated" / "viz.html").exists()
 
     df_second = pd.DataFrame({"step": [1], "value": [0.5]})
     payload_two = _payload(df_second)
@@ -86,4 +86,4 @@ def test_save_visualization_payloads_accumulates_step_history(tmp_path):
     assert len(history_df) == len(df_first) + len(df_second)
     assert set(history_df["step"]) == {1, 2}
     assert set(history_df["sequence_step"]) == {0, 1}
-    assert (tmp_path / "step_00002" / "analysis" / "viz.html").exists()
+    assert (tmp_path / "analysis" / "accumulated" / "viz.html").exists()
