@@ -7,12 +7,12 @@ from collections.abc import Mapping
 import numpy as np
 
 from simplexity.activations.visualization_configs import ActivationVisualizationFieldRef
-from simplexity.analysis.metric_keys import format_layer_spec
+from simplexity.analysis.metric_keys import construct_layer_specific_key, format_layer_spec
 from simplexity.exceptions import ConfigValidationError
 
 
 def _lookup_projection_array(
-    projections: Mapping[str, np.ndarray], layer_name: str, key: str | None, concat_layers: bool
+    projections: Mapping[str, np.ndarray], layer_name: str, key: str, concat_layers: bool
 ) -> np.ndarray:
     """Look up a projection array by key, handling layer naming conventions.
 
@@ -20,18 +20,15 @@ def _lookup_projection_array(
     or "{analysis}/{layer_spec}-{factor_spec}" (e.g., "reg/L0.resid.pre-F0").
 
     When key contains a factor suffix (e.g., "projected/F0"), looks for the full key
-    "{analysis}/{layer}-{factor}" (e.g., "projected/layer_0-F0").
+    "{analysis}/{layer_spec}-{factor_spec}" (e.g., "projected/L0.resid.pre-F0").
     """
-    if key is None:
-        raise ConfigValidationError("Projection references must supply a `key` value.")
-
     for full_key, value in projections.items():
         if concat_layers:
-            if full_key.startswith(f"{key}/") or full_key == key:
-                return np.asarray(value)
+            if full_key == key or full_key.startswith(f"{key}/"):
+                return value
         else:
             if _key_matches_layer(full_key, key, layer_name):
-                return np.asarray(value)
+                return value
     raise ConfigValidationError(f"Projection '{key}' not available for layer '{layer_name}'.")
 
 
@@ -51,11 +48,7 @@ def _key_matches_layer(full_key: str, key: str, layer_name: str) -> bool:
 
     # Check if key has a factor suffix (e.g., "projected/F0")
     if "/" in key:
-        key_parts = key.rsplit("/", 1)
-        analysis_prefix, factor_suffix = key_parts
-        # Look for {analysis}/{layer}-{factor} format
-        expected_key = f"{analysis_prefix}/{formatted_layer}-{factor_suffix}"
-        return full_key == expected_key
+        return full_key == construct_layer_specific_key(key, formatted_layer)
 
     # Simple key format: key="pca" matches "pca/L0.resid.pre"
     prefix = f"{key}/"
@@ -177,6 +170,8 @@ def _resolve_field(
         return np.asarray(metadata_columns["weight"])
 
     if ref.source == "projections":
+        if ref.key is None:
+            raise ConfigValidationError("Projection references must supply a `key` value.")
         array = _lookup_projection_array(projections, layer_name, ref.key, analysis_concat_layers)
         if isinstance(ref.component, str):
             raise ConfigValidationError("Component indices should be expanded before resolution")
