@@ -199,7 +199,12 @@ def is_predictive_model_target(target: str) -> bool:
             return True
         if "models" in parts[1]:  # penzai.models
             return True
-    return parts[0] == "transformer_lens"
+    if parts[0] == "transformer_lens":
+        return True
+    class_name = parts[-1]
+    if class_name.startswith(("Simplex", "Custom")):
+        return True
+    return False
 
 
 def is_predictive_model_config(cfg: DictConfig) -> bool:
