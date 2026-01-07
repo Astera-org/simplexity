@@ -120,7 +120,7 @@ def _get_component_count(
             raise ConfigValidationError(f"Projection must be 1D or 2D, got {np_array.ndim}D")
         return np_array.shape[1]
 
-    elif ref.source == "belief_states":
+    if ref.source == "belief_states":
         if belief_states is None:
             raise ConfigValidationError("Belief states not available")
         np_array = np.asarray(belief_states)
@@ -128,8 +128,7 @@ def _get_component_count(
             raise ConfigValidationError(f"Belief states must be 2D, got {np_array.ndim}D")
         return np_array.shape[1]
 
-    else:
-        raise ConfigValidationError(f"Component expansion not supported for source: {ref.source}")
+    raise ConfigValidationError(f"Component expansion not supported for source: {ref.source}")
 
 
 def _expand_projection_key_pattern(
@@ -222,7 +221,6 @@ def _expand_projection_key_mapping(
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
     projections: Mapping[str, np.ndarray],
-    belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
 ) -> dict[str, ActivationVisualizationFieldRef]:
     """Expand projection key patterns, optionally combined with component patterns.
@@ -409,7 +407,6 @@ def _expand_belief_factor_mapping(
 def _expand_scalar_keys(
     field_pattern: str,
     key_pattern: str | None,
-    layer_name: str,
     scalars: Mapping[str, float],
 ) -> dict[str, str]:
     """Expand scalar field patterns by matching available scalar keys.
@@ -526,9 +523,7 @@ def _expand_field_mapping(
                 f"Field name '{field_name}' has too many patterns (max 2 for key+component expansion)"
             )
 
-        return _expand_projection_key_mapping(
-            field_name, ref, layer_name, projections, belief_states, analysis_concat_layers
-        )
+        return _expand_projection_key_mapping(field_name, ref, layer_name, projections, analysis_concat_layers)
 
     # Check for belief state factor patterns
     if ref.source == "belief_states" and ref.factor is not None and isinstance(ref.factor, str):
@@ -560,7 +555,7 @@ def _expand_field_mapping(
         if not field_has_pattern:
             return {field_name: ref}
 
-        scalar_expansions = _expand_scalar_keys(field_name, ref.key, layer_name, scalars)
+        scalar_expansions = _expand_scalar_keys(field_name, ref.key, scalars)
         return {
             field: ActivationVisualizationFieldRef(source="scalars", key=key, component=None, reducer=None)
             for field, key in scalar_expansions.items()

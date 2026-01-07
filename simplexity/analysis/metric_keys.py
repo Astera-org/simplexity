@@ -7,15 +7,16 @@ import re
 
 def construct_layer_specific_key(key: str, layer_name: str) -> str:
     """Construct a layer-specific namespaced metric key."""
-    split_key = key.split("/")
-    last_part = split_key[-1]
-    if last_part.startswith("F") and len(split_key) > 1:  # If the key is a factor-specific key, prepend the layer name
-        new_last_part = f"{layer_name}-{last_part}"
-        new_key = "/".join(split_key[:-1] + [new_last_part])
-    else:
-        new_last_part = f"{layer_name}"
-        new_key = "/".join(split_key + [new_last_part])
-    return new_key
+    if "/" not in key:
+        return f"{key}/{layer_name}"
+
+    # If the key is factor-specific (e.g. "rmse/F0")
+    # prepend the layer name to the factor (e.g. "rmse/L0.resid.post-F0")
+    analysis, factor = key.rsplit("/", 1)
+    if factor.startswith("F"):
+        return f"{analysis}/{layer_name}-{factor}"
+
+    return f"{key}/{layer_name}"
 
 
 def format_layer_spec(layer_name: str) -> str:
@@ -50,11 +51,11 @@ def format_layer_spec(layer_name: str) -> str:
     if not layer_name.startswith("blocks."):
         return layer_name
 
-    block_pattern = r"^blocks\.(\d+)\.hook_(.+)$"
+    block_pattern = r"^blocks\.(?P<block_num>\d+)\.hook_(?P<hook_name>.+)$"
     match = re.match(block_pattern, layer_name)
     if match:
-        block_num = match.group(1)
-        hook_name = match.group(2)
+        block_num = match.group("block_num")
+        hook_name = match.group("hook_name")
         simplified_hook_name = hook_name.replace("_", ".")
         return f"L{block_num}.{simplified_hook_name}"
 
