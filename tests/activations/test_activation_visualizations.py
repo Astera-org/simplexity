@@ -184,7 +184,7 @@ class TestBuildVisualizationPayloads:
                 "name": "test_viz",
                 "data_mapping": {
                     "mappings": {
-                        "pc0": {"source": "projections", "key": "pca", "component": 0},
+                        "pc0": {"source": "arrays", "key": "pca", "component": 0},
                     },
                 },
                 "layer": {
@@ -196,9 +196,9 @@ class TestBuildVisualizationPayloads:
             }
         )
 
-    def test_builds_payload_with_projections(self, basic_metadata, basic_viz_config):
-        """Test building a payload with projection data."""
-        projections = {"pca/layer_0": np.array([[1.0, 2.0], [3.0, 4.0]])}
+    def test_builds_payload_with_arrays(self, basic_metadata, basic_viz_config):
+        """Test building a payload with array data."""
+        arrays = {"pca/layer_0": np.array([[1.0, 2.0], [3.0, 4.0]])}
         payloads = build_visualization_payloads(
             analysis_name="test",
             viz_cfgs=[basic_viz_config],
@@ -206,7 +206,7 @@ class TestBuildVisualizationPayloads:
             prepared_metadata=basic_metadata,
             weights=np.array([0.5, 0.5]),
             belief_states=None,
-            projections=projections,
+            arrays=arrays,
             scalars={},
             scalar_history={},
             scalar_history_step=None,
@@ -244,7 +244,7 @@ class TestBuildVisualizationPayloads:
             prepared_metadata=basic_metadata,
             weights=np.array([0.5, 0.5]),
             belief_states=belief_states,
-            projections={},
+            arrays={},
             scalars={},
             scalar_history={},
             scalar_history_step=None,
@@ -260,7 +260,7 @@ class TestBuildVisualizationPayloads:
             build_activation_visualization_config(
                 {
                     "name": "viz_1",
-                    "data_mapping": {"mappings": {"pc0": {"source": "projections", "key": "pca", "component": 0}}},
+                    "data_mapping": {"mappings": {"pc0": {"source": "arrays", "key": "pca", "component": 0}}},
                     "layer": {
                         "geometry": {"type": "point"},
                         "aesthetics": {"x": {"field": "pc0", "type": "quantitative"}},
@@ -270,7 +270,7 @@ class TestBuildVisualizationPayloads:
             build_activation_visualization_config(
                 {
                     "name": "viz_2",
-                    "data_mapping": {"mappings": {"pc1": {"source": "projections", "key": "pca", "component": 1}}},
+                    "data_mapping": {"mappings": {"pc1": {"source": "arrays", "key": "pca", "component": 1}}},
                     "layer": {
                         "geometry": {"type": "point"},
                         "aesthetics": {"x": {"field": "pc1", "type": "quantitative"}},
@@ -278,7 +278,7 @@ class TestBuildVisualizationPayloads:
                 }
             ),
         ]
-        projections = {"pca/layer_0": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        arrays = {"pca/layer_0": np.array([[1.0, 2.0], [3.0, 4.0]])}
         payloads = build_visualization_payloads(
             analysis_name="test",
             viz_cfgs=configs,
@@ -286,7 +286,7 @@ class TestBuildVisualizationPayloads:
             prepared_metadata=basic_metadata,
             weights=np.array([0.5, 0.5]),
             belief_states=None,
-            projections=projections,
+            arrays=arrays,
             scalars={},
             scalar_history={},
             scalar_history_step=None,

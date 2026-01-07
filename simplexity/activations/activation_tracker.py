@@ -182,7 +182,7 @@ class ActivationTracker:
                 preprocessing_cache[config_key] = prepared
 
         all_scalars = {}
-        all_projections = {}
+        all_arrays = {}
         all_visualizations: dict[str, ActivationVisualizationPayload] = {}
 
         for analysis_name, analysis in self._analyses.items():
@@ -203,7 +203,7 @@ class ActivationTracker:
                     f"Analysis '{analysis_name}' requires belief_states but none available after preprocessing."
                 )
 
-            scalars, projections = analysis.analyze(
+            scalars, arrays = analysis.analyze(
                 activations=prepared_activations,
                 weights=prepared_weights,
                 belief_states=prepared_beliefs,
@@ -211,7 +211,7 @@ class ActivationTracker:
 
             namespaced_scalars = {f"{analysis_name}/{key}": value for key, value in scalars.items()}
             all_scalars.update(namespaced_scalars)
-            all_projections.update({f"{analysis_name}/{key}": value for key, value in projections.items()})
+            all_arrays.update({f"{analysis_name}/{key}": value for key, value in arrays.items()})
 
             if step is not None:
                 for scalar_key, scalar_value in namespaced_scalars.items():
@@ -230,7 +230,7 @@ class ActivationTracker:
                     np_beliefs = np.stack([np.asarray(b) for b in prepared_beliefs], axis=1)
                 else:
                     np_beliefs = np.asarray(prepared_beliefs)
-                np_projections = {key: np.asarray(value) for key, value in projections.items()}
+                np_arrays = {key: np.asarray(value) for key, value in arrays.items()}
                 payloads = build_visualization_payloads(
                     analysis_name,
                     viz_configs,
@@ -238,7 +238,7 @@ class ActivationTracker:
                     prepared_metadata=prepared.metadata,
                     weights=np_weights,
                     belief_states=np_beliefs,
-                    projections=np_projections,
+                    arrays=np_arrays,
                     scalars={f"{analysis_name}/{key}": float(value) for key, value in scalars.items()},
                     scalar_history=self._scalar_history,
                     scalar_history_step=step,
@@ -247,7 +247,7 @@ class ActivationTracker:
                 )
                 all_visualizations.update({f"{analysis_name}/{payload.name}": payload for payload in payloads})
 
-        return all_scalars, all_projections, all_visualizations
+        return all_scalars, all_arrays, all_visualizations
 
     def save_visualizations(
         self,

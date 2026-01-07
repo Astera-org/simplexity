@@ -165,7 +165,7 @@ def build_visualization_payloads(
     prepared_metadata: PreparedMetadata,
     weights: np.ndarray,
     belief_states: np.ndarray | None,
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
     scalar_history: Mapping[str, list[tuple[int, float]]],
     scalar_history_step: int | None,
@@ -179,7 +179,7 @@ def build_visualization_payloads(
         dataframe = _build_dataframe(
             viz_cfg,
             metadata_columns,
-            projections,
+            arrays,
             scalars,
             scalar_history,
             scalar_history_step,

@@ -1,4 +1,4 @@
-name: tracker_with_projections
+name: tracker_with_arrays
 instance:
   _target_: simplexity.activations.activation_tracker.ActivationTracker
   analyses:
@@ -18,7 +18,7 @@ instance:
             cumulative: false
           data_mapping:
             mappings:
-              pc_*: {source: projections, key: pca, component: "*"}
+              pc_*: {source: arrays, key: pca, component: "*"}
               belief_*: {source: belief_states, component: "*"}
           preprocessing:
             - type: combine_rgb
@@ -41,29 +41,6 @@ instance:
           guides:
             title: "PCA Projection (3D)"
             subtitle: "All tokens, weighted by prefix probability"
-        - name: cumulative_explained_variance # <- NEW VISUALIZATION
-          controls:
-            dropdown: layer
-            accumulate_steps: true
-            cumulative: false
-          data_mapping:
-            scalar_series:
-              key_template: "cumvar_{index}/{layer}"
-              index_field: n_components
-              value_field: cumulative_explained_variance
-          backend: altair
-          layer:
-            geometry:
-              type: line
-              props: {}
-            aesthetics:
-              x: {field: n_components, type: quantitative, title: "Number of PCA Components"}
-              y: {field: cumulative_explained_variance, type: quantitative, title: "Cumulative Explained Variance"}
-              color: {field: step, type: nominal, title: Step}
-          size: {width: 600, height: 400}
-          guides:
-            title: "Cumulative Explained Variance by PCA Components"
-            subtitle: "All tokens, weighted by probability"
 
     regression: # <- THIS RETURNS SCALARS AND PROJECTIONS
       instance:
@@ -80,9 +57,9 @@ instance:
             cumulative: false
           data_mapping:
             mappings:
-              prob_0: {source: projections, key: projected, component: 0}
-              prob_1: {source: projections, key: projected, component: 1}
-              prob_2: {source: projections, key: projected, component: 2}
+              prob_0: {source: arrays, key: projected, component: 0}
+              prob_1: {source: arrays, key: projected, component: 1}
+              prob_2: {source: arrays, key: projected, component: 2}
               belief_r: {source: belief_states, component: 0}
               belief_g: {source: belief_states, component: 1}
               belief_b: {source: belief_states, component: 2}
@@ -113,9 +90,9 @@ instance:
             cumulative: false
           data_mapping:
             mappings:
-              prob_0: {source: projections, key: projected, component: 0}
-              prob_1: {source: projections, key: projected, component: 1}
-              prob_2: {source: projections, key: projected, component: 2}
+              prob_0: {source: arrays, key: projected, component: 0}
+              prob_1: {source: arrays, key: projected, component: 1}
+              prob_2: {source: arrays, key: projected, component: 2}
           preprocessing:
             - type: combine_rgb
               input_fields: [prob_0, prob_1, prob_2]
@@ -203,9 +180,9 @@ instance:
             cumulative: false
           data_mapping:
             mappings:
-              prob_0: {source: projections, key: projected, component: 0}
-              prob_1: {source: projections, key: projected, component: 1}
-              prob_2: {source: projections, key: projected, component: 2}
+              prob_0: {source: arrays, key: projected, component: 0}
+              prob_1: {source: arrays, key: projected, component: 1}
+              prob_2: {source: arrays, key: projected, component: 2}
           preprocessing:
             - type: combine_rgb
               input_fields: [prob_0, prob_1, prob_2]

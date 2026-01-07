@@ -18,9 +18,7 @@ from simplexity.visualization.structured_configs import (
     PlotSizeConfig,
 )
 
-FieldSource = Literal[
-    "projections", "scalars", "belief_states", "weights", "metadata", "scalar_pattern", "scalar_history"
-]
+FieldSource = Literal["arrays", "scalars", "belief_states", "weights", "metadata", "scalar_pattern", "scalar_history"]
 ReducerType = Literal["argmax", "l2_norm"]
 
 T = TypeVar("T")
@@ -133,7 +131,7 @@ class ActivationVisualizationFieldRef:
     _group_value: str | None = None  # Internal: populated during key/factor pattern expansion
 
     def __post_init__(self) -> None:
-        if self.source == "projections" and not self.key:
+        if self.source == "arrays" and not self.key:
             raise ConfigValidationError("Projection field references must specify the `key` to read from.")
         if self.source == "scalars" and not self.key:
             raise ConfigValidationError("Scalar field references must specify the `key` to read from.")
@@ -147,13 +145,13 @@ class ActivationVisualizationFieldRef:
         if isinstance(self.component, str):
             if self.component != "*" and not is_valid_range(self.component):
                 raise ConfigValidationError(f"Component pattern '{self.component}' invalid. Use '*' or 'N...M'")
-            if self.source not in ("projections", "belief_states"):
+            if self.source not in ("arrays", "belief_states"):
                 raise ConfigValidationError(
-                    f"Component patterns only supported for projections/belief_states, not '{self.source}'"
+                    f"Component patterns only supported for arrays/belief_states, not '{self.source}'"
                 )
 
-        # Validate key patterns for projections
-        if self.source == "projections" and self.key:
+        # Validate key patterns for arrays
+        if self.source == "arrays" and self.key:
             has_key_pattern = "*" in self.key or is_valid_range(self.key)
             # Key patterns require group_as to name the resulting column(s)
             if has_key_pattern and self.group_as is None:
@@ -173,10 +171,8 @@ class ActivationVisualizationFieldRef:
                     )
 
         # Validate group_as
-        if self.group_as is not None and self.source not in ("projections", "belief_states"):
-            raise ConfigValidationError(
-                f"`group_as` is only supported for projections/belief_states, not '{self.source}'"
-            )
+        if self.group_as is not None and self.source not in ("arrays", "belief_states"):
+            raise ConfigValidationError(f"`group_as` is only supported for arrays/belief_states, not '{self.source}'")
 
 
 @dataclass
@@ -200,7 +196,7 @@ class SamplingConfig:
 class CombinedMappingSection:
     """A labeled section of field mappings for combining multiple data sources.
 
-    Used to combine projections and ground truth belief states into a single
+    Used to combine arrays and ground truth belief states into a single
     DataFrame with a label column for faceting (e.g., row faceting by data_type).
     """
 

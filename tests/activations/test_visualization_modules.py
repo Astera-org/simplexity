@@ -19,17 +19,17 @@ from simplexity.activations.visualization.dataframe_builders import (
     _scalar_series_metadata,
 )
 from simplexity.activations.visualization.field_resolution import (
-    _lookup_projection_array,
+    _lookup_array,
     _lookup_scalar_value,
     _maybe_component,
     _resolve_belief_states,
     _resolve_field,
 )
 from simplexity.activations.visualization.pattern_expansion import (
+    _expand_array_key_pattern,
     _expand_belief_factor_mapping,
     _expand_field_mapping,
     _expand_pattern_to_indices,
-    _expand_projection_key_pattern,
     _expand_scalar_pattern_ranges,
     _get_component_count,
     _parse_component_spec,
@@ -56,22 +56,22 @@ from simplexity.exceptions import ConfigValidationError
 class TestFieldResolution:
     """Tests for field_resolution.py functions."""
 
-    def test_lookup_projection_array_not_found(self):
-        """Test that missing projection raises error."""
-        projections = {"other/layer_0": np.array([1, 2, 3])}
+    def test_lookup_array_not_found(self):
+        """Test that missing array raises error."""
+        arrays = {"other/layer_0": np.array([1, 2, 3])}
         with pytest.raises(ConfigValidationError, match="not available for layer"):
-            _lookup_projection_array(projections, "layer_0", "missing", False)
+            _lookup_array(arrays, "layer_0", "missing", False)
 
-    def test_lookup_projection_array_concat_layers_exact_match(self):
+    def test_lookup_array_concat_layers_exact_match(self):
         """Test exact key match with concat_layers."""
-        projections = {"my_key": np.array([1, 2, 3])}
-        result = _lookup_projection_array(projections, "layer_0", "my_key", True)
+        arrays = {"my_key": np.array([1, 2, 3])}
+        result = _lookup_array(arrays, "layer_0", "my_key", True)
         np.testing.assert_array_equal(result, [1, 2, 3])
 
-    def test_lookup_projection_array_concat_layers_prefix_match(self):
+    def test_lookup_array_concat_layers_prefix_match(self):
         """Test prefix match with concat_layers."""
-        projections = {"my_key/Lcat": np.array([4, 5, 6])}
-        result = _lookup_projection_array(projections, "layer_0", "my_key", True)
+        arrays = {"my_key/Lcat": np.array([4, 5, 6])}
+        result = _lookup_array(arrays, "layer_0", "my_key", True)
         np.testing.assert_array_equal(result, [4, 5, 6])
 
     def test_lookup_scalar_value_concat_layers_exact(self):
@@ -228,17 +228,17 @@ class TestPatternExpansion:
 
     def test_get_component_count_projection_success(self):
         """Test getting component count from 2D projection."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="proj", component="*")
-        projections = {"proj/layer_0": np.ones((10, 5))}
-        result = _get_component_count(ref, "layer_0", projections, None, False)
+        ref = ActivationVisualizationFieldRef(source="arrays", key="proj", component="*")
+        arrays = {"proj/layer_0": np.ones((10, 5))}
+        result = _get_component_count(ref, "layer_0", arrays, None, False)
         assert result == 5
 
     def test_get_component_count_1d_projection(self):
         """Test that 1D projection raises error for expansion."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="proj")
-        projections = {"proj/layer_0": np.array([1, 2, 3])}
+        ref = ActivationVisualizationFieldRef(source="arrays", key="proj")
+        arrays = {"proj/layer_0": np.array([1, 2, 3])}
         with pytest.raises(ConfigValidationError, match="Cannot expand 1D"):
-            _get_component_count(ref, "layer_0", projections, None, False)
+            _get_component_count(ref, "layer_0", arrays, None, False)
 
     def test_get_component_count_belief_states_missing(self):
         """Test that missing belief states raises error."""
@@ -258,21 +258,21 @@ class TestPatternExpansion:
         with pytest.raises(ConfigValidationError, match="not supported"):
             _get_component_count(ref, "layer_0", {}, None, False)
 
-    def test_expand_projection_key_pattern_invalid(self):
+    def test_expand_array_key_pattern_invalid(self):
         """Test that invalid key pattern raises error."""
         with pytest.raises(ConfigValidationError, match="Invalid key pattern"):
-            _expand_projection_key_pattern("plain_key", "layer_0", {}, False)
+            _expand_array_key_pattern("plain_key", "layer_0", {}, False)
 
-    def test_expand_projection_key_pattern_invalid_range(self):
+    def test_expand_array_key_pattern_invalid_range(self):
         """Test that invalid range in key pattern raises error."""
         with pytest.raises(ConfigValidationError, match="Invalid range"):
-            _expand_projection_key_pattern("key_5...3", "layer_0", {}, False)
+            _expand_array_key_pattern("key_5...3", "layer_0", {}, False)
 
-    def test_expand_projection_key_pattern_no_matches(self):
-        """Test that no matching projections raises error."""
-        projections = {"other/layer_0": np.ones((3, 4))}
-        with pytest.raises(ConfigValidationError, match="No projection keys found"):
-            _expand_projection_key_pattern("key_*", "layer_0", projections, False)
+    def test_expand_array_key_pattern_no_matches(self):
+        """Test that no matching arrays raises error."""
+        arrays = {"other/layer_0": np.ones((3, 4))}
+        with pytest.raises(ConfigValidationError, match="No array keys found"):
+            _expand_array_key_pattern("key_*", "layer_0", arrays, False)
 
     def test_expand_belief_factor_mapping_wrong_dim(self):
         """Test that non-3D beliefs for factor expansion raises error."""
@@ -309,13 +309,13 @@ class TestPatternExpansion:
 
     def test_expand_field_mapping_projection_no_field_pattern(self):
         """Test projection key pattern without field pattern raises error."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="factor_*", group_as="factor")
+        ref = ActivationVisualizationFieldRef(source="arrays", key="factor_*", group_as="factor")
         with pytest.raises(ConfigValidationError, match="requires field name pattern"):
             _expand_field_mapping("plain_field", ref, "layer_0", {}, {}, None, False)
 
     def test_expand_field_mapping_projection_too_many_patterns(self):
         """Test projection with too many field patterns raises error."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="factor_*", group_as="factor")
+        ref = ActivationVisualizationFieldRef(source="arrays", key="factor_*", group_as="factor")
         with pytest.raises(ConfigValidationError, match="too many patterns"):
             _expand_field_mapping("f_*_g_*_h_*", ref, "layer_0", {}, {}, None, False)
 
@@ -695,7 +695,7 @@ class TestDataframeBuilders:
     def test_build_scalar_dataframe_non_scalar_source_skipped(self):
         """Test that non-scalar sources are skipped."""
         mappings = {
-            "proj": ActivationVisualizationFieldRef(source="projections", key="my_proj"),
+            "proj": ActivationVisualizationFieldRef(source="arrays", key="my_proj"),
             "rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="rmse/layer_*"),
         }
         scalars = {"analysis/rmse/layer_0": 0.1}
@@ -750,11 +750,11 @@ class TestDataframeBuilders:
         assert list(result["weight"]) == [1.0, 0.5]
 
     def test_build_dataframe_for_mappings_simple(self):
-        """Test _build_dataframe_for_mappings with simple projection mapping."""
-        mappings = {"x": ActivationVisualizationFieldRef(source="projections", key="pca", component=0)}
+        """Test _build_dataframe_for_mappings with simple array mapping."""
+        mappings = {"x": ActivationVisualizationFieldRef(source="arrays", key="pca", component=0)}
         metadata = {"step": np.array([1, 2]), "analysis": np.array(["test", "test"])}
-        projections = {"pca/layer_0": np.array([[0.1, 0.2], [0.3, 0.4]])}
-        result = _build_dataframe_for_mappings(mappings, metadata, projections, {}, None, False, ["layer_0"])
+        arrays = {"pca/layer_0": np.array([[0.1, 0.2], [0.3, 0.4]])}
+        result = _build_dataframe_for_mappings(mappings, metadata, arrays, {}, None, False, ["layer_0"])
         assert "x" in result.columns
         assert "layer" in result.columns
         assert len(result) == 2
@@ -791,9 +791,9 @@ class TestDataframeBuilders:
 
     def test_build_dataframe_for_mappings_error_wrapping(self):
         """Test that errors from _expand_field_mapping are wrapped with context."""
-        # Create a mapping with a key pattern that will fail expansion due to no matching projections
-        # The key "factor_*" is a pattern that needs expansion, which fails when no projections match
-        mappings = {"x_*": ActivationVisualizationFieldRef(source="projections", key="factor_*", group_as="factor")}
+        # Create a mapping with a key pattern that will fail expansion due to no matching arrays
+        # The key "factor_*" is a pattern that needs expansion, which fails when no arrays match
+        mappings = {"x_*": ActivationVisualizationFieldRef(source="arrays", key="factor_*", group_as="factor")}
         metadata = {"step": np.array([1])}
         with pytest.raises(ConfigValidationError, match="Error expanding 'x_\\*' for layer"):
             _build_dataframe_for_mappings(mappings, metadata, {}, {}, None, False, ["layer_0"])
@@ -828,21 +828,21 @@ class TestDataframeBuilders:
         combined = [
             CombinedMappingSection(
                 label="projected",
-                mappings={"x": ActivationVisualizationFieldRef(source="projections", key="pca", component=0)},
+                mappings={"x": ActivationVisualizationFieldRef(source="arrays", key="pca", component=0)},
             ),
             CombinedMappingSection(
                 label="raw",
-                mappings={"x": ActivationVisualizationFieldRef(source="projections", key="raw", component=0)},
+                mappings={"x": ActivationVisualizationFieldRef(source="arrays", key="raw", component=0)},
             ),
         ]
         data_mapping = ActivationVisualizationDataMapping(mappings={}, combined=combined, combine_as="source")
         viz_cfg = ActivationVisualizationConfig(name="test", data_mapping=data_mapping)
         metadata = {"step": np.array([1])}
-        projections = {
+        arrays = {
             "pca/layer_0": np.array([[0.1, 0.2]]),
             "raw/layer_0": np.array([[0.5, 0.6]]),
         }
-        result = _build_dataframe(viz_cfg, metadata, projections, {}, {}, None, None, False, ["layer_0"])
+        result = _build_dataframe(viz_cfg, metadata, arrays, {}, {}, None, None, False, ["layer_0"])
         assert "source" in result.columns
         assert set(result["source"]) == {"projected", "raw"}
         assert len(result) == 2

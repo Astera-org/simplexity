@@ -1,4 +1,4 @@
-"""Field resolution from projections, scalars, and belief states."""
+"""Field resolution from arrays, scalars, and belief states."""
 
 from __future__ import annotations
 
@@ -11,10 +11,8 @@ from simplexity.analysis.metric_keys import construct_layer_specific_key, format
 from simplexity.exceptions import ConfigValidationError
 
 
-def _lookup_projection_array(
-    projections: Mapping[str, np.ndarray], layer_name: str, key: str, concat_layers: bool
-) -> np.ndarray:
-    """Look up a projection array by key, handling layer naming conventions.
+def _lookup_array(arrays: Mapping[str, np.ndarray], layer_name: str, key: str, concat_layers: bool) -> np.ndarray:
+    """Look up an array by key, handling layer naming conventions.
 
     Supports keys in the format "{analysis}/{layer_spec}" (e.g., "pca/L0.resid.pre")
     or "{analysis}/{layer_spec}-{factor_spec}" (e.g., "reg/L0.resid.pre-F0").
@@ -22,14 +20,14 @@ def _lookup_projection_array(
     When key contains a factor suffix (e.g., "projected/F0"), looks for the full key
     "{analysis}/{layer_spec}-{factor_spec}" (e.g., "projected/L0.resid.pre-F0").
     """
-    for full_key, value in projections.items():
+    for full_key, value in arrays.items():
         if concat_layers:
             if full_key == key or full_key.startswith(f"{key}/"):
                 return value
         else:
             if _key_matches_layer(full_key, key, layer_name):
                 return value
-    raise ConfigValidationError(f"Projection '{key}' not available for layer '{layer_name}'.")
+    raise ConfigValidationError(f"Array '{key}' not available for layer '{layer_name}'.")
 
 
 def _key_matches_layer(full_key: str, key: str, layer_name: str) -> bool:
@@ -147,7 +145,7 @@ def _resolve_belief_states(belief_states: np.ndarray, ref: ActivationVisualizati
 def _resolve_field(
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
     belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
@@ -169,10 +167,10 @@ def _resolve_field(
             raise ConfigValidationError("Weight metadata is unavailable for visualization mapping.")
         return np.asarray(metadata_columns["weight"])
 
-    if ref.source == "projections":
+    if ref.source == "arrays":
         if ref.key is None:
-            raise ConfigValidationError("Projection references must supply a `key` value.")
-        array = _lookup_projection_array(projections, layer_name, ref.key, analysis_concat_layers)
+            raise ConfigValidationError("Array references must supply a `key` value.")
+        array = _lookup_array(arrays, layer_name, ref.key, analysis_concat_layers)
         if isinstance(ref.component, str):
             raise ConfigValidationError("Component indices should be expanded before resolution")
         return _maybe_component(array, ref.component)
@@ -192,7 +190,7 @@ def _resolve_field(
 
 
 __all__ = [
-    "_lookup_projection_array",
+    "_lookup_array",
     "_lookup_scalar_value",
     "_maybe_component",
     "_resolve_belief_states",

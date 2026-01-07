@@ -27,19 +27,19 @@ def analysis_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.ndarray]
 
 
 def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> None:
-    """Metrics and projections should be namespace-qualified per layer."""
+    """Metrics and arrays should be namespace-qualified per layer."""
 
     activations, weights, belief_states = analysis_inputs
     analysis = LayerwiseAnalysis("linear_regression", last_token_only=True)
 
-    scalars, projections = analysis.analyze(
+    scalars, arrays = analysis.analyze(
         activations=activations,
         weights=weights,
         belief_states=belief_states,
     )
 
     assert set(scalars) >= {"r2/layer_a", "r2/layer_b"}
-    assert set(projections) == {
+    assert set(arrays) == {
         "projected/layer_a",
         "projected/layer_b",
         "coeffs/layer_a",
@@ -84,14 +84,15 @@ def test_pca_analysis_does_not_require_beliefs(analysis_inputs) -> None:
         "pca",
         analysis_kwargs={"n_components": 2, "variance_thresholds": (0.5,)},
     )
-    scalars, projections = analysis.analyze(
+    scalars, arrays = analysis.analyze(
         activations=activations,
         weights=weights,
         belief_states=None,
     )
-    assert "cumvar_1/layer_a" in scalars
+    assert "var_exp/layer_a" in scalars
     assert "nc_50/layer_a" in scalars
-    assert "pca/layer_a" in projections
+    assert "pca/layer_a" in arrays
+    assert "cev/layer_a" in arrays
 
 
 def test_invalid_pca_kwargs() -> None:
