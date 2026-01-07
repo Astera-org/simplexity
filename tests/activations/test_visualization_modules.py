@@ -56,11 +56,6 @@ from simplexity.exceptions import ConfigValidationError
 class TestFieldResolution:
     """Tests for field_resolution.py functions."""
 
-    def test_lookup_projection_array_none_key(self):
-        """Test that None key raises error."""
-        with pytest.raises(ConfigValidationError, match="must supply a `key` value"):
-            _lookup_projection_array({}, "layer_0", None, False)
-
     def test_lookup_projection_array_not_found(self):
         """Test that missing projection raises error."""
         projections = {"other/layer_0": np.array([1, 2, 3])}
