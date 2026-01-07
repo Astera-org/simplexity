@@ -115,7 +115,7 @@ def layer_pca_analysis(
 
     cumulative_variance = jnp.cumsum(result["explained_variance_ratio"])
     scalars: dict[str, float] = {}
-    scalars["variance_explained"] = float(cumulative_variance[-1])
+    scalars["var_exp"] = float(cumulative_variance[-1])
 
     threshold_counts = variance_threshold_counts(
         result["all_explained_variance_ratio"],

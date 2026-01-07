@@ -397,10 +397,10 @@ class TestPcaAnalysis:
             weights=prepared.weights,
         )
 
-        assert "variance_explained/layer_0" in scalars
+        assert "var_exp/layer_0" in scalars
         assert "nc_80/layer_0" in scalars
         assert "nc_90/layer_0" in scalars
-        assert "variance_explained/layer_1" in scalars
+        assert "var_exp/layer_1" in scalars
 
         assert "pca/layer_0" in arrays
         assert "pca/layer_1" in arrays
@@ -437,7 +437,7 @@ class TestPcaAnalysis:
             weights=prepared.weights,
         )
 
-        assert "variance_explained/layer_0" in scalars
+        assert "var_exp/layer_0" in scalars
         assert "pca/layer_0" in arrays
         assert "cev/layer_0" in arrays
 
@@ -495,7 +495,7 @@ class TestActivationTracker:
         )
 
         assert "regression/r2/layer_0" in scalars
-        assert "pca/variance_explained/layer_0" in scalars
+        assert "pca/var_exp/layer_0" in scalars
 
         assert "regression/projected/layer_0" in arrays
         assert "pca/pca/layer_0" in arrays
@@ -547,7 +547,7 @@ class TestActivationTracker:
         )
 
         assert "regression/r2/layer_0" in scalars
-        assert "pca/variance_explained/layer_0" in scalars
+        assert "pca/var_exp/layer_0" in scalars
         assert visualizations == {}
 
     def test_concatenated_layers(self, synthetic_data):
@@ -574,7 +574,7 @@ class TestActivationTracker:
         )
 
         assert "regression/r2/Lcat" in scalars
-        assert "pca/variance_explained/Lcat" in scalars
+        assert "pca/var_exp/Lcat" in scalars
 
         assert "regression/projected/Lcat" in arrays
         assert "pca/pca/Lcat" in arrays
@@ -630,8 +630,8 @@ class TestActivationTracker:
             activations=synthetic_data["activations"],
         )
 
-        assert "pca_all_tokens/variance_explained/layer_0" in scalars
-        assert "pca_last_token/variance_explained/layer_0" in scalars
+        assert "pca_all_tokens/var_exp/layer_0" in scalars
+        assert "pca_last_token/var_exp/layer_0" in scalars
         assert "regression_concat/r2/Lcat" in scalars
 
         assert "pca_all_tokens/pca/layer_0" in arrays
@@ -990,7 +990,7 @@ class TestTupleBeliefStates:
         assert "regression/r2/layer_0-F1" in scalars
 
         # PCA should still work (doesn't use belief states)
-        assert "pca/variance_explained/layer_0" in scalars
+        assert "pca/var_exp/layer_0" in scalars
 
         # Arrays should be present
         assert "regression/projected/layer_0-F0" in arrays

@@ -39,7 +39,7 @@ def test_layer_pca_analysis_metrics() -> None:
         variance_thresholds=(0.5,),
     )
     assert "nc_50" in scalars
-    assert "variance_explained" in scalars
+    assert "var_exp" in scalars
     assert "pca" in arrays
     assert arrays["pca"].shape == (3, 2)
     assert "cev" in arrays

@@ -89,7 +89,7 @@ def test_pca_analysis_does_not_require_beliefs(analysis_inputs) -> None:
         weights=weights,
         belief_states=None,
     )
-    assert "variance_explained/layer_a" in scalars
+    assert "var_exp/layer_a" in scalars
     assert "nc_50/layer_a" in scalars
     assert "pca/layer_a" in arrays
     assert "cev/layer_a" in arrays
