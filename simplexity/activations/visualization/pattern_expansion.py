@@ -111,7 +111,7 @@ def _get_component_count(
     """Get number of components available for expansion."""
     if ref.source == "arrays":
         if ref.key is None:
-            raise ConfigValidationError("Projection refs require key")
+            raise ConfigValidationError("Array refs require key")
         array = _lookup_array(arrays, layer_name, ref.key, analysis_concat_layers)
         np_array = np.asarray(array)
         if np_array.ndim == 1:
