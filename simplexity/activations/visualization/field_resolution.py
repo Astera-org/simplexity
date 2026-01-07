@@ -1,4 +1,4 @@
-"""Field resolution from projections, scalars, and belief states."""
+"""Field resolution from arrays, scalars, and belief states."""
 
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ from simplexity.activations.visualization_configs import ActivationVisualization
 from simplexity.exceptions import ConfigValidationError
 
 
-def _lookup_projection_array(
-    projections: Mapping[str, np.ndarray], layer_name: str, key: str | None, concat_layers: bool
+def _lookup_array(
+    arrays: Mapping[str, np.ndarray], layer_name: str, key: str | None, concat_layers: bool
 ) -> np.ndarray:
-    """Look up a projection array by key, handling layer naming conventions."""
+    """Look up an array by key, handling layer naming conventions."""
     if key is None:
-        raise ConfigValidationError("Projection references must supply a `key` value.")
+        raise ConfigValidationError("Array references must supply a `key` value.")
     suffix = f"_{key}"
-    for full_key, value in projections.items():
+    for full_key, value in arrays.items():
         if concat_layers:
             if full_key.endswith(suffix) or full_key == key:
                 return np.asarray(value)
@@ -27,7 +27,7 @@ def _lookup_projection_array(
             candidate_layer = full_key[: -len(suffix)]
             if candidate_layer == layer_name:
                 return np.asarray(value)
-    raise ConfigValidationError(f"Projection '{key}' not available for layer '{layer_name}'.")
+    raise ConfigValidationError(f"Array '{key}' not available for layer '{layer_name}'.")
 
 
 def _lookup_scalar_value(scalars: Mapping[str, float], layer_name: str, key: str, concat_layers: bool) -> float:
@@ -107,7 +107,7 @@ def _resolve_belief_states(belief_states: np.ndarray, ref: ActivationVisualizati
 def _resolve_field(
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
     belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
@@ -130,7 +130,7 @@ def _resolve_field(
         return np.asarray(metadata_columns["weight"])
 
     if ref.source == "projections":
-        array = _lookup_projection_array(projections, layer_name, ref.key, analysis_concat_layers)
+        array = _lookup_array(arrays, layer_name, ref.key, analysis_concat_layers)
         if isinstance(ref.component, str):
             raise ConfigValidationError("Component indices should be expanded before resolution")
         return _maybe_component(array, ref.component)
@@ -150,7 +150,7 @@ def _resolve_field(
 
 
 __all__ = [
-    "_lookup_projection_array",
+    "_lookup_array",
     "_lookup_scalar_value",
     "_maybe_component",
     "_resolve_belief_states",

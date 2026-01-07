@@ -227,7 +227,7 @@ def _scalar_series_metadata(metadata_columns: Mapping[str, Any]) -> dict[str, An
 def _build_dataframe_for_mappings(
     mappings: dict[str, ActivationVisualizationFieldRef],
     metadata_columns: Mapping[str, Any],
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
     belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
@@ -247,7 +247,7 @@ def _build_dataframe_for_mappings(
         for field_name, ref in mappings.items():
             try:
                 expanded = _expand_field_mapping(
-                    field_name, ref, layer_name, projections, scalars, belief_states, analysis_concat_layers
+                    field_name, ref, layer_name, arrays, scalars, belief_states, analysis_concat_layers
                 )
                 expanded_mappings.update(expanded)
             except ConfigValidationError as e:
@@ -292,7 +292,7 @@ def _build_dataframe_for_mappings(
                     group_data[column] = _resolve_field(
                         ref,
                         layer_name,
-                        projections,
+                        arrays,
                         scalars,
                         belief_states,
                         analysis_concat_layers,
@@ -306,7 +306,7 @@ def _build_dataframe_for_mappings(
                     group_data[base_col_name] = _resolve_field(
                         ref,
                         layer_name,
-                        projections,
+                        arrays,
                         scalars,
                         belief_states,
                         analysis_concat_layers,
@@ -324,7 +324,7 @@ def _build_dataframe_for_mappings(
                 layer_data[column] = _resolve_field(
                     ref,
                     layer_name,
-                    projections,
+                    arrays,
                     scalars,
                     belief_states,
                     analysis_concat_layers,
@@ -339,7 +339,7 @@ def _build_dataframe_for_mappings(
 def _build_dataframe(
     viz_cfg: ActivationVisualizationConfig,
     metadata_columns: Mapping[str, Any],
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
     scalar_history: Mapping[str, list[tuple[int, float]]],
     scalar_history_step: int | None,
@@ -358,7 +358,7 @@ def _build_dataframe(
             section_df = _build_dataframe_for_mappings(
                 section.mappings,
                 metadata_columns,
-                projections,
+                arrays,
                 scalars,
                 belief_states,
                 analysis_concat_layers,
@@ -406,7 +406,7 @@ def _build_dataframe(
     return _build_dataframe_for_mappings(
         viz_cfg.data_mapping.mappings,
         metadata_columns,
-        projections,
+        arrays,
         scalars,
         belief_states,
         analysis_concat_layers,

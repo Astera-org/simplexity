@@ -7,7 +7,7 @@ from collections.abc import Iterable, Mapping
 
 import numpy as np
 
-from simplexity.activations.visualization.field_resolution import _lookup_projection_array
+from simplexity.activations.visualization.field_resolution import _lookup_array
 from simplexity.activations.visualization.pattern_utils import (
     build_wildcard_regex,
     count_patterns,
@@ -103,7 +103,7 @@ def _expand_pattern_to_indices(
 def _get_component_count(
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
 ) -> int:
@@ -111,7 +111,7 @@ def _get_component_count(
     if ref.source == "projections":
         if ref.key is None:
             raise ConfigValidationError("Projection refs require key")
-        array = _lookup_projection_array(projections, layer_name, ref.key, analysis_concat_layers)
+        array = _lookup_array(arrays, layer_name, ref.key, analysis_concat_layers)
         np_array = np.asarray(array)
         if np_array.ndim == 1:
             raise ConfigValidationError(f"Cannot expand 1D projection '{ref.key}'. Patterns require 2D arrays.")
@@ -134,7 +134,7 @@ def _get_component_count(
 def _expand_projection_key_pattern(
     key_pattern: str,
     layer_name: str,
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     analysis_concat_layers: bool,
 ) -> dict[str, str]:
     """Expand projection key patterns against available keys.
@@ -142,7 +142,7 @@ def _expand_projection_key_pattern(
     Args:
         key_pattern: Pattern like "factor_*/projected" or "factor_0...3/projected"
         layer_name: Current layer name for matching
-        projections: Available projection arrays
+        arrays: Available arrays
         analysis_concat_layers: Whether layers were concatenated
 
     Returns:
@@ -167,9 +167,9 @@ def _expand_projection_key_pattern(
             result[str(idx)] = concrete_key
         return result
 
-    # Match against available projection keys
+    # Match against available arrays
     result: dict[str, str] = {}
-    for full_key in projections:
+    for full_key in arrays:
         # Extract the key suffix (part after layer name)
         if analysis_concat_layers:
             # Keys are like "factor_0/projected" directly
@@ -189,8 +189,8 @@ def _expand_projection_key_pattern(
 
     if not result:
         raise ConfigValidationError(
-            f"No projection keys found matching pattern '{key_pattern}' for layer '{layer_name}'. "
-            f"Available keys: {list(projections.keys())}"
+            f"No array keys found matching pattern '{key_pattern}' for layer '{layer_name}'. "
+            f"Available keys: {list(arrays.keys())}"
         )
 
     return result
@@ -200,7 +200,7 @@ def _expand_projection_key_mapping(
     field_name: str,
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
 ) -> dict[str, ActivationVisualizationFieldRef]:
@@ -212,7 +212,7 @@ def _expand_projection_key_mapping(
     assert ref.key is not None, "Key must be provided for projection key pattern expansion"
 
     # Expand key pattern to get concrete keys
-    key_expansions = _expand_projection_key_pattern(ref.key, layer_name, projections, analysis_concat_layers)
+    key_expansions = _expand_projection_key_pattern(ref.key, layer_name, arrays, analysis_concat_layers)
 
     # Check if component expansion is also needed
     spec_type, start_idx, end_idx = _parse_component_spec(ref.component)
@@ -226,7 +226,7 @@ def _expand_projection_key_mapping(
     for group_idx, concrete_key in sorted(key_expansions.items(), key=lambda x: int(x[0])):
         if needs_component_expansion:
             # Get component count for this specific key
-            array = _lookup_projection_array(projections, layer_name, concrete_key, analysis_concat_layers)
+            array = _lookup_array(arrays, layer_name, concrete_key, analysis_concat_layers)
             np_array = np.asarray(array)
             if np_array.ndim != 2:
                 raise ConfigValidationError(
@@ -483,7 +483,7 @@ def _expand_field_mapping(
     field_name: str,
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
-    projections: Mapping[str, np.ndarray],
+    arrays: Mapping[str, np.ndarray],
     scalars: Mapping[str, float],
     belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
@@ -506,7 +506,7 @@ def _expand_field_mapping(
             )
 
         return _expand_projection_key_mapping(
-            field_name, ref, layer_name, projections, belief_states, analysis_concat_layers
+            field_name, ref, layer_name, arrays, belief_states, analysis_concat_layers
         )
 
     # Check for belief state factor patterns
@@ -556,7 +556,7 @@ def _expand_field_mapping(
     if not needs_expansion:
         return {field_name: ref}
 
-    max_components = _get_component_count(ref, layer_name, projections, belief_states, analysis_concat_layers)
+    max_components = _get_component_count(ref, layer_name, arrays, belief_states, analysis_concat_layers)
 
     if spec_type == "wildcard":
         components = list(range(max_components))

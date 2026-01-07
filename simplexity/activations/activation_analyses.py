@@ -42,7 +42,7 @@ class ActivationAnalysis(Protocol):
         weights: jax.Array,
         belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-        """Analyze activations and return scalar metrics and projections."""
+        """Analyze activations and return scalar metrics and arrays."""
         ...
 
 

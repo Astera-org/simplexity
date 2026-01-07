@@ -19,7 +19,7 @@ from simplexity.activations.visualization.dataframe_builders import (
     _scalar_series_metadata,
 )
 from simplexity.activations.visualization.field_resolution import (
-    _lookup_projection_array,
+    _lookup_array,
     _lookup_scalar_value,
     _maybe_component,
     _resolve_belief_states,
@@ -56,27 +56,27 @@ from simplexity.exceptions import ConfigValidationError
 class TestFieldResolution:
     """Tests for field_resolution.py functions."""
 
-    def test_lookup_projection_array_none_key(self):
+    def test_lookup_array_none_key(self):
         """Test that None key raises error."""
         with pytest.raises(ConfigValidationError, match="must supply a `key` value"):
-            _lookup_projection_array({}, "layer_0", None, False)
+            _lookup_array({}, "layer_0", None, False)
 
-    def test_lookup_projection_array_not_found(self):
-        """Test that missing projection raises error."""
-        projections = {"layer_0_other": np.array([1, 2, 3])}
+    def test_lookup_array_not_found(self):
+        """Test that missing array raises error."""
+        arrays = {"layer_0_other": np.array([1, 2, 3])}
         with pytest.raises(ConfigValidationError, match="not available for layer"):
-            _lookup_projection_array(projections, "layer_0", "missing", False)
+            _lookup_array(arrays, "layer_0", "missing", False)
 
-    def test_lookup_projection_array_concat_layers_exact_match(self):
+    def test_lookup_array_concat_layers_exact_match(self):
         """Test exact key match with concat_layers."""
-        projections = {"my_key": np.array([1, 2, 3])}
-        result = _lookup_projection_array(projections, "layer_0", "my_key", True)
+        arrays = {"my_key": np.array([1, 2, 3])}
+        result = _lookup_array(arrays, "layer_0", "my_key", True)
         np.testing.assert_array_equal(result, [1, 2, 3])
 
-    def test_lookup_projection_array_concat_layers_suffix_match(self):
+    def test_lookup_array_concat_layers_suffix_match(self):
         """Test suffix match with concat_layers."""
-        projections = {"prefix_my_key": np.array([4, 5, 6])}
-        result = _lookup_projection_array(projections, "layer_0", "my_key", True)
+        arrays = {"prefix_my_key": np.array([4, 5, 6])}
+        result = _lookup_array(arrays, "layer_0", "my_key", True)
         np.testing.assert_array_equal(result, [4, 5, 6])
 
     def test_lookup_scalar_value_concat_layers_exact(self):
@@ -276,7 +276,7 @@ class TestPatternExpansion:
     def test_expand_projection_key_pattern_no_matches(self):
         """Test that no matching projections raises error."""
         projections = {"layer_0_other": np.ones((3, 4))}
-        with pytest.raises(ConfigValidationError, match="No projection keys found"):
+        with pytest.raises(ConfigValidationError, match="No array keys found"):
             _expand_projection_key_pattern("key_*", "layer_0", projections, False)
 
     def test_expand_belief_factor_mapping_wrong_dim(self):

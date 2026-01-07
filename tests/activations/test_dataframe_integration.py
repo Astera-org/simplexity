@@ -33,7 +33,7 @@ class TestProjectionDataframeIntegration:
         factor_0_data = np.array([[0.1, 0.8, 0.1], [0.2, 0.7, 0.1], [0.3, 0.6, 0.1]])
         factor_1_data = np.array([[0.5, 0.5], [0.4, 0.6], [0.3, 0.7]])
 
-        projections = {
+        arrays = {
             "layer_0_factor_0/projected": factor_0_data,
             "layer_0_factor_1/projected": factor_1_data,
         }
@@ -65,7 +65,7 @@ class TestProjectionDataframeIntegration:
         df = _build_dataframe_for_mappings(
             mappings=mappings,
             metadata_columns=metadata_columns,
-            projections=projections,
+            arrays=arrays,
             scalars={},
             belief_states=None,
             analysis_concat_layers=False,
@@ -123,7 +123,7 @@ class TestProjectionDataframeIntegration:
         factor_0_data = np.array([[0.1, 0.8, 0.1], [0.2, 0.7, 0.1]])  # 3 components
         factor_1_data = np.array([[0.5, 0.5], [0.4, 0.6]])  # 2 components
 
-        projections = {
+        arrays = {
             "layer_0_factor_0/projected": factor_0_data,
             "layer_0_factor_1/projected": factor_1_data,
         }
@@ -148,7 +148,7 @@ class TestProjectionDataframeIntegration:
             _build_dataframe_for_mappings(
                 mappings=mappings,
                 metadata_columns=metadata_columns,
-                projections=projections,
+                arrays=arrays,
                 scalars={},
                 belief_states=None,
                 analysis_concat_layers=False,
@@ -173,7 +173,7 @@ class TestProjectionDataframeIntegration:
         noise = np.random.default_rng(42).standard_normal((n_samples, n_factors, n_states)) * 0.01
         projected_values = belief_states + noise
 
-        projections = {
+        arrays = {
             "layer_0_factor_0/projected": projected_values[:, 0, :],
             "layer_0_factor_1/projected": projected_values[:, 1, :],
         }
@@ -216,7 +216,7 @@ class TestProjectionDataframeIntegration:
         df = _build_dataframe(
             viz_cfg=config,
             metadata_columns=metadata_columns,
-            projections=projections,
+            arrays=arrays,
             scalars={},
             scalar_history={},
             scalar_history_step=None,
@@ -237,7 +237,7 @@ class TestProjectionDataframeIntegration:
         n_states = 3
 
         belief_states = np.random.rand(n_samples, n_factors, n_states)
-        projections = {
+        arrays = {
             f"layer_{layer_idx}_factor_{factor_idx}/projected": np.random.rand(n_samples, n_states)
             for layer_idx in range(n_layers)
             for factor_idx in range(n_factors)
@@ -279,7 +279,7 @@ class TestProjectionDataframeIntegration:
         df = _build_dataframe(
             viz_cfg=config,
             metadata_columns=metadata_columns,
-            projections=projections,
+            arrays=arrays,
             scalars={},
             scalar_history={},
             scalar_history_step=None,
@@ -301,7 +301,7 @@ class TestProjectionDataframeIntegration:
         nf_df = _build_dataframe_for_mappings(
             mappings={"prob_0": ActivationVisualizationFieldRef(source="projections", key="projected", component=0)},
             metadata_columns=metadata,
-            projections={"layer_0_projected": projection_data},
+            arrays={"layer_0_projected": projection_data},
             scalars={},
             belief_states=None,
             analysis_concat_layers=False,
@@ -314,7 +314,7 @@ class TestProjectionDataframeIntegration:
                 )
             },
             metadata_columns=metadata,
-            projections={"layer_0_factor_0/projected": projection_data},
+            arrays={"layer_0_factor_0/projected": projection_data},
             scalars={},
             belief_states=None,
             analysis_concat_layers=False,
@@ -339,11 +339,11 @@ class TestProjectionDataframeIntegration:
         beliefs_softmax = beliefs_softmax / beliefs_softmax.sum(axis=2, keepdims=True)
 
         belief_states = tuple(jnp.array(beliefs_softmax[:, f, :]) for f in range(n_factors))
-        scalars, projections = layer_linear_regression(
+        scalars, arrays = layer_linear_regression(
             jnp.array(ds), jnp.ones(n_samples) / n_samples, belief_states, use_svd=True
         )
 
         for f in range(n_factors):
             assert scalars[f"factor_{f}/r2"] > 0.8, f"Factor {f} R² too low"
-            diff = np.abs(np.asarray(projections[f"factor_{f}/projected"]) - np.asarray(belief_states[f]))
+            diff = np.abs(np.asarray(arrays[f"factor_{f}/projected"]) - np.asarray(belief_states[f]))
             assert diff.max() < 0.2, f"Factor {f} projections differ too much from beliefs"

@@ -568,10 +568,10 @@ class TestKeyPatternExpansion:
 
     def test_expand_projection_key_pattern_no_matches_raises(self):
         """Test that _expand_projection_key_pattern raises an error when no keys match."""
-        projections = {"layer_0_pca": np.random.randn(10, 3)}
+        arrays = {"layer_0_pca": np.random.randn(10, 3)}
 
-        with pytest.raises(ConfigValidationError, match="No projection keys found"):
-            _expand_projection_key_pattern("factor_*/projected", "layer_0", projections, False)
+        with pytest.raises(ConfigValidationError, match="No array keys found"):
+            _expand_projection_key_pattern("factor_*/projected", "layer_0", arrays, False)
 
     def test_field_mapping_with_key_pattern(self):
         """Test that field mappings with key patterns are expanded correctly."""

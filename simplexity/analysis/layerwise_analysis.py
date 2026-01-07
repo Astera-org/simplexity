@@ -183,13 +183,13 @@ class LayerwiseAnalysis:
         weights: jax.Array,
         belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-        """Analyze activations and return namespaced scalar metrics and projections."""
+        """Analyze activations and return namespaced scalar metrics and arrays."""
         if self._requires_belief_states and belief_states is None:
             raise ValueError("This analysis requires belief_states")
         scalars: dict[str, float] = {}
-        projections: dict[str, jax.Array] = {}
+        arrays: dict[str, jax.Array] = {}
         for layer_name, layer_activations in activations.items():
-            layer_scalars, layer_projections = self._analysis_fn(
+            layer_scalars, layer_arrays = self._analysis_fn(
                 layer_activations,
                 weights,
                 belief_states,
@@ -197,9 +197,9 @@ class LayerwiseAnalysis:
             )
             for key, value in layer_scalars.items():
                 scalars[f"{layer_name}_{key}"] = value
-            for key, value in layer_projections.items():
-                projections[f"{layer_name}_{key}"] = value
-        return scalars, projections
+            for key, value in layer_arrays.items():
+                arrays[f"{layer_name}_{key}"] = value
+        return scalars, arrays
 
 
 __all__ = ["LayerwiseAnalysis", "ANALYSIS_REGISTRY"]

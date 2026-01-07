@@ -246,14 +246,14 @@ class TestActivationTrackerVisualizationHandling:
         tracker = ActivationTracker(
             analyses={"pca": PcaAnalysis(n_components=1, last_token_only=False, concat_layers=False)},
         )
-        scalars, projections, visualizations = tracker.analyze(
+        scalars, arrays, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
             activations=synthetic_data["activations"],
         )
         assert len(scalars) > 0
-        assert len(projections) > 0
+        assert len(arrays) > 0
         assert len(visualizations) == 0
 
     def test_analyze_records_scalar_history(self, synthetic_data):
@@ -307,7 +307,7 @@ class TestActivationTrackerVisualizationHandling:
             analyses={"pca": PcaAnalysis(n_components=1, last_token_only=False, concat_layers=False)},
             visualizations={"pca": [viz_cfg]},
         )
-        scalars, projections, visualizations = tracker.analyze(
+        scalars, arrays, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=beliefs_tuple,
             probs=synthetic_data["probs"],
@@ -337,7 +337,7 @@ class TestActivationTrackerVisualizationHandling:
             visualizations={"pca": [viz_cfg]},
         )
         # PCA doesn't require beliefs, so this should work
-        scalars, projections, visualizations = tracker.analyze(
+        scalars, arrays, visualizations = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],

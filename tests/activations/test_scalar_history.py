@@ -275,7 +275,7 @@ class TestScalarHistoryVisualizations:
             _build_dataframe(
                 viz_cfg,
                 self._metadata(),
-                projections={},
+                arrays={},
                 scalars={"analysis/layer_0_rmse": 0.1},
                 scalar_history={},
                 scalar_history_step=None,
@@ -290,7 +290,7 @@ class TestScalarHistoryVisualizations:
         df = _build_dataframe(
             viz_cfg,
             self._metadata(),
-            projections={},
+            arrays={},
             scalars={"analysis/layer_0_rmse": 0.42},
             scalar_history={},
             scalar_history_step=7,
@@ -326,7 +326,7 @@ class TestScalarHistoryVisualizations:
         df = _build_dataframe(
             viz_cfg,
             self._metadata(),
-            projections={},
+            arrays={},
             scalars=scalars,
             scalar_history={},
             scalar_history_step=11,
@@ -366,7 +366,7 @@ class TestScalarHistoryVisualizations:
         df = _build_dataframe(
             viz_cfg,
             self._metadata(),
-            projections={},
+            arrays={},
             scalars=scalars,
             scalar_history={},
             scalar_history_step=3,
@@ -395,7 +395,7 @@ class TestScalarHistoryVisualizations:
             _build_dataframe(
                 viz_cfg,
                 self._metadata(),
-                projections={},
+                arrays={},
                 scalars={"analysis/other_metric": 0.1},
                 scalar_history={},
                 scalar_history_step=0,

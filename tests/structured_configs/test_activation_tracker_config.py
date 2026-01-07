@@ -250,14 +250,14 @@ def test_instantiate_activation_tracker_builds_analysis_objects(tracker_cfg: Dic
     probs = jnp.ones((1, 2), dtype=jnp.float32) * 0.5
     activations = {"layer": jnp.ones((1, 2, 4), dtype=jnp.float32)}
 
-    scalars, projections, visualizations = tracker.analyze(
+    scalars, arrays, visualizations = tracker.analyze(
         inputs=inputs,
         beliefs=beliefs,
         probs=probs,
         activations=activations,
     )
-    assert "pca_custom/layer_cumvar_1" in scalars
-    assert any(key.startswith("linear/") for key in projections)
+    assert "pca_custom/layer_variance_explained" in scalars
+    assert any(key.startswith("linear/") for key in arrays)
     assert visualizations == {}
 
 

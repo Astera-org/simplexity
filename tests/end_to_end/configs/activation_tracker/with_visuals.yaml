@@ -41,29 +41,6 @@ instance:
           guides:
             title: "PCA Projection (3D)"
             subtitle: "All tokens, weighted by prefix probability"
-        - name: cumulative_explained_variance # <- NEW VISUALIZATION
-          controls:
-            dropdown: layer
-            accumulate_steps: true
-            cumulative: false
-          data_mapping:
-            scalar_series:
-              key_template: "{layer}_cumvar_{index}"
-              index_field: n_components
-              value_field: cumulative_explained_variance
-          backend: altair
-          layer:
-            geometry:
-              type: line
-              props: {}
-            aesthetics:
-              x: {field: n_components, type: quantitative, title: "Number of PCA Components"}
-              y: {field: cumulative_explained_variance, type: quantitative, title: "Cumulative Explained Variance"}
-              color: {field: step, type: nominal, title: Step}
-          size: {width: 600, height: 400}
-          guides:
-            title: "Cumulative Explained Variance by PCA Components"
-            subtitle: "All tokens, weighted by probability"
 
     regression: # <- THIS RETURNS SCALARS AND PROJECTIONS
       instance:

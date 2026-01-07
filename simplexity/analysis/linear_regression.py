@@ -490,18 +490,18 @@ def _apply_layer_regression(
     """Apply a regression function, optionally per-factor."""
     if to_factors:
         scalars: dict[str, float] = {}
-        projections: dict[str, jax.Array] = {}
+        arrays: dict[str, jax.Array] = {}
         if not isinstance(belief_states, tuple):
             raise ValueError("belief_states must be a tuple when to_factors is True")
         for factor_idx, factor in enumerate(belief_states):
             if not isinstance(factor, jax.Array):
                 raise ValueError("Each factor in belief_states must be a jax.Array")
-            factor_scalars, factor_projections = regression_fn(layer_activations, factor, weights, **kwargs)
+            factor_scalars, factor_arrays = regression_fn(layer_activations, factor, weights, **kwargs)
             for key, value in factor_scalars.items():
                 scalars[f"factor_{factor_idx}/{key}"] = value
-            for key, value in factor_projections.items():
-                projections[f"factor_{factor_idx}/{key}"] = value
-        return scalars, projections
+            for key, value in factor_arrays.items():
+                arrays[f"factor_{factor_idx}/{key}"] = value
+        return scalars, arrays
     else:
         targets = jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
         return regression_fn(layer_activations, targets, weights, **kwargs)

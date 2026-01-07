@@ -198,7 +198,7 @@ class TestBuildVisualizationPayloads:
 
     def test_builds_payload_with_projections(self, basic_metadata, basic_viz_config):
         """Test building a payload with projection data."""
-        projections = {"layer_0_pca": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        arrays = {"layer_0_pca": np.array([[1.0, 2.0], [3.0, 4.0]])}
         payloads = build_visualization_payloads(
             analysis_name="test",
             viz_cfgs=[basic_viz_config],
@@ -206,7 +206,7 @@ class TestBuildVisualizationPayloads:
             prepared_metadata=basic_metadata,
             weights=np.array([0.5, 0.5]),
             belief_states=None,
-            projections=projections,
+            arrays=arrays,
             scalars={},
             scalar_history={},
             scalar_history_step=None,
@@ -244,7 +244,7 @@ class TestBuildVisualizationPayloads:
             prepared_metadata=basic_metadata,
             weights=np.array([0.5, 0.5]),
             belief_states=belief_states,
-            projections={},
+            arrays={},
             scalars={},
             scalar_history={},
             scalar_history_step=None,
@@ -278,7 +278,7 @@ class TestBuildVisualizationPayloads:
                 }
             ),
         ]
-        projections = {"layer_0_pca": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        arrays = {"layer_0_pca": np.array([[1.0, 2.0], [3.0, 4.0]])}
         payloads = build_visualization_payloads(
             analysis_name="test",
             viz_cfgs=configs,
@@ -286,7 +286,7 @@ class TestBuildVisualizationPayloads:
             prepared_metadata=basic_metadata,
             weights=np.array([0.5, 0.5]),
             belief_states=None,
-            projections=projections,
+            arrays=arrays,
             scalars={},
             scalar_history={},
             scalar_history_step=None,

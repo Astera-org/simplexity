@@ -12,7 +12,7 @@ from simplexity.activations.visualization.dataframe_builders import (
     _build_metadata_columns,
 )
 from simplexity.activations.visualization.field_resolution import (
-    _lookup_projection_array,
+    _lookup_array,
     _lookup_scalar_value,
     _maybe_component,
     _resolve_belief_states,
@@ -40,7 +40,7 @@ __all__ = [
     "_expand_field_mapping",
     "_has_field_pattern",
     "_has_key_pattern",
-    "_lookup_projection_array",
+    "_lookup_array",
     "_lookup_scalar_value",
     "_maybe_component",
     "_parse_component_spec",
