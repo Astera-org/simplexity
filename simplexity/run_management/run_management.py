@@ -85,9 +85,8 @@ from simplexity.structured_configs.persistence import (
     validate_persistence_config,
 )
 from simplexity.structured_configs.predictive_model import (
-    is_hooked_transformer_config,
     is_predictive_model_target,
-    resolve_hooked_transformer_config,
+    resolve_nested_model_config,
 )
 from simplexity.utils.config_utils import (
     filter_instance_keys,
@@ -465,12 +464,10 @@ def _setup_predictive_models(
     model_instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
     for instance_key in model_instance_keys:
         instance_config: DictConfig | None = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
-        if instance_config and is_hooked_transformer_config(instance_config):
-            instance_config_config: DictConfig | None = instance_config.get("cfg", None)
-            if instance_config_config is None:
-                raise RuntimeError("Error selecting predictive model config")
+        instance_config_config: DictConfig | None = instance_config.get("cfg", None) if instance_config else None
+        if instance_config_config is not None:
             vocab_size = _get_attribute_value(cfg, instance_keys, "vocab_size")
-            resolve_hooked_transformer_config(instance_config_config, vocab_size=vocab_size)
+            resolve_nested_model_config(instance_config_config, vocab_size=vocab_size)
         model = _instantiate_predictive_model(cfg, instance_key)
         step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
         load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
