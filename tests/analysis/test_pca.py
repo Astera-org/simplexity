@@ -42,8 +42,8 @@ def test_layer_pca_analysis_metrics() -> None:
     assert "variance_explained" in scalars
     assert "pca" in arrays
     assert arrays["pca"].shape == (3, 2)
-    assert "cumulative_explained_variance" in arrays
-    assert arrays["cumulative_explained_variance"].shape == (2,)
+    assert "cev" in arrays
+    assert arrays["cev"].shape == (2,)
 
 
 def test_compute_weighted_pca_rejects_bad_weights_shape() -> None:

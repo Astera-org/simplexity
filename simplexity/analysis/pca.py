@@ -125,7 +125,7 @@ def layer_pca_analysis(
         percentage = int(threshold * 100)
         scalars[f"nc_{percentage}"] = float(count)
 
-    arrays = {"pca": result["X_proj"], "cumulative_explained_variance": cumulative_variance}
+    arrays = {"pca": result["X_proj"], "cev": cumulative_variance}
     return scalars, arrays
 
 

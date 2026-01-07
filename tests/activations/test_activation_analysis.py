@@ -404,14 +404,14 @@ class TestPcaAnalysis:
 
         assert "pca/layer_0" in arrays
         assert "pca/layer_1" in arrays
-        assert "cumulative_explained_variance/layer_0" in arrays
-        assert "cumulative_explained_variance/layer_1" in arrays
+        assert "cev/layer_0" in arrays
+        assert "cev/layer_1" in arrays
 
         batch_size = prepared.activations["layer_0"].shape[0]
         assert arrays["pca/layer_0"].shape == (batch_size, 3)
         assert arrays["pca/layer_1"].shape == (batch_size, 3)
-        assert arrays["cumulative_explained_variance/layer_0"].shape == (3,)
-        assert arrays["cumulative_explained_variance/layer_1"].shape == (3,)
+        assert arrays["cev/layer_0"].shape == (3,)
+        assert arrays["cev/layer_1"].shape == (3,)
 
     def test_pca_without_belief_states(self, synthetic_data):
         """Test PCA works without belief_states."""
@@ -439,7 +439,7 @@ class TestPcaAnalysis:
 
         assert "variance_explained/layer_0" in scalars
         assert "pca/layer_0" in arrays
-        assert "cumulative_explained_variance/layer_0" in arrays
+        assert "cev/layer_0" in arrays
 
     def test_pca_all_components(self, synthetic_data):
         """Test PCA with n_components=None computes all components."""
