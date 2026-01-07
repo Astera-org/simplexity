@@ -11,6 +11,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.noisy_channel import compute_joint_blur_matrix
 from simplexity.generative_processes.structures import ConditionalContext, ConditionalStructure
 from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.utils.factoring_utils import TokenEncoder, transition_with_obs
@@ -80,6 +81,10 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
     structure: ConditionalStructure
     encoder: TokenEncoder
 
+    # Noise parameters
+    noise_epsilon: float
+    _blur_matrix: jax.Array | None
+
     def __init__(
         self,
         *,
@@ -89,6 +94,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         initial_states: Sequence[jax.Array],
         structure: ConditionalStructure,
         device: str | None = None,
+        noise_epsilon: float = 0.0,
     ) -> None:
         """Initialize factored generative process.
 
@@ -101,6 +107,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             initial_states: Initial state per factor (shape [S_i])
             structure: Conditional structure defining factor interactions
             device: Device to place arrays on (e.g., "cpu", "gpu")
+            noise_epsilon: Noisy channel epsilon value
         """
         if len(component_types) == 0:
             raise ValueError("Must provide at least one component")
@@ -132,6 +139,14 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             num_variants.append(num_var)
         self.num_variants = tuple(int(k) for k in num_variants)
         self.encoder = TokenEncoder(jnp.array(vocab_sizes))
+
+        # Store noise parameters
+        self.noise_epsilon = noise_epsilon
+        if noise_epsilon > 0.0:
+            vocab_sizes_tuple = tuple(int(v) for v in vocab_sizes)
+            self._blur_matrix = compute_joint_blur_matrix(vocab_sizes_tuple, noise_epsilon)
+        else:
+            self._blur_matrix = None
 
     def _make_context(self, state: FactoredState) -> ConditionalContext:
         """Create conditional context for structure methods."""
@@ -166,7 +181,12 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             Distribution over composite tokens, shape [prod(V_i)]
         """
         context = self._make_context(state)
-        return self.structure.compute_joint_distribution(context)
+        joint_dist = self.structure.compute_joint_distribution(context)
+
+        if self._blur_matrix is not None:
+            joint_dist = self._blur_matrix @ joint_dist
+
+        return joint_dist
 
     @eqx.filter_jit
     def log_observation_probability_distribution(self, log_belief_state: FactoredState) -> jax.Array:

@@ -75,12 +75,13 @@ def build_hidden_markov_model(
     process_params: Mapping[str, Any] | None = None,
     initial_state: jax.Array | Sequence[float] | None = None,
     device: str | None = None,
+    noise_epsilon: float = 0.0,
 ) -> HiddenMarkovModel:
     """Build a hidden Markov model."""
     process_params = process_params or {}
     initial_state = jnp.array(initial_state) if initial_state is not None else None
     transition_matrices = build_transition_matrices(HMM_MATRIX_FUNCTIONS, process_name, process_params, device=device)
-    return HiddenMarkovModel(transition_matrices, initial_state, device=device)
+    return HiddenMarkovModel(transition_matrices, initial_state, device=device, noise_epsilon=noise_epsilon)
 
 
 def build_generalized_hidden_markov_model(
@@ -88,12 +89,13 @@ def build_generalized_hidden_markov_model(
     process_params: Mapping[str, Any] | None = None,
     initial_state: jax.Array | Sequence[float] | None = None,
     device: str | None = None,
+    noise_epsilon: float = 0.0,
 ) -> GeneralizedHiddenMarkovModel:
     """Build a generalized hidden Markov model."""
     process_params = process_params or {}
     initial_state = jnp.array(initial_state) if initial_state is not None else None
     transition_matrices = build_transition_matrices(GHMM_MATRIX_FUNCTIONS, process_name, process_params, device=device)
-    return GeneralizedHiddenMarkovModel(transition_matrices, initial_state, device=device)
+    return GeneralizedHiddenMarkovModel(transition_matrices, initial_state, device=device, noise_epsilon=noise_epsilon)
 
 
 def build_nonergodic_transition_matrices(
@@ -161,6 +163,7 @@ def build_factored_process(
     transition_matrices: Sequence[jax.Array],
     normalizing_eigenvectors: Sequence[jax.Array],
     initial_states: Sequence[jax.Array],
+    noise_epsilon: float = 0.0,
     **structure_kwargs,
 ) -> FactoredGenerativeProcess:
     """Factory function for building factored processes with different conditional structures.
@@ -171,6 +174,7 @@ def build_factored_process(
         transition_matrices: Per-factor transition tensors (shape [K_i, V_i, S_i, S_i])
         normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
         initial_states: Initial state per factor (shape [S_i])
+        noise_epsilon: Noisy channel epsilon value
         **structure_kwargs: Structure-specific keyword arguments:
             - For "independent": (none)
             - For "chain": control_maps
@@ -218,12 +222,14 @@ def build_factored_process(
         normalizing_eigenvectors=normalizing_eigenvectors,
         initial_states=initial_states,
         structure=structure,
+        noise_epsilon=noise_epsilon,
     )
 
 
 def build_factored_process_from_spec(
     structure_type: Literal["independent", "chain", "symmetric", "transition_coupled"],
     spec: Sequence[dict[str, Any]],
+    noise_epsilon: float = 0.0,
     **structure_params,
 ) -> FactoredGenerativeProcess:
     """Unified builder for factored processes from specification.
@@ -235,6 +241,7 @@ def build_factored_process_from_spec(
             - For "chain": List of component dicts with control_maps
             - For "symmetric": List of component dicts
             - For "transition_coupled": List of component dicts
+        noise_epsilon: Noisy channel epsilon value
         **structure_params: Additional structure-specific parameters:
             - For "independent": (none)
             - For "chain": (none, uses spec's control_map fields)
@@ -255,13 +262,6 @@ def build_factored_process_from_spec(
                 {"component_type": "hmm", "variants": [{"process_name": "mess3", "x": 0.5, "a": 0.6}]},
             ],
         )
-
-        # Symmetric
-        process = build_factored_process_from_spec(
-            structure_type="symmetric",
-            spec=[...],
-            control_maps=[[0, 1, 0, 1], [1, 0, 1, 0]],
-        )
         ```
     """
     if structure_type == "independent":
@@ -272,6 +272,7 @@ def build_factored_process_from_spec(
             transition_matrices=transition_matrices,
             normalizing_eigenvectors=normalizing_eigenvectors,
             initial_states=initial_states,
+            noise_epsilon=noise_epsilon,
         )
     elif structure_type == "chain":
         component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps = (
@@ -283,6 +284,7 @@ def build_factored_process_from_spec(
             transition_matrices=transition_matrices,
             normalizing_eigenvectors=normalizing_eigenvectors,
             initial_states=initial_states,
+            noise_epsilon=noise_epsilon,
             control_maps=control_maps,
         )
     elif structure_type == "symmetric":
@@ -301,6 +303,7 @@ def build_factored_process_from_spec(
             transition_matrices=transition_matrices,
             normalizing_eigenvectors=normalizing_eigenvectors,
             initial_states=initial_states,
+            noise_epsilon=noise_epsilon,
             control_maps=control_maps_arrays,
         )
     elif structure_type == "transition_coupled":
@@ -328,6 +331,7 @@ def build_factored_process_from_spec(
             transition_matrices=transition_matrices,
             normalizing_eigenvectors=normalizing_eigenvectors,
             initial_states=initial_states,
+            noise_epsilon=noise_epsilon,
             control_maps_transition=control_maps_arrays,
             emission_variant_indices=emission_variant_indices_array,
             emission_control_maps=emission_control_maps_arrays,

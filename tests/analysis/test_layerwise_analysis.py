@@ -42,6 +42,8 @@ def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> No
     assert set(arrays) == {
         "projected/layer_a",
         "projected/layer_b",
+        "targets/layer_a",
+        "targets/layer_b",
         "coeffs/layer_a",
         "coeffs/layer_b",
         "intercept/layer_a",

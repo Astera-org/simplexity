@@ -627,3 +627,76 @@ def test_factored_process_device_placement():
     assert all(tm.device == process.device for tm in process.transition_matrices)
     assert all(ev.device == process.device for ev in process.normalizing_eigenvectors)
     assert all(s.device == process.device for s in process.initial_states)
+
+
+def test_factored_process_with_joint_noise():
+    """Test factored process with joint noise modifies the distribution."""
+    component_types = ("hmm", "hmm")
+    transition_matrices = (
+        _tensor_from_probs([[0.6, 0.4]]),
+        _tensor_from_probs([[0.7, 0.3]]),
+    )
+    normalizing_eigenvectors = (
+        jnp.ones((1, 1), dtype=jnp.float32),
+        jnp.ones((1, 1), dtype=jnp.float32),
+    )
+    initial_states = (
+        jnp.array([1.0], dtype=jnp.float32),
+        jnp.array([1.0], dtype=jnp.float32),
+    )
+    structure = IndependentStructure()
+
+    process_clean = FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+    )
+    process_noisy = FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+        noise_epsilon=0.2,
+    )
+
+    state = process_clean.initial_state
+    clean_dist = process_clean.observation_probability_distribution(state)
+    noisy_dist = process_noisy.observation_probability_distribution(state)
+
+    assert not jnp.allclose(clean_dist, noisy_dist)
+    chex.assert_trees_all_close(jnp.sum(clean_dist), 1.0)
+    chex.assert_trees_all_close(jnp.sum(noisy_dist), 1.0)
+
+
+def test_factored_process_with_zero_noise_unchanged():
+    """Test factored process with noise_epsilon=0 is identical to no noise."""
+    component_types = ("hmm",)
+    transition_matrices = (_tensor_from_probs([[0.6, 0.4]]),)
+    normalizing_eigenvectors = (jnp.ones((1, 1), dtype=jnp.float32),)
+    initial_states = (jnp.array([1.0], dtype=jnp.float32),)
+    structure = IndependentStructure()
+
+    process_clean = FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+    )
+    process_zero_noise = FactoredGenerativeProcess(
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        structure=structure,
+        noise_epsilon=0.0,
+    )
+
+    state = process_clean.initial_state
+    clean_dist = process_clean.observation_probability_distribution(state)
+    zero_noise_dist = process_zero_noise.observation_probability_distribution(state)
+
+    chex.assert_trees_all_close(clean_dist, zero_noise_dist)
