@@ -1,4 +1,4 @@
-name: tracker_with_factor_projections
+name: tracker_with_factor_arrays
 instance:
   _target_: simplexity.activations.activation_tracker.ActivationTracker
   analyses:
@@ -28,17 +28,17 @@ instance:
               - label: prediction
                 mappings:
                   factor_*_prob_0:
-                    source: projections
+                    source: arrays
                     key: "factor_*/projected"
                     component: 0
                     group_as: factor
                   factor_*_prob_1:
-                    source: projections
+                    source: arrays
                     key: "factor_*/projected"
                     component: 1
                     group_as: factor
                   factor_*_prob_2:
-                    source: projections
+                    source: arrays
                     key: "factor_*/projected"
                     component: 2
                     group_as: factor
@@ -97,17 +97,17 @@ instance:
               - label: prediction
                 mappings:
                   factor_*_prob_0:
-                    source: projections
+                    source: arrays
                     key: "factor_*/projected"
                     component: 0
                     group_as: factor
                   factor_*_prob_1:
-                    source: projections
+                    source: arrays
                     key: "factor_*/projected"
                     component: 1
                     group_as: factor
                   factor_*_prob_2:
-                    source: projections
+                    source: arrays
                     key: "factor_*/projected"
                     component: 2
                     group_as: factor

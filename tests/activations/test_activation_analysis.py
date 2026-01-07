@@ -237,19 +237,19 @@ class TestLinearRegressionAnalysis:
             weights=prepared.weights,
         )
 
-        assert "layer_0_r2" in scalars
-        assert "layer_0_rmse" in scalars
-        assert "layer_0_mae" in scalars
-        assert "layer_0_dist" in scalars
-        assert "layer_1_r2" in scalars
+        assert "r2/layer_0" in scalars
+        assert "rmse/layer_0" in scalars
+        assert "mae/layer_0" in scalars
+        assert "dist/layer_0" in scalars
+        assert "r2/layer_1" in scalars
 
-        assert "layer_0_projected" in arrays
-        assert "layer_1_projected" in arrays
+        assert "projected/layer_0" in arrays
+        assert "projected/layer_1" in arrays
 
         assert prepared.belief_states is not None
         assert isinstance(prepared.belief_states, jax.Array)
-        assert arrays["layer_0_projected"].shape == prepared.belief_states.shape
-        assert arrays["layer_1_projected"].shape == prepared.belief_states.shape
+        assert arrays["projected/layer_0"].shape == prepared.belief_states.shape
+        assert arrays["projected/layer_1"].shape == prepared.belief_states.shape
 
     def test_requires_belief_states(self, synthetic_data):
         """Test that analysis raises error without belief_states."""
@@ -298,8 +298,8 @@ class TestLinearRegressionAnalysis:
             weights=prepared.weights,
         )
 
-        assert "layer_0_r2" in scalars
-        assert "layer_0_projected" in arrays
+        assert "r2/layer_0" in scalars
+        assert "projected/layer_0" in arrays
 
 
 class TestLinearRegressionSVDAnalysis:
@@ -327,24 +327,24 @@ class TestLinearRegressionSVDAnalysis:
             weights=prepared.weights,
         )
 
-        assert "layer_0_r2" in scalars
-        assert "layer_0_rmse" in scalars
-        assert "layer_0_mae" in scalars
-        assert "layer_0_dist" in scalars
-        assert "layer_0_best_rcond" in scalars
-        assert "layer_1_r2" in scalars
-        assert "layer_1_best_rcond" in scalars
+        assert "r2/layer_0" in scalars
+        assert "rmse/layer_0" in scalars
+        assert "mae/layer_0" in scalars
+        assert "dist/layer_0" in scalars
+        assert "best_rcond/layer_0" in scalars
+        assert "r2/layer_1" in scalars
+        assert "best_rcond/layer_1" in scalars
 
-        assert "layer_0_projected" in arrays
-        assert "layer_1_projected" in arrays
+        assert "projected/layer_0" in arrays
+        assert "projected/layer_1" in arrays
 
         assert prepared.belief_states is not None
         assert isinstance(prepared.belief_states, jax.Array)
-        assert arrays["layer_0_projected"].shape == prepared.belief_states.shape
-        assert arrays["layer_1_projected"].shape == prepared.belief_states.shape
+        assert arrays["projected/layer_0"].shape == prepared.belief_states.shape
+        assert arrays["projected/layer_1"].shape == prepared.belief_states.shape
 
         # Check that best_rcond is one of the provided values
-        assert scalars["layer_0_best_rcond"] in [1e-15, 1e-10, 1e-8]
+        assert scalars["best_rcond/layer_0"] in [1e-15, 1e-10, 1e-8]
 
     def test_requires_belief_states(self, synthetic_data):
         """Test that SVD analysis raises error without belief_states."""
@@ -397,21 +397,21 @@ class TestPcaAnalysis:
             weights=prepared.weights,
         )
 
-        assert "layer_0_variance_explained" in scalars
-        assert "layer_0_n_components_80pct" in scalars
-        assert "layer_0_n_components_90pct" in scalars
-        assert "layer_1_variance_explained" in scalars
+        assert "variance_explained/layer_0" in scalars
+        assert "nc_80/layer_0" in scalars
+        assert "nc_90/layer_0" in scalars
+        assert "variance_explained/layer_1" in scalars
 
-        assert "layer_0_pca" in arrays
-        assert "layer_1_pca" in arrays
-        assert "layer_0_cumulative_explained_variance" in arrays
-        assert "layer_1_cumulative_explained_variance" in arrays
+        assert "pca/layer_0" in arrays
+        assert "pca/layer_1" in arrays
+        assert "cumulative_explained_variance/layer_0" in arrays
+        assert "cumulative_explained_variance/layer_1" in arrays
 
         batch_size = prepared.activations["layer_0"].shape[0]
-        assert arrays["layer_0_pca"].shape == (batch_size, 3)
-        assert arrays["layer_1_pca"].shape == (batch_size, 3)
-        assert arrays["layer_0_cumulative_explained_variance"].shape == (3,)
-        assert arrays["layer_1_cumulative_explained_variance"].shape == (3,)
+        assert arrays["pca/layer_0"].shape == (batch_size, 3)
+        assert arrays["pca/layer_1"].shape == (batch_size, 3)
+        assert arrays["cumulative_explained_variance/layer_0"].shape == (3,)
+        assert arrays["cumulative_explained_variance/layer_1"].shape == (3,)
 
     def test_pca_without_belief_states(self, synthetic_data):
         """Test PCA works without belief_states."""
@@ -437,9 +437,9 @@ class TestPcaAnalysis:
             weights=prepared.weights,
         )
 
-        assert "layer_0_variance_explained" in scalars
-        assert "layer_0_pca" in arrays
-        assert "layer_0_cumulative_explained_variance" in arrays
+        assert "variance_explained/layer_0" in scalars
+        assert "pca/layer_0" in arrays
+        assert "cumulative_explained_variance/layer_0" in arrays
 
     def test_pca_all_components(self, synthetic_data):
         """Test PCA with n_components=None computes all components."""
@@ -465,7 +465,7 @@ class TestPcaAnalysis:
 
         batch_size = prepared.activations["layer_0"].shape[0]
         d_layer0 = synthetic_data["d_layer0"]
-        assert arrays["layer_0_pca"].shape == (batch_size, min(batch_size, d_layer0))
+        assert arrays["pca/layer_0"].shape == (batch_size, min(batch_size, d_layer0))
 
 
 class TestActivationTracker:
@@ -494,11 +494,11 @@ class TestActivationTracker:
             activations=synthetic_data["activations"],
         )
 
-        assert "regression/layer_0_r2" in scalars
-        assert "pca/layer_0_variance_explained" in scalars
+        assert "regression/r2/layer_0" in scalars
+        assert "pca/variance_explained/layer_0" in scalars
 
-        assert "regression/layer_0_projected" in arrays
-        assert "pca/layer_0_pca" in arrays
+        assert "regression/projected/layer_0" in arrays
+        assert "pca/pca/layer_0" in arrays
         assert visualizations == {}
 
     def test_all_tokens_mode(self, synthetic_data):
@@ -519,8 +519,8 @@ class TestActivationTracker:
             activations=synthetic_data["activations"],
         )
 
-        assert "regression/layer_0_r2" in scalars
-        assert "regression/layer_0_projected" in arrays
+        assert "regression/r2/layer_0" in scalars
+        assert "regression/projected/layer_0" in arrays
         assert visualizations == {}
 
     def test_mixed_requirements(self, synthetic_data):
@@ -546,8 +546,8 @@ class TestActivationTracker:
             activations=synthetic_data["activations"],
         )
 
-        assert "regression/layer_0_r2" in scalars
-        assert "pca/layer_0_variance_explained" in scalars
+        assert "regression/r2/layer_0" in scalars
+        assert "pca/variance_explained/layer_0" in scalars
         assert visualizations == {}
 
     def test_concatenated_layers(self, synthetic_data):
@@ -573,11 +573,11 @@ class TestActivationTracker:
             activations=synthetic_data["activations"],
         )
 
-        assert "regression/concatenated_r2" in scalars
-        assert "pca/concatenated_variance_explained" in scalars
+        assert "regression/r2/Lcat" in scalars
+        assert "pca/variance_explained/Lcat" in scalars
 
-        assert "regression/concatenated_projected" in arrays
-        assert "pca/concatenated_pca" in arrays
+        assert "regression/projected/Lcat" in arrays
+        assert "pca/pca/Lcat" in arrays
         assert visualizations == {}
 
     def test_uniform_weights(self, synthetic_data):
@@ -599,7 +599,7 @@ class TestActivationTracker:
             activations=synthetic_data["activations"],
         )
 
-        assert "regression/layer_0_r2" in scalars
+        assert "regression/r2/layer_0" in scalars
         assert visualizations == {}
 
     def test_multiple_configs_efficiency(self, synthetic_data):
@@ -630,13 +630,13 @@ class TestActivationTracker:
             activations=synthetic_data["activations"],
         )
 
-        assert "pca_all_tokens/layer_0_variance_explained" in scalars
-        assert "pca_last_token/layer_0_variance_explained" in scalars
-        assert "regression_concat/concatenated_r2" in scalars
+        assert "pca_all_tokens/variance_explained/layer_0" in scalars
+        assert "pca_last_token/variance_explained/layer_0" in scalars
+        assert "regression_concat/r2/Lcat" in scalars
 
-        assert "pca_all_tokens/layer_0_pca" in arrays
-        assert "pca_last_token/layer_0_pca" in arrays
-        assert "regression_concat/concatenated_projected" in arrays
+        assert "pca_all_tokens/pca/layer_0" in arrays
+        assert "pca_last_token/pca/layer_0" in arrays
+        assert "regression_concat/projected/Lcat" in arrays
         assert visualizations == {}
 
     def test_tracker_accepts_torch_inputs(self, synthetic_data):
@@ -670,8 +670,8 @@ class TestActivationTracker:
             activations=torch_activations,
         )
 
-        assert "regression/layer_0_r2" in scalars
-        assert "pca/layer_0_pca" in arrays
+        assert "regression/r2/layer_0" in scalars
+        assert "pca/pca/layer_0" in arrays
         assert visualizations == {}
 
     def test_tracker_builds_visualizations(self, synthetic_data, monkeypatch):
@@ -694,7 +694,7 @@ class TestActivationTracker:
             "name": "pca_projection",
             "data_mapping": {
                 "mappings": {
-                    "pc0": {"source": "projections", "key": "pca", "component": 0},
+                    "pc0": {"source": "arrays", "key": "pca", "component": 0},
                     "belief_state": {"source": "belief_states", "reducer": "argmax"},
                 }
             },
@@ -907,28 +907,28 @@ class TestTupleBeliefStates:
 
         # Should have separate metrics for each factor
         # Format is: layer_name_factor_idx/metric_name
-        assert "layer_0_factor_0/r2" in scalars
-        assert "layer_0_factor_1/r2" in scalars
-        assert "layer_0_factor_0/rmse" in scalars
-        assert "layer_0_factor_1/rmse" in scalars
-        assert "layer_0_factor_0/mae" in scalars
-        assert "layer_0_factor_1/mae" in scalars
-        assert "layer_0_factor_0/dist" in scalars
-        assert "layer_0_factor_1/dist" in scalars
+        assert "r2/layer_0-F0" in scalars
+        assert "r2/layer_0-F1" in scalars
+        assert "rmse/layer_0-F0" in scalars
+        assert "rmse/layer_0-F1" in scalars
+        assert "mae/layer_0-F0" in scalars
+        assert "mae/layer_0-F1" in scalars
+        assert "dist/layer_0-F0" in scalars
+        assert "dist/layer_0-F1" in scalars
 
-        assert "layer_1_factor_0/r2" in scalars
-        assert "layer_1_factor_1/r2" in scalars
+        assert "r2/layer_1-F0" in scalars
+        assert "r2/layer_1-F1" in scalars
 
         # Should have separate arrays for each factor
-        assert "layer_0_factor_0/projected" in arrays
-        assert "layer_0_factor_1/projected" in arrays
-        assert "layer_1_factor_0/projected" in arrays
-        assert "layer_1_factor_1/projected" in arrays
+        assert "projected/layer_0-F0" in arrays
+        assert "projected/layer_0-F1" in arrays
+        assert "projected/layer_1-F0" in arrays
+        assert "projected/layer_1-F1" in arrays
 
         # Check projection shapes
         batch_size = factored_belief_data["batch_size"]
-        assert arrays["layer_0_factor_0/projected"].shape == (batch_size, factored_belief_data["factor_0_dim"])
-        assert arrays["layer_0_factor_1/projected"].shape == (batch_size, factored_belief_data["factor_1_dim"])
+        assert arrays["projected/layer_0-F0"].shape == (batch_size, factored_belief_data["factor_0_dim"])
+        assert arrays["projected/layer_0-F1"].shape == (batch_size, factored_belief_data["factor_1_dim"])
 
     def test_linear_regression_svd_with_multiple_factors(self, factored_belief_data):
         """LinearRegressionSVDAnalysis with multi-factor tuple should regress to each factor separately."""
@@ -953,14 +953,14 @@ class TestTupleBeliefStates:
         )
 
         # Should have separate metrics for each factor including best_rcond
-        assert "layer_0_factor_0/r2" in scalars
-        assert "layer_0_factor_1/r2" in scalars
-        assert "layer_0_factor_0/best_rcond" in scalars
-        assert "layer_0_factor_1/best_rcond" in scalars
+        assert "r2/layer_0-F0" in scalars
+        assert "r2/layer_0-F1" in scalars
+        assert "best_rcond/layer_0-F0" in scalars
+        assert "best_rcond/layer_0-F1" in scalars
 
         # Should have separate arrays for each factor
-        assert "layer_0_factor_0/projected" in arrays
-        assert "layer_0_factor_1/projected" in arrays
+        assert "projected/layer_0-F0" in arrays
+        assert "projected/layer_0-F1" in arrays
 
     def test_tracker_with_factored_beliefs(self, factored_belief_data):
         """ActivationTracker should work with tuple belief states."""
@@ -986,16 +986,16 @@ class TestTupleBeliefStates:
         )
 
         # Regression should have per-factor metrics
-        assert "regression/layer_0_factor_0/r2" in scalars
-        assert "regression/layer_0_factor_1/r2" in scalars
+        assert "regression/r2/layer_0-F0" in scalars
+        assert "regression/r2/layer_0-F1" in scalars
 
         # PCA should still work (doesn't use belief states)
-        assert "pca/layer_0_variance_explained" in scalars
+        assert "pca/variance_explained/layer_0" in scalars
 
         # Arrays should be present
-        assert "regression/layer_0_factor_0/projected" in arrays
-        assert "regression/layer_0_factor_1/projected" in arrays
-        assert "pca/layer_0_pca" in arrays
+        assert "regression/projected/layer_0-F0" in arrays
+        assert "regression/projected/layer_0-F1" in arrays
+        assert "pca/pca/layer_0" in arrays
 
     def test_single_factor_tuple(self, synthetic_data):
         """Test with a single-factor tuple (edge case)."""
@@ -1043,13 +1043,13 @@ class TestTupleBeliefStates:
         )
 
         # Should have simple keys without "factor_" prefix
-        assert "layer_0_r2" in scalars
-        assert "layer_0_rmse" in scalars
-        assert "layer_0_projected" in arrays
+        assert "r2/layer_0" in scalars
+        assert "rmse/layer_0" in scalars
+        assert "projected/layer_0" in arrays
 
         # Should NOT have factor keys
-        assert "layer_0_factor_0/r2" not in scalars
-        assert "layer_0_factor_0/projected" not in arrays
+        assert "r2/layer_0-F0" not in scalars
+        assert "projected/layer_0-F0" not in arrays
 
     def test_linear_regression_concat_belief_states(self, factored_belief_data):
         """LinearRegressionAnalysis with concat_belief_states=True should return both factor and concat results."""
@@ -1074,20 +1074,20 @@ class TestTupleBeliefStates:
         )
 
         # Should have per-factor results
-        assert "layer_0_factor_0/r2" in scalars
-        assert "layer_0_factor_1/r2" in scalars
-        assert "layer_0_factor_0/projected" in arrays
-        assert "layer_0_factor_1/projected" in arrays
+        assert "r2/layer_0-F0" in scalars
+        assert "r2/layer_0-F1" in scalars
+        assert "projected/layer_0-F0" in arrays
+        assert "projected/layer_0-F1" in arrays
 
         # Should ALSO have concatenated results
-        assert "layer_0_concat/r2" in scalars
-        assert "layer_0_concat/rmse" in scalars
-        assert "layer_0_concat/projected" in arrays
+        assert "r2/layer_0-Fcat" in scalars
+        assert "rmse/layer_0-Fcat" in scalars
+        assert "projected/layer_0-Fcat" in arrays
 
         # Check concatenated projection shape (should be sum of factor dimensions)
         batch_size = factored_belief_data["batch_size"]
         total_dim = factored_belief_data["factor_0_dim"] + factored_belief_data["factor_1_dim"]
-        assert arrays["layer_0_concat/projected"].shape == (batch_size, total_dim)
+        assert arrays["projected/layer_0-Fcat"].shape == (batch_size, total_dim)
 
     def test_three_factor_tuple(self, factored_belief_data):
         """Test with three factors to ensure generalization."""
@@ -1145,10 +1145,10 @@ class TestTupleBeliefStates:
             weights=prepared.weights,
         )
 
-        assert "layer_0_orthogonality_0_1/subspace_overlap" in scalars
-        assert "layer_0_orthogonality_0_1/max_singular_value" in scalars
-        assert "layer_0_orthogonality_0_1/participation_ratio" in scalars
-        assert "layer_0_orthogonality_0_1/effective_rank" in scalars
+        assert "orth/overlap/layer_0-F0,1" in scalars
+        assert "orth/sv_max/layer_0-F0,1" in scalars
+        assert "orth/p_ratio/layer_0-F0,1" in scalars
+        assert "orth/eff_rank/layer_0-F0,1" in scalars
 
         # SVD Linear Regression
         analysis_svd = LinearRegressionSVDAnalysis(
@@ -1162,7 +1162,7 @@ class TestTupleBeliefStates:
             weights=prepared.weights,
         )
 
-        assert "layer_0_orthogonality_0_1/subspace_overlap" in scalars_svd
+        assert "orth/overlap/layer_0-F0,1" in scalars_svd
 
 
 class TestScalarSeriesMapping:

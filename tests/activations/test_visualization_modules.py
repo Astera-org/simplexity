@@ -26,10 +26,10 @@ from simplexity.activations.visualization.field_resolution import (
     _resolve_field,
 )
 from simplexity.activations.visualization.pattern_expansion import (
+    _expand_array_key_pattern,
     _expand_belief_factor_mapping,
     _expand_field_mapping,
     _expand_pattern_to_indices,
-    _expand_projection_key_pattern,
     _expand_scalar_pattern_ranges,
     _get_component_count,
     _parse_component_spec,
@@ -56,14 +56,9 @@ from simplexity.exceptions import ConfigValidationError
 class TestFieldResolution:
     """Tests for field_resolution.py functions."""
 
-    def test_lookup_array_none_key(self):
-        """Test that None key raises error."""
-        with pytest.raises(ConfigValidationError, match="must supply a `key` value"):
-            _lookup_array({}, "layer_0", None, False)
-
     def test_lookup_array_not_found(self):
         """Test that missing array raises error."""
-        arrays = {"layer_0_other": np.array([1, 2, 3])}
+        arrays = {"other/layer_0": np.array([1, 2, 3])}
         with pytest.raises(ConfigValidationError, match="not available for layer"):
             _lookup_array(arrays, "layer_0", "missing", False)
 
@@ -73,9 +68,9 @@ class TestFieldResolution:
         result = _lookup_array(arrays, "layer_0", "my_key", True)
         np.testing.assert_array_equal(result, [1, 2, 3])
 
-    def test_lookup_array_concat_layers_suffix_match(self):
-        """Test suffix match with concat_layers."""
-        arrays = {"prefix_my_key": np.array([4, 5, 6])}
+    def test_lookup_array_concat_layers_prefix_match(self):
+        """Test prefix match with concat_layers."""
+        arrays = {"my_key/Lcat": np.array([4, 5, 6])}
         result = _lookup_array(arrays, "layer_0", "my_key", True)
         np.testing.assert_array_equal(result, [4, 5, 6])
 
@@ -85,16 +80,16 @@ class TestFieldResolution:
         result = _lookup_scalar_value(scalars, "layer_0", "my_scalar", True)
         assert result == 0.5
 
-    def test_lookup_scalar_value_concat_layers_suffix(self):
-        """Test scalar lookup with concat_layers suffix match."""
-        scalars = {"prefix_my_scalar": 0.7}
+    def test_lookup_scalar_value_concat_layers_prefix(self):
+        """Test scalar lookup with concat_layers prefix match."""
+        scalars = {"my_scalar/Lcat": 0.7}
         result = _lookup_scalar_value(scalars, "layer_0", "my_scalar", True)
         assert result == 0.7
 
     def test_lookup_scalar_value_not_found(self):
         """Test that missing scalar raises error."""
         with pytest.raises(ConfigValidationError, match="not available for layer"):
-            _lookup_scalar_value({"other": 1.0}, "layer_0", "missing", False)
+            _lookup_scalar_value({"other/layer_0": 1.0}, "layer_0", "missing", False)
 
     def test_maybe_component_1d_with_component(self):
         """Test that 1D array with component raises error."""
@@ -180,7 +175,7 @@ class TestFieldResolution:
     def test_resolve_field_scalars_success(self):
         """Test scalars source returns repeated value."""
         ref = ActivationVisualizationFieldRef(source="scalars", key="my_scalar")
-        scalars = {"layer_0_my_scalar": 0.42}
+        scalars = {"my_scalar/layer_0": 0.42}
         result = _resolve_field(ref, "layer_0", {}, scalars, None, False, 3, {})
         np.testing.assert_array_equal(result, [0.42, 0.42, 0.42])
 
@@ -233,17 +228,17 @@ class TestPatternExpansion:
 
     def test_get_component_count_projection_success(self):
         """Test getting component count from 2D projection."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="proj", component="*")
-        projections = {"layer_0_proj": np.ones((10, 5))}
-        result = _get_component_count(ref, "layer_0", projections, None, False)
+        ref = ActivationVisualizationFieldRef(source="arrays", key="proj", component="*")
+        arrays = {"proj/layer_0": np.ones((10, 5))}
+        result = _get_component_count(ref, "layer_0", arrays, None, False)
         assert result == 5
 
     def test_get_component_count_1d_projection(self):
         """Test that 1D projection raises error for expansion."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="proj")
-        projections = {"layer_0_proj": np.array([1, 2, 3])}
+        ref = ActivationVisualizationFieldRef(source="arrays", key="proj")
+        arrays = {"proj/layer_0": np.array([1, 2, 3])}
         with pytest.raises(ConfigValidationError, match="Cannot expand 1D"):
-            _get_component_count(ref, "layer_0", projections, None, False)
+            _get_component_count(ref, "layer_0", arrays, None, False)
 
     def test_get_component_count_belief_states_missing(self):
         """Test that missing belief states raises error."""
@@ -263,21 +258,21 @@ class TestPatternExpansion:
         with pytest.raises(ConfigValidationError, match="not supported"):
             _get_component_count(ref, "layer_0", {}, None, False)
 
-    def test_expand_projection_key_pattern_invalid(self):
+    def test_expand_array_key_pattern_invalid(self):
         """Test that invalid key pattern raises error."""
         with pytest.raises(ConfigValidationError, match="Invalid key pattern"):
-            _expand_projection_key_pattern("plain_key", "layer_0", {}, False)
+            _expand_array_key_pattern("plain_key", "layer_0", {}, False)
 
-    def test_expand_projection_key_pattern_invalid_range(self):
+    def test_expand_array_key_pattern_invalid_range(self):
         """Test that invalid range in key pattern raises error."""
         with pytest.raises(ConfigValidationError, match="Invalid range"):
-            _expand_projection_key_pattern("key_5...3", "layer_0", {}, False)
+            _expand_array_key_pattern("key_5...3", "layer_0", {}, False)
 
-    def test_expand_projection_key_pattern_no_matches(self):
-        """Test that no matching projections raises error."""
-        projections = {"layer_0_other": np.ones((3, 4))}
+    def test_expand_array_key_pattern_no_matches(self):
+        """Test that no matching arrays raises error."""
+        arrays = {"other/layer_0": np.ones((3, 4))}
         with pytest.raises(ConfigValidationError, match="No array keys found"):
-            _expand_projection_key_pattern("key_*", "layer_0", projections, False)
+            _expand_array_key_pattern("key_*", "layer_0", arrays, False)
 
     def test_expand_belief_factor_mapping_wrong_dim(self):
         """Test that non-3D beliefs for factor expansion raises error."""
@@ -314,13 +309,13 @@ class TestPatternExpansion:
 
     def test_expand_field_mapping_projection_no_field_pattern(self):
         """Test projection key pattern without field pattern raises error."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="factor_*", group_as="factor")
+        ref = ActivationVisualizationFieldRef(source="arrays", key="factor_*", group_as="factor")
         with pytest.raises(ConfigValidationError, match="requires field name pattern"):
             _expand_field_mapping("plain_field", ref, "layer_0", {}, {}, None, False)
 
     def test_expand_field_mapping_projection_too_many_patterns(self):
         """Test projection with too many field patterns raises error."""
-        ref = ActivationVisualizationFieldRef(source="projections", key="factor_*", group_as="factor")
+        ref = ActivationVisualizationFieldRef(source="arrays", key="factor_*", group_as="factor")
         with pytest.raises(ConfigValidationError, match="too many patterns"):
             _expand_field_mapping("f_*_g_*_h_*", ref, "layer_0", {}, {}, None, False)
 
@@ -558,12 +553,12 @@ class TestDataframeBuilders:
     def test_infer_scalar_series_indices_success(self):
         """Test inferring scalar series indices from available keys."""
         mapping = ScalarSeriesMapping(
-            key_template="{layer}_cumvar_{index}", index_field="component", value_field="cumvar"
+            key_template="cumvar_{index}/{layer}", index_field="component", value_field="cumvar"
         )
         scalars = {
-            "analysis/layer_0_cumvar_0": 0.5,
-            "analysis/layer_0_cumvar_1": 0.7,
-            "analysis/layer_0_cumvar_2": 0.9,
+            "analysis/cumvar_0/layer_0": 0.5,
+            "analysis/cumvar_1/layer_0": 0.7,
+            "analysis/cumvar_2/layer_0": 0.9,
         }
         result = _infer_scalar_series_indices(mapping, scalars, "layer_0", "analysis")
         assert result == [0, 1, 2]
@@ -571,12 +566,12 @@ class TestDataframeBuilders:
     def test_infer_scalar_series_indices_empty_body(self):
         """Test that empty body between prefix and suffix is skipped."""
         mapping = ScalarSeriesMapping(
-            key_template="{layer}_pc{index}_var", index_field="component", value_field="variance"
+            key_template="pc{index}_var/{layer}", index_field="component", value_field="variance"
         )
         # Key that matches prefix and suffix but has empty body
         scalars = {
-            "analysis/layer_0_pc_var": 0.5,  # Empty between pc and _var
-            "analysis/layer_0_pc0_var": 0.3,
+            "analysis/pc_var/layer_0": 0.5,  # Empty between pc and _var
+            "analysis/pc0_var/layer_0": 0.3,
         }
         result = _infer_scalar_series_indices(mapping, scalars, "layer_0", "analysis")
         assert result == [0]  # Only numeric index included
@@ -584,7 +579,7 @@ class TestDataframeBuilders:
     def test_infer_scalar_series_indices_no_matches(self):
         """Test that no matching indices raises error."""
         mapping = ScalarSeriesMapping(
-            key_template="{layer}_cumvar_{index}", index_field="component", value_field="cumvar"
+            key_template="cumvar_{index}/{layer}", index_field="component", value_field="cumvar"
         )
         scalars = {"analysis/other_metric": 1.0}
         with pytest.raises(ConfigValidationError, match="could not infer indices"):
@@ -593,24 +588,24 @@ class TestDataframeBuilders:
     def test_infer_scalar_series_indices_with_suffix(self):
         """Test inferring indices when template has suffix after index."""
         mapping = ScalarSeriesMapping(
-            key_template="{layer}_pc{index}_var", index_field="component", value_field="variance"
+            key_template="pc{index}_var/{layer}", index_field="component", value_field="variance"
         )
         scalars = {
-            "analysis/layer_0_pc0_var": 0.5,
-            "analysis/layer_0_pc1_var": 0.3,
-            "analysis/layer_0_pc2_var": 0.2,
-            "analysis/layer_0_other": 1.0,  # Should not match
+            "analysis/pc0_var/layer_0": 0.5,
+            "analysis/pc1_var/layer_0": 0.3,
+            "analysis/pc2_var/layer_0": 0.2,
+            "analysis/other/layer_0": 1.0,  # Should not match
         }
         result = _infer_scalar_series_indices(mapping, scalars, "layer_0", "analysis")
         assert result == [0, 1, 2]
 
     def test_infer_scalar_series_indices_non_numeric_skipped(self):
         """Test that non-numeric values are skipped."""
-        mapping = ScalarSeriesMapping(key_template="{layer}_item_{index}", index_field="idx", value_field="val")
+        mapping = ScalarSeriesMapping(key_template="item_{index}/{layer}", index_field="idx", value_field="val")
         scalars = {
-            "analysis/layer_0_item_0": 0.5,
-            "analysis/layer_0_item_abc": 0.7,  # Non-numeric, should be skipped
-            "analysis/layer_0_item_1": 0.9,
+            "analysis/item_0/layer_0": 0.5,
+            "analysis/item_abc/layer_0": 0.7,  # Non-numeric, should be skipped
+            "analysis/item_1/layer_0": 0.9,
         }
         result = _infer_scalar_series_indices(mapping, scalars, "layer_0", "analysis")
         assert result == [0, 1]
@@ -618,13 +613,13 @@ class TestDataframeBuilders:
     def test_build_scalar_series_dataframe_success(self):
         """Test building scalar series dataframe."""
         mapping = ScalarSeriesMapping(
-            key_template="{layer}_cumvar_{index}", index_field="component", value_field="cumvar"
+            key_template="cumvar_{index}/{layer}", index_field="component", value_field="cumvar"
         )
         metadata = {"step": np.array([10]), "analysis": np.array(["pca"])}
         scalars = {
-            "analysis/layer_0_cumvar_0": 0.5,
-            "analysis/layer_0_cumvar_1": 0.7,
-            "analysis/layer_1_cumvar_0": 0.6,
+            "analysis/cumvar_0/layer_0": 0.5,
+            "analysis/cumvar_1/layer_0": 0.7,
+            "analysis/cumvar_0/layer_1": 0.6,
         }
         result = _build_scalar_series_dataframe(mapping, metadata, scalars, ["layer_0", "layer_1"], "analysis")
         assert len(result) == 3
@@ -635,7 +630,7 @@ class TestDataframeBuilders:
     def test_build_scalar_series_dataframe_no_matches(self):
         """Test that no matching scalars raises error."""
         mapping = ScalarSeriesMapping(
-            key_template="{layer}_cumvar_{index}", index_field="component", value_field="cumvar"
+            key_template="cumvar_{index}/{layer}", index_field="component", value_field="cumvar"
         )
         metadata = {"step": np.array([10])}
         scalars = {"analysis/other_metric": 1.0}
@@ -646,13 +641,13 @@ class TestDataframeBuilders:
     def test_build_scalar_series_dataframe_with_explicit_indices(self):
         """Test building scalar series dataframe with explicit index_values."""
         mapping = ScalarSeriesMapping(
-            key_template="{layer}_cumvar_{index}", index_field="component", value_field="cumvar", index_values=[0, 1]
+            key_template="cumvar_{index}/{layer}", index_field="component", value_field="cumvar", index_values=[0, 1]
         )
         metadata = {"step": np.array([10])}
         scalars = {
-            "analysis/layer_0_cumvar_0": 0.5,
-            "analysis/layer_0_cumvar_1": 0.7,
-            "analysis/layer_0_cumvar_2": 0.9,  # Not in index_values, should be skipped
+            "analysis/cumvar_0/layer_0": 0.5,
+            "analysis/cumvar_1/layer_0": 0.7,
+            "analysis/cumvar_2/layer_0": 0.9,  # Not in index_values, should be skipped
         }
         result = _build_scalar_series_dataframe(mapping, metadata, scalars, ["layer_0"], "analysis")
         assert len(result) == 2
@@ -660,10 +655,10 @@ class TestDataframeBuilders:
 
     def test_build_scalar_dataframe_scalar_pattern(self):
         """Test building scalar dataframe with scalar_pattern source."""
-        mappings = {"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="layer_*_rmse")}
+        mappings = {"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="rmse/layer_*")}
         scalars = {
-            "analysis/layer_0_rmse": 0.1,
-            "analysis/layer_1_rmse": 0.2,
+            "analysis/rmse/layer_0": 0.1,
+            "analysis/rmse/layer_1": 0.2,
         }
         result = _build_scalar_dataframe(mappings, scalars, {}, "analysis", 5)
         assert len(result) == 2
@@ -700,10 +695,10 @@ class TestDataframeBuilders:
     def test_build_scalar_dataframe_non_scalar_source_skipped(self):
         """Test that non-scalar sources are skipped."""
         mappings = {
-            "proj": ActivationVisualizationFieldRef(source="projections", key="my_proj"),
-            "rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="layer_*_rmse"),
+            "proj": ActivationVisualizationFieldRef(source="arrays", key="my_proj"),
+            "rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="rmse/layer_*"),
         }
-        scalars = {"analysis/layer_0_rmse": 0.1}
+        scalars = {"analysis/rmse/layer_0": 0.1}
         result = _build_scalar_dataframe(mappings, scalars, {}, "analysis", 5)
         # Only scalar_pattern should be in result
         assert "rmse" in result.columns
@@ -730,9 +725,9 @@ class TestDataframeBuilders:
 
     def test_build_scalar_dataframe_no_matching_values(self):
         """Test that no matching values raises error with pattern."""
-        mappings = {"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="layer_*_missing")}
+        mappings = {"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="missing/layer_*")}
         # Scalars exist but don't match the pattern
-        scalars = {"analysis/layer_0_other": 0.1, "analysis/something_else": 0.2}
+        scalars = {"analysis/other/layer_0": 0.1, "analysis/something_else": 0.2}
         with pytest.raises(ConfigValidationError, match="No scalar pattern keys found"):
             _build_scalar_dataframe(mappings, scalars, {}, "analysis", 5)
 
@@ -755,11 +750,11 @@ class TestDataframeBuilders:
         assert list(result["weight"]) == [1.0, 0.5]
 
     def test_build_dataframe_for_mappings_simple(self):
-        """Test _build_dataframe_for_mappings with simple projection mapping."""
-        mappings = {"x": ActivationVisualizationFieldRef(source="projections", key="pca", component=0)}
+        """Test _build_dataframe_for_mappings with simple array mapping."""
+        mappings = {"x": ActivationVisualizationFieldRef(source="arrays", key="pca", component=0)}
         metadata = {"step": np.array([1, 2]), "analysis": np.array(["test", "test"])}
-        projections = {"layer_0_pca": np.array([[0.1, 0.2], [0.3, 0.4]])}
-        result = _build_dataframe_for_mappings(mappings, metadata, projections, {}, None, False, ["layer_0"])
+        arrays = {"pca/layer_0": np.array([[0.1, 0.2], [0.3, 0.4]])}
+        result = _build_dataframe_for_mappings(mappings, metadata, arrays, {}, None, False, ["layer_0"])
         assert "x" in result.columns
         assert "layer" in result.columns
         assert len(result) == 2
@@ -796,9 +791,9 @@ class TestDataframeBuilders:
 
     def test_build_dataframe_for_mappings_error_wrapping(self):
         """Test that errors from _expand_field_mapping are wrapped with context."""
-        # Create a mapping with a key pattern that will fail expansion due to no matching projections
-        # The key "factor_*" is a pattern that needs expansion, which fails when no projections match
-        mappings = {"x_*": ActivationVisualizationFieldRef(source="projections", key="factor_*", group_as="factor")}
+        # Create a mapping with a key pattern that will fail expansion due to no matching arrays
+        # The key "factor_*" is a pattern that needs expansion, which fails when no arrays match
+        mappings = {"x_*": ActivationVisualizationFieldRef(source="arrays", key="factor_*", group_as="factor")}
         metadata = {"step": np.array([1])}
         with pytest.raises(ConfigValidationError, match="Error expanding 'x_\\*' for layer"):
             _build_dataframe_for_mappings(mappings, metadata, {}, {}, None, False, ["layer_0"])
@@ -806,11 +801,11 @@ class TestDataframeBuilders:
     def test_build_dataframe_with_scalar_pattern(self):
         """Test _build_dataframe with scalar_pattern source."""
         data_mapping = ActivationVisualizationDataMapping(
-            mappings={"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="layer_*_rmse")}
+            mappings={"rmse": ActivationVisualizationFieldRef(source="scalar_pattern", key="rmse/layer_*")}
         )
         viz_cfg = ActivationVisualizationConfig(name="test", data_mapping=data_mapping)
         metadata = {"step": np.array([1]), "analysis": np.array(["test"])}
-        scalars = {"test/layer_0_rmse": 0.1, "test/layer_1_rmse": 0.2}
+        scalars = {"test/rmse/layer_0": 0.1, "test/rmse/layer_1": 0.2}
         result = _build_dataframe(viz_cfg, metadata, {}, scalars, {}, 10, None, False, ["layer_0", "layer_1"])
         assert "rmse" in result.columns
         assert len(result) == 2
@@ -818,12 +813,12 @@ class TestDataframeBuilders:
     def test_build_dataframe_with_scalar_series(self):
         """Test _build_dataframe with scalar_series source."""
         scalar_series = ScalarSeriesMapping(
-            key_template="{layer}_cumvar_{index}", index_field="component", value_field="cumvar"
+            key_template="cumvar_{index}/{layer}", index_field="component", value_field="cumvar"
         )
         data_mapping = ActivationVisualizationDataMapping(mappings={}, scalar_series=scalar_series)
         viz_cfg = ActivationVisualizationConfig(name="test", data_mapping=data_mapping)
         metadata = {"step": np.array([1]), "analysis": np.array(["test"])}
-        scalars = {"test/layer_0_cumvar_0": 0.5, "test/layer_0_cumvar_1": 0.7}
+        scalars = {"test/cumvar_0/layer_0": 0.5, "test/cumvar_1/layer_0": 0.7}
         result = _build_dataframe(viz_cfg, metadata, {}, scalars, {}, None, None, False, ["layer_0"])
         assert "component" in result.columns
         assert "cumvar" in result.columns
@@ -833,21 +828,21 @@ class TestDataframeBuilders:
         combined = [
             CombinedMappingSection(
                 label="projected",
-                mappings={"x": ActivationVisualizationFieldRef(source="projections", key="pca", component=0)},
+                mappings={"x": ActivationVisualizationFieldRef(source="arrays", key="pca", component=0)},
             ),
             CombinedMappingSection(
                 label="raw",
-                mappings={"x": ActivationVisualizationFieldRef(source="projections", key="raw", component=0)},
+                mappings={"x": ActivationVisualizationFieldRef(source="arrays", key="raw", component=0)},
             ),
         ]
         data_mapping = ActivationVisualizationDataMapping(mappings={}, combined=combined, combine_as="source")
         viz_cfg = ActivationVisualizationConfig(name="test", data_mapping=data_mapping)
         metadata = {"step": np.array([1])}
-        projections = {
-            "layer_0_pca": np.array([[0.1, 0.2]]),
-            "layer_0_raw": np.array([[0.5, 0.6]]),
+        arrays = {
+            "pca/layer_0": np.array([[0.1, 0.2]]),
+            "raw/layer_0": np.array([[0.5, 0.6]]),
         }
-        result = _build_dataframe(viz_cfg, metadata, projections, {}, {}, None, None, False, ["layer_0"])
+        result = _build_dataframe(viz_cfg, metadata, arrays, {}, {}, None, None, False, ["layer_0"])
         assert "source" in result.columns
         assert set(result["source"]) == {"projected", "raw"}
         assert len(result) == 2

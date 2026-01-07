@@ -38,14 +38,14 @@ def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> No
         belief_states=belief_states,
     )
 
-    assert set(scalars) >= {"layer_a_r2", "layer_b_r2"}
+    assert set(scalars) >= {"r2/layer_a", "r2/layer_b"}
     assert set(arrays) == {
-        "layer_a_projected",
-        "layer_b_projected",
-        "layer_a_coeffs",
-        "layer_b_coeffs",
-        "layer_a_intercept",
-        "layer_b_intercept",
+        "projected/layer_a",
+        "projected/layer_b",
+        "coeffs/layer_a",
+        "coeffs/layer_b",
+        "intercept/layer_a",
+        "intercept/layer_b",
     }
 
 
@@ -89,10 +89,10 @@ def test_pca_analysis_does_not_require_beliefs(analysis_inputs) -> None:
         weights=weights,
         belief_states=None,
     )
-    assert "layer_a_variance_explained" in scalars
-    assert "layer_a_n_components_50pct" in scalars
-    assert "layer_a_pca" in arrays
-    assert "layer_a_cumulative_explained_variance" in arrays
+    assert "variance_explained/layer_a" in scalars
+    assert "nc_50/layer_a" in scalars
+    assert "pca/layer_a" in arrays
+    assert "cumulative_explained_variance/layer_a" in arrays
 
 
 def test_invalid_pca_kwargs() -> None:

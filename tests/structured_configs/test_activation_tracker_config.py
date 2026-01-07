@@ -256,7 +256,7 @@ def test_instantiate_activation_tracker_builds_analysis_objects(tracker_cfg: Dic
         probs=probs,
         activations=activations,
     )
-    assert "pca_custom/layer_variance_explained" in scalars
+    assert "pca_custom/variance_explained/layer" in scalars
     assert any(key.startswith("linear/") for key in arrays)
     assert visualizations == {}
 

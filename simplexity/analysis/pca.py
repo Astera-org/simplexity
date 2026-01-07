@@ -123,7 +123,7 @@ def layer_pca_analysis(
     )
     for threshold, count in threshold_counts.items():
         percentage = int(threshold * 100)
-        scalars[f"n_components_{percentage}pct"] = float(count)
+        scalars[f"nc_{percentage}"] = float(count)
 
     arrays = {"pca": result["X_proj"], "cumulative_explained_variance": cumulative_variance}
     return scalars, arrays

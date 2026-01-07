@@ -293,7 +293,7 @@ class TestActivationTrackerVisualizationHandling:
             "name": "test_viz",
             "data_mapping": {
                 "mappings": {
-                    "pc0": {"source": "projections", "key": "pca", "component": 0},
+                    "pc0": {"source": "arrays", "key": "pca", "component": 0},
                 },
             },
             "layer": {
@@ -322,7 +322,7 @@ class TestActivationTrackerVisualizationHandling:
             "name": "test_viz",
             "data_mapping": {
                 "mappings": {
-                    "pc0": {"source": "projections", "key": "pca", "component": 0},
+                    "pc0": {"source": "arrays", "key": "pca", "component": 0},
                 },
             },
             "layer": {

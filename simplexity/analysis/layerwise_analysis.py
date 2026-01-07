@@ -17,6 +17,7 @@ from typing import Any
 import jax
 
 from simplexity.analysis.linear_regression import layer_linear_regression
+from simplexity.analysis.metric_keys import construct_layer_specific_key, format_layer_spec
 from simplexity.analysis.pca import (
     DEFAULT_VARIANCE_THRESHOLDS,
     layer_pca_analysis,
@@ -195,10 +196,13 @@ class LayerwiseAnalysis:
                 belief_states,
                 **self._analysis_kwargs,
             )
+            formatted_layer_name = format_layer_spec(layer_name)
             for key, value in layer_scalars.items():
-                scalars[f"{layer_name}_{key}"] = value
+                constructed_key = construct_layer_specific_key(key, formatted_layer_name)
+                scalars[constructed_key] = value
             for key, value in layer_arrays.items():
-                arrays[f"{layer_name}_{key}"] = value
+                constructed_key = construct_layer_specific_key(key, formatted_layer_name)
+                arrays[constructed_key] = value
         return scalars, arrays
 
 

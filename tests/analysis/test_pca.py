@@ -38,7 +38,7 @@ def test_layer_pca_analysis_metrics() -> None:
         n_components=2,
         variance_thresholds=(0.5,),
     )
-    assert "n_components_50pct" in scalars
+    assert "nc_50" in scalars
     assert "variance_explained" in scalars
     assert "pca" in arrays
     assert arrays["pca"].shape == (3, 2)
@@ -102,7 +102,7 @@ def test_layer_pca_analysis_zero_variance_threshold_reporting() -> None:
         belief_states=None,
         variance_thresholds=(0.5,),
     )
-    assert scalars["n_components_50pct"] == 3.0
+    assert scalars["nc_50"] == 3.0
     assert arrays["pca"].shape == (4, 3)
 
 

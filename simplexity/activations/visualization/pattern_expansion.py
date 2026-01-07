@@ -17,6 +17,7 @@ from simplexity.activations.visualization.pattern_utils import (
     validate_single_pattern,
 )
 from simplexity.activations.visualization_configs import ActivationVisualizationFieldRef
+from simplexity.analysis.metric_keys import format_layer_spec
 from simplexity.exceptions import ConfigValidationError
 
 
@@ -108,7 +109,7 @@ def _get_component_count(
     analysis_concat_layers: bool,
 ) -> int:
     """Get number of components available for expansion."""
-    if ref.source == "projections":
+    if ref.source == "arrays":
         if ref.key is None:
             raise ConfigValidationError("Projection refs require key")
         array = _lookup_array(arrays, layer_name, ref.key, analysis_concat_layers)
@@ -119,7 +120,7 @@ def _get_component_count(
             raise ConfigValidationError(f"Projection must be 1D or 2D, got {np_array.ndim}D")
         return np_array.shape[1]
 
-    elif ref.source == "belief_states":
+    if ref.source == "belief_states":
         if belief_states is None:
             raise ConfigValidationError("Belief states not available")
         np_array = np.asarray(belief_states)
@@ -127,17 +128,16 @@ def _get_component_count(
             raise ConfigValidationError(f"Belief states must be 2D, got {np_array.ndim}D")
         return np_array.shape[1]
 
-    else:
-        raise ConfigValidationError(f"Component expansion not supported for source: {ref.source}")
+    raise ConfigValidationError(f"Component expansion not supported for source: {ref.source}")
 
 
-def _expand_projection_key_pattern(
+def _expand_array_key_pattern(
     key_pattern: str,
     layer_name: str,
     arrays: Mapping[str, np.ndarray],
     analysis_concat_layers: bool,
 ) -> dict[str, str]:
-    """Expand projection key patterns against available keys.
+    """Expand array key patterns against available keys.
 
     Args:
         key_pattern: Pattern like "factor_*/projected" or "factor_0...3/projected"
@@ -149,6 +149,9 @@ def _expand_projection_key_pattern(
         Dict mapping extracted index (as string) to the concrete key suffix.
         E.g., {"0": "factor_0/projected", "1": "factor_1/projected"}
     """
+    # Format layer name to match against projection keys which use formatted names
+    formatted_layer = format_layer_spec(layer_name)
+
     # Build regex from pattern
     if "*" in key_pattern:
         regex_pattern = build_wildcard_regex(key_pattern)
@@ -170,16 +173,33 @@ def _expand_projection_key_pattern(
     # Match against available arrays
     result: dict[str, str] = {}
     for full_key in arrays:
-        # Extract the key suffix (part after layer name)
+        # Extract the key suffix for pattern matching
         if analysis_concat_layers:
-            # Keys are like "factor_0/projected" directly
+            # Keys are like "analysis/Lcat" or "analysis/Lcat-F0" directly
             key_suffix = full_key
         else:
-            # Keys are like "layer_name_factor_0/projected"
-            prefix = f"{layer_name}_"
-            if not full_key.startswith(prefix):
+            # New format: keys are like "analysis/layer_name" or "analysis/layer_name-F0"
+            # Extract the analysis prefix and factor suffix for matching
+            if "/" not in full_key:
                 continue
-            key_suffix = full_key[len(prefix) :]
+            parts = full_key.rsplit("/", 1)
+            if len(parts) != 2:
+                continue
+            analysis_prefix, layer_part = parts
+
+            # Check if this key is for the current layer
+            if not layer_part.startswith(formatted_layer):
+                continue
+
+            # Extract factor suffix if present (e.g., "L0.resid.pre-F0" -> "-F0")
+            factor_suffix = layer_part[len(formatted_layer) :]
+
+            # Reconstruct a pattern-matchable key suffix
+            # Convert "projected/layer_0-F0" to "projected/F0" for pattern matching
+            if factor_suffix.startswith("-"):
+                key_suffix = f"{analysis_prefix}/{factor_suffix[1:]}"
+            else:
+                key_suffix = analysis_prefix
 
         match = regex_pattern.match(key_suffix)
         if match:
@@ -196,15 +216,14 @@ def _expand_projection_key_pattern(
     return result
 
 
-def _expand_projection_key_mapping(
+def _expand_array_key_mapping(
     field_name: str,
     ref: ActivationVisualizationFieldRef,
     layer_name: str,
     arrays: Mapping[str, np.ndarray],
-    belief_states: np.ndarray | None,
     analysis_concat_layers: bool,
 ) -> dict[str, ActivationVisualizationFieldRef]:
-    """Expand projection key patterns, optionally combined with component patterns.
+    """Expand array key patterns, optionally combined with component patterns.
 
     Handles cross-product expansion when both key and component patterns are present.
     Sets _group_value on expanded refs for DataFrame construction.
@@ -212,7 +231,7 @@ def _expand_projection_key_mapping(
     assert ref.key is not None, "Key must be provided for projection key pattern expansion"
 
     # Expand key pattern to get concrete keys
-    key_expansions = _expand_projection_key_pattern(ref.key, layer_name, arrays, analysis_concat_layers)
+    key_expansions = _expand_array_key_pattern(ref.key, layer_name, arrays, analysis_concat_layers)
 
     # Check if component expansion is also needed
     spec_type, start_idx, end_idx = _parse_component_spec(ref.component)
@@ -262,7 +281,7 @@ def _expand_projection_key_mapping(
                     )
 
                 expanded[expanded_name] = ActivationVisualizationFieldRef(
-                    source="projections",
+                    source="arrays",
                     key=concrete_key,
                     component=comp_idx,
                     reducer=ref.reducer,
@@ -274,7 +293,7 @@ def _expand_projection_key_mapping(
             expanded_name = substitute_pattern(field_name, int(group_idx))
 
             expanded[expanded_name] = ActivationVisualizationFieldRef(
-                source="projections",
+                source="arrays",
                 key=concrete_key,
                 component=ref.component,  # Keep original (could be None or int)
                 reducer=ref.reducer,
@@ -388,7 +407,6 @@ def _expand_belief_factor_mapping(
 def _expand_scalar_keys(
     field_pattern: str,
     key_pattern: str | None,
-    layer_name: str,
     scalars: Mapping[str, float],
 ) -> dict[str, str]:
     """Expand scalar field patterns by matching available scalar keys.
@@ -419,14 +437,14 @@ def _expand_scalar_pattern_keys(
 ) -> list[str]:
     """Expand wildcard/range pattern against available scalar keys."""
     keys = list(available_keys)
-    has_prefixed_keys = any("/" in key for key in keys)
     prefix = f"{analysis_name}/"
+    keys_have_prefix = any(key.startswith(prefix) for key in keys)
 
     normalized_pattern = pattern
-    if "/" not in normalized_pattern and has_prefixed_keys:
-        normalized_pattern = f"{analysis_name}/{normalized_pattern}"
-    elif "/" in normalized_pattern and not has_prefixed_keys and normalized_pattern.startswith(prefix):
-        normalized_pattern = normalized_pattern[len(prefix) :]
+    if keys_have_prefix and not pattern.startswith(prefix):
+        normalized_pattern = f"{prefix}{pattern}"
+    elif not keys_have_prefix and pattern.startswith(prefix):
+        normalized_pattern = pattern[len(prefix) :]
 
     pattern_variants = _expand_scalar_pattern_ranges(normalized_pattern)
     matched: list[str] = []
@@ -493,7 +511,7 @@ def _expand_field_mapping(
     Returns dict of expanded field_name → FieldRef with concrete component/key values.
     """
     # Check for projection key patterns FIRST (allows multiple field patterns for key+component)
-    if ref.source == "projections" and ref.key and _has_key_pattern(ref.key):
+    if ref.source == "arrays" and ref.key and _has_key_pattern(ref.key):
         # For key pattern expansion, we allow up to 2 patterns in field name
         # (one for key expansion, one for component expansion)
         total_field_patterns = count_patterns(field_name)
@@ -505,9 +523,7 @@ def _expand_field_mapping(
                 f"Field name '{field_name}' has too many patterns (max 2 for key+component expansion)"
             )
 
-        return _expand_projection_key_mapping(
-            field_name, ref, layer_name, arrays, belief_states, analysis_concat_layers
-        )
+        return _expand_array_key_mapping(field_name, ref, layer_name, arrays, analysis_concat_layers)
 
     # Check for belief state factor patterns
     if ref.source == "belief_states" and ref.factor is not None and isinstance(ref.factor, str):
@@ -539,7 +555,7 @@ def _expand_field_mapping(
         if not field_has_pattern:
             return {field_name: ref}
 
-        scalar_expansions = _expand_scalar_keys(field_name, ref.key, layer_name, scalars)
+        scalar_expansions = _expand_scalar_keys(field_name, ref.key, scalars)
         return {
             field: ActivationVisualizationFieldRef(source="scalars", key=key, component=None, reducer=None)
             for field, key in scalar_expansions.items()
@@ -587,8 +603,8 @@ __all__ = [
     "_expand_belief_factor_mapping",
     "_expand_field_mapping",
     "_expand_pattern_to_indices",
-    "_expand_projection_key_mapping",
-    "_expand_projection_key_pattern",
+    "_expand_array_key_mapping",
+    "_expand_array_key_pattern",
     "_expand_scalar_keys",
     "_expand_scalar_pattern_keys",
     "_expand_scalar_pattern_ranges",
