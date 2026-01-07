@@ -359,9 +359,7 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
                 "d_vocab": 3,
             }
         )
-        with pytest.raises(
-            ConfigValidationError, match=re.escape("d_vocab (3) must be equal to 4")
-        ):
+        with pytest.raises(ConfigValidationError, match=re.escape("d_vocab (3) must be equal to 4")):
             resolve_nested_model_config(cfg, vocab_size=4)
 
     def test_resolve_nested_model_config_with_conflicting_device(self) -> None:

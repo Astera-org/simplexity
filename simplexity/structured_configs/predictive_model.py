@@ -159,9 +159,7 @@ def resolve_nested_model_config(cfg: DictConfig, *, vocab_size: int | None = Non
             cfg.d_vocab = vocab_size
             SIMPLEXITY_LOGGER.info("[predictive model] d_vocab resolved to: %s", vocab_size)
         elif cfg.get("d_vocab") != vocab_size:
-            raise ConfigValidationError(
-                f"d_vocab ({cfg.get('d_vocab')}) must be equal to {vocab_size}"
-            )
+            raise ConfigValidationError(f"d_vocab ({cfg.get('d_vocab')}) must be equal to {vocab_size}")
         else:
             SIMPLEXITY_LOGGER.debug("[predictive model] d_vocab defined as: %s", cfg.get("d_vocab"))
 
