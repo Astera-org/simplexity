@@ -12,7 +12,7 @@ class TestScalarWildcardExpansion:
     def test_scalar_no_pattern_returns_identity(self):
         """Scalars without patterns should return as-is."""
         scalars = {"layer_0_rmse": 0.5}
-        result = _expand_scalar_keys("rmse", "layer_0_rmse", "layer_0", scalars)
+        result = _expand_scalar_keys("rmse", "layer_0_rmse", scalars)
 
         assert result == {"rmse": "layer_0_rmse"}
 
@@ -25,7 +25,7 @@ class TestScalarWildcardExpansion:
             "cumvar_3": 0.99,
             "other_metric": 1.0,
         }
-        result = _expand_scalar_keys("cumvar_*", "cumvar_*", "layer_0", scalars)
+        result = _expand_scalar_keys("cumvar_*", "cumvar_*", scalars)
 
         assert len(result) == 4
         assert result == {
@@ -44,7 +44,7 @@ class TestScalarWildcardExpansion:
             "layer_1_cumvar_0": 0.7,
             "other": 1.0,
         }
-        result = _expand_scalar_keys("cv_*", "layer_0_cumvar_*", "layer_0", scalars)
+        result = _expand_scalar_keys("cv_*", "layer_0_cumvar_*", scalars)
 
         assert len(result) == 3
         assert result == {
@@ -62,7 +62,7 @@ class TestScalarWildcardExpansion:
             "cumvar_3": 0.99,
             "cumvar_4": 0.995,
         }
-        result = _expand_scalar_keys("cumvar_1...4", "cumvar_1...4", "layer_0", scalars)
+        result = _expand_scalar_keys("cumvar_1...4", "cumvar_1...4", scalars)
 
         assert len(result) == 3
         assert result == {
@@ -76,14 +76,14 @@ class TestScalarWildcardExpansion:
         scalars = {"other_metric": 1.0}
 
         with pytest.raises(ConfigValidationError, match="No keys found matching pattern"):
-            _expand_scalar_keys("cumvar_*", "cumvar_*", "layer_0", scalars)
+            _expand_scalar_keys("cumvar_*", "cumvar_*", scalars)
 
     def test_scalar_wildcard_requires_key_pattern(self):
         """Wildcard expansion without a key should raise an error."""
         scalars = {"metric": 1.0}
 
         with pytest.raises(ConfigValidationError, match="Scalar wildcard expansion requires a key pattern"):
-            _expand_scalar_keys("field_*", None, "layer_0", scalars)
+            _expand_scalar_keys("field_*", None, scalars)
 
     def test_scalar_expansion_sorts_indices(self):
         """Expanded scalar keys should be sorted by index."""
@@ -93,7 +93,7 @@ class TestScalarWildcardExpansion:
             "var_3": 0.3,
             "var_2": 0.2,
         }
-        result = _expand_scalar_keys("v_*", "var_*", "layer_0", scalars)
+        result = _expand_scalar_keys("v_*", "var_*", scalars)
 
         # Check that keys are in sorted order
         keys = list(result.keys())
@@ -106,7 +106,7 @@ class TestScalarWildcardExpansion:
         scalars = {"metric": 1.0}
 
         # _expand_scalar_keys just returns identity if no pattern in key
-        result = _expand_scalar_keys("field_*", "metric", "layer_0", scalars)
+        result = _expand_scalar_keys("field_*", "metric", scalars)
         assert result == {"field_*": "metric"}
 
     def test_scalar_range_invalid_format_returns_identity(self):
@@ -114,7 +114,7 @@ class TestScalarWildcardExpansion:
         scalars = {"metric_1..4": 1.0}
 
         # Two dots instead of three - not a valid range pattern, returns identity
-        result = _expand_scalar_keys("field_1..4", "metric_1..4", "layer_0", scalars)
+        result = _expand_scalar_keys("field_1..4", "metric_1..4", scalars)
         assert result == {"field_1..4": "metric_1..4"}
 
     def test_scalar_wildcard_with_non_numeric_ignored(self):
@@ -125,7 +125,7 @@ class TestScalarWildcardExpansion:
             "metric_abc": 0.2,
             "metric_xyz": 0.3,
         }
-        result = _expand_scalar_keys("m_*", "metric_*", "layer_0", scalars)
+        result = _expand_scalar_keys("m_*", "metric_*", scalars)
 
         # Only numeric indices should be included
         assert len(result) == 2
@@ -142,7 +142,7 @@ class TestScalarWildcardExpansion:
             "var_01": 0.1,  # This would match as index 1 if not carefully handled
         }
         # This test verifies basic behavior - exact matching prevents this issue
-        result = _expand_scalar_keys("v_*", "var_*", "layer_0", scalars)
+        result = _expand_scalar_keys("v_*", "var_*", scalars)
 
         # Should only match exact numeric patterns
         assert "v_1" in result
@@ -155,7 +155,7 @@ class TestScalarWildcardExpansion:
             "metric_2": 0.2,
             "metric_3": 0.3,
         }
-        result = _expand_scalar_keys("m_0...3", "metric_0...3", "layer_0", scalars)
+        result = _expand_scalar_keys("m_0...3", "metric_0...3", scalars)
 
         assert len(result) == 3
         assert result == {
@@ -172,7 +172,7 @@ class TestScalarWildcardExpansion:
             "layer_0_pca_cumvar_2": 0.95,
             "layer_1_pca_cumvar_0": 0.7,
         }
-        result = _expand_scalar_keys("pc_cv_*", "layer_0_pca_cumvar_*", "layer_0", scalars)
+        result = _expand_scalar_keys("pc_cv_*", "layer_0_pca_cumvar_*", scalars)
 
         assert len(result) == 3
         assert result == {

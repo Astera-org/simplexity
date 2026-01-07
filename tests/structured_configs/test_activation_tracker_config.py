@@ -256,7 +256,7 @@ def test_instantiate_activation_tracker_builds_analysis_objects(tracker_cfg: Dic
         probs=probs,
         activations=activations,
     )
-    assert "pca_custom/layer_cumvar_1" in scalars
+    assert "pca_custom/cumvar_1/layer" in scalars
     assert any(key.startswith("linear/") for key in projections)
     assert visualizations == {}
 

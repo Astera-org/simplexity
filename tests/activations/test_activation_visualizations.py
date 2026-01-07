@@ -198,7 +198,7 @@ class TestBuildVisualizationPayloads:
 
     def test_builds_payload_with_projections(self, basic_metadata, basic_viz_config):
         """Test building a payload with projection data."""
-        projections = {"layer_0_pca": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        projections = {"pca/layer_0": np.array([[1.0, 2.0], [3.0, 4.0]])}
         payloads = build_visualization_payloads(
             analysis_name="test",
             viz_cfgs=[basic_viz_config],
@@ -278,7 +278,7 @@ class TestBuildVisualizationPayloads:
                 }
             ),
         ]
-        projections = {"layer_0_pca": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        projections = {"pca/layer_0": np.array([[1.0, 2.0], [3.0, 4.0]])}
         payloads = build_visualization_payloads(
             analysis_name="test",
             viz_cfgs=configs,

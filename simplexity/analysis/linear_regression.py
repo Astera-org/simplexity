@@ -228,6 +228,17 @@ def _merge_results_with_prefix(
     arrays.update({f"{prefix}/{key}": value for key, value in results_arrays.items()})
 
 
+def _merge_results_with_suffix(
+    scalars: dict[str, float],
+    arrays: dict[str, jax.Array],
+    results: tuple[Mapping[str, float], Mapping[str, jax.Array]],
+    suffix: str,
+) -> None:
+    results_scalars, results_arrays = results
+    scalars.update({f"{key}/{suffix}": value for key, value in results_scalars.items()})
+    arrays.update({f"{key}/{suffix}": value for key, value in results_arrays.items()})
+
+
 def _split_concat_results(
     layer_activations: jax.Array,
     weights: jax.Array,
@@ -389,12 +400,12 @@ def _compute_subspace_orthogonality(
     effective_rank = jnp.exp(entropy)
 
     scalars = {
-        "subspace_overlap": float(subspace_overlap_score),
-        "max_singular_value": float(jnp.max(singular_values)),
-        "min_singular_value": float(jnp.min(singular_values)),
-        "participation_ratio": float(participation_ratio),
+        "overlap": float(subspace_overlap_score),
+        "sv_max": float(jnp.max(singular_values)),
+        "sv_min": float(jnp.min(singular_values)),
+        "p_ratio": float(participation_ratio),
         "entropy": float(entropy),
-        "effective_rank": float(effective_rank),
+        "eff_rank": float(effective_rank),
     }
 
     arrays = {
@@ -426,8 +437,8 @@ def _compute_all_pairwise_orthogonality(
     for i, j in factor_pairs:
         basis_pair = [basis_list[i], basis_list[j]]
         orthogonality_scalars, orthogonality_arrays = _compute_subspace_orthogonality(basis_pair)
-        scalars.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_scalars.items()})
-        arrays.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_arrays.items()})
+        scalars.update({f"{i},{j}/{key}": value for key, value in orthogonality_scalars.items()})
+        arrays.update({f"{i},{j}/{key}": value for key, value in orthogonality_arrays.items()})
     return scalars, arrays
 
 
@@ -453,7 +464,7 @@ def _handle_factored_regression(
     if concat_belief_states:
         belief_states_concat = jnp.concatenate(belief_states, axis=-1)
         concat_results = regression_fn(layer_activations, belief_states_concat, weights, **kwargs)
-        _merge_results_with_prefix(scalars, arrays, concat_results, "concat")
+        _merge_results_with_suffix(scalars, arrays, concat_results, "Fcat")
 
         # Split the concatenated parameters and projections into the individual factors
         factor_results = _split_concat_results(
@@ -467,15 +478,20 @@ def _handle_factored_regression(
         factor_results = _process_individual_factors(layer_activations, belief_states, weights, use_svd, **kwargs)
 
     for factor_idx, factor_result in enumerate(factor_results):
-        _merge_results_with_prefix(scalars, arrays, factor_result, f"factor_{factor_idx}")
+        _merge_results_with_suffix(scalars, arrays, factor_result, f"F{factor_idx}")
 
     if compute_subspace_orthogonality:
         # Extract coefficients (excludes intercept) for orthogonality computation
         coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
-        orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
-        scalars.update(orthogonality_scalars)
-        arrays.update(orthogonality_singular_values)
-
+        orthogonality_scalars, orthogonality_arrays = _compute_all_pairwise_orthogonality(coeffs_list)
+        for key, value in orthogonality_scalars.items():
+            factors, metric = key.split("/")
+            new_key = f"orth/{metric}/F{factors}"
+            scalars.update({new_key: value})
+        for key, value in orthogonality_arrays.items():
+            factors, metric = key.split("/")
+            new_key = f"orth/{metric}/F{factors}"
+            arrays.update({new_key: value})
     return scalars, arrays
 
 

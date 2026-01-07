@@ -129,14 +129,14 @@ class TestComponentCount:
     def test_get_component_count_projections_2d(self):
         """Test getting component count from 2D projections."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca")
-        projections = {"layer_0_pca": np.random.randn(100, 10)}
+        projections = {"pca/layer_0": np.random.randn(100, 10)}
         count = _get_component_count(ref, "layer_0", projections, None, False)
         assert count == 10
 
     def test_get_component_count_projections_different_sizes(self):
         """Test getting component count from 2D projections with different sizes."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca")
-        projections = {"layer_0_pca": np.random.randn(50, 15)}
+        projections = {"pca/layer_0": np.random.randn(50, 15)}
         count = _get_component_count(ref, "layer_0", projections, None, False)
         assert count == 15
 
@@ -150,14 +150,14 @@ class TestComponentCount:
     def test_get_component_count_projections_1d_raises(self):
         """Test that 1D projections raise an error when getting component count."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca")
-        projections = {"layer_0_pca": np.random.randn(100)}
+        projections = {"pca/layer_0": np.random.randn(100)}
         with pytest.raises(ConfigValidationError, match="1D projection"):
             _get_component_count(ref, "layer_0", projections, None, False)
 
     def test_get_component_count_projections_3d_raises(self):
         """Test that 3D projections raise an error when getting component count."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca")
-        projections = {"layer_0_pca": np.random.randn(10, 10, 10)}
+        projections = {"pca/layer_0": np.random.randn(10, 10, 10)}
         with pytest.raises(ConfigValidationError, match="1D or 2D"):
             _get_component_count(ref, "layer_0", projections, None, False)
 
@@ -201,7 +201,7 @@ class TestFieldExpansion:
     def test_wildcard_expansion_projections(self):
         """Test detection of wildcard expansion patterns."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca", component="*")
-        projections = {"layer_0_pca": np.random.randn(50, 3)}
+        projections = {"pca/layer_0": np.random.randn(50, 3)}
 
         expanded = _expand_field_mapping("pc_*", ref, "layer_0", projections, {}, None, False)
 
@@ -232,7 +232,7 @@ class TestFieldExpansion:
     def test_range_expansion(self):
         """Test detection of range expansion patterns."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca", component="0...5")
-        projections = {"layer_0_pca": np.random.randn(50, 10)}
+        projections = {"pca/layer_0": np.random.randn(50, 10)}
 
         expanded = _expand_field_mapping("pc_0...5", ref, "layer_0", projections, {}, None, False)
 
@@ -246,7 +246,7 @@ class TestFieldExpansion:
     def test_range_expansion_with_offset(self):
         """Test detection of range expansion patterns with offset."""
         ref = ActivationVisualizationFieldRef(source="projections", key="projected", component="2...5")
-        projections = {"layer_0_projected": np.random.randn(50, 10)}
+        projections = {"projected/layer_0": np.random.randn(50, 10)}
 
         expanded = _expand_field_mapping("prob_2...5", ref, "layer_0", projections, {}, None, False)
 
@@ -261,7 +261,7 @@ class TestFieldExpansion:
     def test_wildcard_in_middle_of_name(self):
         """Test detection of wildcard expansion patterns."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca", component="*")
-        projections = {"layer_0_pca": np.random.randn(50, 3)}
+        projections = {"pca/layer_0": np.random.randn(50, 3)}
 
         expanded = _expand_field_mapping("component_*_normalized", ref, "layer_0", projections, {}, None, False)
 
@@ -273,7 +273,7 @@ class TestFieldExpansion:
     def test_no_expansion_needed(self):
         """Test that no expansion occurs when component is a specific integer."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca", component=0)
-        projections = {"layer_0_pca": np.random.randn(50, 5)}
+        projections = {"pca/layer_0": np.random.randn(50, 5)}
 
         expanded = _expand_field_mapping("pc_0", ref, "layer_0", projections, {}, None, False)
 
@@ -295,7 +295,7 @@ class TestFieldExpansion:
     def test_field_pattern_without_component_pattern_raises(self):
         """Test that a field pattern without a component pattern raises an error."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca", component=0)
-        projections = {"layer_0_pca": np.random.randn(50, 5)}
+        projections = {"pca/layer_0": np.random.randn(50, 5)}
 
         with pytest.raises(ConfigValidationError, match="has pattern but component is not"):
             _expand_field_mapping("pc_*", ref, "layer_0", projections, {}, None, False)
@@ -303,7 +303,7 @@ class TestFieldExpansion:
     def test_component_pattern_without_field_pattern_raises(self):
         """Test that a component pattern without a field pattern raises an error."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca", component="*")
-        projections = {"layer_0_pca": np.random.randn(50, 5)}
+        projections = {"pca/layer_0": np.random.randn(50, 5)}
 
         with pytest.raises(ConfigValidationError, match="requires field name pattern"):
             _expand_field_mapping("pc_0", ref, "layer_0", projections, {}, None, False)
@@ -311,7 +311,7 @@ class TestFieldExpansion:
     def test_range_exceeds_available_components(self):
         """Test that a range exceeding available components raises an error."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca", component="0...20")
-        projections = {"layer_0_pca": np.random.randn(50, 10)}
+        projections = {"pca/layer_0": np.random.randn(50, 10)}
 
         with pytest.raises(ConfigValidationError, match="exceeds available components"):
             _expand_field_mapping("pc_0...20", ref, "layer_0", projections, {}, None, False)
@@ -319,7 +319,7 @@ class TestFieldExpansion:
     def test_range_partially_exceeds_available_components(self):
         """Test that a range partially exceeding available components raises an error."""
         ref = ActivationVisualizationFieldRef(source="projections", key="pca", component="5...15")
-        projections = {"layer_0_pca": np.random.randn(50, 10)}
+        projections = {"pca/layer_0": np.random.randn(50, 10)}
 
         with pytest.raises(ConfigValidationError, match="exceeds available components"):
             _expand_field_mapping("pc_5...15", ref, "layer_0", projections, {}, None, False)
@@ -500,90 +500,90 @@ class TestPreprocessingFieldExpansion:
 
 
 class TestKeyPatternExpansion:
-    """Test projection key pattern expansion (e.g., factor_*/projected)."""
+    """Test projection key pattern expansion (e.g., projected/F*)."""
 
     def test_has_key_pattern_wildcard(self):
         """Test that _has_key_pattern detects wildcard patterns correctly."""
-        assert _has_key_pattern("factor_*/projected")
-        assert _has_key_pattern("*/projected")
+        assert _has_key_pattern("projected/F*")
+        assert _has_key_pattern("projected/*")
         assert _has_key_pattern("factor_*")
 
     def test_has_key_pattern_range(self):
         """Test that _has_key_pattern detects range patterns correctly."""
-        assert _has_key_pattern("factor_0...3/projected")
-        assert _has_key_pattern("0...5/projected")
+        assert _has_key_pattern("projected/F0...3")
+        assert _has_key_pattern("projected/F0...5")
 
     def test_has_key_pattern_none(self):
         """Test that _has_key_pattern returns False for non-pattern keys."""
         assert not _has_key_pattern(None)
         assert not _has_key_pattern("projected")
-        assert not _has_key_pattern("factor_0/projected")
+        assert not _has_key_pattern("projected/F0")
 
     def test_has_key_pattern_multiple_raises(self):
         """Test that _has_key_pattern raises an error for multiple patterns."""
         with pytest.raises(ConfigValidationError, match="multiple patterns"):
-            _has_key_pattern("factor_*/layer_*/projected")
+            _has_key_pattern("projected/L*/F*")
 
     def test_expand_projection_key_pattern_wildcard(self):
         """Test that _expand_projection_key_pattern expands wildcard patterns correctly."""
         projections = {
-            "layer_0_factor_0/projected": np.random.randn(10, 3),
-            "layer_0_factor_1/projected": np.random.randn(10, 3),
-            "layer_0_factor_2/projected": np.random.randn(10, 3),
+            "projected/layer_0-F0": np.random.randn(10, 3),
+            "projected/layer_0-F1": np.random.randn(10, 3),
+            "projected/layer_0-F2": np.random.randn(10, 3),
         }
 
-        result = _expand_projection_key_pattern("factor_*/projected", "layer_0", projections, False)
+        result = _expand_projection_key_pattern("projected/F*", "layer_0", projections, False)
 
         assert len(result) == 3
-        assert result["0"] == "factor_0/projected"
-        assert result["1"] == "factor_1/projected"
-        assert result["2"] == "factor_2/projected"
+        assert result["0"] == "projected/F0"
+        assert result["1"] == "projected/F1"
+        assert result["2"] == "projected/F2"
 
     def test_expand_projection_key_pattern_range(self):
         """Test that _expand_projection_key_pattern expands range patterns correctly."""
         projections = {
-            "layer_0_factor_0/projected": np.random.randn(10, 3),
-            "layer_0_factor_1/projected": np.random.randn(10, 3),
-            "layer_0_factor_2/projected": np.random.randn(10, 3),
+            "projected/layer_0-F0": np.random.randn(10, 3),
+            "projected/layer_0-F1": np.random.randn(10, 3),
+            "projected/layer_0-F2": np.random.randn(10, 3),
         }
 
-        result = _expand_projection_key_pattern("factor_0...2/projected", "layer_0", projections, False)
+        result = _expand_projection_key_pattern("projected/F0...2", "layer_0", projections, False)
 
         assert len(result) == 2
-        assert result["0"] == "factor_0/projected"
-        assert result["1"] == "factor_1/projected"
+        assert result["0"] == "projected/F0"
+        assert result["1"] == "projected/F1"
 
     def test_expand_projection_key_pattern_concat_layers(self):
         """Test that _expand_projection_key_pattern works with concatenated layers."""
         projections = {
-            "factor_0/projected": np.random.randn(10, 3),
-            "factor_1/projected": np.random.randn(10, 3),
+            "projected/F0": np.random.randn(10, 3),
+            "projected/F1": np.random.randn(10, 3),
         }
 
-        result = _expand_projection_key_pattern("factor_*/projected", "any_layer", projections, True)
+        result = _expand_projection_key_pattern("projected/F*", "any_layer", projections, True)
 
         assert len(result) == 2
-        assert result["0"] == "factor_0/projected"
-        assert result["1"] == "factor_1/projected"
+        assert result["0"] == "projected/F0"
+        assert result["1"] == "projected/F1"
 
     def test_expand_projection_key_pattern_no_matches_raises(self):
         """Test that _expand_projection_key_pattern raises an error when no keys match."""
-        projections = {"layer_0_pca": np.random.randn(10, 3)}
+        projections = {"pca/layer_0": np.random.randn(10, 3)}
 
         with pytest.raises(ConfigValidationError, match="No projection keys found"):
-            _expand_projection_key_pattern("factor_*/projected", "layer_0", projections, False)
+            _expand_projection_key_pattern("projected/F*", "layer_0", projections, False)
 
     def test_field_mapping_with_key_pattern(self):
         """Test that field mappings with key patterns are expanded correctly."""
         ref = ActivationVisualizationFieldRef(
             source="projections",
-            key="factor_*/projected",
+            key="projected/F*",
             component=0,
             group_as="factor",
         )
         projections = {
-            "layer_0_factor_0/projected": np.random.randn(10, 3),
-            "layer_0_factor_1/projected": np.random.randn(10, 3),
+            "projected/layer_0-F0": np.random.randn(10, 3),
+            "projected/layer_0-F1": np.random.randn(10, 3),
         }
 
         expanded = _expand_field_mapping("factor_*_prob", ref, "layer_0", projections, {}, None, False)
@@ -591,8 +591,8 @@ class TestKeyPatternExpansion:
         assert len(expanded) == 2
         assert "factor_0_prob" in expanded
         assert "factor_1_prob" in expanded
-        assert expanded["factor_0_prob"].key == "factor_0/projected"
-        assert expanded["factor_1_prob"].key == "factor_1/projected"
+        assert expanded["factor_0_prob"].key == "projected/F0"
+        assert expanded["factor_1_prob"].key == "projected/F1"
         assert expanded["factor_0_prob"]._group_value == "0"  # pylint: disable=protected-access
         assert expanded["factor_1_prob"]._group_value == "1"  # pylint: disable=protected-access
         assert expanded["factor_0_prob"].group_as == "factor"
@@ -601,13 +601,13 @@ class TestKeyPatternExpansion:
         """Test that field mappings with key and component patterns are expanded correctly."""
         ref = ActivationVisualizationFieldRef(
             source="projections",
-            key="factor_*/projected",
+            key="projected/F*",
             component="*",
             group_as="factor",
         )
         projections = {
-            "layer_0_factor_0/projected": np.random.randn(10, 3),
-            "layer_0_factor_1/projected": np.random.randn(10, 3),
+            "projected/layer_0-F0": np.random.randn(10, 3),
+            "projected/layer_0-F1": np.random.randn(10, 3),
         }
 
         expanded = _expand_field_mapping("factor_*_prob_*", ref, "layer_0", projections, {}, None, False)
@@ -627,8 +627,8 @@ class TestKeyPatternExpansion:
         assert expanded["factor_1_prob_2"].component == 2
 
         # Check that keys and group values are correct
-        assert expanded["factor_0_prob_0"].key == "factor_0/projected"
-        assert expanded["factor_1_prob_0"].key == "factor_1/projected"
+        assert expanded["factor_0_prob_0"].key == "projected/F0"
+        assert expanded["factor_1_prob_0"].key == "projected/F1"
         assert expanded["factor_0_prob_0"]._group_value == "0"  # pylint: disable=protected-access
         assert expanded["factor_1_prob_0"]._group_value == "1"  # pylint: disable=protected-access
 
@@ -636,11 +636,11 @@ class TestKeyPatternExpansion:
         """Test that a key pattern without a field pattern raises an error."""
         ref = ActivationVisualizationFieldRef(
             source="projections",
-            key="factor_*/projected",
+            key="projected/F*",
             component=0,
             group_as="factor",
         )
-        projections = {"layer_0_factor_0/projected": np.random.randn(10, 3)}
+        projections = {"projected/layer_0-F0": np.random.randn(10, 3)}
 
         with pytest.raises(ConfigValidationError, match="requires field name pattern"):
             _expand_field_mapping("prob_0", ref, "layer_0", projections, {}, None, False)
@@ -654,7 +654,7 @@ class TestGroupAsValidation:
         with pytest.raises(ConfigValidationError, match="requires `group_as`"):
             ActivationVisualizationFieldRef(
                 source="projections",
-                key="factor_*/projected",
+                key="projected/F*",
                 component=0,
             )
 
@@ -671,18 +671,18 @@ class TestGroupAsValidation:
         """Test that a valid key pattern with group_as is accepted."""
         ref = ActivationVisualizationFieldRef(
             source="projections",
-            key="factor_*/projected",
+            key="projected/F*",
             component=0,
             group_as="factor",
         )
         assert ref.group_as == "factor"
-        assert ref.key == "factor_*/projected"
+        assert ref.key == "projected/F*"
 
     def test_valid_key_pattern_with_list_group_as(self):
         """Test that a valid key pattern with list group_as is accepted."""
         ref = ActivationVisualizationFieldRef(
             source="projections",
-            key="factor_*/projected",
+            key="projected/F*",
             component=0,
             group_as=["factor", "layer"],
         )
