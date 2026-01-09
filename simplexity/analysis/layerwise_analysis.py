@@ -140,6 +140,7 @@ class LayerwiseAnalysis:
         concat_layers: bool = False,
         use_probs_as_weights: bool = True,
         skip_first_token: bool = False,
+        skip_deduplication: bool = False,
         analysis_kwargs: Mapping[str, Any] | None = None,
     ) -> None:
         if analysis_type not in ANALYSIS_REGISTRY:
@@ -152,6 +153,7 @@ class LayerwiseAnalysis:
         self._concat_layers = concat_layers
         self._use_probs_as_weights = use_probs_as_weights
         self._skip_first_token = skip_first_token
+        self._skip_deduplication = skip_deduplication
 
     @property
     def last_token_only(self) -> bool:
@@ -177,6 +179,11 @@ class LayerwiseAnalysis:
     def skip_first_token(self) -> bool:
         """Whether to skip the first token (useful for off-manifold initial states)."""
         return self._skip_first_token
+
+    @property
+    def skip_deduplication(self) -> bool:
+        """Whether to skip prefix/sequence deduplication (faster for large vocabularies)."""
+        return self._skip_deduplication
 
     def analyze(
         self,
