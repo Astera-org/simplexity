@@ -1,5 +1,6 @@
 """Activation analysis for Transformer layers."""
 
+import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -174,11 +175,16 @@ class ActivationTracker:
             default_backend: Default visualization backend
             deduplication_cache_dir: Optional directory for disk-based deduplication caching.
                 If provided, deduplicated datasets will be cached to disk for reuse across runs.
+                Use "temp" to create a temporary directory that persists for the tracker's lifetime.
         """
         self._analyses = analyses
         self._default_backend = default_backend
         self._visualization_specs: dict[str, list[ActivationVisualizationConfig]] = {}
         self._scalar_history: dict[str, list[tuple[int, float]]] = {}
+        self._temp_cache_dir: tempfile.TemporaryDirectory[str] | None = None
+        if deduplication_cache_dir == "temp":
+            self._temp_cache_dir = tempfile.TemporaryDirectory(prefix="dedup_cache_")
+            deduplication_cache_dir = self._temp_cache_dir.name
         self._deduplication_cache = DeduplicationCache(cache_dir=deduplication_cache_dir)
         if visualizations:
             for name, cfgs in visualizations.items():
