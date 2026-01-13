@@ -23,9 +23,12 @@ def format_layer_spec(layer_name: str) -> str:
     """Format layer name into compact layer specification.
 
     Converts verbose layer names to compact specs:
-    - Block layers: "blocks.N.hook_X_Y" → "LN.X.Y"
-    - Special layers: "embed", "pos_embed", "ln_final" → unchanged
     - Concatenated: "concatenated" → "Lcat"
+    - Top-level hooks: "hook_embed" → "embed", "hook_pos_embed" → "pos_embed"
+    - Block direct hooks: "blocks.N.hook_X_Y" → "LN.X.Y"
+    - Block component hooks: "blocks.N.{comp}.hook_X" → "LN.{comp}.X"
+    - ln_final hooks: "ln_final.hook_X" → "ln_final.X"
+    - Other layers: unchanged
 
     Args:
         layer_name: Original layer name from activations dict
@@ -36,27 +39,42 @@ def format_layer_spec(layer_name: str) -> str:
     Examples:
         >>> format_layer_spec("blocks.2.hook_resid_post")
         "L2.resid.post"
-        >>> format_layer_spec("blocks.0.hook_resid_pre")
-        "L0.resid.pre"
-        >>> format_layer_spec("blocks.10.hook_mlp_out")
-        "L10.mlp.out"
-        >>> format_layer_spec("embed")
+        >>> format_layer_spec("blocks.0.attn.hook_q")
+        "L0.attn.q"
+        >>> format_layer_spec("hook_embed")
         "embed"
+        >>> format_layer_spec("ln_final.hook_scale")
+        "ln_final.scale"
         >>> format_layer_spec("concatenated")
         "Lcat"
     """
     if layer_name == "concatenated":
         return "Lcat"
 
+    if layer_name.startswith("hook_"):
+        return layer_name[5:]
+
+    ln_final_pattern = r"^ln_final\.hook_(?P<hook_name>.+)$"
+    match = re.match(ln_final_pattern, layer_name)
+    if match:
+        return f"ln_final.{match.group('hook_name')}"
+
     if not layer_name.startswith("blocks."):
         return layer_name
 
-    block_pattern = r"^blocks\.(?P<block_num>\d+)\.hook_(?P<hook_name>.+)$"
-    match = re.match(block_pattern, layer_name)
+    direct_hook_pattern = r"^blocks\.(?P<block_num>\d+)\.hook_(?P<hook_name>.+)$"
+    match = re.match(direct_hook_pattern, layer_name)
     if match:
         block_num = match.group("block_num")
-        hook_name = match.group("hook_name")
-        simplified_hook_name = hook_name.replace("_", ".")
-        return f"L{block_num}.{simplified_hook_name}"
+        hook_name = match.group("hook_name").replace("_", ".")
+        return f"L{block_num}.{hook_name}"
+
+    component_hook_pattern = r"^blocks\.(?P<block_num>\d+)\.(?P<component>\w+)\.hook_(?P<hook_name>.+)$"
+    match = re.match(component_hook_pattern, layer_name)
+    if match:
+        block_num = match.group("block_num")
+        component = match.group("component")
+        hook_name = match.group("hook_name").replace("_", ".")
+        return f"L{block_num}.{component}.{hook_name}"
 
     return layer_name
