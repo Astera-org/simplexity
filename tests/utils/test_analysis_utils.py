@@ -1,12 +1,20 @@
 """Tests for analysis utilities."""
 
+import tempfile
+from pathlib import Path
+
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from simplexity.utils.analysis_utils import (
+    DeduplicatedDataset,
+    DeduplicationCache,
+    SerializableDeduplicatedDataset,
     build_last_token_dataset,
     build_prefix_dataset,
+    compute_inputs_hash,
     dedup_last_token_probs_sum,
     dedup_last_token_tensor_first,
     dedup_probs_sum,
@@ -391,3 +399,174 @@ class TestBuildLastTokenDataset:
         # Check layer dimensions
         assert dataset.activations_by_layer["layer_0"].shape[1] == 4
         assert dataset.activations_by_layer["layer_1"].shape[1] == 6
+
+
+class TestComputeInputsHash:
+    """Test compute_inputs_hash function."""
+
+    def test_same_inputs_same_hash(self):
+        """Test that identical inputs produce the same hash."""
+        inputs1 = jnp.array([[1, 2, 3], [4, 5, 6]])
+        inputs2 = jnp.array([[1, 2, 3], [4, 5, 6]])
+
+        assert compute_inputs_hash(inputs1) == compute_inputs_hash(inputs2)
+
+    def test_different_inputs_different_hash(self):
+        """Test that different inputs produce different hashes."""
+        inputs1 = jnp.array([[1, 2, 3], [4, 5, 6]])
+        inputs2 = jnp.array([[1, 2, 3], [4, 5, 7]])
+
+        assert compute_inputs_hash(inputs1) != compute_inputs_hash(inputs2)
+
+    def test_hash_is_deterministic(self):
+        """Test that hash is deterministic across calls."""
+        inputs = jnp.array([[1, 2, 3]])
+
+        hash1 = compute_inputs_hash(inputs)
+        hash2 = compute_inputs_hash(inputs)
+        hash3 = compute_inputs_hash(inputs)
+
+        assert hash1 == hash2 == hash3
+
+
+class TestSerializableDeduplicatedDataset:
+    """Test SerializableDeduplicatedDataset conversion."""
+
+    def test_roundtrip_with_array_beliefs(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test conversion roundtrip with array beliefs."""
+        original = build_prefix_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        serializable = SerializableDeduplicatedDataset.from_deduplicated_dataset(original)
+        recovered = serializable.to_deduplicated_dataset()
+
+        assert recovered.sequences == original.sequences
+        assert isinstance(recovered.beliefs, jax.Array)
+        assert np.allclose(np.asarray(recovered.beliefs), np.asarray(original.beliefs))
+        assert np.allclose(np.asarray(recovered.probs), np.asarray(original.probs))
+        for name in original.activations_by_layer:
+            assert np.allclose(
+                np.asarray(recovered.activations_by_layer[name]),
+                np.asarray(original.activations_by_layer[name]),
+            )
+
+    def test_roundtrip_with_tuple_beliefs(self):
+        """Test conversion roundtrip with tuple beliefs."""
+        inputs = jnp.array([[1, 2], [3, 4]])
+        beliefs = (jnp.ones((2, 2, 3)), jnp.ones((2, 2, 4)) * 2)
+        probs = jnp.array([[0.5, 0.5], [0.3, 0.7]])
+        activations = {"layer_0": jnp.ones((2, 2, 5))}
+
+        original = build_prefix_dataset(inputs, beliefs, probs, activations)
+
+        serializable = SerializableDeduplicatedDataset.from_deduplicated_dataset(original)
+        recovered = serializable.to_deduplicated_dataset()
+
+        assert recovered.sequences == original.sequences
+        assert isinstance(recovered.beliefs, tuple)
+        assert len(recovered.beliefs) == len(original.beliefs)
+        for rec_b, orig_b in zip(recovered.beliefs, original.beliefs, strict=True):
+            assert np.allclose(np.asarray(rec_b), np.asarray(orig_b))
+
+
+class TestDeduplicationCache:
+    """Test DeduplicationCache functionality."""
+
+    @pytest.fixture
+    def sample_dataset(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Create a sample deduplicated dataset for testing."""
+        return build_prefix_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+    def test_memory_cache_put_get(self, sample_dataset):
+        """Test in-memory caching."""
+        cache = DeduplicationCache()
+
+        cache.put("test_key", sample_dataset, persist=False)
+        retrieved = cache.get("test_key")
+
+        assert retrieved is not None
+        assert retrieved.sequences == sample_dataset.sequences
+
+    def test_memory_cache_miss(self):
+        """Test cache miss returns None."""
+        cache = DeduplicationCache()
+        assert cache.get("nonexistent_key") is None
+
+    def test_contains(self, sample_dataset):
+        """Test __contains__ method."""
+        cache = DeduplicationCache()
+
+        assert "test_key" not in cache
+        cache.put("test_key", sample_dataset, persist=False)
+        assert "test_key" in cache
+
+    def test_clear_specific_key(self, sample_dataset):
+        """Test clearing a specific key."""
+        cache = DeduplicationCache()
+
+        cache.put("key1", sample_dataset, persist=False)
+        cache.put("key2", sample_dataset, persist=False)
+
+        cache.clear("key1")
+
+        assert "key1" not in cache
+        assert "key2" in cache
+
+    def test_clear_all(self, sample_dataset):
+        """Test clearing all keys."""
+        cache = DeduplicationCache()
+
+        cache.put("key1", sample_dataset, persist=False)
+        cache.put("key2", sample_dataset, persist=False)
+
+        cache.clear()
+
+        assert "key1" not in cache
+        assert "key2" not in cache
+
+    def test_disk_persistence_put_get(self, sample_dataset):
+        """Test disk persistence."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = DeduplicationCache(cache_dir=tmpdir)
+
+            cache.put("test_key", sample_dataset)
+
+            cache_file = Path(tmpdir) / "test_key.pkl"
+            assert cache_file.exists()
+
+            new_cache = DeduplicationCache(cache_dir=tmpdir)
+            retrieved = new_cache.get("test_key")
+
+            assert retrieved is not None
+            assert retrieved.sequences == sample_dataset.sequences
+            assert np.allclose(np.asarray(retrieved.probs), np.asarray(sample_dataset.probs))
+
+    def test_disk_persistence_clear(self, sample_dataset):
+        """Test disk cache clearing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = DeduplicationCache(cache_dir=tmpdir)
+
+            cache.put("key1", sample_dataset)
+            cache.put("key2", sample_dataset)
+
+            cache.clear("key1")
+
+            assert not (Path(tmpdir) / "key1.pkl").exists()
+            assert (Path(tmpdir) / "key2.pkl").exists()
+
+            cache.clear()
+            assert not (Path(tmpdir) / "key2.pkl").exists()
+
+    def test_memory_cache_takes_priority(self, sample_dataset):
+        """Test that memory cache is checked before disk."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = DeduplicationCache(cache_dir=tmpdir)
+
+            cache.put("test_key", sample_dataset)
+
+            del cache._memory_cache["test_key"]
+            assert "test_key" not in cache._memory_cache
+
+            retrieved = cache.get("test_key")
+            assert retrieved is not None
+
+            assert "test_key" in cache._memory_cache

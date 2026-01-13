@@ -30,7 +30,12 @@ from simplexity.activations.visualization_configs import (
     build_activation_visualization_config,
 )
 from simplexity.activations.visualization_persistence import save_visualization_payloads
-from simplexity.utils.analysis_utils import build_deduplicated_dataset
+from simplexity.utils.analysis_utils import (
+    DeduplicatedDataset,
+    DeduplicationCache,
+    build_deduplicated_dataset,
+    compute_inputs_hash,
+)
 from simplexity.utils.pytorch_utils import torch_to_jax
 
 
@@ -74,6 +79,13 @@ def _convert_tuple_to_jax_array(value: tuple[Any, ...]) -> tuple[jax.Array, ...]
     return tuple(_to_jax_array(v) for v in value)
 
 
+class DeduplicationOptions(NamedTuple):
+    """Options that affect deduplication behavior."""
+
+    last_token_only: bool
+    skip_first_token: bool = False
+
+
 def prepare_activations(
     inputs: jax.Array | torch.Tensor | np.ndarray,
     beliefs: jax.Array
@@ -85,21 +97,37 @@ def prepare_activations(
     probs: jax.Array | torch.Tensor | np.ndarray,
     activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
     prepare_options: PrepareOptions,
+    cached_dataset: "DeduplicatedDataset | None" = None,
 ) -> PreparedActivations:
-    """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
+    """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights.
+
+    Args:
+        inputs: Token input sequences
+        beliefs: Belief states from the generative process
+        probs: Probability of each token position
+        activations: Layer activations from the model
+        prepare_options: Options controlling preprocessing behavior
+        cached_dataset: Optional pre-computed deduplicated dataset. If provided, skips deduplication.
+
+    Returns:
+        PreparedActivations with processed data and metadata
+    """
     inputs = _to_jax_array(inputs)
     beliefs = _convert_tuple_to_jax_array(beliefs) if isinstance(beliefs, tuple) else _to_jax_array(beliefs)
     probs = _to_jax_array(probs)
     activations = {name: _to_jax_array(layer) for name, layer in activations.items()}
 
-    dataset = build_deduplicated_dataset(
-        inputs=inputs,
-        beliefs=beliefs,
-        probs=probs,
-        activations_by_layer=activations,
-        select_last_token=prepare_options.last_token_only,
-        skip_first_token=prepare_options.skip_first_token,
-    )
+    if cached_dataset is not None:
+        dataset = cached_dataset
+    else:
+        dataset = build_deduplicated_dataset(
+            inputs=inputs,
+            beliefs=beliefs,
+            probs=probs,
+            activations_by_layer=activations,
+            select_last_token=prepare_options.last_token_only,
+            skip_first_token=prepare_options.skip_first_token,
+        )
 
     layer_acts = dataset.activations_by_layer
     belief_states = dataset.beliefs
@@ -136,12 +164,22 @@ class ActivationTracker:
         *,
         visualizations: Mapping[str, list[DictConfig | Mapping[str, Any]]] | None = None,
         default_backend: str = "altair",
+        deduplication_cache_dir: Path | str | None = None,
     ):
-        """Initialize the tracker with named analyses."""
+        """Initialize the tracker with named analyses.
+
+        Args:
+            analyses: Named activation analyses to run
+            visualizations: Optional visualization configurations
+            default_backend: Default visualization backend
+            deduplication_cache_dir: Optional directory for disk-based deduplication caching.
+                If provided, deduplicated datasets will be cached to disk for reuse across runs.
+        """
         self._analyses = analyses
         self._default_backend = default_backend
         self._visualization_specs: dict[str, list[ActivationVisualizationConfig]] = {}
         self._scalar_history: dict[str, list[tuple[int, float]]] = {}
+        self._deduplication_cache = DeduplicationCache(cache_dir=deduplication_cache_dir)
         if visualizations:
             for name, cfgs in visualizations.items():
                 self._visualization_specs[name] = [build_activation_visualization_config(cfg) for cfg in cfgs]
@@ -158,9 +196,52 @@ class ActivationTracker:
         probs: jax.Array | torch.Tensor | np.ndarray,
         activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
         step: int | None = None,
+        cache_key: str | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array], Mapping[str, ActivationVisualizationPayload]]:
-        """Run all analyses and return namespaced results."""
+        """Run all analyses and return namespaced results.
+
+        Args:
+            inputs: Token input sequences
+            beliefs: Belief states from the generative process
+            probs: Probability of each token position
+            activations: Layer activations from the model
+            step: Optional step number for tracking scalar history
+            cache_key: Optional cache key for deduplication caching. If provided, the deduplicated
+                dataset will be cached under this key and reused on subsequent calls with the same key.
+                If None, caching is based on the hash of the inputs array.
+
+        Returns:
+            Tuple of (scalars, arrays, visualizations)
+        """
+        inputs_jax = _to_jax_array(inputs)
+        beliefs_jax = _convert_tuple_to_jax_array(beliefs) if isinstance(beliefs, tuple) else _to_jax_array(beliefs)
+        probs_jax = _to_jax_array(probs)
+        activations_jax = {name: _to_jax_array(layer) for name, layer in activations.items()}
+
+        effective_cache_key = cache_key if cache_key is not None else compute_inputs_hash(inputs_jax)
         preprocessing_cache: dict[PrepareOptions, PreparedActivations] = {}
+        dedup_cache: dict[DeduplicationOptions, DeduplicatedDataset] = {}
+
+        for analysis in self._analyses.values():
+            dedup_options = DeduplicationOptions(
+                analysis.last_token_only,
+                analysis.skip_first_token,
+            )
+            if dedup_options not in dedup_cache:
+                last_token, skip_first = dedup_options.last_token_only, dedup_options.skip_first_token
+                full_cache_key = f"{effective_cache_key}_{last_token}_{skip_first}"
+                cached_dataset = self._deduplication_cache.get(full_cache_key)
+                if cached_dataset is None:
+                    cached_dataset = build_deduplicated_dataset(
+                        inputs=inputs_jax,
+                        beliefs=beliefs_jax,
+                        probs=probs_jax,
+                        activations_by_layer=activations_jax,
+                        select_last_token=dedup_options.last_token_only,
+                        skip_first_token=dedup_options.skip_first_token,
+                    )
+                    self._deduplication_cache.put(full_cache_key, cached_dataset)
+                dedup_cache[dedup_options] = cached_dataset
 
         for analysis in self._analyses.values():
             prepare_options = PrepareOptions(
@@ -169,17 +250,21 @@ class ActivationTracker:
                 analysis.use_probs_as_weights,
                 analysis.skip_first_token,
             )
-            config_key = prepare_options
+            dedup_options = DeduplicationOptions(
+                analysis.last_token_only,
+                analysis.skip_first_token,
+            )
 
-            if config_key not in preprocessing_cache:
+            if prepare_options not in preprocessing_cache:
                 prepared = prepare_activations(
-                    inputs=inputs,
-                    beliefs=beliefs,
-                    probs=probs,
-                    activations=activations,
+                    inputs=inputs_jax,
+                    beliefs=beliefs_jax,
+                    probs=probs_jax,
+                    activations=activations_jax,
                     prepare_options=prepare_options,
+                    cached_dataset=dedup_cache[dedup_options],
                 )
-                preprocessing_cache[config_key] = prepared
+                preprocessing_cache[prepare_options] = prepared
 
         all_scalars = {}
         all_arrays = {}
@@ -314,3 +399,12 @@ class ActivationTracker:
                 rows.append({"metric": metric_name, "step": step, "value": value})
 
         return pd.DataFrame(rows)
+
+    def clear_deduplication_cache(self, key: str | None = None) -> None:
+        """Clear the deduplication cache.
+
+        Args:
+            key: If provided, clear only entries matching this key prefix.
+                Otherwise, clear all cached entries.
+        """
+        self._deduplication_cache.clear(key)

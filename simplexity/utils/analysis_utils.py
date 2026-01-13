@@ -1,9 +1,25 @@
+import hashlib
+import pickle
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+
+
+def compute_inputs_hash(inputs: jax.Array) -> str:
+    """Compute a deterministic hash of the inputs array for cache keying.
+
+    Args:
+        inputs: (batch, seq_len) integer token ids
+
+    Returns:
+        A hex string hash that uniquely identifies the inputs content
+    """
+    inputs_np = np.asarray(inputs)
+    return hashlib.sha256(inputs_np.tobytes()).hexdigest()
 
 
 def make_prefix_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[tuple[int, int]]]:
@@ -292,3 +308,127 @@ def build_last_token_dataset(
         probs=dedup_probs,
         activations_by_layer=dedup_acts_by_layer,
     )
+
+
+@dataclass
+class SerializableDeduplicatedDataset:
+    """A serializable version of DeduplicatedDataset using numpy arrays."""
+
+    sequences: list[tuple[int, ...]]
+    beliefs: np.ndarray | tuple[np.ndarray, ...]
+    probs: np.ndarray
+    activations_by_layer: dict[str, np.ndarray]
+
+    @classmethod
+    def from_deduplicated_dataset(cls, dataset: DeduplicatedDataset) -> "SerializableDeduplicatedDataset":
+        """Convert a DeduplicatedDataset to a serializable format."""
+        beliefs = (
+            tuple(np.asarray(b) for b in dataset.beliefs)
+            if isinstance(dataset.beliefs, tuple)
+            else np.asarray(dataset.beliefs)
+        )
+        return cls(
+            sequences=dataset.sequences,
+            beliefs=beliefs,
+            probs=np.asarray(dataset.probs),
+            activations_by_layer={k: np.asarray(v) for k, v in dataset.activations_by_layer.items()},
+        )
+
+    def to_deduplicated_dataset(self) -> DeduplicatedDataset:
+        """Convert back to a DeduplicatedDataset with JAX arrays."""
+        beliefs = (
+            tuple(jnp.asarray(b) for b in self.beliefs)
+            if isinstance(self.beliefs, tuple)
+            else jnp.asarray(self.beliefs)
+        )
+        return DeduplicatedDataset(
+            sequences=self.sequences,
+            beliefs=beliefs,
+            probs=jnp.asarray(self.probs),
+            activations_by_layer={k: jnp.asarray(v) for k, v in self.activations_by_layer.items()},
+        )
+
+
+class DeduplicationCache:
+    """Cache for deduplicated datasets with optional disk persistence."""
+
+    def __init__(self, cache_dir: Path | str | None = None):
+        """Initialize the cache.
+
+        Args:
+            cache_dir: Optional directory for disk persistence. If None, only in-memory caching is used.
+        """
+        self._memory_cache: dict[str, DeduplicatedDataset] = {}
+        self._cache_dir: Path | None = Path(cache_dir) if cache_dir else None
+        if self._cache_dir:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_cache_path(self, key: str) -> Path | None:
+        """Get the disk cache path for a given key."""
+        if self._cache_dir is None:
+            return None
+        return self._cache_dir / f"{key}.pkl"
+
+    def get(self, key: str) -> DeduplicatedDataset | None:
+        """Retrieve a cached dataset by key.
+
+        Checks memory first, then disk if cache_dir was configured.
+
+        Args:
+            key: The cache key
+
+        Returns:
+            The cached DeduplicatedDataset, or None if not found
+        """
+        if key in self._memory_cache:
+            return self._memory_cache[key]
+
+        cache_path = self._get_cache_path(key)
+        if cache_path and cache_path.exists():
+            with cache_path.open("rb") as f:
+                serializable = pickle.load(f)
+            dataset = serializable.to_deduplicated_dataset()
+            self._memory_cache[key] = dataset
+            return dataset
+
+        return None
+
+    def put(self, key: str, dataset: DeduplicatedDataset, persist: bool = True) -> None:
+        """Store a dataset in the cache.
+
+        Args:
+            key: The cache key
+            dataset: The deduplicated dataset to cache
+            persist: If True and cache_dir is configured, also save to disk
+        """
+        self._memory_cache[key] = dataset
+
+        cache_path = self._get_cache_path(key)
+        if persist and cache_path:
+            serializable = SerializableDeduplicatedDataset.from_deduplicated_dataset(dataset)
+            with cache_path.open("wb") as f:
+                pickle.dump(serializable, f)
+
+    def clear(self, key: str | None = None) -> None:
+        """Clear cached entries.
+
+        Args:
+            key: If provided, clear only that key. Otherwise, clear all entries.
+        """
+        if key is None:
+            self._memory_cache.clear()
+            if self._cache_dir:
+                for cache_file in self._cache_dir.glob("*.pkl"):
+                    cache_file.unlink()
+        else:
+            self._memory_cache.pop(key, None)
+            cache_path = self._get_cache_path(key)
+            if cache_path and cache_path.exists():
+                cache_path.unlink()
+
+    def __contains__(self, key: str) -> bool:
+        """Check if a key exists in the cache."""
+        if key in self._memory_cache:
+            return True
+        cache_path = self._get_cache_path(key)
+        return cache_path is not None and cache_path.exists()
