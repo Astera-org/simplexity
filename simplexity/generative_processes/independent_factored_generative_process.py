@@ -38,7 +38,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
     """
 
     frozen_factor_indices: frozenset[int]
-    frozen_key: jax.Array
+    frozen_key: jax.Array | None
 
     def __init__(
         self,
@@ -96,9 +96,9 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             )
 
         self.frozen_factor_indices = frozen_factor_indices
-        self.frozen_key = frozen_key if frozen_key is not None else jax.random.PRNGKey(0)
+        self.frozen_key = frozen_key
 
-    def _emit_observation_dual_key(
+    def _emit_observation_per_factor(
         self, state: FactoredState, key: jax.Array, frozen_key: jax.Array
     ) -> jax.Array:
         """Sample each factor independently, choosing key based on frozen status.
@@ -143,7 +143,8 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
         Returns:
             Composite observation (scalar token)
         """
-        return self._emit_observation_dual_key(state, key, self.frozen_key)
+        frozen_key = self.frozen_key if self.frozen_key is not None else key
+        return self._emit_observation_per_factor(state, key, frozen_key)
 
     @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
     def generate(
@@ -165,13 +166,17 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             Tuple of (final_states or all_states, observations)
         """
         keys = jax.random.split(key, sequence_len)
-        frozen_keys = jax.random.split(self.frozen_key, sequence_len)
+        frozen_keys = (
+            jax.random.split(self.frozen_key, sequence_len)
+            if self.frozen_key is not None
+            else keys
+        )
 
         def gen_obs(
             carry_state: FactoredState, inputs: tuple[jax.Array, jax.Array]
         ) -> tuple[FactoredState, chex.Array]:
             key_t, frozen_key_t = inputs
-            obs = self._emit_observation_dual_key(carry_state, key_t, frozen_key_t)
+            obs = self._emit_observation_per_factor(carry_state, key_t, frozen_key_t)
             new_state = self.transition_states(carry_state, obs)
             return new_state, obs
 
@@ -179,7 +184,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             carry_state: FactoredState, inputs: tuple[jax.Array, jax.Array]
         ) -> tuple[FactoredState, tuple[FactoredState, chex.Array]]:
             key_t, frozen_key_t = inputs
-            obs = self._emit_observation_dual_key(carry_state, key_t, frozen_key_t)
+            obs = self._emit_observation_per_factor(carry_state, key_t, frozen_key_t)
             new_state = self.transition_states(carry_state, obs)
             return new_state, (carry_state, obs)
 
