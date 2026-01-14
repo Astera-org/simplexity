@@ -147,7 +147,7 @@ class TestFrozenFactors:
         keys = jax.random.split(jax.random.PRNGKey(123), batch_size)
 
         _, observations = process.generate(batch_states, keys, seq_len, False)
-        factor_tokens = jax.vmap(lambda obs: process.encoder.extract_factors_vectorized(obs))(observations)
+        factor_tokens = jax.vmap(process.encoder.extract_factors_vectorized)(observations)
 
         # Factor 1 (index 1) is frozen - should be identical across batch
         frozen_factor_sequences = factor_tokens[:, :, 1]
@@ -164,7 +164,7 @@ class TestFrozenFactors:
         keys = jax.random.split(jax.random.PRNGKey(456), batch_size)
 
         _, observations = process.generate(batch_states, keys, seq_len, False)
-        factor_tokens = jax.vmap(lambda obs: process.encoder.extract_factors_vectorized(obs))(observations)
+        factor_tokens = jax.vmap(process.encoder.extract_factors_vectorized)(observations)
 
         # Factors 0 and 2 are unfrozen - should differ across batch
         unfrozen_0_sequences = factor_tokens[:, :, 0]
@@ -185,12 +185,12 @@ class TestFrozenFactors:
         # First generation
         keys1 = jax.random.split(jax.random.PRNGKey(100), batch_size)
         _, obs1 = process.generate(batch_states, keys1, seq_len, False)
-        factor_tokens1 = jax.vmap(lambda obs: process.encoder.extract_factors_vectorized(obs))(obs1)
+        factor_tokens1 = jax.vmap(process.encoder.extract_factors_vectorized)(obs1)
 
         # Second generation with different sample keys
         keys2 = jax.random.split(jax.random.PRNGKey(200), batch_size)
         _, obs2 = process.generate(batch_states, keys2, seq_len, False)
-        factor_tokens2 = jax.vmap(lambda obs: process.encoder.extract_factors_vectorized(obs))(obs2)
+        factor_tokens2 = jax.vmap(process.encoder.extract_factors_vectorized)(obs2)
 
         # Frozen factor should be the same in both calls
         chex.assert_trees_all_equal(factor_tokens1[:, :, 1], factor_tokens2[:, :, 1])
@@ -332,7 +332,7 @@ class TestValidation:
         assert "IndependentFactoredGenerativeProcess is designed for IndependentStructure" in caplog.text
 
 
-class TestStateTransitions:
+class TestStateTransitions:  # pylint: disable=too-few-public-methods
     """Tests for state transitions with frozen factors."""
 
     def test_frozen_factor_states_match_across_batch(self, three_factor_process_with_frozen):
