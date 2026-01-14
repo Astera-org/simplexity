@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -37,8 +36,8 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
         frozen_key: JAX random key used for generating frozen sequences
     """
 
-    frozen_factor_indices: frozenset[int]
-    frozen_key: jax.Array | None
+    frozen_factor_indices: jax.Array
+    frozen_key: jax.Array
 
     def __init__(
         self,
@@ -49,7 +48,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
         initial_states: Sequence[jax.Array],
         structure: ConditionalStructure,
         device: str | None = None,
-        frozen_factor_indices: frozenset[int] = frozenset(),
+        frozen_factor_indices: Sequence[int] = (),
         frozen_key: jax.Array | None = None,
     ) -> None:
         """Initialize independent factored generative process.
@@ -85,8 +84,12 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             if idx < 0 or idx >= num_factors:
                 raise ValueError(f"Invalid frozen factor index {idx}. Must be in [0, {num_factors})")
 
-        if frozen_factor_indices and frozen_key is None:
-            raise ValueError("frozen_key is required when frozen_factor_indices is non-empty")
+        if frozen_key is None:
+            if frozen_factor_indices:
+                raise ValueError("frozen_factor_indices must be empty if frozen_key is None")
+            frozen_key = jax.random.PRNGKey(0)  # dummy value, will never be used
+        self.frozen_factor_indices = jnp.isin(jnp.arange(num_factors), jnp.array(frozen_factor_indices))
+        self.frozen_keys = jax.random.split(frozen_key, num_factors)
 
         if not isinstance(structure, IndependentStructure):
             SIMPLEXITY_LOGGER.warning(
@@ -94,41 +97,6 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
                 "Using %s may produce unexpected results.",
                 type(structure).__name__,
             )
-
-        self.frozen_factor_indices = frozen_factor_indices
-        self.frozen_key = frozen_key
-
-    def _emit_observation_per_factor(self, state: FactoredState, key: jax.Array, frozen_key: jax.Array) -> jax.Array:
-        """Sample each factor independently, choosing key based on frozen status.
-
-        Args:
-            state: Tuple of state vectors (one per factor)
-            key: JAX random key for unfrozen factors
-            frozen_key: JAX random key for frozen factors
-
-        Returns:
-            Composite observation (scalar token)
-        """
-        num_factors = len(self.component_types)
-
-        factor_keys = jax.random.split(key, num_factors)
-        frozen_factor_keys = jax.random.split(frozen_key, num_factors)
-
-        per_factor_tokens = []
-        for i in range(num_factors):
-            if i in self.frozen_factor_indices:
-                factor_key = frozen_factor_keys[i]
-            else:
-                factor_key = factor_keys[i]
-
-            T_i = self.transition_matrices[i][0]
-            norm_i = self.normalizing_eigenvectors[i][0] if self.component_types[i] == "ghmm" else None
-            p_i = compute_obs_dist_for_variant(self.component_types[i], state[i], T_i, norm_i)
-
-            token_i = jax.random.categorical(factor_key, jnp.log(p_i))
-            per_factor_tokens.append(token_i)
-
-        return self.encoder.tuple_to_token(tuple(per_factor_tokens))
 
     @eqx.filter_jit
     def emit_observation(self, state: FactoredState, key: jax.Array) -> jax.Array:
@@ -141,49 +109,20 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
         Returns:
             Composite observation (scalar token)
         """
-        frozen_key = self.frozen_key if self.frozen_key is not None else key
-        return self._emit_observation_per_factor(state, key, frozen_key)
+        num_factors = len(self.component_types)
 
-    @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
-    def generate(
-        self, state: FactoredState, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
-    ) -> tuple[FactoredState, chex.Array]:
-        """Generate sequences with frozen factor support.
+        factor_keys = jax.random.split(key, num_factors)
+        factor_keys = jnp.where(self.frozen_factor_indices, self.frozen_keys, factor_keys)
 
-        For frozen factors, the same key stream is used across all batch samples,
-        producing identical emission sequences. For unfrozen factors, each batch
-        sample uses its own key stream, producing varying sequences.
+        def get_per_factor_token(i: int, carry: jax.Array) -> jax.Array:
+            T_i = self.transition_matrices[i][0]
+            norm_i = self.normalizing_eigenvectors[i][0] if self.component_types[i] == "ghmm" else None
+            p_i = compute_obs_dist_for_variant(self.component_types[i], state[i], T_i, norm_i)
+            token_i = jax.random.categorical(factor_keys[i], jnp.log(p_i))
+            return carry.at[i].set(token_i)
 
-        Args:
-            state: Initial states, one per factor
-            key: Random key for this batch sample
-            sequence_len: Number of timesteps to generate
-            return_all_states: Whether to return all intermediate states
+        per_factor_tokens = jax.lax.fori_loop(
+            0, num_factors, get_per_factor_token, jnp.zeros(num_factors, dtype=jnp.int32)
+        )
 
-        Returns:
-            Tuple of (final_states or all_states, observations)
-        """
-        keys = jax.random.split(key, sequence_len)
-        frozen_keys = jax.random.split(self.frozen_key, sequence_len) if self.frozen_key is not None else keys
-
-        def gen_obs(
-            carry_state: FactoredState, inputs: tuple[jax.Array, jax.Array]
-        ) -> tuple[FactoredState, chex.Array]:
-            key_t, frozen_key_t = inputs
-            obs = self._emit_observation_per_factor(carry_state, key_t, frozen_key_t)
-            new_state = self.transition_states(carry_state, obs)
-            return new_state, obs
-
-        def gen_states_and_obs(
-            carry_state: FactoredState, inputs: tuple[jax.Array, jax.Array]
-        ) -> tuple[FactoredState, tuple[FactoredState, chex.Array]]:
-            key_t, frozen_key_t = inputs
-            obs = self._emit_observation_per_factor(carry_state, key_t, frozen_key_t)
-            new_state = self.transition_states(carry_state, obs)
-            return new_state, (carry_state, obs)
-
-        if return_all_states:
-            _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, (keys, frozen_keys))
-            return states, obs
-
-        return jax.lax.scan(gen_obs, state, (keys, frozen_keys))
+        return self.encoder.tuple_to_token(tuple(per_factor_tokens))
