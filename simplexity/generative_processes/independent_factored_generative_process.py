@@ -98,9 +98,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
         self.frozen_factor_indices = frozen_factor_indices
         self.frozen_key = frozen_key
 
-    def _emit_observation_per_factor(
-        self, state: FactoredState, key: jax.Array, frozen_key: jax.Array
-    ) -> jax.Array:
+    def _emit_observation_per_factor(self, state: FactoredState, key: jax.Array, frozen_key: jax.Array) -> jax.Array:
         """Sample each factor independently, choosing key based on frozen status.
 
         Args:
@@ -166,11 +164,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             Tuple of (final_states or all_states, observations)
         """
         keys = jax.random.split(key, sequence_len)
-        frozen_keys = (
-            jax.random.split(self.frozen_key, sequence_len)
-            if self.frozen_key is not None
-            else keys
-        )
+        frozen_keys = jax.random.split(self.frozen_key, sequence_len) if self.frozen_key is not None else keys
 
         def gen_obs(
             carry_state: FactoredState, inputs: tuple[jax.Array, jax.Array]
