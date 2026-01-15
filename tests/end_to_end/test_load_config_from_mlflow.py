@@ -25,13 +25,6 @@ CONFIG_DIR = str(Path(__file__).parent / "mlflow_defaults_configs")
 
 EXPERIMENT_NAME = "test_mlflow_defaults"
 
-MLFLOW_CONFIG = """
-mlflow:
-  experiment_id: {experiment_id}
-  run_id: {run_id}
-  tracking_uri: {tracking_uri}
-"""
-
 
 @pytest.fixture(scope="session")
 def setup_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
@@ -42,18 +35,7 @@ def setup_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     tracking_uri = f"sqlite:///{tmp_path.resolve()}/mlflow.db"
     mlflow.set_tracking_uri(tracking_uri)
 
-    # for config_file in Path(config_path).rglob("*.yaml"):
-    #     lines = config_file.read_text().splitlines()
-    #     new_lines = []
-    #     for line in lines:
-    #         if "tracking_uri:" in line:
-    #             key, _ = line.split(":", 1)
-    #             new_lines.append(f"{key}: {tracking_uri}")
-    #         else:
-    #             new_lines.append(line)
-    #     config_file.write_text("\n".join(new_lines) + "\n")
-
-    def log_to_mlflow(cfg: DictConfig | None, config_names: list[str], run_name: str) -> tuple[str, str]:
+    def log_to_mlflow(cfg: DictConfig | None, config_names: list[str], run_name: str) -> None:
         """Save config."""
         experiment = get_experiment(experiment_name=EXPERIMENT_NAME)
         assert experiment is not None
@@ -72,7 +54,6 @@ def setup_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
                 logger.log_config(cfg, resolve=False)
             for config_name in config_names:
                 logger.log_artifact(local_path=str(config_path / config_name), artifact_path="subdir")
-        return experiment_id, run_id
 
     def previous_run(config_name: str | None, config_names: list[str], run_name: str) -> None:
         """Previous run."""
@@ -81,17 +62,7 @@ def setup_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
         else:
             with initialize_config_dir(config_dir=str(config_path)):
                 cfg = compose(config_name=config_name)
-        experiment_id, run_id = log_to_mlflow(cfg, config_names, run_name)
-        output_path = config_path / "mlflow" / f"{run_name}.yaml"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(
-                MLFLOW_CONFIG.format(
-                    experiment_id=experiment_id,
-                    run_id=run_id,
-                    tracking_uri=tracking_uri,
-                )
-            )
+        log_to_mlflow(cfg, config_names, run_name)
 
     previous_run(config_name="prev_config_1", config_names=["special_1.yaml"], run_name="prev_run_1")
     previous_run(config_name="prev_config_2", config_names=["special_2.yaml"], run_name="prev_run_2")
@@ -145,7 +116,7 @@ def test_mlflow_defaults(setup_dir: Path, test_case: str) -> None:
     """Test mlflow defaults."""
     tracking_uri = f"sqlite:///{setup_dir.resolve()}/mlflow.db"
     with initialize_config_dir(config_dir=CONFIG_DIR):
-        cfg = compose(config_name=test_case, overrides=[f"mlflow.tracking_uri={tracking_uri}"])
-        expected = compose(config_name=f"{test_case}_expected", overrides=[f"mlflow.tracking_uri={tracking_uri}"])
+        cfg = compose(config_name=test_case, overrides=[f"load_source.tracking_uri={tracking_uri}"])
+        expected = compose(config_name=f"{test_case}_expected")
     actual = load_mlflow_defaults(cfg)
     assert actual == expected
