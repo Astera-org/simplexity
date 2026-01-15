@@ -1,0 +1,11 @@
+key: 1
+dict:
+  subkey: 10
+group_a:
+  a_key: 1
+  a_dict:
+    a_subkey: 10
+group_b:
+  b_key: 1
+  b_dict:
+    b_subkey: 10
