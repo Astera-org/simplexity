@@ -34,10 +34,11 @@ mlflow:
 
 
 @pytest.fixture(scope="session")
-def setup_dir(tmp_path: Path) -> Path:
+def setup_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Setup function."""
-    config_path = str(tmp_path / "configs")
-    shutil.copytree(CONFIGS_SRC, config_path)
+    tmp_path = tmp_path_factory.mktemp("mlflow_defaults")
+    config_path = tmp_path / "configs"
+    shutil.copytree(CONFIGS_SRC, str(config_path))
     tracking_uri = f"sqlite:///{tmp_path.resolve()}/mlflow.db"
     mlflow.set_tracking_uri(tracking_uri)
 
@@ -70,7 +71,7 @@ def setup_dir(tmp_path: Path) -> Path:
             if cfg is not None:
                 logger.log_config(cfg, resolve=False)
             for config_name in config_names:
-                logger.log_artifact(local_path=f"config_path/{config_name}", artifact_path="subdir/special.yaml")
+                logger.log_artifact(local_path=str(config_path / config_name), artifact_path="subdir/special.yaml")
         return experiment_id, run_id
 
     def previous_run(config_name: str | None, config_names: list[str], run_name: str) -> None:
@@ -78,10 +79,10 @@ def setup_dir(tmp_path: Path) -> Path:
         if config_name is None:
             cfg = None
         else:
-            with initialize_config_dir(config_dir=config_path):
+            with initialize_config_dir(config_dir=str(config_path)):
                 cfg = compose(config_name=config_name)
         experiment_id, run_id = log_to_mlflow(cfg, config_names, run_name)
-        output_path = tmp_path / "configs" / "mlflow" / f"{run_name}.yaml"
+        output_path = config_path / "mlflow" / f"{run_name}.yaml"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(
