@@ -15,20 +15,20 @@ from pathlib import Path
 import mlflow
 import pytest
 from hydra import compose, initialize_config_dir
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.structured_configs.mlflow_defaults import load_mlflow_defaults
 from simplexity.utils.mlflow_utils import get_experiment, get_run
 
-CONFIGS_SRC = str(Path(__file__).parent / "mlflow_defaults_configs" / "setup")
+CONFIG_DIR = str(Path(__file__).parent / "mlflow_defaults_configs")
 
 EXPERIMENT_NAME = "test_mlflow_defaults"
 
 MLFLOW_CONFIG = """
 mlflow:
-  experiment_name: {experiment_name}
-  run_name: {run_name}
+  experiment_id: {experiment_id}
+  run_id: {run_id}
   tracking_uri: {tracking_uri}
 """
 
@@ -38,7 +38,7 @@ def setup_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Setup function."""
     tmp_path = tmp_path_factory.mktemp("mlflow_defaults")
     config_path = tmp_path / "configs"
-    shutil.copytree(CONFIGS_SRC, str(config_path))
+    shutil.copytree(f"{CONFIG_DIR}/setup", str(config_path))
     tracking_uri = f"sqlite:///{tmp_path.resolve()}/mlflow.db"
     mlflow.set_tracking_uri(tracking_uri)
 
@@ -71,7 +71,7 @@ def setup_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
             if cfg is not None:
                 logger.log_config(cfg, resolve=False)
             for config_name in config_names:
-                logger.log_artifact(local_path=str(config_path / config_name), artifact_path="subdir/special.yaml")
+                logger.log_artifact(local_path=str(config_path / config_name), artifact_path="subdir")
         return experiment_id, run_id
 
     def previous_run(config_name: str | None, config_names: list[str], run_name: str) -> None:
@@ -117,13 +117,18 @@ def test_setup(setup_dir: Path, tmp_path: Path) -> None:
         config_path = client.download_artifacts(
             run_id=run_id, path="config.yaml", dst_path=str(tmp_path / f"config_{run_num}.yaml")
         )
-        expected_config_path = setup_dir / "configs" / f"prev_run_{run_num}.yaml"
-        with open(config_path, encoding="utf-8") as f, open(expected_config_path, encoding="utf-8") as expected_f:
-            assert f.read() == expected_f.read()
 
-        special_config_path = client.download_artifacts(
-            run_id=run_id, path="subdir/special.yaml", dst_path=str(tmp_path / f"special_{run_num}.yaml")
+        actual = OmegaConf.load(config_path)
+        with initialize_config_dir(config_dir=str(setup_dir / "configs")):
+            expected = compose(config_name=f"prev_config_{run_num}.yaml")
+        assert actual == expected
+
+        downloaded_dir = client.download_artifacts(
+            run_id=run_id,
+            path="subdir",
+            dst_path=str(tmp_path),
         )
+        special_config_path = Path(downloaded_dir) / f"special_{run_num}.yaml"
         expected_special_config_path = setup_dir / "configs" / f"special_{run_num}.yaml"
         with (
             open(special_config_path, encoding="utf-8") as f,
@@ -139,7 +144,7 @@ def test_setup(setup_dir: Path, tmp_path: Path) -> None:
 def test_mlflow_defaults(setup_dir: Path, test_case: str) -> None:
     """Test mlflow defaults."""
     tracking_uri = f"sqlite:///{setup_dir.resolve()}/mlflow.db"
-    with initialize_config_dir(config_dir=str(setup_dir / "configs")):
+    with initialize_config_dir(config_dir=CONFIG_DIR):
         cfg = compose(config_name=test_case, overrides=[f"mlflow.tracking_uri={tracking_uri}"])
         expected = compose(config_name=f"{test_case}_expected", overrides=[f"mlflow.tracking_uri={tracking_uri}"])
     actual = load_mlflow_defaults(cfg)
