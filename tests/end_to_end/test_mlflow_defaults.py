@@ -1,0 +1,145 @@
+"""End-to-end mlflow defaults tests."""
+
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
+import shutil
+from pathlib import Path
+
+import mlflow
+import pytest
+from hydra import compose, initialize_config_dir
+from omegaconf import DictConfig
+
+from simplexity.logging.mlflow_logger import MLFlowLogger
+from simplexity.structured_configs.mlflow_defaults import load_mlflow_defaults
+from simplexity.utils.mlflow_utils import get_experiment, get_run
+
+CONFIGS_SRC = str(Path(__file__).parent / "mlflow_defaults_configs" / "setup")
+
+EXPERIMENT_NAME = "test_mlflow_defaults"
+
+MLFLOW_CONFIG = """
+mlflow:
+  experiment_name: {experiment_name}
+  run_name: {run_name}
+  tracking_uri: {tracking_uri}
+"""
+
+
+@pytest.fixture(scope="session")
+def setup_dir(tmp_path: Path) -> Path:
+    """Setup function."""
+    config_path = str(tmp_path / "configs")
+    shutil.copytree(CONFIGS_SRC, config_path)
+    tracking_uri = f"sqlite:///{tmp_path.resolve()}/mlflow.db"
+    mlflow.set_tracking_uri(tracking_uri)
+
+    # for config_file in Path(config_path).rglob("*.yaml"):
+    #     lines = config_file.read_text().splitlines()
+    #     new_lines = []
+    #     for line in lines:
+    #         if "tracking_uri:" in line:
+    #             key, _ = line.split(":", 1)
+    #             new_lines.append(f"{key}: {tracking_uri}")
+    #         else:
+    #             new_lines.append(line)
+    #     config_file.write_text("\n".join(new_lines) + "\n")
+
+    def log_to_mlflow(cfg: DictConfig | None, config_names: list[str], run_name: str) -> tuple[str, str]:
+        """Save config."""
+        experiment = get_experiment(experiment_name=EXPERIMENT_NAME)
+        assert experiment is not None
+        experiment_id = experiment.experiment_id
+        run = get_run(run_name=run_name, experiment_id=experiment_id)
+        assert run is not None
+        run_id = run.info.run_id
+        with mlflow.start_run(
+            run_id=run_id,
+            experiment_id=experiment_id,
+            run_name=run_name,
+            log_system_metrics=False,
+        ):
+            logger = MLFlowLogger(tracking_uri=tracking_uri)
+            if cfg is not None:
+                logger.log_config(cfg, resolve=False)
+            for config_name in config_names:
+                logger.log_artifact(local_path=f"config_path/{config_name}", artifact_path="subdir/special.yaml")
+        return experiment_id, run_id
+
+    def previous_run(config_name: str | None, config_names: list[str], run_name: str) -> None:
+        """Previous run."""
+        if config_name is None:
+            cfg = None
+        else:
+            with initialize_config_dir(config_dir=config_path):
+                cfg = compose(config_name=config_name)
+        experiment_id, run_id = log_to_mlflow(cfg, config_names, run_name)
+        output_path = tmp_path / "configs" / "mlflow" / f"{run_name}.yaml"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(
+                MLFLOW_CONFIG.format(
+                    experiment_id=experiment_id,
+                    run_id=run_id,
+                    tracking_uri=tracking_uri,
+                )
+            )
+
+    previous_run(config_name="prev_config_1", config_names=["special_1.yaml"], run_name="prev_run_1")
+    previous_run(config_name="prev_config_2", config_names=["special_2.yaml"], run_name="prev_run_2")
+
+    return tmp_path
+
+
+def test_setup(setup_dir: Path, tmp_path: Path) -> None:
+    """Test setup."""
+    tracking_uri = f"sqlite:///{setup_dir.resolve()}/mlflow.db"
+    client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+    experiments = client.get_experiment_by_name(name=EXPERIMENT_NAME)
+    assert experiments is not None
+    experiment_id = experiments.experiment_id
+
+    for run_num in (1, 2):
+        run = client.search_runs(
+            experiment_ids=[experiment_id], filter_string=f"attributes.run_name = 'prev_run_{run_num}'"
+        )
+        assert len(run) == 1
+        run_id = run[0].info.run_id
+
+        config_path = client.download_artifacts(
+            run_id=run_id, path="config.yaml", dst_path=str(tmp_path / f"config_{run_num}.yaml")
+        )
+        expected_config_path = setup_dir / "configs" / f"prev_run_{run_num}.yaml"
+        with open(config_path, encoding="utf-8") as f, open(expected_config_path, encoding="utf-8") as expected_f:
+            assert f.read() == expected_f.read()
+
+        special_config_path = client.download_artifacts(
+            run_id=run_id, path="subdir/special.yaml", dst_path=str(tmp_path / f"special_{run_num}.yaml")
+        )
+        expected_special_config_path = setup_dir / "configs" / f"special_{run_num}.yaml"
+        with (
+            open(special_config_path, encoding="utf-8") as f,
+            open(expected_special_config_path, encoding="utf-8") as expected_f,
+        ):
+            assert f.read() == expected_f.read()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    ["full_default_copy"],
+)
+def test_mlflow_defaults(setup_dir: Path, test_case: str) -> None:
+    """Test mlflow defaults."""
+    tracking_uri = f"sqlite:///{setup_dir.resolve()}/mlflow.db"
+    with initialize_config_dir(config_dir=str(setup_dir / "configs")):
+        cfg = compose(config_name=test_case, overrides=[f"mlflow.tracking_uri={tracking_uri}"])
+        expected = compose(config_name=f"{test_case}_expected", overrides=[f"mlflow.tracking_uri={tracking_uri}"])
+    actual = load_mlflow_defaults(cfg)
+    assert actual == expected
