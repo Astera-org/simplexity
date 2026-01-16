@@ -41,11 +41,17 @@ class ActivationAnalysis(Protocol):
         """Whether the analysis needs belief state targets."""
         ...
 
+    @property
+    def requires_observation_log_probs(self) -> bool:
+        """Whether the analysis needs observation log probability targets."""
+        ...
+
     def analyze(
         self,
         activations: Mapping[str, jax.Array],
         weights: jax.Array,
         belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
+        observation_log_probs: jax.Array | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Analyze activations and return scalar metrics and arrays."""
         ...
@@ -135,6 +141,42 @@ class LinearRegressionSVDAnalysis(LayerwiseAnalysis):
             analysis_kwargs["rcond_values"] = tuple(rcond_values)
         super().__init__(
             analysis_type="linear_regression_svd",
+            last_token_only=last_token_only,
+            concat_layers=concat_layers,
+            use_probs_as_weights=use_probs_as_weights,
+            skip_first_token=skip_first_token,
+            skip_deduplication=skip_deduplication,
+            analysis_kwargs=analysis_kwargs,
+        )
+
+
+class LogProbsRegressionAnalysis(LayerwiseAnalysis):
+    """Linear regression from activations to observation log probabilities.
+
+    Regresses layer activations to log P(observed_token | state), measuring
+    how well the model's representations encode predictive probabilities.
+    """
+
+    def __init__(
+        self,
+        *,
+        last_token_only: bool = False,
+        concat_layers: bool = False,
+        use_probs_as_weights: bool = True,
+        skip_first_token: bool = False,
+        skip_deduplication: bool = False,
+        fit_intercept: bool = True,
+        use_svd: bool = False,
+        rcond_values: Sequence[float] | None = None,
+    ) -> None:
+        analysis_kwargs: dict[str, Any] = {
+            "fit_intercept": fit_intercept,
+            "use_svd": use_svd,
+        }
+        if rcond_values is not None:
+            analysis_kwargs["rcond_values"] = tuple(rcond_values)
+        super().__init__(
+            analysis_type="log_probs_regression",
             last_token_only=last_token_only,
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,

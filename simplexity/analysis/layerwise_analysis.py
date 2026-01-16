@@ -16,7 +16,7 @@ from typing import Any
 
 import jax
 
-from simplexity.analysis.linear_regression import layer_linear_regression
+from simplexity.analysis.linear_regression import layer_linear_regression, layer_log_probs_regression
 from simplexity.analysis.metric_keys import construct_layer_specific_key, format_layer_spec
 from simplexity.analysis.pca import (
     DEFAULT_VARIANCE_THRESHOLDS,
@@ -37,6 +37,7 @@ class AnalysisRegistration:
     fn: AnalysisFn
     requires_belief_states: bool
     validator: ValidatorFn
+    requires_observation_log_probs: bool = False
 
 
 def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -110,6 +111,31 @@ def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _validate_log_probs_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    provided = dict(kwargs or {})
+    allowed = {"fit_intercept", "use_svd", "rcond_values"}
+    unexpected = set(provided) - allowed
+    if unexpected:
+        raise ValueError(f"Unexpected log_probs_regression kwargs: {sorted(unexpected)}")
+    resolved_kwargs = {}
+    resolved_kwargs["fit_intercept"] = bool(provided.get("fit_intercept", True))
+    rcond_values = provided.get("rcond_values")
+    should_use_svd = rcond_values is not None
+    use_svd = bool(provided.get("use_svd", should_use_svd))
+    resolved_kwargs["use_svd"] = use_svd
+    if use_svd:
+        if rcond_values is not None:
+            if not isinstance(rcond_values, (list, tuple)):
+                raise TypeError("rcond_values must be a sequence of floats")
+            if len(rcond_values) == 0:
+                raise ValueError("rcond_values must not be empty")
+            rcond_values = tuple(float(v) for v in rcond_values)
+        resolved_kwargs["rcond_values"] = rcond_values
+    elif rcond_values is not None:
+        raise ValueError("rcond_values are only used when use_svd is True")
+    return resolved_kwargs
+
+
 ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
     "linear_regression": AnalysisRegistration(
         fn=layer_linear_regression,
@@ -125,6 +151,12 @@ ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
         fn=layer_pca_analysis,
         requires_belief_states=False,
         validator=_validate_pca_kwargs,
+    ),
+    "log_probs_regression": AnalysisRegistration(
+        fn=layer_log_probs_regression,
+        requires_belief_states=False,
+        validator=_validate_log_probs_regression_kwargs,
+        requires_observation_log_probs=True,
     ),
 }
 
@@ -149,6 +181,7 @@ class LayerwiseAnalysis:
         self._analysis_fn = registration.fn
         self._analysis_kwargs = registration.validator(analysis_kwargs)
         self._requires_belief_states = registration.requires_belief_states
+        self._requires_observation_log_probs = registration.requires_observation_log_probs
         self._last_token_only = last_token_only
         self._concat_layers = concat_layers
         self._use_probs_as_weights = use_probs_as_weights
@@ -176,6 +209,11 @@ class LayerwiseAnalysis:
         return self._requires_belief_states
 
     @property
+    def requires_observation_log_probs(self) -> bool:
+        """Whether the analysis needs observation log probability targets."""
+        return self._requires_observation_log_probs
+
+    @property
     def skip_first_token(self) -> bool:
         """Whether to skip the first token (useful for off-manifold initial states)."""
         return self._skip_first_token
@@ -190,19 +228,30 @@ class LayerwiseAnalysis:
         activations: Mapping[str, jax.Array],
         weights: jax.Array,
         belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
+        observation_log_probs: jax.Array | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Analyze activations and return namespaced scalar metrics and arrays."""
         if self._requires_belief_states and belief_states is None:
             raise ValueError("This analysis requires belief_states")
+        if self._requires_observation_log_probs and observation_log_probs is None:
+            raise ValueError("This analysis requires observation_log_probs")
         scalars: dict[str, float] = {}
         arrays: dict[str, jax.Array] = {}
         for layer_name, layer_activations in activations.items():
-            layer_scalars, layer_arrays = self._analysis_fn(
-                layer_activations,
-                weights,
-                belief_states,
-                **self._analysis_kwargs,
-            )
+            if self._requires_observation_log_probs:
+                layer_scalars, layer_arrays = self._analysis_fn(
+                    layer_activations,
+                    weights,
+                    observation_log_probs,
+                    **self._analysis_kwargs,
+                )
+            else:
+                layer_scalars, layer_arrays = self._analysis_fn(
+                    layer_activations,
+                    weights,
+                    belief_states,
+                    **self._analysis_kwargs,
+                )
             formatted_layer_name = format_layer_spec(layer_name)
             for key, value in layer_scalars.items():
                 constructed_key = construct_layer_specific_key(key, formatted_layer_name)

@@ -17,6 +17,7 @@ import pytest
 from simplexity.activations.activation_analyses import (
     LinearRegressionAnalysis,
     LinearRegressionSVDAnalysis,
+    LogProbsRegressionAnalysis,
     PcaAnalysis,
 )
 from simplexity.activations.activation_tracker import ActivationTracker, PrepareOptions, prepare_activations
@@ -1197,3 +1198,185 @@ class TestScalarSeriesMapping:
 
         with pytest.raises(ConfigValidationError):
             _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0"], "test_analysis")
+
+
+class TestLogProbsRegressionAnalysis:
+    """Test LogProbsRegressionAnalysis for observation log probability regression."""
+
+    @pytest.fixture
+    def log_probs_data(self):
+        """Create synthetic data with observation log probabilities."""
+        batch_size = 4
+        seq_len = 5
+        belief_dim = 3
+        d_layer0 = 8
+        d_layer1 = 12
+
+        inputs = jnp.array(
+            [
+                [1, 2, 3, 4, 5],
+                [1, 2, 3, 6, 7],
+                [1, 2, 8, 9, 10],
+                [1, 2, 3, 4, 11],
+            ]
+        )
+
+        beliefs = jnp.ones((batch_size, seq_len, belief_dim)) * 0.5
+        probs = jnp.ones((batch_size, seq_len)) * 0.1
+        observation_log_probs = jnp.ones((batch_size, seq_len)) * -0.5
+
+        activations = {
+            "layer_0": jnp.ones((batch_size, seq_len, d_layer0)) * 0.3,
+            "layer_1": jnp.ones((batch_size, seq_len, d_layer1)) * 0.7,
+        }
+
+        return {
+            "inputs": inputs,
+            "beliefs": beliefs,
+            "probs": probs,
+            "observation_log_probs": observation_log_probs,
+            "activations": activations,
+            "batch_size": batch_size,
+            "seq_len": seq_len,
+            "d_layer0": d_layer0,
+            "d_layer1": d_layer1,
+        }
+
+    def test_basic_log_probs_regression(self, log_probs_data):
+        """Test basic log probs regression analysis."""
+        analysis = LogProbsRegressionAnalysis()
+
+        prepared = prepare_activations(
+            log_probs_data["inputs"],
+            log_probs_data["beliefs"],
+            log_probs_data["probs"],
+            log_probs_data["activations"],
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
+            observation_log_probs=log_probs_data["observation_log_probs"],
+        )
+
+        scalars, arrays = analysis.analyze(
+            activations=prepared.activations,
+            weights=prepared.weights,
+            observation_log_probs=prepared.observation_log_probs,
+        )
+
+        assert "r2/layer_0" in scalars
+        assert "rmse/layer_0" in scalars
+        assert "mae/layer_0" in scalars
+        assert "dist/layer_0" in scalars
+        assert "r2/layer_1" in scalars
+
+        assert "projected/layer_0" in arrays
+        assert "projected/layer_1" in arrays
+
+        assert arrays["projected/layer_0"].shape == (log_probs_data["batch_size"], 1)
+        assert arrays["projected/layer_1"].shape == (log_probs_data["batch_size"], 1)
+
+    def test_requires_observation_log_probs(self, log_probs_data):
+        """Test that analysis raises error without observation_log_probs."""
+        analysis = LogProbsRegressionAnalysis()
+
+        prepared = prepare_activations(
+            log_probs_data["inputs"],
+            log_probs_data["beliefs"],
+            log_probs_data["probs"],
+            log_probs_data["activations"],
+            prepare_options=PrepareOptions(
+                last_token_only=True,
+                concat_layers=False,
+                use_probs_as_weights=False,
+            ),
+        )
+
+        with pytest.raises(ValueError, match="requires observation_log_probs"):
+            analysis.analyze(
+                activations=prepared.activations,
+                weights=prepared.weights,
+                observation_log_probs=None,
+            )
+
+    def test_tracker_with_log_probs_regression(self, log_probs_data):
+        """Test ActivationTracker with LogProbsRegressionAnalysis."""
+        tracker = ActivationTracker(
+            {
+                "log_probs": LogProbsRegressionAnalysis(
+                    last_token_only=True,
+                    concat_layers=False,
+                ),
+                "pca": PcaAnalysis(
+                    n_components=2,
+                    last_token_only=True,
+                    concat_layers=False,
+                ),
+            }
+        )
+
+        scalars, arrays, visualizations = tracker.analyze(
+            inputs=log_probs_data["inputs"],
+            beliefs=log_probs_data["beliefs"],
+            probs=log_probs_data["probs"],
+            activations=log_probs_data["activations"],
+            observation_log_probs=log_probs_data["observation_log_probs"],
+        )
+
+        assert "log_probs/r2/layer_0" in scalars
+        assert "log_probs/rmse/layer_0" in scalars
+        assert "log_probs/r2/layer_1" in scalars
+        assert "pca/var_exp/layer_0" in scalars
+
+        assert "log_probs/projected/layer_0" in arrays
+        assert "log_probs/projected/layer_1" in arrays
+        assert visualizations == {}
+
+    def test_tracker_raises_without_log_probs(self, log_probs_data):
+        """Test ActivationTracker raises when log_probs required but not provided."""
+        tracker = ActivationTracker(
+            {
+                "log_probs": LogProbsRegressionAnalysis(
+                    last_token_only=True,
+                    concat_layers=False,
+                ),
+            }
+        )
+
+        with pytest.raises(ValueError, match="requires observation_log_probs"):
+            tracker.analyze(
+                inputs=log_probs_data["inputs"],
+                beliefs=log_probs_data["beliefs"],
+                probs=log_probs_data["probs"],
+                activations=log_probs_data["activations"],
+            )
+
+    def test_mixed_analyses_with_log_probs(self, log_probs_data):
+        """Test tracker with both belief state and log probs regression."""
+        tracker = ActivationTracker(
+            {
+                "belief_regression": LinearRegressionAnalysis(
+                    last_token_only=True,
+                    concat_layers=False,
+                ),
+                "log_probs_regression": LogProbsRegressionAnalysis(
+                    last_token_only=True,
+                    concat_layers=False,
+                ),
+            }
+        )
+
+        scalars, arrays, _ = tracker.analyze(
+            inputs=log_probs_data["inputs"],
+            beliefs=log_probs_data["beliefs"],
+            probs=log_probs_data["probs"],
+            activations=log_probs_data["activations"],
+            observation_log_probs=log_probs_data["observation_log_probs"],
+        )
+
+        assert "belief_regression/r2/layer_0" in scalars
+        assert "log_probs_regression/r2/layer_0" in scalars
+
+        assert "belief_regression/projected/layer_0" in arrays
+        assert "log_probs_regression/projected/layer_0" in arrays

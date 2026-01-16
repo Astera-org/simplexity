@@ -52,16 +52,21 @@ def generate_data_batch_with_full_history(
     bos_token: int | None = None,
     eos_token: int | None = None,
 ) -> dict[str, jax.Array | tuple[jax.Array, ...]]:
-    """Generate sequences plus per-token belief states and prefix probabilities."""
+    """Generate sequences plus per-token belief states, prefix probabilities, and observation log probs."""
     batch_keys = jax.random.split(key, batch_size)
     belief_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, True)
 
     prefix_probs = _compute_prefix_probabilities(data_generator, gen_states, tokens)
+    observation_log_probs = _compute_observation_log_probs(data_generator, gen_states, tokens)
 
     if bos_token is not None:
         tokens = jnp.concatenate([jnp.full((batch_size, 1), bos_token), tokens], axis=1)
         prefix_probs = jnp.concatenate(
             [jnp.ones((batch_size, 1), dtype=prefix_probs.dtype), prefix_probs],
+            axis=1,
+        )
+        observation_log_probs = jnp.concatenate(
+            [jnp.zeros((batch_size, 1), dtype=observation_log_probs.dtype), observation_log_probs],
             axis=1,
         )
     if eos_token is not None:
@@ -70,10 +75,15 @@ def generate_data_batch_with_full_history(
             [prefix_probs, prefix_probs[:, -1:, ...]],
             axis=1,
         )
+        observation_log_probs = jnp.concatenate(
+            [observation_log_probs, observation_log_probs[:, -1:, ...]],
+            axis=1,
+        )
 
     inputs = tokens[:, :-1]
     labels = tokens[:, 1:]
     prefix_probs = prefix_probs[:, : inputs.shape[1]]
+    observation_log_probs = observation_log_probs[:, : inputs.shape[1]]
 
     if bos_token is None:
         # Drop first belief state since it's the initial state before any token
@@ -91,6 +101,7 @@ def generate_data_batch_with_full_history(
     result = {
         "belief_states": belief_states,
         "prefix_probabilities": prefix_probs,
+        "observation_log_probs": observation_log_probs,
         "inputs": inputs,
         "labels": labels,
     }
@@ -112,5 +123,34 @@ def _compute_prefix_probabilities(
 
         _, token_probs = jax.lax.scan(step, state, seq)
         return jnp.cumprod(token_probs, axis=0)
+
+    return jax.vmap(run_sequence)(initial_states, tokens)
+
+
+def _compute_observation_log_probs(
+    data_generator: GenerativeProcess,
+    initial_states: jax.Array | tuple[jax.Array, ...],
+    tokens: jax.Array,
+) -> jax.Array:
+    """Compute log P(observed_token | state) at each position.
+
+    Args:
+        data_generator: The generative process used to compute observation probabilities.
+        initial_states: Initial states for each sequence in the batch.
+        tokens: Token sequences of shape (batch, seq_len).
+
+    Returns:
+        Log probabilities of shape (batch, seq_len) where each entry is log P(token | state).
+    """
+
+    def run_sequence(state: jax.Array | tuple[jax.Array, ...], seq: jax.Array) -> jax.Array:
+        def step(carry_state: Any, token: jax.Array) -> tuple[Any, jax.Array]:
+            obs_probs = data_generator.observation_probability_distribution(carry_state)
+            log_prob = jnp.log(obs_probs[token])
+            new_state = data_generator.transition_states(carry_state, token)
+            return new_state, log_prob
+
+        _, log_probs = jax.lax.scan(step, state, seq)
+        return log_probs
 
     return jax.vmap(run_sequence)(initial_states, tokens)

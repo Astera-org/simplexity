@@ -582,3 +582,32 @@ def layer_linear_regression(
         use_svd,
         **kwargs,
     )
+
+
+def layer_log_probs_regression(
+    layer_activations: jax.Array,
+    weights: jax.Array,
+    observation_log_probs: jax.Array | None,
+    use_svd: bool = False,
+    **kwargs: Any,
+) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+    """Layer-wise regression helper for observation log probabilities.
+
+    Args:
+        layer_activations: Neural network activations for a single layer
+        weights: Sample weights for weighted regression
+        observation_log_probs: Target log probabilities, shape (n_samples,)
+        use_svd: If True, use SVD-based regression instead of standard least squares
+        **kwargs: Additional arguments passed to regression function (fit_intercept, rcond_values, etc.)
+
+    Returns:
+        scalars: Dictionary of scalar metrics (r2, rmse, mae, dist)
+        arrays: Dictionary of arrays (projected predictions, targets, coeffs)
+    """
+    if observation_log_probs is None or observation_log_probs.size == 0:
+        raise ValueError("log_probs_regression requires observation_log_probs")
+
+    regression_fn = linear_regression_svd if use_svd else linear_regression
+
+    targets = observation_log_probs[:, None] if observation_log_probs.ndim == 1 else observation_log_probs
+    return regression_fn(layer_activations, targets, weights, **kwargs)

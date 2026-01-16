@@ -84,6 +84,42 @@ def dedup_probs_sum(
     return dedup_probs, prefixes
 
 
+def dedup_scalar_first(
+    values: jax.Array,
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
+) -> tuple[jax.Array, list[tuple[int, ...]]]:
+    """Deduplicate a (batch, seq_len) scalar tensor by prefixes, taking the first occurrence."""
+    dedup_values = []
+    prefixes: list[tuple[int, ...]] = []
+
+    values_np = np.asarray(values)
+
+    for prefix, idxs in prefix_to_indices.items():
+        seq_idx, pos = idxs[0]
+        dedup_values.append(float(values_np[seq_idx, pos]))
+        prefixes.append(prefix)
+
+    return jnp.array(dedup_values, dtype=values.dtype), prefixes
+
+
+def dedup_last_token_scalar_first(
+    values: jax.Array,
+    sequence_to_indices: dict[tuple[int, ...], list[int]],
+) -> tuple[jax.Array, list[tuple[int, ...]]]:
+    """Deduplicate a (batch,) scalar tensor by full sequences, taking the first occurrence."""
+    dedup_values = []
+    sequences: list[tuple[int, ...]] = []
+
+    values_np = np.asarray(values)
+
+    for seq, idxs in sequence_to_indices.items():
+        seq_idx = idxs[0]
+        dedup_values.append(float(values_np[seq_idx]))
+        sequences.append(seq)
+
+    return jnp.array(dedup_values, dtype=values.dtype), sequences
+
+
 def make_sequence_groups(inputs: jax.Array) -> dict[tuple[int, ...], list[int]]:
     """Group sequences by full sequence.
 
@@ -171,6 +207,7 @@ class DeduplicatedDataset:
     beliefs: jax.Array | tuple[jax.Array, ...]
     probs: jax.Array
     activations_by_layer: dict[str, jax.Array]
+    observation_log_probs: jax.Array | None = None
 
 
 def build_raw_dataset(
@@ -179,6 +216,7 @@ def build_raw_dataset(
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
     skip_first_token: bool = False,
+    observation_log_probs: jax.Array | None = None,
 ) -> DeduplicatedDataset:
     """Return dataset without deduplication - flatten batch x seq_len using vectorized operations."""
     if skip_first_token:
@@ -189,6 +227,8 @@ def build_raw_dataset(
             beliefs = beliefs[:, 1:, ...]
         probs = probs[:, 1:]
         activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
+        if observation_log_probs is not None:
+            observation_log_probs = observation_log_probs[:, 1:]
 
     batch_size, seq_len = inputs.shape
     n_samples = batch_size * seq_len
@@ -207,6 +247,11 @@ def build_raw_dataset(
     else:
         raise ValueError("Total probability mass is zero")
 
+    # Flatten observation_log_probs if provided
+    flat_observation_log_probs = None
+    if observation_log_probs is not None:
+        flat_observation_log_probs = observation_log_probs.reshape(n_samples)
+
     # Flatten activations
     flat_activations = {name: acts.reshape(n_samples, *acts.shape[2:]) for name, acts in activations_by_layer.items()}
 
@@ -221,6 +266,7 @@ def build_raw_dataset(
         beliefs=flat_beliefs,
         probs=flat_probs,
         activations_by_layer=flat_activations,
+        observation_log_probs=flat_observation_log_probs,
     )
 
 
@@ -230,6 +276,7 @@ def build_raw_last_token_dataset(
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
     skip_first_token: bool = False,
+    observation_log_probs: jax.Array | None = None,
 ) -> DeduplicatedDataset:
     """Return last-token dataset without deduplication - keep all batch samples."""
     if skip_first_token:
@@ -240,6 +287,8 @@ def build_raw_last_token_dataset(
             beliefs = beliefs[:, 1:, ...]
         probs = probs[:, 1:]
         activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
+        if observation_log_probs is not None:
+            observation_log_probs = observation_log_probs[:, 1:]
 
     # Select last token
     if isinstance(beliefs, tuple):
@@ -248,6 +297,9 @@ def build_raw_last_token_dataset(
         last_beliefs = beliefs[:, -1, :]
     last_probs = probs[:, -1]
     last_activations = {name: acts[:, -1, :] for name, acts in activations_by_layer.items()}
+    last_observation_log_probs = None
+    if observation_log_probs is not None:
+        last_observation_log_probs = observation_log_probs[:, -1]
 
     # Normalize probs
     total_mass = last_probs.sum()
@@ -266,6 +318,7 @@ def build_raw_last_token_dataset(
         beliefs=last_beliefs,
         probs=last_probs,
         activations_by_layer=last_activations,
+        observation_log_probs=last_observation_log_probs,
     )
 
 
@@ -277,6 +330,7 @@ def build_deduplicated_dataset(
     select_last_token: bool = False,
     skip_first_token: bool = False,
     skip_deduplication: bool = False,
+    observation_log_probs: jax.Array | None = None,
 ) -> DeduplicatedDataset:
     """Build dataset, optionally deduplicating by prefix or sequence."""
     if skip_deduplication:
@@ -287,6 +341,7 @@ def build_deduplicated_dataset(
                 probs,
                 activations_by_layer,
                 skip_first_token=skip_first_token,
+                observation_log_probs=observation_log_probs,
             )
         else:
             return build_raw_dataset(
@@ -295,6 +350,7 @@ def build_deduplicated_dataset(
                 probs,
                 activations_by_layer,
                 skip_first_token=skip_first_token,
+                observation_log_probs=observation_log_probs,
             )
     if select_last_token:
         return build_last_token_dataset(
@@ -303,6 +359,7 @@ def build_deduplicated_dataset(
             probs,
             activations_by_layer,
             skip_first_token=skip_first_token,
+            observation_log_probs=observation_log_probs,
         )
     else:
         return build_prefix_dataset(
@@ -311,6 +368,7 @@ def build_deduplicated_dataset(
             probs,
             activations_by_layer,
             skip_first_token=skip_first_token,
+            observation_log_probs=observation_log_probs,
         )
 
 
@@ -320,6 +378,7 @@ def build_prefix_dataset(
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
     skip_first_token: bool = False,
+    observation_log_probs: jax.Array | None = None,
 ) -> DeduplicatedDataset:
     """Deduplicate everything by prefix."""
     if skip_first_token:
@@ -330,6 +389,8 @@ def build_prefix_dataset(
             beliefs = beliefs[:, 1:, ...]
         probs = probs[:, 1:]
         activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
+        if observation_log_probs is not None:
+            observation_log_probs = observation_log_probs[:, 1:]
     prefix_to_indices = make_prefix_groups(inputs)
 
     dedup_beliefs, prefixes = (
@@ -341,6 +402,12 @@ def build_prefix_dataset(
 
     if prefixes != prefixes2:
         raise ValueError("Internal prefix ordering mismatch")
+
+    dedup_observation_log_probs = None
+    if observation_log_probs is not None:
+        dedup_observation_log_probs, prefixes_log = dedup_scalar_first(observation_log_probs, prefix_to_indices)
+        if prefixes_log != prefixes:
+            raise ValueError("Internal prefix ordering mismatch for observation_log_probs")
 
     dedup_acts_by_layer = {}
     for name, acts in activations_by_layer.items():
@@ -354,6 +421,7 @@ def build_prefix_dataset(
         beliefs=dedup_beliefs,
         probs=dedup_probs,
         activations_by_layer=dedup_acts_by_layer,
+        observation_log_probs=dedup_observation_log_probs,
     )
 
 
@@ -363,6 +431,7 @@ def build_last_token_dataset(
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
     skip_first_token: bool = False,
+    observation_log_probs: jax.Array | None = None,
 ) -> DeduplicatedDataset:
     """Deduplicate everything by full sequence."""
     if skip_first_token:
@@ -373,12 +442,16 @@ def build_last_token_dataset(
             beliefs = beliefs[:, 1:, ...]
         probs = probs[:, 1:]
         activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
+        if observation_log_probs is not None:
+            observation_log_probs = observation_log_probs[:, 1:]
     if isinstance(beliefs, tuple):
         beliefs = tuple(b[:, -1, :] for b in beliefs)
     else:
         beliefs = beliefs[:, -1, :]
     probs = probs[:, -1]
     activations_by_layer = {name: acts[:, -1, :] for name, acts in activations_by_layer.items()}
+    if observation_log_probs is not None:
+        observation_log_probs = observation_log_probs[:, -1]
     sequence_to_indices = make_sequence_groups(inputs)
 
     # Dedup beliefs & probs
@@ -391,6 +464,14 @@ def build_last_token_dataset(
 
     if sequences != sequences2:
         raise ValueError("Internal sequence ordering mismatch")
+
+    dedup_observation_log_probs = None
+    if observation_log_probs is not None:
+        dedup_observation_log_probs, sequences_log = dedup_last_token_scalar_first(
+            observation_log_probs, sequence_to_indices
+        )
+        if sequences_log != sequences:
+            raise ValueError("Internal sequence ordering mismatch for observation_log_probs")
 
     # Dedup activations per layer
     dedup_acts_by_layer = {}
@@ -405,4 +486,5 @@ def build_last_token_dataset(
         beliefs=dedup_beliefs,
         probs=dedup_probs,
         activations_by_layer=dedup_acts_by_layer,
+        observation_log_probs=dedup_observation_log_probs,
     )

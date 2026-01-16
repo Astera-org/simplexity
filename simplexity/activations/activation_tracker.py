@@ -42,6 +42,7 @@ class PreparedActivations:
     belief_states: jax.Array | tuple[jax.Array, ...] | None
     weights: jax.Array
     metadata: PreparedMetadata
+    observation_log_probs: jax.Array | None = None
 
 
 class PrepareOptions(NamedTuple):
@@ -86,12 +87,14 @@ def prepare_activations(
     probs: jax.Array | torch.Tensor | np.ndarray,
     activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
     prepare_options: PrepareOptions,
+    observation_log_probs: jax.Array | torch.Tensor | np.ndarray | None = None,
 ) -> PreparedActivations:
     """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
     inputs = _to_jax_array(inputs)
     beliefs = _convert_tuple_to_jax_array(beliefs) if isinstance(beliefs, tuple) else _to_jax_array(beliefs)
     probs = _to_jax_array(probs)
     activations = {name: _to_jax_array(layer) for name, layer in activations.items()}
+    obs_log_probs = _to_jax_array(observation_log_probs) if observation_log_probs is not None else None
 
     dataset = build_deduplicated_dataset(
         inputs=inputs,
@@ -101,6 +104,7 @@ def prepare_activations(
         select_last_token=prepare_options.last_token_only,
         skip_first_token=prepare_options.skip_first_token,
         skip_deduplication=prepare_options.skip_deduplication,
+        observation_log_probs=obs_log_probs,
     )
 
     layer_acts = dataset.activations_by_layer
@@ -126,6 +130,7 @@ def prepare_activations(
         belief_states=belief_states,
         weights=weights,
         metadata=metadata,
+        observation_log_probs=dataset.observation_log_probs,
     )
 
 
@@ -160,6 +165,7 @@ class ActivationTracker:
         probs: jax.Array | torch.Tensor | np.ndarray,
         activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
         step: int | None = None,
+        observation_log_probs: jax.Array | torch.Tensor | np.ndarray | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array], Mapping[str, ActivationVisualizationPayload]]:
         """Run all analyses and return namespaced results."""
         preprocessing_cache: dict[PrepareOptions, PreparedActivations] = {}
@@ -181,6 +187,7 @@ class ActivationTracker:
                     probs=probs,
                     activations=activations,
                     prepare_options=prepare_options,
+                    observation_log_probs=observation_log_probs,
                 )
                 preprocessing_cache[config_key] = prepared
 
@@ -201,16 +208,23 @@ class ActivationTracker:
             prepared_activations: Mapping[str, jax.Array] = prepared.activations
             prepared_beliefs = prepared.belief_states
             prepared_weights = prepared.weights
+            prepared_obs_log_probs = prepared.observation_log_probs
 
             if analysis.requires_belief_states and prepared_beliefs is None:
                 raise ValueError(
                     f"Analysis '{analysis_name}' requires belief_states but none available after preprocessing."
                 )
 
+            if analysis.requires_observation_log_probs and prepared_obs_log_probs is None:
+                raise ValueError(
+                    f"Analysis '{analysis_name}' requires observation_log_probs but none available after preprocessing."
+                )
+
             scalars, arrays = analysis.analyze(
                 activations=prepared_activations,
                 weights=prepared_weights,
                 belief_states=prepared_beliefs,
+                observation_log_probs=prepared_obs_log_probs,
             )
 
             namespaced_scalars = {f"{analysis_name}/{key}": value for key, value in scalars.items()}
