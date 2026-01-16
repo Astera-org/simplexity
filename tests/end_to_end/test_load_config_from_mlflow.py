@@ -117,6 +117,19 @@ def test_mlflow_defaults(setup_dir: Path, test_case: str) -> None:
     tracking_uri = f"sqlite:///{setup_dir.resolve()}/mlflow.db"
     with initialize_config_dir(config_dir=CONFIG_DIR):
         cfg = compose(config_name=test_case, overrides=[f"load_source.tracking_uri={tracking_uri}"])
-        expected = compose(config_name=f"{test_case}_expected")
     actual = load_mlflow_defaults(cfg)
+    experiment_id = OmegaConf.select(actual, "load_source.experiment_id")
+    assert experiment_id is not None
+    run_id = OmegaConf.select(actual, "load_source.run_id")
+    assert run_id is not None
+    with initialize_config_dir(config_dir=CONFIG_DIR):
+        expected = compose(
+            config_name=f"{test_case}_expected",
+            overrides=[
+                f"load_source.tracking_uri={tracking_uri}",
+                f'load_source.experiment_id="{experiment_id}"',
+                f'load_source.run_id="{run_id}"',
+            ],
+        )
+
     assert actual == expected

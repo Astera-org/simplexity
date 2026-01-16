@@ -110,11 +110,14 @@ def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | Non
 
     tracking_uri: str | None = target_node.get("tracking_uri")
     run_id: str = target_node.get("run_id")
+    artifact_path = parsed_entry.artifact_path
+    if not artifact_path.endswith((".yaml", ".yml")):
+        artifact_path = f"{artifact_path}.yaml"
     client = MlflowClient(tracking_uri=tracking_uri)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         try:
-            local_path = client.download_artifacts(run_id=run_id, path=parsed_entry.artifact_path, dst_path=tmp_dir)
+            local_path = client.download_artifacts(run_id=run_id, path=artifact_path, dst_path=tmp_dir)
         except Exception as e:
             SIMPLEXITY_LOGGER.warning("Failed to download artifact from MLflow '%s': %s", parsed_entry.target, e)
             return None
@@ -136,6 +139,28 @@ def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | Non
         return None
 
     return selected_config
+
+
+def _normalize_item(item: str | DictConfig) -> str:
+    """Normalize an item to a string format.
+
+    If item is a DictConfig with a single key-value pair:
+    - If value is "config" (the default artifact), treat as just the key (no option)
+    - Otherwise, convert to "key: value" format
+    Otherwise, convert to string.
+    """
+    if isinstance(item, DictConfig):
+        keys = list(item.keys())
+        if len(keys) == 1:
+            key = keys[0]
+            value = item[key]
+            # If value is "config" (default artifact), treat as simple CONFIG entry
+            if value == "config":
+                return key
+            return f"{key}: {value}"
+        # Multiple keys - convert entire dict to string representation
+        return str(item)
+    return str(item)
 
 
 def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictConfig:
@@ -177,6 +202,8 @@ def load_mlflow_defaults(cfg: DictConfig) -> DictConfig:
     accumulator = OmegaConf.create()
 
     for item in mlflow_defaults:
-        accumulator = _process_entry(cfg, accumulator, item)
+        normalized_item = _normalize_item(item)
+        accumulator = _process_entry(cfg, accumulator, normalized_item)
 
+    del accumulator["mlflow_defaults"]
     return accumulator
