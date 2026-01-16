@@ -143,7 +143,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         # Store noise parameters
         self.noise_epsilon = noise_epsilon
         if noise_epsilon > 0.0:
-            vocab_sizes_tuple = tuple(int(v) for v in vocab_sizes)
+            vocab_sizes_tuple = tuple(map(int, vocab_sizes))
             self._blur_matrix = compute_joint_blur_matrix(vocab_sizes_tuple, noise_epsilon)
         else:
             self._blur_matrix = None
