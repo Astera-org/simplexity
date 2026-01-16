@@ -609,3 +609,44 @@ def layer_log_probs_regression(
 
     regression_fn = linear_regression_svd if use_svd else linear_regression
     return regression_fn(layer_activations, observation_log_probs, weights, **kwargs)
+
+
+def layer_factor_log_probs_regression(
+    layer_activations: jax.Array,
+    weights: jax.Array,
+    factor_observation_log_probs: tuple[jax.Array, ...] | None,
+    use_svd: bool = False,
+    **kwargs: Any,
+) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
+    """Layer-wise regression helper for per-factor observation log probability distributions.
+
+    For factored generative processes, regresses layer activations to log P(X_i | state_i)
+    for each factor i separately.
+
+    Args:
+        layer_activations: Neural network activations for a single layer, shape (n_samples, d_model)
+        weights: Sample weights for weighted regression, shape (n_samples,)
+        factor_observation_log_probs: Tuple of target log probability distributions per factor,
+            each with shape (n_samples, vocab_size_i)
+        use_svd: If True, use SVD-based regression instead of standard least squares
+        **kwargs: Additional arguments passed to regression function (fit_intercept, rcond_values, etc.)
+
+    Returns:
+        scalars: Dictionary of scalar metrics namespaced by factor (e.g., "F0/r2", "F1/rmse")
+        arrays: Dictionary of arrays namespaced by factor (e.g., "F0/projected", "F1/coeffs")
+    """
+    if factor_observation_log_probs is None or len(factor_observation_log_probs) == 0:
+        raise ValueError("factor_log_probs_regression requires factor_observation_log_probs")
+
+    regression_fn = linear_regression_svd if use_svd else linear_regression
+
+    scalars: dict[str, float] = {}
+    arrays: dict[str, jax.Array] = {}
+
+    for factor_idx, factor_log_probs in enumerate(factor_observation_log_probs):
+        if not isinstance(factor_log_probs, jax.Array):
+            raise ValueError("Each factor in factor_observation_log_probs must be a jax.Array")
+        factor_scalars, factor_arrays = regression_fn(layer_activations, factor_log_probs, weights, **kwargs)
+        _merge_results_with_suffix(scalars, arrays, (factor_scalars, factor_arrays), f"F{factor_idx}")
+
+    return scalars, arrays

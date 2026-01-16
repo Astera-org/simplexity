@@ -216,6 +216,7 @@ class ActivationTracker:
             prepared_beliefs = prepared.belief_states
             prepared_weights = prepared.weights
             prepared_obs_log_probs = prepared.observation_log_probs
+            prepared_factor_obs_log_probs = prepared.factor_observation_log_probs
 
             if analysis.requires_belief_states and prepared_beliefs is None:
                 raise ValueError(
@@ -227,11 +228,17 @@ class ActivationTracker:
                     f"Analysis '{analysis_name}' requires observation_log_probs but none available after preprocessing."
                 )
 
+            if analysis.requires_factor_observation_log_probs and prepared_factor_obs_log_probs is None:
+                raise ValueError(
+                    f"Analysis '{analysis_name}' requires factor_observation_log_probs but none available after preprocessing."
+                )
+
             scalars, arrays = analysis.analyze(
                 activations=prepared_activations,
                 weights=prepared_weights,
                 belief_states=prepared_beliefs,
                 observation_log_probs=prepared_obs_log_probs,
+                factor_observation_log_probs=prepared_factor_obs_log_probs,
             )
 
             namespaced_scalars = {f"{analysis_name}/{key}": value for key, value in scalars.items()}

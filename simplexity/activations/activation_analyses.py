@@ -46,12 +46,18 @@ class ActivationAnalysis(Protocol):
         """Whether the analysis needs observation log probability targets."""
         ...
 
+    @property
+    def requires_factor_observation_log_probs(self) -> bool:
+        """Whether the analysis needs per-factor observation log probability targets."""
+        ...
+
     def analyze(
         self,
         activations: Mapping[str, jax.Array],
         weights: jax.Array,
         belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
         observation_log_probs: jax.Array | None = None,
+        factor_observation_log_probs: tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Analyze activations and return scalar metrics and arrays."""
         ...
@@ -177,6 +183,43 @@ class LogProbsRegressionAnalysis(LayerwiseAnalysis):
             analysis_kwargs["rcond_values"] = tuple(rcond_values)
         super().__init__(
             analysis_type="log_probs_regression",
+            last_token_only=last_token_only,
+            concat_layers=concat_layers,
+            use_probs_as_weights=use_probs_as_weights,
+            skip_first_token=skip_first_token,
+            skip_deduplication=skip_deduplication,
+            analysis_kwargs=analysis_kwargs,
+        )
+
+
+class FactorLogProbsRegressionAnalysis(LayerwiseAnalysis):
+    """Linear regression from activations to per-factor observation log probabilities.
+
+    For factored generative processes, regresses layer activations to log P(X_i | state_i)
+    for each factor i separately, measuring how well the model's representations encode
+    the per-factor predictive distributions.
+    """
+
+    def __init__(
+        self,
+        *,
+        last_token_only: bool = False,
+        concat_layers: bool = False,
+        use_probs_as_weights: bool = True,
+        skip_first_token: bool = False,
+        skip_deduplication: bool = False,
+        fit_intercept: bool = True,
+        use_svd: bool = False,
+        rcond_values: Sequence[float] | None = None,
+    ) -> None:
+        analysis_kwargs: dict[str, Any] = {
+            "fit_intercept": fit_intercept,
+            "use_svd": use_svd,
+        }
+        if rcond_values is not None:
+            analysis_kwargs["rcond_values"] = tuple(rcond_values)
+        super().__init__(
+            analysis_type="factor_log_probs_regression",
             last_token_only=last_token_only,
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,

@@ -16,7 +16,7 @@ from typing import Any
 
 import jax
 
-from simplexity.analysis.linear_regression import layer_linear_regression, layer_log_probs_regression
+from simplexity.analysis.linear_regression import layer_factor_log_probs_regression, layer_linear_regression, layer_log_probs_regression
 from simplexity.analysis.metric_keys import construct_layer_specific_key, format_layer_spec
 from simplexity.analysis.pca import (
     DEFAULT_VARIANCE_THRESHOLDS,
@@ -38,6 +38,7 @@ class AnalysisRegistration:
     requires_belief_states: bool
     validator: ValidatorFn
     requires_observation_log_probs: bool = False
+    requires_factor_observation_log_probs: bool = False
 
 
 def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -158,6 +159,12 @@ ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
         validator=_validate_log_probs_regression_kwargs,
         requires_observation_log_probs=True,
     ),
+    "factor_log_probs_regression": AnalysisRegistration(
+        fn=layer_factor_log_probs_regression,
+        requires_belief_states=False,
+        validator=_validate_log_probs_regression_kwargs,
+        requires_factor_observation_log_probs=True,
+    ),
 }
 
 
@@ -182,6 +189,7 @@ class LayerwiseAnalysis:
         self._analysis_kwargs = registration.validator(analysis_kwargs)
         self._requires_belief_states = registration.requires_belief_states
         self._requires_observation_log_probs = registration.requires_observation_log_probs
+        self._requires_factor_observation_log_probs = registration.requires_factor_observation_log_probs
         self._last_token_only = last_token_only
         self._concat_layers = concat_layers
         self._use_probs_as_weights = use_probs_as_weights
@@ -214,6 +222,11 @@ class LayerwiseAnalysis:
         return self._requires_observation_log_probs
 
     @property
+    def requires_factor_observation_log_probs(self) -> bool:
+        """Whether the analysis needs per-factor observation log probability targets."""
+        return self._requires_factor_observation_log_probs
+
+    @property
     def skip_first_token(self) -> bool:
         """Whether to skip the first token (useful for off-manifold initial states)."""
         return self._skip_first_token
@@ -229,12 +242,15 @@ class LayerwiseAnalysis:
         weights: jax.Array,
         belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
         observation_log_probs: jax.Array | None = None,
+        factor_observation_log_probs: tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
         """Analyze activations and return namespaced scalar metrics and arrays."""
         if self._requires_belief_states and belief_states is None:
             raise ValueError("This analysis requires belief_states")
         if self._requires_observation_log_probs and observation_log_probs is None:
             raise ValueError("This analysis requires observation_log_probs")
+        if self._requires_factor_observation_log_probs and factor_observation_log_probs is None:
+            raise ValueError("This analysis requires factor_observation_log_probs")
         scalars: dict[str, float] = {}
         arrays: dict[str, jax.Array] = {}
         for layer_name, layer_activations in activations.items():
@@ -243,6 +259,13 @@ class LayerwiseAnalysis:
                     layer_activations,
                     weights,
                     observation_log_probs,
+                    **self._analysis_kwargs,
+                )
+            elif self._requires_factor_observation_log_probs:
+                layer_scalars, layer_arrays = self._analysis_fn(
+                    layer_activations,
+                    weights,
+                    factor_observation_log_probs,
                     **self._analysis_kwargs,
                 )
             else:
