@@ -527,7 +527,7 @@ def test_multiple_entries_different_runs(base_cfg: DictConfig, mock_download: Ma
     artifact_path_2.write_text(OmegaConf.to_yaml(run_2))
 
     # Mock download_artifacts to return different paths for different run_ids
-    def download_side_effect(run_id, _path, _dst_path):
+    def download_side_effect(run_id=None, _path=None, _dst_path=None, **_kwargs):
         if run_id == "test_run_id_1":
             return str(artifact_path_1)
         if run_id == "test_run_id_2":
@@ -566,10 +566,11 @@ def test_multiple_entries_same_run(base_cfg: DictConfig, mock_download: MagicMoc
     artifact_path_2.write_text("artifact2_key: artifact2_value\n")
 
     # Mock download_artifacts to return different paths based on artifact path
-    def download_side_effect(_run_id, path, _dst_path):
-        if path == "config":
+    def download_side_effect(_run_id=None, path=None, _dst_path=None, **_kwargs):
+        # Path might be "config" or "config.yaml" depending on parsing
+        if path in ("config", "config.yaml"):
             return str(artifact_path_1)
-        elif path == "other_artifact":
+        elif path in ("other_artifact", "other_artifact.yaml"):
             return str(artifact_path_2)
         return str(artifact_path_1)
 
@@ -579,8 +580,8 @@ def test_multiple_entries_same_run(base_cfg: DictConfig, mock_download: MagicMoc
         base_cfg,
         {
             "mlflow_defaults": [
-                "previous_run@section1: config",
-                "previous_run@section2: other_artifact",
+                "previous_run@section1: config#",
+                "previous_run@section2: other_artifact#",
             ],
         },
     )
@@ -599,10 +600,11 @@ def test_multiple_entries_shared_keys_last_wins(base_cfg: DictConfig, mock_downl
     artifact_path_2 = tmp_path / "config2.yaml"
     artifact_path_2.write_text("shared_key: second_value\nunique2: value2\n")
 
-    def download_side_effect(_run_id, path, _dst_path):
-        if path == "config1":
+    def download_side_effect(_run_id=None, path=None, _dst_path=None, **_kwargs):
+        # Path might be "config1" or "config1.yaml" depending on parsing
+        if path in ("config1", "config1.yaml"):
             return str(artifact_path_1)
-        elif path == "config2":
+        elif path in ("config2", "config2.yaml"):
             return str(artifact_path_2)
         return str(artifact_path_1)
 
@@ -620,8 +622,8 @@ def test_multiple_entries_shared_keys_last_wins(base_cfg: DictConfig, mock_downl
                 "run_id": "test_run_id_2",
             },
             "mlflow_defaults": [
-                "run1: config1",
-                "run2: config2",
+                "run1: config1#",
+                "run2: config2#",
             ],
         },
     )
@@ -651,7 +653,7 @@ def test_option_trailing_hash(base_cfg: DictConfig, mock_download: MagicMock, tm
 
     loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
     assert OmegaConf.select(loaded_cfg, "key") == "value"
-    assert mock_download.call_args.kwargs["path"] == "custom"
+    assert mock_download.call_args.kwargs["path"] == "custom.yaml"
 
 
 def test_option_hash_empty_select(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
@@ -672,4 +674,4 @@ def test_option_hash_empty_select(base_cfg: DictConfig, mock_download: MagicMock
     # Should load entire artifact at root
     assert OmegaConf.select(loaded_cfg, "root_key") == "root_value"
     assert OmegaConf.select(loaded_cfg, "nested.nested_key") == "nested_value"
-    assert mock_download.call_args.kwargs["path"] == "artifact"
+    assert mock_download.call_args.kwargs["path"] == "artifact.yaml"
