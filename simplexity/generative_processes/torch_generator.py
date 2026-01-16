@@ -85,6 +85,7 @@ def generate_data_batch_with_full_history(
         Dict with keys:
             - belief_states: Belief states (jax.Array or tuple[jax.Array, ...])
             - prefix_probabilities: Prefix probabilities (jax.Array)
+            - observation_log_probs: Observation log probabilities (jax.Array)
             - inputs: Input tokens (torch.Tensor)
             - labels: Label tokens (torch.Tensor)
     """
@@ -106,6 +107,7 @@ def generate_data_batch_with_full_history(
     return {
         "belief_states": result["belief_states"],
         "prefix_probabilities": result["prefix_probabilities"],
+        "observation_log_probs": result["observation_log_probs"],
         "inputs": jax_to_torch(inputs, device),
         "labels": jax_to_torch(labels, device),
     }
