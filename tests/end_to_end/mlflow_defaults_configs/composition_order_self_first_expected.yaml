@@ -1,4 +1,5 @@
 other_section:
+  foo: bar
   key: 3
   dict:
     subkey: 30

@@ -76,8 +76,18 @@ def _parse_entry(item: str) -> _ParsedEntry:
             "'TARGET(@PACKAGE)? | [optional|override]? TARGET(@PACKAGE)?: OPTION | _self_'"
         )
 
-    package = groups.get("package") or "."
+    package = groups.get("package")
     option = groups.get("option")
+
+    # Special case: TARGET: VALUE (no @) where VALUE doesn't contain / or #
+    # Treat VALUE as both PACKAGE and SELECT_PATH
+    if package is None and option is not None and "/" not in option and "#" not in option:
+        package = option.rsplit(".", 1)[1] if "." in option else option
+        artifact_path = "config"
+        select_path = option
+        return _ParsedEntry(optional, target, package, artifact_path, select_path)
+
+    package = package or "."
 
     if option == "null":
         return _ParsedEntry(optional, target, package, None, None)
@@ -156,17 +166,53 @@ def _normalize_item(item: str | DictConfig) -> str:
             value = item[key]
             # If value is "config" (default artifact), treat as simple CONFIG entry
             if value == "config":
-                return key
+                return str(key)
             return f"{key}: {value}"
         # Multiple keys - convert entire dict to string representation
         return str(item)
     return str(item)
 
 
+def _resolve_load_source(accumulator: DictConfig) -> None:
+    """Resolve load_source if it exists in the accumulator.
+
+    This is needed when _self_ is processed and load_source is merged unresolved.
+    If load_source is not a valid MLflow config or can't be resolved, it is silently skipped.
+
+    Args:
+        accumulator: The accumulator DictConfig that may contain load_source.
+    """
+    load_source = accumulator.get("load_source")
+    if load_source is not None and isinstance(load_source, DictConfig):
+        try:
+            validate_mlflow_config(load_source)
+            resolve_mlflow_config(load_source)
+        except (ConfigValidationError, ValueError):
+            # If load_source is not a valid MLflow config or can't be resolved, skip
+            pass
+
+
 def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictConfig:
     """Process a single MLflow default item."""
     if item == "_self_":
-        return cast(DictConfig, OmegaConf.merge(accumulator, cfg))
+        # Standard merge semantics: last entry wins (matches Hydra behavior)
+        # OmegaConf.merge does deep merge (nested dicts get merged), which matches
+        # how Hydra composes configs with defaults list
+        result = cast(DictConfig, OmegaConf.merge(accumulator, cfg))
+        # Resolve load_source if it exists, as it may be merged unresolved
+        _resolve_load_source(result)
+        return result
+        # # When merging _self_, we need to allow cfg to override accumulator
+        # # Use merge but ensure top-level keys from cfg replace those in accumulator
+        # result = OmegaConf.create()
+        # # Copy all keys from accumulator first
+        # for key in accumulator.keys():
+        #     result[key] = accumulator[key]
+        # # Then copy keys from cfg, which will override accumulator keys
+        # for key in cfg.keys():
+        #     if key != "mlflow_defaults":  # Skip mlflow_defaults as it's metadata
+        #         result[key] = cfg[key]
+        # return cast(DictConfig, result)
 
     parsed_entry = _parse_entry(item)
 
@@ -184,6 +230,9 @@ def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictC
             raise ValueError(f"Target config not found for entry: {item}")
         return cast(DictConfig, OmegaConf.merge(accumulator, loaded_config))
 
+    # When merging at a package (not root), use deep merge semantics (matches Hydra behavior)
+    # This ensures that MLflow content merges with any existing content at that package path,
+    # preserving non-conflicting keys and deeply merging nested dictionaries
     package_conf = OmegaConf.create()
     OmegaConf.update(package_conf, parsed_entry.package, loaded_config)
     return cast(DictConfig, OmegaConf.merge(accumulator, package_conf))
@@ -205,5 +254,7 @@ def load_mlflow_defaults(cfg: DictConfig) -> DictConfig:
         normalized_item = _normalize_item(item)
         accumulator = _process_entry(cfg, accumulator, normalized_item)
 
+    # if "mlflow_defaults" in accumulator:
     del accumulator["mlflow_defaults"]
+
     return accumulator

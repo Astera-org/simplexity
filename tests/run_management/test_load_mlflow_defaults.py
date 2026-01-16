@@ -248,10 +248,10 @@ def test_composition_order(base_cfg: DictConfig, mock_download: MagicMock, tmp_p
     loaded1: DictConfig = load_mlflow_defaults(cfg1)
     assert OmegaConf.select(loaded1, "other_section.foo") == "mlflow_value"
 
-    # Case 2: mlflow before _self_ -> original overrides
+    # Case 2: mlflow before _self_ -> original overrides (last entry wins)
     cfg2 = OmegaConf.merge(base_cfg, {"mlflow_defaults": ["previous_run@other_section: nondefault_config#", "_self_"]})
     loaded2: DictConfig = load_mlflow_defaults(cfg2)
-    assert OmegaConf.select(loaded2, "other_section.foo") == "bar"  # Original value
+    assert OmegaConf.select(loaded2, "other_section.foo") == "bar"  # Original value wins (last entry)
 
 
 def test_config_entry_syntax(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
