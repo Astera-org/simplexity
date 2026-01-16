@@ -129,6 +129,9 @@ def _compute_prefix_probabilities(
     return jax.vmap(run_sequence)(initial_states, tokens)
 
 
+_LOG_PROB_EPS = 1e-10
+
+
 def _compute_observation_log_probs(
     data_generator: GenerativeProcess,
     initial_states: jax.Array | tuple[jax.Array, ...],
@@ -149,7 +152,7 @@ def _compute_observation_log_probs(
     def run_sequence(state: jax.Array | tuple[jax.Array, ...], seq: jax.Array) -> jax.Array:
         def step(carry_state: Any, token: jax.Array) -> tuple[Any, jax.Array]:
             obs_probs = data_generator.observation_probability_distribution(carry_state)
-            log_probs = jnp.log(obs_probs)
+            log_probs = jnp.log(obs_probs + _LOG_PROB_EPS)
             new_state = data_generator.transition_states(carry_state, token)
             return new_state, log_probs
 
