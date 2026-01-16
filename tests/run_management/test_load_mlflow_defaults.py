@@ -570,9 +570,9 @@ def test_multiple_entries_same_run(base_cfg: DictConfig, mock_download: MagicMoc
         # Path might be "config" or "config.yaml" depending on parsing
         if path in ("config", "config.yaml"):
             return str(artifact_path_1)
-        elif path in ("other_artifact", "other_artifact.yaml"):
+        if path in ("other_artifact", "other_artifact.yaml"):
             return str(artifact_path_2)
-        return str(artifact_path_1)
+        return ""
 
     mock_download.side_effect = download_side_effect
 
@@ -604,9 +604,9 @@ def test_multiple_entries_shared_keys_last_wins(base_cfg: DictConfig, mock_downl
         # Path might be "config1" or "config1.yaml" depending on parsing
         if path in ("config1", "config1.yaml"):
             return str(artifact_path_1)
-        elif path in ("config2", "config2.yaml"):
+        if path in ("config2", "config2.yaml"):
             return str(artifact_path_2)
-        return str(artifact_path_1)
+        return ""
 
     mock_download.side_effect = download_side_effect
 
