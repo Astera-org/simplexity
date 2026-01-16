@@ -219,3 +219,31 @@ def test_log_probability(z1r: HiddenMarkovModel):
 
     log_probability = z1r.log_probability(observations)
     assert jnp.isclose(log_probability, jnp.log(expected_probability))
+
+
+def test_hmm_with_noise():
+    """Test that HMM with noise has modified observation distributions."""
+    hmm_clean = build_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
+    hmm_noisy = build_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5}, noise_epsilon=0.2)
+
+    state = jnp.array([1.0, 0.0, 0.0])
+    clean_dist = hmm_clean.observation_probability_distribution(state)
+    noisy_dist = hmm_noisy.observation_probability_distribution(state)
+
+    assert not jnp.allclose(clean_dist, noisy_dist)
+    chex.assert_trees_all_close(jnp.sum(clean_dist), 1.0)
+    chex.assert_trees_all_close(jnp.sum(noisy_dist), 1.0)
+
+
+def test_hmm_with_zero_noise_unchanged():
+    """Test that HMM with noise_epsilon=0 is identical to no noise."""
+    hmm_clean = build_hidden_markov_model(process_name="zero_one_random", process_params={"p": 0.5})
+    hmm_zero_noise = build_hidden_markov_model(
+        process_name="zero_one_random", process_params={"p": 0.5}, noise_epsilon=0.0
+    )
+
+    state = hmm_clean.initial_state
+    clean_dist = hmm_clean.observation_probability_distribution(state)
+    zero_noise_dist = hmm_zero_noise.observation_probability_distribution(state)
+
+    chex.assert_trees_all_close(clean_dist, zero_noise_dist)
