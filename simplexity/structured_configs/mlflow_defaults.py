@@ -1,4 +1,11 @@
-"""Config utilities."""
+"""Load and merge configs from MLflow runs.
+
+This module implements the mlflow_defaults functionality, allowing configs to be
+composed from parts or entire configs that have been logged as MLflow artifacts
+from previous runs. The design is patterned after Hydra's defaults list.
+
+See LOAD_SUBCONFIGS.md for the full specification.
+"""
 
 # pylint: disable=all
 # Temporarily disable all pylint checkers during AST traversal to prevent crash.
@@ -97,6 +104,16 @@ def _parse_entry(item: str) -> _ParsedEntry:
 
 
 def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | None:
+    """Download and load config from MLflow run.
+
+    Args:
+        cfg: The current config containing MLflow config nodes.
+        parsed_entry: The parsed entry specifying target, package, and paths.
+
+    Returns:
+        The loaded config (or selected subconfig), or None if loading failed
+        and the entry is optional.
+    """
     if parsed_entry.artifact_path is None:
         SIMPLEXITY_LOGGER.warning("Config is mandatory but OPTION is null for entry: %s", parsed_entry.target)
         return None
@@ -173,46 +190,73 @@ def _normalize_item(item: str | DictConfig) -> str:
     return str(item)
 
 
-def _resolve_load_source(accumulator: DictConfig) -> None:
-    """Resolve load_source if it exists in the accumulator.
+def _resolve_mlflow_configs_recursive(cfg: DictConfig) -> None:
+    """Recursively find and resolve all MLflow configs in the config.
 
-    This is needed when _self_ is processed and load_source is merged unresolved.
-    If load_source is not a valid MLflow config or can't be resolved, it is silently skipped.
+    This is needed when _self_ is processed and MLflow configs are merged unresolved.
+    MLflow configs that are not valid or can't be resolved are silently skipped.
 
     Args:
-        accumulator: The accumulator DictConfig that may contain load_source.
+        cfg: The DictConfig to search for MLflow configs.
     """
-    load_source = accumulator.get("load_source")
-    if load_source is not None and isinstance(load_source, DictConfig):
+    if not isinstance(cfg, DictConfig):
+        return
+
+    # Only try to validate/resolve if this looks like an MLflow config
+    # Check for key identifying fields (not just optional fields like registry_uri)
+    mlflow_identifying_fields = {"experiment_id", "experiment_name", "run_id", "run_name"}
+    has_mlflow_fields = any(field in cfg for field in mlflow_identifying_fields)
+
+    if has_mlflow_fields:
+        # Try to validate and resolve the current node as an MLflow config
         try:
-            validate_mlflow_config(load_source)
-            resolve_mlflow_config(load_source)
+            validate_mlflow_config(cfg)
+            # If validation passes, this looks like an MLflow config, try to resolve it
+            resolve_mlflow_config(cfg)
         except (ConfigValidationError, ValueError):
-            # If load_source is not a valid MLflow config or can't be resolved, skip
+            # Not an MLflow config or can't be resolved, continue to check nested configs
             pass
+
+    # Recursively process all nested DictConfig values
+    for key in cfg:
+        try:
+            value = cfg[key]
+        except Exception:
+            # Skip keys that can't be accessed (e.g., missing mandatory values)
+            continue
+
+        if isinstance(value, DictConfig):
+            _resolve_mlflow_configs_recursive(value)
+        elif isinstance(value, ListConfig):
+            # Also check ListConfig items that might be DictConfigs
+            for item in value:
+                if isinstance(item, DictConfig):
+                    _resolve_mlflow_configs_recursive(item)
 
 
 def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictConfig:
-    """Process a single MLflow default item."""
+    """Process a single MLflow default item.
+
+    Handles both "_self_" entries (merging the original config) and MLflow entries
+    (downloading and merging configs from MLflow runs). Uses deep merge semantics
+    matching Hydra's defaults list behavior.
+
+    Args:
+        cfg: The original config being processed.
+        accumulator: The accumulated merged config so far.
+        item: The entry to process (either "_self_" or an MLflow entry string).
+
+    Returns:
+        The updated accumulator with the entry merged in.
+    """
     if item == "_self_":
         # Standard merge semantics: last entry wins (matches Hydra behavior)
         # OmegaConf.merge does deep merge (nested dicts get merged), which matches
         # how Hydra composes configs with defaults list
         result = cast(DictConfig, OmegaConf.merge(accumulator, cfg))
-        # Resolve load_source if it exists, as it may be merged unresolved
-        _resolve_load_source(result)
+        # Resolve any MLflow configs that may have been merged unresolved
+        _resolve_mlflow_configs_recursive(result)
         return result
-        # # When merging _self_, we need to allow cfg to override accumulator
-        # # Use merge but ensure top-level keys from cfg replace those in accumulator
-        # result = OmegaConf.create()
-        # # Copy all keys from accumulator first
-        # for key in accumulator.keys():
-        #     result[key] = accumulator[key]
-        # # Then copy keys from cfg, which will override accumulator keys
-        # for key in cfg.keys():
-        #     if key != "mlflow_defaults":  # Skip mlflow_defaults as it's metadata
-        #         result[key] = cfg[key]
-        # return cast(DictConfig, result)
 
     parsed_entry = _parse_entry(item)
 
@@ -240,7 +284,22 @@ def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictC
 
 @dynamic_resolve
 def load_mlflow_defaults(cfg: DictConfig) -> DictConfig:
-    """Load defaults from MLflow runs."""
+    """Load and merge configs from MLflow runs based on mlflow_defaults list.
+
+    Processes the mlflow_defaults list in the config, downloading artifacts from
+    MLflow runs and merging them according to the specified package paths and
+    select paths. If "_self_" is not present, it is appended to the end.
+
+    Args:
+        cfg: The config containing mlflow_defaults list and MLflow config nodes.
+
+    Returns:
+        A new config with MLflow defaults merged in. The mlflow_defaults key is
+        removed from the result.
+
+    See Also:
+        LOAD_SUBCONFIGS.md for the full specification and examples.
+    """
     mlflow_defaults: ListConfig | None = cfg.get("mlflow_defaults")
     if mlflow_defaults is None:
         return cfg
@@ -254,7 +313,6 @@ def load_mlflow_defaults(cfg: DictConfig) -> DictConfig:
         normalized_item = _normalize_item(item)
         accumulator = _process_entry(cfg, accumulator, normalized_item)
 
-    # if "mlflow_defaults" in accumulator:
     del accumulator["mlflow_defaults"]
 
     return accumulator
