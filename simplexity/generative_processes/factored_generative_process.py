@@ -13,7 +13,7 @@ import jax.numpy as jnp
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.structures import ConditionalContext, ConditionalStructure
 from simplexity.logger import SIMPLEXITY_LOGGER
-from simplexity.utils.factoring_utils import TokenEncoder, transition_with_obs
+from simplexity.utils.factoring_utils import TokenEncoder, compute_obs_dist_for_variant, transition_with_obs
 from simplexity.utils.jnp_utils import resolve_jax_device
 
 ComponentType = Literal["hmm", "ghmm"]
@@ -167,6 +167,33 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         """
         context = self._make_context(state)
         return self.structure.compute_joint_distribution(context)
+
+    @eqx.filter_jit
+    def factor_observation_probability_distributions(self, state: FactoredState) -> tuple[jax.Array, ...]:
+        """Compute per-factor observation probability distributions.
+
+        For each factor i, computes P(X_i | state_i) using variant 0.
+
+        Args:
+            state: Tuple of state vectors (one per factor)
+
+        Returns:
+            Tuple of per-factor distributions, each of shape [V_i]
+        """
+        dists = []
+        for i, (s_i, t_mat_i, norm_i, comp_type) in enumerate(
+            zip(
+                state,
+                self.transition_matrices,
+                self.normalizing_eigenvectors,
+                self.component_types,
+                strict=True,
+            )
+        ):
+            norm = norm_i[0] if comp_type == "ghmm" else None
+            p_i = compute_obs_dist_for_variant(comp_type, s_i, t_mat_i[0], norm)
+            dists.append(p_i)
+        return tuple(dists)
 
     @eqx.filter_jit
     def log_observation_probability_distribution(self, log_belief_state: FactoredState) -> jax.Array:

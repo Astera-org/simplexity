@@ -43,6 +43,7 @@ class PreparedActivations:
     weights: jax.Array
     metadata: PreparedMetadata
     observation_log_probs: jax.Array | None = None
+    factor_observation_log_probs: tuple[jax.Array, ...] | None = None
 
 
 class PrepareOptions(NamedTuple):
@@ -88,6 +89,7 @@ def prepare_activations(
     activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
     prepare_options: PrepareOptions,
     observation_log_probs: jax.Array | torch.Tensor | np.ndarray | None = None,
+    factor_observation_log_probs: tuple[jax.Array, ...] | tuple[torch.Tensor, ...] | tuple[np.ndarray, ...] | None = None,
 ) -> PreparedActivations:
     """Preprocess activations by deduplicating sequences, selecting tokens/layers, and computing weights."""
     inputs = _to_jax_array(inputs)
@@ -95,6 +97,7 @@ def prepare_activations(
     probs = _to_jax_array(probs)
     activations = {name: _to_jax_array(layer) for name, layer in activations.items()}
     obs_log_probs = _to_jax_array(observation_log_probs) if observation_log_probs is not None else None
+    factor_obs_log_probs = _convert_tuple_to_jax_array(factor_observation_log_probs) if factor_observation_log_probs is not None else None
 
     dataset = build_deduplicated_dataset(
         inputs=inputs,
@@ -105,6 +108,7 @@ def prepare_activations(
         skip_first_token=prepare_options.skip_first_token,
         skip_deduplication=prepare_options.skip_deduplication,
         observation_log_probs=obs_log_probs,
+        factor_observation_log_probs=factor_obs_log_probs,
     )
 
     layer_acts = dataset.activations_by_layer
@@ -131,6 +135,7 @@ def prepare_activations(
         weights=weights,
         metadata=metadata,
         observation_log_probs=dataset.observation_log_probs,
+        factor_observation_log_probs=dataset.factor_observation_log_probs,
     )
 
 
@@ -166,6 +171,7 @@ class ActivationTracker:
         activations: Mapping[str, jax.Array | torch.Tensor | np.ndarray],
         step: int | None = None,
         observation_log_probs: jax.Array | torch.Tensor | np.ndarray | None = None,
+        factor_observation_log_probs: tuple[jax.Array, ...] | tuple[torch.Tensor, ...] | tuple[np.ndarray, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array], Mapping[str, ActivationVisualizationPayload]]:
         """Run all analyses and return namespaced results."""
         preprocessing_cache: dict[PrepareOptions, PreparedActivations] = {}
@@ -188,6 +194,7 @@ class ActivationTracker:
                     activations=activations,
                     prepare_options=prepare_options,
                     observation_log_probs=observation_log_probs,
+                    factor_observation_log_probs=factor_observation_log_probs,
                 )
                 preprocessing_cache[config_key] = prepared
 

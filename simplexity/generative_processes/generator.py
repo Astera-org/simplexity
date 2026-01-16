@@ -57,9 +57,18 @@ def generate_data_batch_with_full_history(
     belief_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, True)
 
     prefix_probs = _compute_prefix_probabilities(data_generator, gen_states, tokens)
+
+    # Always compute joint observation log probs
     observation_log_probs = _compute_observation_log_probs(data_generator, gen_states, tokens)
 
-    vocab_size = observation_log_probs.shape[-1]
+    # Check if this is a factored process with per-factor distributions
+    is_factored = hasattr(data_generator, "factor_observation_probability_distributions")
+    factor_observation_log_probs: tuple[jax.Array, ...] | None = None
+    if is_factored:
+        factor_observation_log_probs = _compute_factor_observation_log_probs(
+            data_generator, gen_states, tokens  # type: ignore[arg-type]
+        )
+
     if bos_token is not None:
         tokens = jnp.concatenate([jnp.full((batch_size, 1), bos_token), tokens], axis=1)
         prefix_probs = jnp.concatenate(
@@ -68,9 +77,14 @@ def generate_data_batch_with_full_history(
         )
         # Pad with zeros (log(1) = 0 for uniform, though this position is typically skipped)
         observation_log_probs = jnp.concatenate(
-            [jnp.zeros((batch_size, 1, vocab_size), dtype=observation_log_probs.dtype), observation_log_probs],
+            [jnp.zeros((batch_size, 1, observation_log_probs.shape[-1]), dtype=observation_log_probs.dtype), observation_log_probs],
             axis=1,
         )
+        if factor_observation_log_probs is not None:
+            factor_observation_log_probs = tuple(
+                jnp.concatenate([jnp.zeros((batch_size, 1, lp.shape[-1]), dtype=lp.dtype), lp], axis=1)
+                for lp in factor_observation_log_probs
+            )
     if eos_token is not None:
         tokens = jnp.concatenate([tokens, jnp.full((batch_size, 1), eos_token)], axis=1)
         prefix_probs = jnp.concatenate(
@@ -81,11 +95,17 @@ def generate_data_batch_with_full_history(
             [observation_log_probs, observation_log_probs[:, -1:, ...]],
             axis=1,
         )
+        if factor_observation_log_probs is not None:
+            factor_observation_log_probs = tuple(
+                jnp.concatenate([lp, lp[:, -1:, ...]], axis=1) for lp in factor_observation_log_probs
+            )
 
     inputs = tokens[:, :-1]
     labels = tokens[:, 1:]
     prefix_probs = prefix_probs[:, : inputs.shape[1]]
     observation_log_probs = observation_log_probs[:, : inputs.shape[1]]
+    if factor_observation_log_probs is not None:
+        factor_observation_log_probs = tuple(lp[:, : inputs.shape[1]] for lp in factor_observation_log_probs)
 
     if bos_token is None:
         # Drop first belief state since it's the initial state before any token
@@ -100,13 +120,16 @@ def generate_data_batch_with_full_history(
     else:
         belief_states = belief_states[:, :input_len, ...]
 
-    result = {
+    result: dict[str, jax.Array | tuple[jax.Array, ...]] = {
         "belief_states": belief_states,
         "prefix_probabilities": prefix_probs,
         "observation_log_probs": observation_log_probs,
         "inputs": inputs,
         "labels": labels,
     }
+
+    if factor_observation_log_probs is not None:
+        result["factor_observation_log_probs"] = factor_observation_log_probs
 
     return result
 
@@ -160,3 +183,40 @@ def _compute_observation_log_probs(
         return log_probs
 
     return jax.vmap(run_sequence)(initial_states, tokens)
+
+
+def _compute_factor_observation_log_probs(
+    data_generator: Any,
+    initial_states: tuple[jax.Array, ...],
+    tokens: jax.Array,
+) -> tuple[jax.Array, ...]:
+    """Compute per-factor predictive log probability distributions at each position.
+
+    Args:
+        data_generator: A FactoredGenerativeProcess with factor_observation_probability_distributions method.
+        initial_states: Tuple of initial states for each factor in the batch.
+        tokens: Token sequences of shape (batch, seq_len).
+
+    Returns:
+        Tuple of log probability distributions, one per factor. Each has shape
+        (batch, seq_len, vocab_size_i) containing log P(X_i | state_i).
+    """
+
+    def run_sequence(
+        state: tuple[jax.Array, ...], seq: jax.Array
+    ) -> tuple[jax.Array, ...]:
+        def step(
+            carry_state: tuple[jax.Array, ...], token: jax.Array
+        ) -> tuple[tuple[jax.Array, ...], tuple[jax.Array, ...]]:
+            factor_probs = data_generator.factor_observation_probability_distributions(carry_state)
+            factor_log_probs = tuple(jnp.log(p + _LOG_PROB_EPS) for p in factor_probs)
+            new_state = data_generator.transition_states(carry_state, token)
+            return new_state, factor_log_probs
+
+        _, factor_log_probs_seq = jax.lax.scan(step, state, seq)
+        return factor_log_probs_seq
+
+    # vmap over the batch dimension
+    batched_results = jax.vmap(run_sequence)(initial_states, tokens)
+    # batched_results is a tuple of arrays, each of shape (batch, seq_len, vocab_size_i)
+    return batched_results
