@@ -109,38 +109,46 @@ def test_setup(setup_dir: Path, tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "test_case",
+    ("test_case", "load_sources"),
     [
-        "full_default_copy",
-        "load_default_config_at_package",
-        "load_nondefault_config",
-        "load_subconfig",
-        "load_subconfig_select",
-        "implicit_config_select",
-        "implicit_artifact_select",
-        "override_flag",
-        "composition_order_self_first",
-        "composition_order_self_last",
+        ("full_default_copy", ["load_source"]),
+        ("load_default_config_at_package", ["load_source"]),
+        ("load_nondefault_config", ["load_source"]),
+        ("load_subconfig", ["load_source"]),
+        ("load_subconfig_select", ["load_source"]),
+        ("implicit_config_select", ["load_source"]),
+        ("implicit_artifact_select", ["load_source"]),
+        ("override_flag", ["load_source"]),
+        ("composition_order_self_first", ["load_source"]),
+        ("composition_order_self_last", ["load_source"]),
+        ("multiple_runs", ["load_source_1", "load_source_2"]),
     ],
 )
-def test_mlflow_defaults(setup_dir: Path, test_case: str) -> None:
+def test_mlflow_defaults(setup_dir: Path, test_case: str, load_sources: list[str]) -> None:
     """Test mlflow defaults."""
     tracking_uri = f"sqlite:///{setup_dir.resolve()}/mlflow.db"
     with initialize_config_dir(config_dir=CONFIG_DIR):
-        cfg = compose(config_name=test_case, overrides=[f"load_source.tracking_uri={tracking_uri}"])
+        # Generate overrides for all load sources
+        overrides = [f"{load_source}.tracking_uri={tracking_uri}" for load_source in load_sources]
+        cfg = compose(config_name=test_case, overrides=overrides)
     actual = load_mlflow_defaults(cfg)
-    experiment_id = OmegaConf.select(actual, "load_source.experiment_id")
-    assert experiment_id is not None
-    run_id = OmegaConf.select(actual, "load_source.run_id")
-    assert run_id is not None
-    with initialize_config_dir(config_dir=CONFIG_DIR):
-        expected = compose(
-            config_name=f"{test_case}_expected",
-            overrides=[
-                f"load_source.tracking_uri={tracking_uri}",
-                f'load_source.experiment_id="{experiment_id}"',
-                f'load_source.run_id="{run_id}"',
-            ],
+
+    # Extract experiment_id and run_id for all load sources
+    expected_overrides = []
+    for load_source in load_sources:
+        experiment_id = OmegaConf.select(actual, f"{load_source}.experiment_id")
+        run_id = OmegaConf.select(actual, f"{load_source}.run_id")
+        assert experiment_id is not None
+        assert run_id is not None
+        expected_overrides.extend(
+            [
+                f"{load_source}.tracking_uri={tracking_uri}",
+                f'{load_source}.experiment_id="{experiment_id}"',
+                f'{load_source}.run_id="{run_id}"',
+            ]
         )
+
+    with initialize_config_dir(config_dir=CONFIG_DIR):
+        expected = compose(config_name=f"{test_case}_expected", overrides=expected_overrides)
 
     assert actual == expected

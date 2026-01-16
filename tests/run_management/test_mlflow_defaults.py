@@ -514,3 +514,162 @@ def test_no_mlflow_defaults_key():
     loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
     assert loaded_cfg == cfg
     assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"
+
+
+def test_multiple_entries_different_runs(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test loading configs from multiple different runs."""
+    # Setup two different runs with different configs
+    artifact_path_1 = tmp_path / "config_run1.yaml"
+    artifact_path_1.write_text("run1_key: run1_value\nrun1_section:\n  nested: run1_nested\n")
+    artifact_path_2 = tmp_path / "config_run2.yaml"
+    artifact_path_2.write_text("run2_key: run2_value\nrun2_section:\n  nested: run2_nested\n")
+
+    # Mock download_artifacts to return different paths for different run_ids
+    def download_side_effect(run_id, path, dst_path):
+        if run_id == "test_run_id_1":
+            return str(artifact_path_1)
+        elif run_id == "test_run_id_2":
+            return str(artifact_path_2)
+        return str(artifact_path_1)
+
+    mock_download.side_effect = download_side_effect
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "run1": {
+                "tracking_uri": "databricks",
+                "run_id": "test_run_id_1",
+            },
+            "run2": {
+                "tracking_uri": "databricks",
+                "run_id": "test_run_id_2",
+            },
+            "mlflow_defaults": ["run1@model1", "run2@model2"],
+        },
+    )
+
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+    assert OmegaConf.select(loaded_cfg, "model1.run1_key") == "run1_value"
+    assert OmegaConf.select(loaded_cfg, "model1.run1_section.nested") == "run1_nested"
+    assert OmegaConf.select(loaded_cfg, "model2.run2_key") == "run2_value"
+    assert OmegaConf.select(loaded_cfg, "model2.run2_section.nested") == "run2_nested"
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"
+
+
+def test_multiple_entries_same_run(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test loading multiple artifacts from the same run."""
+    # Setup multiple artifacts from the same run
+    artifact_path_1 = tmp_path / "config.yaml"
+    artifact_path_1.write_text("artifact1_key: artifact1_value\n")
+    artifact_path_2 = tmp_path / "other_artifact.yaml"
+    artifact_path_2.write_text("artifact2_key: artifact2_value\n")
+
+    # Mock download_artifacts to return different paths based on artifact path
+    def download_side_effect(run_id, path, dst_path):
+        if path == "config":
+            return str(artifact_path_1)
+        elif path == "other_artifact":
+            return str(artifact_path_2)
+        return str(artifact_path_1)
+
+    mock_download.side_effect = download_side_effect
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": [
+                "previous_run@section1: config",
+                "previous_run@section2: other_artifact",
+            ],
+        },
+    )
+
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+    assert OmegaConf.select(loaded_cfg, "section1.artifact1_key") == "artifact1_value"
+    assert OmegaConf.select(loaded_cfg, "section2.artifact2_key") == "artifact2_value"
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"
+
+
+def test_multiple_entries_shared_keys_last_wins(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test that last entry wins when keys conflict."""
+    # Setup entries that load configs with overlapping keys
+    artifact_path_1 = tmp_path / "config1.yaml"
+    artifact_path_1.write_text("shared_key: first_value\nunique1: value1\n")
+    artifact_path_2 = tmp_path / "config2.yaml"
+    artifact_path_2.write_text("shared_key: second_value\nunique2: value2\n")
+
+    def download_side_effect(run_id, path, dst_path):
+        if path == "config1":
+            return str(artifact_path_1)
+        elif path == "config2":
+            return str(artifact_path_2)
+        return str(artifact_path_1)
+
+    mock_download.side_effect = download_side_effect
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "run1": {
+                "tracking_uri": "databricks",
+                "run_id": "test_run_id_1",
+            },
+            "run2": {
+                "tracking_uri": "databricks",
+                "run_id": "test_run_id_2",
+            },
+            "mlflow_defaults": [
+                "run1: config1",
+                "run2: config2",
+            ],
+        },
+    )
+
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+    # Last entry should win for shared_key
+    assert OmegaConf.select(loaded_cfg, "shared_key") == "second_value"
+    # Both unique keys should be present
+    assert OmegaConf.select(loaded_cfg, "unique1") == "value1"
+    assert OmegaConf.select(loaded_cfg, "unique2") == "value2"
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"
+
+
+def test_option_trailing_hash(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test option with trailing # (artifact path only)."""
+    # Test: "custom#" should load artifact "custom" at root
+    artifact_path = tmp_path / "custom.yaml"
+    artifact_path.write_text("key: value\n")
+    mock_download.return_value = str(artifact_path)
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["previous_run: custom#"],
+        },
+    )
+
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+    assert OmegaConf.select(loaded_cfg, "key") == "value"
+    assert mock_download.call_args.kwargs["path"] == "custom"
+
+
+def test_option_hash_empty_select(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test option with # but empty select path."""
+    # Test: "artifact#" should load artifact "artifact" at root
+    artifact_path = tmp_path / "artifact.yaml"
+    artifact_path.write_text("root_key: root_value\nnested:\n  nested_key: nested_value\n")
+    mock_download.return_value = str(artifact_path)
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["previous_run: artifact#"],
+        },
+    )
+
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+    # Should load entire artifact at root
+    assert OmegaConf.select(loaded_cfg, "root_key") == "root_value"
+    assert OmegaConf.select(loaded_cfg, "nested.nested_key") == "nested_value"
+    assert mock_download.call_args.kwargs["path"] == "artifact"
