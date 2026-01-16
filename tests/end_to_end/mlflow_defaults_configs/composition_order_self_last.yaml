@@ -1,0 +1,7 @@
+defaults:
+  - mlflow@load_source: prev_run_1
+other_section:
+  foo: bar
+mlflow_defaults:
+  - load_source@other_section: subdir/special_1#
+  - _self_

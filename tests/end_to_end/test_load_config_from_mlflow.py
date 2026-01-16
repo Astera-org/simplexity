@@ -110,7 +110,18 @@ def test_setup(setup_dir: Path, tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "test_case",
-    ["full_default_copy"],
+    [
+        "full_default_copy",
+        "load_default_config_at_package",
+        "load_nondefault_config",
+        "load_subconfig",
+        "load_subconfig_select",
+        "implicit_config_select",
+        "implicit_artifact_select",
+        "override_flag",
+        "composition_order_self_first",
+        "composition_order_self_last",
+    ],
 )
 def test_mlflow_defaults(setup_dir: Path, test_case: str) -> None:
     """Test mlflow defaults."""
