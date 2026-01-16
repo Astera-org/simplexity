@@ -1209,6 +1209,7 @@ class TestLogProbsRegressionAnalysis:
         batch_size = 4
         seq_len = 5
         belief_dim = 3
+        vocab_size = 6
         d_layer0 = 8
         d_layer1 = 12
 
@@ -1223,7 +1224,8 @@ class TestLogProbsRegressionAnalysis:
 
         beliefs = jnp.ones((batch_size, seq_len, belief_dim)) * 0.5
         probs = jnp.ones((batch_size, seq_len)) * 0.1
-        observation_log_probs = jnp.ones((batch_size, seq_len)) * -0.5
+        # observation_log_probs is now (batch, seq_len, vocab_size) - the full predictive distribution
+        observation_log_probs = jnp.ones((batch_size, seq_len, vocab_size)) * -0.5
 
         activations = {
             "layer_0": jnp.ones((batch_size, seq_len, d_layer0)) * 0.3,
@@ -1238,6 +1240,7 @@ class TestLogProbsRegressionAnalysis:
             "activations": activations,
             "batch_size": batch_size,
             "seq_len": seq_len,
+            "vocab_size": vocab_size,
             "d_layer0": d_layer0,
             "d_layer1": d_layer1,
         }
@@ -1274,8 +1277,8 @@ class TestLogProbsRegressionAnalysis:
         assert "projected/layer_0" in arrays
         assert "projected/layer_1" in arrays
 
-        assert arrays["projected/layer_0"].shape == (log_probs_data["batch_size"], 1)
-        assert arrays["projected/layer_1"].shape == (log_probs_data["batch_size"], 1)
+        assert arrays["projected/layer_0"].shape == (log_probs_data["batch_size"], log_probs_data["vocab_size"])
+        assert arrays["projected/layer_1"].shape == (log_probs_data["batch_size"], log_probs_data["vocab_size"])
 
     def test_requires_observation_log_probs(self, log_probs_data):
         """Test that analysis raises error without observation_log_probs."""

@@ -59,14 +59,16 @@ def generate_data_batch_with_full_history(
     prefix_probs = _compute_prefix_probabilities(data_generator, gen_states, tokens)
     observation_log_probs = _compute_observation_log_probs(data_generator, gen_states, tokens)
 
+    vocab_size = observation_log_probs.shape[-1]
     if bos_token is not None:
         tokens = jnp.concatenate([jnp.full((batch_size, 1), bos_token), tokens], axis=1)
         prefix_probs = jnp.concatenate(
             [jnp.ones((batch_size, 1), dtype=prefix_probs.dtype), prefix_probs],
             axis=1,
         )
+        # Pad with zeros (log(1) = 0 for uniform, though this position is typically skipped)
         observation_log_probs = jnp.concatenate(
-            [jnp.zeros((batch_size, 1), dtype=observation_log_probs.dtype), observation_log_probs],
+            [jnp.zeros((batch_size, 1, vocab_size), dtype=observation_log_probs.dtype), observation_log_probs],
             axis=1,
         )
     if eos_token is not None:
@@ -132,7 +134,7 @@ def _compute_observation_log_probs(
     initial_states: jax.Array | tuple[jax.Array, ...],
     tokens: jax.Array,
 ) -> jax.Array:
-    """Compute log P(observed_token | state) at each position.
+    """Compute the full predictive log probability distribution at each position.
 
     Args:
         data_generator: The generative process used to compute observation probabilities.
@@ -140,15 +142,16 @@ def _compute_observation_log_probs(
         tokens: Token sequences of shape (batch, seq_len).
 
     Returns:
-        Log probabilities of shape (batch, seq_len) where each entry is log P(token | state).
+        Log probability distributions of shape (batch, seq_len, vocab_size) where each
+        position contains the full predictive distribution log P(X | state).
     """
 
     def run_sequence(state: jax.Array | tuple[jax.Array, ...], seq: jax.Array) -> jax.Array:
         def step(carry_state: Any, token: jax.Array) -> tuple[Any, jax.Array]:
             obs_probs = data_generator.observation_probability_distribution(carry_state)
-            log_prob = jnp.log(obs_probs[token])
+            log_probs = jnp.log(obs_probs)
             new_state = data_generator.transition_states(carry_state, token)
-            return new_state, log_prob
+            return new_state, log_probs
 
         _, log_probs = jax.lax.scan(step, state, seq)
         return log_probs

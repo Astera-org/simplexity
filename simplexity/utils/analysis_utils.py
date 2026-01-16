@@ -247,10 +247,10 @@ def build_raw_dataset(
     else:
         raise ValueError("Total probability mass is zero")
 
-    # Flatten observation_log_probs if provided
+    # Flatten observation_log_probs if provided: (batch, seq_len, vocab_size) -> (n_samples, vocab_size)
     flat_observation_log_probs = None
     if observation_log_probs is not None:
-        flat_observation_log_probs = observation_log_probs.reshape(n_samples)
+        flat_observation_log_probs = observation_log_probs.reshape(n_samples, *observation_log_probs.shape[2:])
 
     # Flatten activations
     flat_activations = {name: acts.reshape(n_samples, *acts.shape[2:]) for name, acts in activations_by_layer.items()}
@@ -405,7 +405,7 @@ def build_prefix_dataset(
 
     dedup_observation_log_probs = None
     if observation_log_probs is not None:
-        dedup_observation_log_probs, prefixes_log = dedup_scalar_first(observation_log_probs, prefix_to_indices)
+        dedup_observation_log_probs, prefixes_log = dedup_tensor_first(observation_log_probs, prefix_to_indices)
         if prefixes_log != prefixes:
             raise ValueError("Internal prefix ordering mismatch for observation_log_probs")
 
@@ -467,7 +467,7 @@ def build_last_token_dataset(
 
     dedup_observation_log_probs = None
     if observation_log_probs is not None:
-        dedup_observation_log_probs, sequences_log = dedup_last_token_scalar_first(
+        dedup_observation_log_probs, sequences_log = dedup_last_token_tensor_first(
             observation_log_probs, sequence_to_indices
         )
         if sequences_log != sequences:
