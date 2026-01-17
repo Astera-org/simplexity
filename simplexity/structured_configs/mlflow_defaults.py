@@ -22,11 +22,14 @@ from typing import Any, NamedTuple, cast
 
 from mlflow import MlflowClient
 from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf.errors import MissingMandatoryValue
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.structured_configs.mlflow import resolve_mlflow_config, validate_mlflow_config
 from simplexity.utils.config_utils import dynamic_resolve
+
+DEFAULT_ARTIFACT_NAME = "config"
 
 # TARGET(@PACKAGE)?
 # [optional|override]? TARGET(@PACKAGE)? : OPTION
@@ -51,7 +54,7 @@ def _parse_option(option: str) -> tuple[str, str | None]:
     """Parse artifact path and select path from option string."""
     if "#" in option:
         artifact_part, select_part = option.split("#", 1)
-        artifact_path = artifact_part.strip() or "config"
+        artifact_path = artifact_part.strip() or DEFAULT_ARTIFACT_NAME
         select_path = select_part.strip() or None
         return artifact_path, select_path
 
@@ -60,7 +63,7 @@ def _parse_option(option: str) -> tuple[str, str | None]:
         select_path = None
         return artifact_path, select_path
 
-    artifact_path = "config"
+    artifact_path = DEFAULT_ARTIFACT_NAME
     select_path = option.strip() or None
     return artifact_path, select_path
 
@@ -92,7 +95,7 @@ def _parse_entry(item: str) -> _ParsedEntry:
     # Treat VALUE as both PACKAGE and SELECT_PATH
     if package is None and option is not None and "/" not in option and "#" not in option:
         package = option.rsplit(".", 1)[1] if "." in option else option
-        artifact_path = "config"
+        artifact_path = DEFAULT_ARTIFACT_NAME
         select_path = option
         return _ParsedEntry(optional, override, target, package, artifact_path, select_path)
 
@@ -147,13 +150,13 @@ def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | Non
     with tempfile.TemporaryDirectory() as tmp_dir:
         try:
             local_path = client.download_artifacts(run_id=run_id, path=artifact_path, dst_path=tmp_dir)
-        except Exception as e:
+        except (OSError, FileNotFoundError) as e:
             SIMPLEXITY_LOGGER.warning("Failed to download artifact from MLflow '%s': %s", parsed_entry.target, e)
             return None
 
         try:
             loaded_config = OmegaConf.load(local_path)
-        except Exception as e:
+        except (OSError, FileNotFoundError, ValueError) as e:
             SIMPLEXITY_LOGGER.warning("Failed to load MLflow default '%s': %s", parsed_entry.target, e)
             return None
 
@@ -183,8 +186,8 @@ def _normalize_item(item: str | DictConfig) -> str:
         if len(keys) == 1:
             key = keys[0]
             value = item[key]
-            # If value is "config" (default artifact), treat as simple CONFIG entry
-            if value == "config":
+            # If value is the default artifact name, treat as simple CONFIG entry
+            if value == DEFAULT_ARTIFACT_NAME:
                 return str(key)
             return f"{key}: {value}"
         # Multiple keys - convert entire dict to string representation
@@ -223,7 +226,7 @@ def _resolve_mlflow_configs_recursive(cfg: DictConfig) -> None:
     for key in cfg:
         try:
             value = cfg[key]
-        except Exception:
+        except MissingMandatoryValue:
             # Skip keys that can't be accessed (e.g., missing mandatory values)
             continue
 
@@ -279,7 +282,7 @@ def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictC
             raise ValueError(f"Target config not found for entry: {item}")
         if parsed_entry.override:
             # Override at root: replace entire accumulator with loaded config
-            return cast(DictConfig, loaded_config)
+            return loaded_config
         return cast(DictConfig, OmegaConf.merge(accumulator, loaded_config))
 
     # When merging at a package (not root)
@@ -327,12 +330,14 @@ def load_mlflow_defaults(cfg: DictConfig) -> DictConfig:
     if mlflow_defaults is None:
         return cfg
 
-    if "_self_" not in mlflow_defaults:
-        mlflow_defaults.append("_self_")
+    # Create a copy to avoid mutating the input config
+    mlflow_defaults_copy = cast(ListConfig, OmegaConf.create(list(mlflow_defaults)))
+    if "_self_" not in mlflow_defaults_copy:
+        mlflow_defaults_copy.append("_self_")
 
-    accumulator = OmegaConf.create()
+    accumulator = cast(DictConfig, OmegaConf.create())
 
-    for item in mlflow_defaults:
+    for item in mlflow_defaults_copy:
         normalized_item = _normalize_item(item)
         accumulator = _process_entry(cfg, accumulator, normalized_item)
 
