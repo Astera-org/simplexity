@@ -172,12 +172,13 @@ def test_implicit_artifact_select(base_cfg: DictConfig, mock_download: MagicMock
 
 
 def test_override_flag(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
-    """Test override flag."""
+    """Test override flag replaces instead of merging."""
+    # Artifact contains different keys than base config to verify replacement
     artifact_path = tmp_path / "nondefault_config.yaml"
-    artifact_path.write_text("foo: new_bar\n")
+    artifact_path.write_text("new_key: new_value\nother_key: other_value\n")
     mock_download.return_value = str(artifact_path)
 
-    # Place _self_ first so the loaded config overrides the base config
+    # Place _self_ first so original config is merged, then override replaces it
     cfg = OmegaConf.merge(
         base_cfg,
         {
@@ -185,7 +186,136 @@ def test_override_flag(base_cfg: DictConfig, mock_download: MagicMock, tmp_path:
         },
     )
     loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
-    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "new_bar"
+
+    # Verify override replaced the entire other_section (no merge)
+    assert OmegaConf.select(loaded_cfg, "other_section.new_key") == "new_value"
+    assert OmegaConf.select(loaded_cfg, "other_section.other_key") == "other_value"
+    # Original foo: bar should be gone (replaced, not merged)
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") is None
+
+
+def test_override_flag_at_root(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test override flag at root level with explicit _self_ first."""
+    artifact_path = tmp_path / "config.yaml"
+    artifact_path.write_text("root_key: root_value\nother_key: other_value\n")
+    mock_download.return_value = str(artifact_path)
+
+    # To override everything, explicitly include _self_ first, then override
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["_self_", "override previous_run"],
+        },
+    )
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+
+    # Verify override replaced entire config at root (after _self_ was processed)
+    assert OmegaConf.select(loaded_cfg, "root_key") == "root_value"
+    assert OmegaConf.select(loaded_cfg, "other_key") == "other_value"
+    # Original keys should be gone (override replaced everything)
+    assert OmegaConf.select(loaded_cfg, "other_section") is None
+    assert OmegaConf.select(loaded_cfg, "previous_run") is None
+
+
+def test_override_flag_at_root_without_explicit_self(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test override flag at root level without explicit _self_ - _self_ is auto-appended."""
+    artifact_path = tmp_path / "config.yaml"
+    artifact_path.write_text("root_key: root_value\nother_key: other_value\n")
+    mock_download.return_value = str(artifact_path)
+
+    # Without explicit _self_, it will be auto-appended at the end
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["override previous_run"],
+        },
+    )
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+
+    # Override replaced everything, but _self_ was auto-appended and merged after
+    # So original keys from _self_ should be back (last entry wins for conflicting keys)
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"
+    assert OmegaConf.select(loaded_cfg, "previous_run.tracking_uri") == "databricks"
+    # Keys from override that don't conflict with _self_ should still be present
+    assert OmegaConf.select(loaded_cfg, "root_key") == "root_value"
+    assert OmegaConf.select(loaded_cfg, "other_key") == "other_value"
+
+
+def test_override_flag_nested_path(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test override flag with nested package path."""
+    artifact_path = tmp_path / "config.yaml"
+    artifact_path.write_text("nested_key: nested_value\n")
+    mock_download.return_value = str(artifact_path)
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["_self_", "override previous_run@nested.path: config#"],
+        },
+    )
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+
+    # Verify override replaced at nested path
+    assert OmegaConf.select(loaded_cfg, "nested.path.nested_key") == "nested_value"
+    # Original other_section should still exist (not affected)
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"
+
+
+def test_override_with_explicit_self(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test that _self_ is processed when explicitly included after override."""
+    artifact_path = tmp_path / "config.yaml"
+    artifact_path.write_text("key1: value1\nkey2: value2\n")
+    mock_download.return_value = str(artifact_path)
+
+    # Test with override followed by explicit _self_
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": [
+                "override previous_run@other_section: config#",
+                "_self_",  # Explicitly included, should merge after override
+            ],
+        },
+    )
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+
+    # Override replaced other_section, but _self_ merged after, so original foo should be back
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"  # From _self_
+    assert OmegaConf.select(loaded_cfg, "other_section.key1") == "value1"  # From override
+    assert OmegaConf.select(loaded_cfg, "other_section.key2") == "value2"  # From override
+
+
+def test_override_vs_merge_behavior(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test that override replaces while normal entry merges."""
+    artifact_path = tmp_path / "config.yaml"
+    artifact_path.write_text("key1: value1\nkey2: value2\n")
+    mock_download.return_value = str(artifact_path)
+
+    # Test with merge (no override)
+    cfg_merge = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["_self_", "previous_run@other_section: config#"],
+        },
+    )
+    loaded_merge: DictConfig = load_mlflow_defaults(cfg_merge)
+    # With merge, original foo should be preserved
+    assert OmegaConf.select(loaded_merge, "other_section.foo") == "bar"
+    assert OmegaConf.select(loaded_merge, "other_section.key1") == "value1"
+    assert OmegaConf.select(loaded_merge, "other_section.key2") == "value2"
+
+    # Test with override
+    cfg_override = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["_self_", "override previous_run@other_section: config#"],
+        },
+    )
+    loaded_override: DictConfig = load_mlflow_defaults(cfg_override)
+    # With override, original foo should be replaced
+    assert OmegaConf.select(loaded_override, "other_section.foo") is None
+    assert OmegaConf.select(loaded_override, "other_section.key1") == "value1"
+    assert OmegaConf.select(loaded_override, "other_section.key2") == "value2"
 
 
 def test_optional_flag_missing_artifact(base_cfg: DictConfig):

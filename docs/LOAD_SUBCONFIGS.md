@@ -25,12 +25,13 @@ OPTION            : ARTIFACT_PATH | SELECT_PATH | ARTIFACT_PATH#SELECT_PATH | nu
   - If the path does not contain `/`, it is ambiguous and defaults to `SELECT_PATH`. To force it to be an `ARTIFACT_PATH`, append `#` (e.g., `my_artifact#`).
 - `SELECT_PATH`: OmegaConf dot path within the source YAML to the subconfig to import (default: root).
 - `_self_`, `optional`, and `override` function the same as their Hydra equivalents.
-  - `_self_` determines the composition order. If missing, it is appended to the end.
+  - `_self_` determines the composition order. If missing, it is always appended to the end. If `_self_` is explicitly included, it is processed in the specified order.
   - Standard merge semantics apply: **whatever comes last wins**, whether it's `_self_` or an MLflow entry.
     - If `_self_` is first: MLflow entries merged after `_self_` will override the original config.
     - If `_self_` is last: Original config merged after MLflow entries will override MLflow content.
+    - To override everything from `_self_`, explicitly include `_self_` first, then use `override` at root.
   - `optional` suppresses errors if the artifact or selected subconfig is missing.
-  - `override` is a semantic indicator for intention but functionally both override and standard merge result in overwrites.
+  - `override` causes the loaded config to completely replace the value at the package path instead of merging. When override is used, any existing content at that path is completely replaced with the loaded content (no deep merge).
 
 ### Merge Semantics for Overlapping Keys
 
@@ -120,8 +121,11 @@ defaults:
   - train: smoke
 mlflow_defaults:
   # usage of '#' explicit defines ARTIFACT_PATH (train) and SELECT_PATH (optimizer)
+  # override flag causes complete replacement of train.optimizer (no merge)
   - override load_source@train.optimizer: train#optimizer
 ```
+
+**Note**: With `override`, the entire `train.optimizer` section is replaced with the content from the artifact. Any existing keys in `train.optimizer` that are not in the artifact will be removed.
 
 ### load `model` and `generative_process` from previous run
 
@@ -226,7 +230,32 @@ other_section:
 
 If both configs had `other_section.foo`, the value from `config2` would win (last entry wins for conflicting keys).
 
-**Note**: The `override` flag is currently a semantic indicator and doesn't change merge behavior. In the future, it may be used to specify replacement instead of merge.
+**Note**: The `override` flag changes merge behavior: when specified, the loaded config completely replaces the value at the package path instead of merging. This means all existing keys at that path are removed and replaced with the loaded content.
+
+### Override flag behavior with `_self_`
+
+When `override` is used, the order of entries still matters. If `_self_` is explicitly included in the list, it will be processed in the order specified:
+
+```yaml
+mlflow_defaults:
+  - load_source_1@other_section: config1# # Merges at other_section
+  - override load_source_2@other_section: config2# # Replaces other_section completely
+  - _self_ # Merges original config, so original values can override the override
+```
+
+In this example:
+
+1. `config1` is merged into `other_section` (preserving existing keys, merging nested dicts)
+2. `config2` completely replaces `other_section` (removing all keys from step 1)
+3. `_self_` merges the original config, so any keys in the original `other_section` will override/replace what was loaded from `config2`
+
+**Important**: `_self_` is always auto-appended if not explicitly included, regardless of override usage. If you want to override everything from `_self_`, explicitly include `_self_` first, then use `override` at root:
+
+```yaml
+mlflow_defaults:
+  - _self_ # Explicitly include first
+  - override load_source # Then override at root, replacing everything
+```
 
 ## Implementation:
 

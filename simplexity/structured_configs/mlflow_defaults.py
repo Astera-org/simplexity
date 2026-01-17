@@ -40,6 +40,7 @@ class _ParsedEntry(NamedTuple):
     """Parsed MLflow default item."""
 
     optional: bool
+    override: bool
     target: str
     package: str
     artifact_path: str | None
@@ -75,6 +76,7 @@ def _parse_entry(item: str) -> _ParsedEntry:
     groups = match.groupdict()
     flags_str = groups.get("flags", "")
     optional = "optional" in flags_str
+    override = "override" in flags_str
 
     target = groups["target"]
     if not target:
@@ -92,15 +94,15 @@ def _parse_entry(item: str) -> _ParsedEntry:
         package = option.rsplit(".", 1)[1] if "." in option else option
         artifact_path = "config"
         select_path = option
-        return _ParsedEntry(optional, target, package, artifact_path, select_path)
+        return _ParsedEntry(optional, override, target, package, artifact_path, select_path)
 
     package = package or "."
 
     if option == "null":
-        return _ParsedEntry(optional, target, package, None, None)
+        return _ParsedEntry(optional, override, target, package, None, None)
 
     artifact_path, select_path = _parse_option(option or "")
-    return _ParsedEntry(optional, target, package, artifact_path, select_path)
+    return _ParsedEntry(optional, override, target, package, artifact_path, select_path)
 
 
 def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | None:
@@ -239,7 +241,10 @@ def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictC
 
     Handles both "_self_" entries (merging the original config) and MLflow entries
     (downloading and merging configs from MLflow runs). Uses deep merge semantics
-    matching Hydra's defaults list behavior.
+    matching Hydra's defaults list behavior, unless the override flag is specified.
+
+    When override is True, the loaded config completely replaces the value at the
+    package path instead of merging with existing content.
 
     Args:
         cfg: The original config being processed.
@@ -247,7 +252,7 @@ def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictC
         item: The entry to process (either "_self_" or an MLflow entry string).
 
     Returns:
-        The updated accumulator with the entry merged in.
+        The updated accumulator with the entry merged in or replaced (if override).
     """
     if item == "_self_":
         # Standard merge semantics: last entry wins (matches Hydra behavior)
@@ -272,9 +277,27 @@ def _process_entry(cfg: DictConfig, accumulator: DictConfig, item: str) -> DictC
             if parsed_entry.optional:
                 return accumulator
             raise ValueError(f"Target config not found for entry: {item}")
+        if parsed_entry.override:
+            # Override at root: replace entire accumulator with loaded config
+            return cast(DictConfig, loaded_config)
         return cast(DictConfig, OmegaConf.merge(accumulator, loaded_config))
 
-    # When merging at a package (not root), use deep merge semantics (matches Hydra behavior)
+    # When merging at a package (not root)
+    if parsed_entry.override:
+        # Override: completely replace the value at the package path
+        # Traverse the path and directly assign the value to replace any existing content
+        package_parts = parsed_entry.package.split(".")
+        target = accumulator
+        # Navigate to the parent of the target key
+        for part in package_parts[:-1]:
+            if part not in target:
+                target[part] = OmegaConf.create()
+            target = target[part]
+        # Directly assign the new value, completely replacing any existing value
+        target[package_parts[-1]] = loaded_config
+        return accumulator
+
+    # Standard merge: use deep merge semantics (matches Hydra behavior)
     # This ensures that MLflow content merges with any existing content at that package path,
     # preserving non-conflicting keys and deeply merging nested dictionaries
     package_conf = OmegaConf.create()
@@ -313,6 +336,8 @@ def load_mlflow_defaults(cfg: DictConfig) -> DictConfig:
         normalized_item = _normalize_item(item)
         accumulator = _process_entry(cfg, accumulator, normalized_item)
 
-    del accumulator["mlflow_defaults"]
+    # Remove mlflow_defaults key if it exists (it may not exist if override at root replaced everything)
+    if "mlflow_defaults" in accumulator:
+        del accumulator["mlflow_defaults"]
 
     return accumulator
