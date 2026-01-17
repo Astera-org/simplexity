@@ -194,8 +194,11 @@ def _normalize_item(item: str | DictConfig) -> str:
             if value == DEFAULT_ARTIFACT_NAME:
                 return str(key)
             # If value is None (from YAML null), convert to "null" string
+            # IMPORTANT: Check for None BEFORE f-string formatting to avoid converting
+            # Python None to the string "None" instead of "null"
             if value is None:
                 return f"{key}: null"
+            # Format the value - this would convert None to "None" if the check above is bypassed
             return f"{key}: {value}"
         # Multiple keys - convert entire dict to string representation
         return str(item)
