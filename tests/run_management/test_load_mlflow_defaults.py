@@ -367,6 +367,21 @@ def test_null_option_optional(base_cfg: DictConfig):
     assert OmegaConf.select(loaded_cfg, "other_section") == cfg.other_section
 
 
+def test_null_option_dict_syntax_error(base_cfg: DictConfig):
+    """Test null option with YAML dict syntax raises error."""
+    # YAML dict syntax: - previous_run: null becomes DictConfig with None value
+    # This should be treated the same as string format: "previous_run: null"
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": [OmegaConf.create({"previous_run": None})],
+        },
+    )
+    # Should raise ValueError because null option without optional flag is mandatory
+    with pytest.raises(ValueError, match="Target config not found for entry"):
+        load_mlflow_defaults(cfg)
+
+
 def test_composition_order(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
     """Test _self_ placement in composition order."""
     artifact_path = tmp_path / "nondefault_config.yaml"

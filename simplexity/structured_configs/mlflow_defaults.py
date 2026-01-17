@@ -181,6 +181,7 @@ def _normalize_item(item: str | DictConfig) -> str:
 
     If item is a DictConfig with a single key-value pair:
     - If value is "config" (the default artifact), treat as just the key (no option)
+    - If value is None (Python None, from YAML null), convert to "key: null" string
     - Otherwise, convert to "key: value" format
     Otherwise, convert to string.
     """
@@ -192,6 +193,9 @@ def _normalize_item(item: str | DictConfig) -> str:
             # If value is the default artifact name, treat as simple CONFIG entry
             if value == DEFAULT_ARTIFACT_NAME:
                 return str(key)
+            # If value is None (from YAML null), convert to "null" string
+            if value is None:
+                return f"{key}: null"
             return f"{key}: {value}"
         # Multiple keys - convert entire dict to string representation
         return str(item)
