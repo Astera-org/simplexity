@@ -20,6 +20,7 @@ import re
 import tempfile
 from typing import Any, NamedTuple, cast
 
+import yaml
 from mlflow import MlflowClient
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
@@ -91,6 +92,11 @@ def _parse_entry(item: str) -> _ParsedEntry:
     package = groups.get("package")
     option = groups.get("option")
 
+    # Check for null keyword first, before special case handling
+    if option == "null":
+        package = package or "."
+        return _ParsedEntry(optional, override, target, package, None, None)
+
     # Special case: TARGET: VALUE (no @) where VALUE doesn't contain / or #
     # Treat VALUE as both PACKAGE and SELECT_PATH
     if package is None and option is not None and "/" not in option and "#" not in option:
@@ -100,9 +106,6 @@ def _parse_entry(item: str) -> _ParsedEntry:
         return _ParsedEntry(optional, override, target, package, artifact_path, select_path)
 
     package = package or "."
-
-    if option == "null":
-        return _ParsedEntry(optional, override, target, package, None, None)
 
     artifact_path, select_path = _parse_option(option or "")
     return _ParsedEntry(optional, override, target, package, artifact_path, select_path)
@@ -156,7 +159,7 @@ def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | Non
 
         try:
             loaded_config = OmegaConf.load(local_path)
-        except (OSError, FileNotFoundError, ValueError) as e:
+        except (OSError, FileNotFoundError, ValueError, yaml.YAMLError) as e:
             SIMPLEXITY_LOGGER.warning("Failed to load MLflow default '%s': %s", parsed_entry.target, e)
             return None
 
