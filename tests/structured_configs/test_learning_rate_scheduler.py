@@ -5,9 +5,11 @@ from omegaconf import OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.learning_rate_scheduler import (
+    is_linear_warmup_scheduler_config,
     is_lr_scheduler_config,
     is_reduce_lr_on_plateau_config,
     is_windowed_reduce_lr_on_plateau_config,
+    validate_linear_warmup_scheduler_instance_config,
     validate_lr_scheduler_config,
     validate_reduce_lr_on_plateau_instance_config,
     validate_windowed_reduce_lr_on_plateau_instance_config,
@@ -52,6 +54,25 @@ class TestIsWindowedReduceLROnPlateauConfig:
         assert is_windowed_reduce_lr_on_plateau_config(cfg) is False
 
 
+class TestIsLinearWarmupSchedulerConfig:
+    """Tests for is_linear_warmup_scheduler_config."""
+
+    def test_is_linear_warmup_scheduler_config(self):
+        """Test that LinearWarmupScheduler target is correctly identified."""
+        cfg = OmegaConf.create({"_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler"})
+        assert is_linear_warmup_scheduler_config(cfg) is True
+
+    def test_is_linear_warmup_scheduler_config_wrong_target(self):
+        """Test that non-LinearWarmupScheduler target returns False."""
+        cfg = OmegaConf.create({"_target_": "torch.optim.lr_scheduler.ReduceLROnPlateau"})
+        assert is_linear_warmup_scheduler_config(cfg) is False
+
+    def test_is_linear_warmup_scheduler_config_no_target(self):
+        """Test that missing _target_ returns False."""
+        cfg = OmegaConf.create({})
+        assert is_linear_warmup_scheduler_config(cfg) is False
+
+
 class TestIsLrSchedulerConfig:
     """Tests for is_lr_scheduler_config."""
 
@@ -63,6 +84,11 @@ class TestIsLrSchedulerConfig:
     def test_is_lr_scheduler_config_windowed(self):
         """Test is_lr_scheduler_config with WindowedReduceLROnPlateau target."""
         cfg = OmegaConf.create({"_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau"})
+        assert is_lr_scheduler_config(cfg) is True
+
+    def test_is_lr_scheduler_config_linear_warmup(self):
+        """Test is_lr_scheduler_config with LinearWarmupScheduler target."""
+        cfg = OmegaConf.create({"_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler"})
         assert is_lr_scheduler_config(cfg) is True
 
     def test_is_lr_scheduler_config_other_scheduler(self):
@@ -253,6 +279,102 @@ class TestValidateWindowedReduceLROnPlateau:
             validate_windowed_reduce_lr_on_plateau_instance_config(cfg)
 
 
+class TestValidateLinearWarmupScheduler:
+    """Tests for validate_linear_warmup_scheduler_instance_config."""
+
+    def test_valid_config(self):
+        """Test validation passes with valid LinearWarmupScheduler config."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                "warmup_steps": 1000,
+                "warmup_start_factor": 0.01,
+            }
+        )
+        validate_linear_warmup_scheduler_instance_config(cfg)
+
+    def test_valid_config_with_wrapped_scheduler(self):
+        """Test validation passes with valid wrapped scheduler config."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                "warmup_steps": 1000,
+                "warmup_start_factor": 0.01,
+                "wrapped_scheduler_cfg": {
+                    "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
+                    "window_size": 10,
+                },
+            }
+        )
+        validate_linear_warmup_scheduler_instance_config(cfg)
+
+    def test_invalid_warmup_steps(self):
+        """Test validation fails with zero warmup_steps."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                "warmup_steps": 0,
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_linear_warmup_scheduler_instance_config(cfg)
+
+    def test_invalid_negative_warmup_steps(self):
+        """Test validation fails with negative warmup_steps."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                "warmup_steps": -10,
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_linear_warmup_scheduler_instance_config(cfg)
+
+    def test_invalid_warmup_start_factor_zero(self):
+        """Test validation fails with zero warmup_start_factor."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                "warmup_start_factor": 0.0,
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_linear_warmup_scheduler_instance_config(cfg)
+
+    def test_invalid_warmup_start_factor_greater_than_one(self):
+        """Test validation fails with warmup_start_factor > 1.0."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                "warmup_start_factor": 1.5,
+            }
+        )
+        with pytest.raises(ConfigValidationError, match="must be <= 1.0"):
+            validate_linear_warmup_scheduler_instance_config(cfg)
+
+    def test_invalid_wrapped_scheduler_cfg_not_dict(self):
+        """Test validation fails with non-dict wrapped_scheduler_cfg."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                "wrapped_scheduler_cfg": "not_a_dict",
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_linear_warmup_scheduler_instance_config(cfg)
+
+    def test_invalid_wrapped_scheduler_missing_target(self):
+        """Test validation fails when wrapped scheduler has no _target_."""
+        cfg = OmegaConf.create(
+            {
+                "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                "wrapped_scheduler_cfg": {"window_size": 10},
+            }
+        )
+        with pytest.raises(ConfigValidationError):
+            validate_linear_warmup_scheduler_instance_config(cfg)
+
+
 class TestValidateLrSchedulerConfig:
     """Tests for validate_lr_scheduler_config."""
 
@@ -277,6 +399,36 @@ class TestValidateLrSchedulerConfig:
                     "window_size": 10,
                     "update_every": 100,
                     "patience": 5,
+                },
+            }
+        )
+        validate_lr_scheduler_config(cfg)
+
+    def test_valid_linear_warmup_scheduler(self):
+        """Test validation passes with valid LinearWarmupScheduler config."""
+        cfg = OmegaConf.create(
+            {
+                "instance": {
+                    "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                    "warmup_steps": 1000,
+                    "warmup_start_factor": 0.01,
+                },
+            }
+        )
+        validate_lr_scheduler_config(cfg)
+
+    def test_valid_linear_warmup_with_wrapped_scheduler(self):
+        """Test validation passes with LinearWarmupScheduler and wrapped scheduler."""
+        cfg = OmegaConf.create(
+            {
+                "instance": {
+                    "_target_": "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
+                    "warmup_steps": 1000,
+                    "warmup_start_factor": 0.01,
+                    "wrapped_scheduler_cfg": {
+                        "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
+                        "window_size": 10,
+                    },
                 },
             }
         )

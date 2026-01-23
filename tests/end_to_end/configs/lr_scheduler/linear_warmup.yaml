@@ -1,0 +1,13 @@
+name: lr_scheduler_linear_warmup
+instance:
+  _target_: simplexity.optimization.lr_schedulers.LinearWarmupScheduler
+  _recursive_: false
+  warmup_steps: 1000
+  warmup_start_factor: 0.01
+  wrapped_scheduler_cfg:
+    _target_: simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau
+    window_size: 10
+    update_every: 200
+    mode: min
+    factor: 0.5
+    patience: 250

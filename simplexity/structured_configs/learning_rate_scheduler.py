@@ -1,12 +1,14 @@
 """Learning rate scheduler configuration dataclasses."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
 from simplexity.structured_configs.validation import (
+    validate_mapping,
     validate_non_negative_float,
     validate_non_negative_int,
     validate_nonempty_str,
@@ -44,6 +46,20 @@ class WindowedReduceLROnPlateauInstanceConfig(ReduceLROnPlateauInstanceConfig):
 
     window_size: int = 10
     update_every: int = 1
+
+
+@dataclass
+class LinearWarmupSchedulerInstanceConfig(InstanceConfig):
+    """Configuration for LinearWarmupScheduler.
+
+    This scheduler linearly increases the learning rate from
+    warmup_start_factor * base_lr to base_lr over warmup_steps steps.
+    After warmup, optionally delegates to a wrapped scheduler.
+    """
+
+    warmup_steps: int = 1000
+    warmup_start_factor: float = 0.01
+    wrapped_scheduler_cfg: dict[str, Any] | None = field(default=None)
 
 
 def is_reduce_lr_on_plateau_config(cfg: DictConfig) -> bool:
@@ -93,6 +109,41 @@ def validate_windowed_reduce_lr_on_plateau_instance_config(cfg: DictConfig) -> N
     validate_positive_int(update_every, "WindowedReduceLROnPlateauInstanceConfig.update_every", is_none_allowed=True)
 
 
+def is_linear_warmup_scheduler_config(cfg: DictConfig) -> bool:
+    """Check if the configuration is a LinearWarmupScheduler configuration."""
+    target = cfg.get("_target_", None)
+    if isinstance(target, str):
+        return target == "simplexity.optimization.lr_schedulers.LinearWarmupScheduler"
+    return False
+
+
+def validate_linear_warmup_scheduler_instance_config(cfg: DictConfig) -> None:
+    """Validate a LinearWarmupSchedulerInstanceConfig."""
+    validate_instance_config(cfg)
+    warmup_steps = cfg.get("warmup_steps")
+    warmup_start_factor = cfg.get("warmup_start_factor")
+    wrapped_scheduler_cfg = cfg.get("wrapped_scheduler_cfg")
+
+    validate_positive_int(warmup_steps, "LinearWarmupSchedulerInstanceConfig.warmup_steps", is_none_allowed=True)
+    validate_positive_float(
+        warmup_start_factor, "LinearWarmupSchedulerInstanceConfig.warmup_start_factor", is_none_allowed=True
+    )
+    if warmup_start_factor is not None and warmup_start_factor > 1.0:
+        raise ConfigValidationError(
+            f"LinearWarmupSchedulerInstanceConfig.warmup_start_factor must be <= 1.0, got {warmup_start_factor}"
+        )
+    validate_mapping(
+        wrapped_scheduler_cfg, "LinearWarmupSchedulerInstanceConfig.wrapped_scheduler_cfg", is_none_allowed=True
+    )
+
+    if wrapped_scheduler_cfg is not None:
+        if isinstance(wrapped_scheduler_cfg, DictConfig):
+            wrapped_cfg = wrapped_scheduler_cfg
+        else:
+            wrapped_cfg = DictConfig(wrapped_scheduler_cfg)
+        validate_instance_config(wrapped_cfg)
+
+
 @dataclass
 class LearningRateSchedulerConfig:
     """Base configuration for learning rate schedulers."""
@@ -106,12 +157,17 @@ def is_lr_scheduler_target(target: str) -> bool:
     return target in (
         "torch.optim.lr_scheduler.ReduceLROnPlateau",
         "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
+        "simplexity.optimization.lr_schedulers.LinearWarmupScheduler",
     )
 
 
 def is_lr_scheduler_config(cfg: DictConfig) -> bool:
-    """Check if the configuration is a plateau-based learning rate scheduler config."""
-    return is_reduce_lr_on_plateau_config(cfg) or is_windowed_reduce_lr_on_plateau_config(cfg)
+    """Check if the configuration is a supported learning rate scheduler config."""
+    return (
+        is_reduce_lr_on_plateau_config(cfg)
+        or is_windowed_reduce_lr_on_plateau_config(cfg)
+        or is_linear_warmup_scheduler_config(cfg)
+    )
 
 
 def validate_lr_scheduler_config(cfg: DictConfig) -> None:
@@ -129,10 +185,13 @@ def validate_lr_scheduler_config(cfg: DictConfig) -> None:
         validate_reduce_lr_on_plateau_instance_config(instance)
     elif is_windowed_reduce_lr_on_plateau_config(instance):
         validate_windowed_reduce_lr_on_plateau_instance_config(instance)
+    elif is_linear_warmup_scheduler_config(instance):
+        validate_linear_warmup_scheduler_instance_config(instance)
     else:
         validate_instance_config(instance)
         if not is_lr_scheduler_config(instance):
             raise ConfigValidationError(
-                "LearningRateSchedulerConfig.instance must be ReduceLROnPlateau or WindowedReduceLROnPlateau"
+                "LearningRateSchedulerConfig.instance must be ReduceLROnPlateau, "
+                "WindowedReduceLROnPlateau, or LinearWarmupScheduler"
             )
     validate_nonempty_str(name, "LearningRateSchedulerConfig.name", is_none_allowed=True)

@@ -5,7 +5,7 @@ import pytest
 import torch
 from torch.optim import SGD
 
-from simplexity.optimization.lr_schedulers import WindowedReduceLROnPlateau
+from simplexity.optimization.lr_schedulers import LinearWarmupScheduler, WindowedReduceLROnPlateau
 
 
 @pytest.fixture
@@ -222,3 +222,196 @@ class TestWindowedReduceLROnPlateau:
             scheduler.step(1.0)
 
         assert optimizer.param_groups[0]["lr"] >= 0.01
+
+
+class TestLinearWarmupScheduler:
+    """Tests for LinearWarmupScheduler."""
+
+    def test_linear_interpolation_during_warmup(self, optimizer: SGD):
+        """Test that LR increases linearly during warmup."""
+        warmup_steps = 10
+        warmup_start_factor = 0.1
+        base_lr = optimizer.param_groups[0]["lr"]  # 0.1
+
+        scheduler = LinearWarmupScheduler(
+            optimizer,
+            warmup_steps=warmup_steps,
+            warmup_start_factor=warmup_start_factor,
+        )
+
+        expected_lrs = []
+        for step in range(1, warmup_steps + 1):
+            alpha = step / warmup_steps
+            factor = warmup_start_factor + alpha * (1.0 - warmup_start_factor)
+            expected_lrs.append(base_lr * factor)
+
+        actual_lrs = []
+        for _ in range(warmup_steps):
+            scheduler.step()
+            actual_lrs.append(optimizer.param_groups[0]["lr"])
+
+        for actual, expected in zip(actual_lrs, expected_lrs, strict=True):
+            assert abs(actual - expected) < 1e-7
+
+    def test_constant_lr_after_warmup_no_wrapped_scheduler(self, optimizer: SGD):
+        """Test that LR stays constant after warmup when no wrapped scheduler."""
+        warmup_steps = 5
+        base_lr = optimizer.param_groups[0]["lr"]
+
+        scheduler = LinearWarmupScheduler(
+            optimizer,
+            warmup_steps=warmup_steps,
+            warmup_start_factor=0.1,
+        )
+
+        for _ in range(warmup_steps):
+            scheduler.step()
+
+        final_warmup_lr = optimizer.param_groups[0]["lr"]
+        assert abs(final_warmup_lr - base_lr) < 1e-7
+
+        for _ in range(10):
+            scheduler.step()
+            assert abs(optimizer.param_groups[0]["lr"] - base_lr) < 1e-7
+
+    def test_delegation_to_wrapped_scheduler_after_warmup(self, optimizer: SGD):
+        """Test that wrapped scheduler is called after warmup."""
+        warmup_steps = 5
+        wrapped_cfg = {
+            "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
+            "window_size": 2,
+            "update_every": 1,
+            "patience": 1,
+            "factor": 0.5,
+            "threshold": 0.0,
+        }
+
+        scheduler = LinearWarmupScheduler(
+            optimizer,
+            warmup_steps=warmup_steps,
+            warmup_start_factor=0.1,
+            wrapped_scheduler_cfg=wrapped_cfg,
+        )
+
+        for _ in range(warmup_steps):
+            scheduler.step(metrics=1.0)
+
+        base_lr = optimizer.param_groups[0]["lr"]
+
+        for _ in range(20):
+            scheduler.step(metrics=1.0)
+
+        assert optimizer.param_groups[0]["lr"] < base_lr
+
+    def test_state_dict_save_load(self, optimizer: SGD):
+        """Test that state can be saved and loaded."""
+        scheduler = LinearWarmupScheduler(
+            optimizer,
+            warmup_steps=10,
+            warmup_start_factor=0.05,
+        )
+
+        for _ in range(3):
+            scheduler.step()
+
+        state = scheduler.state_dict()
+        assert state["warmup_steps"] == 10
+        assert state["warmup_start_factor"] == 0.05
+        assert state["warmup_step_count"] == 3
+
+        new_optimizer = SGD(torch.nn.Linear(10, 1).parameters(), lr=0.1)
+        new_scheduler = LinearWarmupScheduler(
+            new_optimizer,
+            warmup_steps=1,
+            warmup_start_factor=0.5,
+        )
+        new_scheduler.load_state_dict(state)
+
+        assert new_scheduler.warmup_steps == 10
+        assert new_scheduler.warmup_start_factor == 0.05
+        assert new_scheduler._warmup_step_count == 3
+
+    def test_state_dict_with_wrapped_scheduler(self, optimizer: SGD):
+        """Test state dict with wrapped scheduler included."""
+        wrapped_cfg = {
+            "_target_": "simplexity.optimization.lr_schedulers.WindowedReduceLROnPlateau",
+            "window_size": 5,
+            "update_every": 10,
+        }
+
+        scheduler = LinearWarmupScheduler(
+            optimizer,
+            warmup_steps=10,
+            warmup_start_factor=0.1,
+            wrapped_scheduler_cfg=wrapped_cfg,
+        )
+
+        for _ in range(3):
+            scheduler.step(metrics=1.0)
+
+        state = scheduler.state_dict()
+        assert "wrapped_scheduler_state" in state
+        assert state["wrapped_scheduler_state"]["window_size"] == 5
+
+        new_optimizer = SGD(torch.nn.Linear(10, 1).parameters(), lr=0.1)
+        new_scheduler = LinearWarmupScheduler(
+            new_optimizer,
+            warmup_steps=10,
+            warmup_start_factor=0.1,
+            wrapped_scheduler_cfg=wrapped_cfg,
+        )
+        new_scheduler.load_state_dict(state)
+
+        assert new_scheduler.wrapped_scheduler is not None
+        assert new_scheduler.wrapped_scheduler.window_size == 5
+
+    def test_warmup_steps_zero(self, optimizer: SGD):
+        """Test edge case with warmup_steps=0."""
+        base_lr = optimizer.param_groups[0]["lr"]
+
+        scheduler = LinearWarmupScheduler(
+            optimizer,
+            warmup_steps=0,
+            warmup_start_factor=0.1,
+        )
+
+        scheduler.step()
+        assert abs(optimizer.param_groups[0]["lr"] - base_lr) < 1e-7
+
+    def test_warmup_start_factor_one(self, optimizer: SGD):
+        """Test edge case with warmup_start_factor=1.0 (no warmup effect)."""
+        base_lr = optimizer.param_groups[0]["lr"]
+
+        scheduler = LinearWarmupScheduler(
+            optimizer,
+            warmup_steps=10,
+            warmup_start_factor=1.0,
+        )
+
+        for _ in range(5):
+            scheduler.step()
+            assert abs(optimizer.param_groups[0]["lr"] - base_lr) < 1e-7
+
+    def test_multiple_param_groups(self):
+        """Test that warmup works with multiple param groups."""
+        model1 = torch.nn.Linear(10, 5)
+        model2 = torch.nn.Linear(5, 1)
+        optimizer = SGD(
+            [
+                {"params": model1.parameters(), "lr": 0.1},
+                {"params": model2.parameters(), "lr": 0.01},
+            ]
+        )
+
+        scheduler = LinearWarmupScheduler(
+            optimizer,
+            warmup_steps=10,
+            warmup_start_factor=0.1,
+        )
+
+        for step in range(1, 11):
+            scheduler.step()
+            alpha = step / 10
+            factor = 0.1 + alpha * (1.0 - 0.1)
+            assert abs(optimizer.param_groups[0]["lr"] - 0.1 * factor) < 1e-7
+            assert abs(optimizer.param_groups[1]["lr"] - 0.01 * factor) < 1e-7

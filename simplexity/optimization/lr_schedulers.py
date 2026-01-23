@@ -3,8 +3,10 @@
 from collections import deque
 from typing import Any, Literal
 
+import hydra
+from omegaconf import DictConfig
 from torch.optim import Optimizer
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import LRScheduler, ReduceLROnPlateau
 
 
 class WindowedReduceLROnPlateau(ReduceLROnPlateau):
@@ -108,3 +110,89 @@ class WindowedReduceLROnPlateau(ReduceLROnPlateau):
         self._step_count = state_dict.pop("step_count", 0)
         self._loss_window = deque(loss_window, maxlen=self.window_size)
         super().load_state_dict(state_dict)
+
+
+class LinearWarmupScheduler(LRScheduler):
+    """Learning rate scheduler with linear warmup.
+
+    Linearly increases the learning rate from `warmup_start_factor * base_lr` to
+    `base_lr` over `warmup_steps` steps. After warmup, optionally delegates to a
+    wrapped scheduler.
+
+    Args:
+        optimizer: Wrapped optimizer.
+        warmup_steps: Number of steps for the warmup phase.
+        warmup_start_factor: Starting factor for learning rate during warmup. Default: 0.01.
+        wrapped_scheduler_cfg: Optional Hydra config dict for wrapped scheduler. Default: None.
+        last_epoch: The index of last epoch. Default: -1.
+    """
+
+    def __init__(
+        self,
+        optimizer: Optimizer,
+        warmup_steps: int,
+        warmup_start_factor: float = 0.01,
+        wrapped_scheduler_cfg: dict[str, Any] | DictConfig | None = None,
+        last_epoch: int = -1,
+    ):
+        self.warmup_steps = warmup_steps
+        self.warmup_start_factor = warmup_start_factor
+        self._warmup_step_count = 0
+
+        if wrapped_scheduler_cfg is not None:
+            self.wrapped_scheduler: LRScheduler | None = hydra.utils.instantiate(
+                wrapped_scheduler_cfg, optimizer=optimizer
+            )
+        else:
+            self.wrapped_scheduler = None
+
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self) -> list[float]:
+        """Compute the learning rate for the current step."""
+        if self._warmup_step_count < self.warmup_steps:
+            alpha = self._warmup_step_count / self.warmup_steps
+            factor = self.warmup_start_factor + alpha * (1.0 - self.warmup_start_factor)
+            return [base_lr * factor for base_lr in self.base_lrs]
+        return [group["lr"] for group in self.optimizer.param_groups]
+
+    def step(self, metrics: float | None = None, epoch: int | None = None) -> None:  # type: ignore[override]
+        """Take a step and update the learning rate.
+
+        During warmup, linearly interpolates the learning rate. After warmup,
+        delegates to the wrapped scheduler if configured.
+
+        Args:
+            metrics: Optional metric value for ReduceLROnPlateau-style schedulers.
+            epoch: Optional epoch number (passed to wrapped scheduler).
+        """
+        self._warmup_step_count += 1
+        if self._warmup_step_count <= self.warmup_steps:
+            for param_group, lr in zip(self.optimizer.param_groups, self.get_lr(), strict=False):
+                param_group["lr"] = lr
+        elif self.wrapped_scheduler is not None:
+            if isinstance(self.wrapped_scheduler, ReduceLROnPlateau):
+                self.wrapped_scheduler.step(metrics, epoch)
+            else:
+                self.wrapped_scheduler.step(epoch)
+
+    def state_dict(self) -> dict[str, Any]:
+        """Return scheduler state including warmup state and wrapped scheduler."""
+        state: dict[str, Any] = {
+            "warmup_steps": self.warmup_steps,
+            "warmup_start_factor": self.warmup_start_factor,
+            "warmup_step_count": self._warmup_step_count,
+            "base_lrs": self.base_lrs,
+        }
+        if self.wrapped_scheduler is not None:
+            state["wrapped_scheduler_state"] = self.wrapped_scheduler.state_dict()
+        return state
+
+    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
+        """Load scheduler state including warmup state and wrapped scheduler."""
+        self.warmup_steps = state_dict.get("warmup_steps", self.warmup_steps)
+        self.warmup_start_factor = state_dict.get("warmup_start_factor", self.warmup_start_factor)
+        self._warmup_step_count = state_dict.get("warmup_step_count", 0)
+        self.base_lrs = state_dict.get("base_lrs", self.base_lrs)
+        if self.wrapped_scheduler is not None and "wrapped_scheduler_state" in state_dict:
+            self.wrapped_scheduler.load_state_dict(state_dict["wrapped_scheduler_state"])
