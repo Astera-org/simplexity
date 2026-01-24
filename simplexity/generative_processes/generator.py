@@ -42,6 +42,23 @@ def generate_data_batch(
     return gen_states, inputs, labels
 
 
+def _compute_joint_belief_states(factored_states: tuple[jax.Array, ...]) -> jax.Array:
+    """Compute joint belief state from factored states via outer product.
+
+    Args:
+        factored_states: Tuple of per-factor states, each shape [batch, seq_len, S_i]
+
+    Returns:
+        Joint belief states of shape [batch, seq_len, prod(S_i)]
+    """
+    joint = factored_states[0]
+    for factor_states in factored_states[1:]:
+        joint = (joint[..., :, None] * factor_states[..., None, :]).reshape(
+            joint.shape[0], joint.shape[1], -1
+        )
+    return joint
+
+
 @eqx.filter_jit
 def generate_data_batch_with_full_history(
     gen_states: jax.Array | tuple[jax.Array, ...],
@@ -51,6 +68,7 @@ def generate_data_batch_with_full_history(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
+    compute_joint_beliefs: bool = False,
 ) -> dict[str, jax.Array | tuple[jax.Array, ...]]:
     """Generate sequences plus per-token belief states and prefix probabilities."""
     batch_keys = jax.random.split(key, batch_size)
@@ -88,12 +106,14 @@ def generate_data_batch_with_full_history(
     else:
         belief_states = belief_states[:, :input_len, ...]
 
-    result = {
+    result: dict[str, jax.Array | tuple[jax.Array, ...]] = {
         "belief_states": belief_states,
         "prefix_probabilities": prefix_probs,
         "inputs": inputs,
         "labels": labels,
     }
+    if compute_joint_beliefs and isinstance(belief_states, tuple):
+        result["joint_belief_states"] = _compute_joint_belief_states(belief_states)
 
     return result
 
