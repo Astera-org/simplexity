@@ -139,7 +139,7 @@ def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | Non
 
     try:
         resolve_mlflow_config(target_node)
-    except ValueError as e:
+    except (ValueError, RuntimeError) as e:
         SIMPLEXITY_LOGGER.warning("Error resolving MLflow config: %s", e)
         return None
 
@@ -228,7 +228,7 @@ def _resolve_mlflow_configs_recursive(cfg: DictConfig) -> None:
             validate_mlflow_config(cfg)
             # If validation passes, this looks like an MLflow config, try to resolve it
             resolve_mlflow_config(cfg)
-        except (ConfigValidationError, ValueError):
+        except (ConfigValidationError, ValueError, RuntimeError):
             # Not an MLflow config or can't be resolved, continue to check nested configs
             pass
 
