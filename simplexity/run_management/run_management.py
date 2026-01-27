@@ -635,6 +635,12 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
             try:
                 cfg = get_config(args, kwargs)
                 cfg = load_mlflow_defaults(cfg)
+                if "cfg" in kwargs:
+                    kwargs["cfg"] = cfg
+                elif args and isinstance(args[0], DictConfig):
+                    args = (cfg, *args[1:])
+                else:
+                    kwargs["cfg"] = cfg
                 validate_base_config(cfg)
                 resolve_base_config(cfg, strict=strict)
                 with _setup_device(cfg), _setup_mlflow(cfg):
