@@ -25,6 +25,7 @@ class ConditionalContext:
         normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
         vocab_sizes: Vocabulary size per factor (shape [F])
         num_variants: Number of parameter variants per factor
+        hidden_factor_indices: Indices of factors that are hidden (not observable)
     """
 
     states: FactoredState
@@ -33,6 +34,7 @@ class ConditionalContext:
     normalizing_eigenvectors: tuple[jax.Array, ...]
     vocab_sizes: jax.Array
     num_variants: tuple[int, ...]
+    hidden_factor_indices: frozenset[int] = frozenset()
 
 
 class ConditionalStructure(Protocol):

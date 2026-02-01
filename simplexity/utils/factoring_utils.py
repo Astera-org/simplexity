@@ -169,3 +169,31 @@ class TokenEncoder(eqx.Module):
         """
         tokens = jnp.atleast_1d(tokens)
         return (tokens[:, None] // self.radix_multipliers[None, :]) % self.vocab_sizes[None, :]
+
+    @staticmethod
+    def create_for_subset(vocab_sizes: jax.Array, factor_indices: tuple[int, ...]) -> "TokenEncoder":
+        """Create a TokenEncoder for a subset of factors.
+
+        Args:
+            vocab_sizes: Full vocab sizes array of shape [F]
+            factor_indices: Indices of factors to include in the subset
+
+        Returns:
+            TokenEncoder for the subset of factors
+        """
+        subset_vocab_sizes = jnp.array([vocab_sizes[i] for i in factor_indices])
+        return TokenEncoder(subset_vocab_sizes)
+
+    def project_tuple_to_subset(
+        self, token_tuple: tuple[jax.Array, ...], factor_indices: tuple[int, ...]
+    ) -> tuple[jax.Array, ...]:
+        """Project a full token tuple to a subset of factors.
+
+        Args:
+            token_tuple: Tuple of f scalar arrays, each in [0, V_i)
+            factor_indices: Indices of factors to include in the subset
+
+        Returns:
+            Tuple of len(factor_indices) scalar arrays with the projected tokens
+        """
+        return tuple(token_tuple[i] for i in factor_indices)

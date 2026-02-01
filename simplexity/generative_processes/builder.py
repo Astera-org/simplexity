@@ -164,6 +164,7 @@ def build_factored_process(
     normalizing_eigenvectors: Sequence[jax.Array],
     initial_states: Sequence[jax.Array],
     noise_epsilon: float = 0.0,
+    hidden_factor_indices: frozenset[int] | None = None,
     **structure_kwargs,
 ) -> FactoredGenerativeProcess:
     """Factory function for building factored processes with different conditional structures.
@@ -175,6 +176,9 @@ def build_factored_process(
         normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
         initial_states: Initial state per factor (shape [S_i])
         noise_epsilon: Noisy channel epsilon value
+        hidden_factor_indices: Indices of factors that are hidden (not observable).
+            Hidden factors still evolve state and influence other factors via structures,
+            but their tokens are marginalized out of the observable output.
         **structure_kwargs: Structure-specific keyword arguments:
             - For "independent": (none)
             - For "chain": control_maps
@@ -223,6 +227,7 @@ def build_factored_process(
         initial_states=initial_states,
         structure=structure,
         noise_epsilon=noise_epsilon,
+        hidden_factor_indices=hidden_factor_indices,
     )
 
 
@@ -241,6 +246,10 @@ def build_factored_process_from_spec(
             - For "chain": List of component dicts with control_maps
             - For "symmetric": List of component dicts
             - For "transition_coupled": List of component dicts
+
+            Each component dict can optionally include:
+            - "hidden": True to mark the factor as hidden (not observable)
+
         noise_epsilon: Noisy channel epsilon value
         **structure_params: Additional structure-specific parameters:
             - For "independent": (none)
@@ -254,16 +263,19 @@ def build_factored_process_from_spec(
 
     Example:
         ```python
-        # Independent
+        # Independent with hidden factor
         process = build_factored_process_from_spec(
             structure_type="independent",
             spec=[
                 {"component_type": "hmm", "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}]},
-                {"component_type": "hmm", "variants": [{"process_name": "mess3", "x": 0.5, "a": 0.6}]},
+                {"component_type": "hmm", "variants": [{"process_name": "mess3", "x": 0.5, "a": 0.6}], "hidden": True},
             ],
         )
         ```
     """
+    # Extract hidden factor indices from spec
+    hidden_factor_indices = frozenset(i for i, s in enumerate(spec) if s.get("hidden", False))
+
     if structure_type == "independent":
         component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(spec)
         return build_factored_process(
@@ -273,6 +285,7 @@ def build_factored_process_from_spec(
             normalizing_eigenvectors=normalizing_eigenvectors,
             initial_states=initial_states,
             noise_epsilon=noise_epsilon,
+            hidden_factor_indices=hidden_factor_indices if hidden_factor_indices else None,
         )
     elif structure_type == "chain":
         component_types, transition_matrices, normalizing_eigenvectors, initial_states, control_maps = (
@@ -285,6 +298,7 @@ def build_factored_process_from_spec(
             normalizing_eigenvectors=normalizing_eigenvectors,
             initial_states=initial_states,
             noise_epsilon=noise_epsilon,
+            hidden_factor_indices=hidden_factor_indices if hidden_factor_indices else None,
             control_maps=control_maps,
         )
     elif structure_type == "symmetric":
@@ -304,6 +318,7 @@ def build_factored_process_from_spec(
             normalizing_eigenvectors=normalizing_eigenvectors,
             initial_states=initial_states,
             noise_epsilon=noise_epsilon,
+            hidden_factor_indices=hidden_factor_indices if hidden_factor_indices else None,
             control_maps=control_maps_arrays,
         )
     elif structure_type == "transition_coupled":
@@ -332,6 +347,7 @@ def build_factored_process_from_spec(
             normalizing_eigenvectors=normalizing_eigenvectors,
             initial_states=initial_states,
             noise_epsilon=noise_epsilon,
+            hidden_factor_indices=hidden_factor_indices if hidden_factor_indices else None,
             control_maps_transition=control_maps_arrays,
             emission_variant_indices=emission_variant_indices_array,
             emission_control_maps=emission_control_maps_arrays,
