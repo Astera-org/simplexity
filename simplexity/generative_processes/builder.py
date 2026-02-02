@@ -11,7 +11,7 @@
 
 import inspect
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 import jax
 import jax.numpy as jnp
@@ -24,6 +24,7 @@ from simplexity.generative_processes.structures import (
     FullyConditional,
     IndependentStructure,
     SequentialConditional,
+    TreeConditional,
 )
 from simplexity.generative_processes.transition_matrices import (
     GHMM_MATRIX_FUNCTIONS,
@@ -31,6 +32,8 @@ from simplexity.generative_processes.transition_matrices import (
     get_stationary_state,
 )
 from simplexity.utils.jnp_utils import resolve_jax_device
+
+StructureType = Literal["independent", "chain", "symmetric", "transition_coupled", "tree"]
 
 
 def build_transition_matrices(
@@ -158,7 +161,7 @@ def build_nonergodic_hidden_markov_model(
 
 
 def build_factored_process(
-    structure_type: Literal["independent", "chain", "symmetric", "transition_coupled"],
+    structure_type: StructureType,
     component_types: Sequence[ComponentType],
     transition_matrices: Sequence[jax.Array],
     normalizing_eigenvectors: Sequence[jax.Array],
@@ -185,6 +188,7 @@ def build_factored_process(
             - For "symmetric": control_maps
             - For "transition_coupled": control_maps_transition,
               emission_variant_indices, emission_control_maps (optional)
+            - For "tree": parent_indices, control_maps
 
     Returns:
         FactoredGenerativeProcess configured with the requested conditional structure
@@ -217,8 +221,18 @@ def build_factored_process(
             if "emission_control_maps" in structure_kwargs and structure_kwargs["emission_control_maps"] is not None
             else None,
         )
+    elif structure_type == "tree":
+        if "parent_indices" not in structure_kwargs:
+            raise ValueError("Missing required argument 'parent_indices' for tree structure")
+        if "control_maps" not in structure_kwargs:
+            raise ValueError("Missing required argument 'control_maps' for tree structure")
+        structure = TreeConditional(
+            parent_indices=tuple(structure_kwargs["parent_indices"]),
+            control_maps=tuple(structure_kwargs["control_maps"]),
+            vocab_sizes=vocab_sizes,
+        )
     else:
-        raise ValueError(f"Unknown structure_type '{structure_type}'")
+        raise ValueError(f"Unknown structure_type '{structure_type}'. Valid types: {get_args(StructureType)}")
 
     return FactoredGenerativeProcess(
         component_types=component_types,
@@ -232,7 +246,7 @@ def build_factored_process(
 
 
 def build_factored_process_from_spec(
-    structure_type: Literal["independent", "chain", "symmetric", "transition_coupled"],
+    structure_type: StructureType,
     spec: Sequence[dict[str, Any]],
     noise_epsilon: float = 0.0,
     **structure_params,
@@ -257,6 +271,7 @@ def build_factored_process_from_spec(
             - For "symmetric": control_maps (list)
             - For "transition_coupled": control_maps_transition, emission_variant_indices,
               emission_control_maps (optional)
+            - For "tree": (none, uses spec's depends_on and control_map fields)
 
     Returns:
         FactoredGenerativeProcess with specified structure
@@ -351,6 +366,21 @@ def build_factored_process_from_spec(
             control_maps_transition=control_maps_arrays,
             emission_variant_indices=emission_variant_indices_array,
             emission_control_maps=emission_control_maps_arrays,
+        )
+    elif structure_type == "tree":
+        component_types, transition_matrices, normalizing_eigenvectors, initial_states, parent_indices, control_maps = (
+            build_tree_from_spec(spec)
+        )
+        return build_factored_process(
+            structure_type="tree",
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+            noise_epsilon=noise_epsilon,
+            hidden_factor_indices=hidden_factor_indices if hidden_factor_indices else None,
+            parent_indices=parent_indices,
+            control_maps=control_maps,
         )
     else:
         raise ValueError(f"Unknown structure_type '{structure_type}'")
@@ -650,3 +680,108 @@ def build_transition_coupled_from_spec(
         emission_variant_indices_array,
         emission_control_maps_arrays,
     )
+
+
+def build_tree_from_spec(
+    tree: Sequence[dict[str, Any]],
+) -> tuple[
+    list[ComponentType],
+    list[jax.Array],
+    list[jax.Array],
+    list[jax.Array],
+    list[int | None],
+    list[jax.Array | None],
+]:
+    """Build all parameters for tree structure from tree specification.
+
+    Generalizes build_chain_from_spec to allow arbitrary parent dependencies.
+    Each factor can depend on any earlier factor (not just i-1).
+
+    Each element of tree should be a dict with:
+      - component_type: "hmm" | "ghmm"
+      - variants: list of variant specs
+      - depends_on (optional): int specifying parent factor index (must be < current index)
+      - control_map (required if depends_on is specified): list[int] mapping
+        parent token -> variant index
+
+    Args:
+        tree: List of factor specifications with parent dependencies
+
+    Returns:
+        Tuple of (component_types, transition_matrices, normalizing_eigenvectors,
+                 initial_states, parent_indices, control_maps)
+
+    Example:
+        ```python
+        # Fan-out: Factor 0 is parent of both Factor 1 and Factor 2
+        tree = [
+            {
+                "component_type": "hmm",
+                "variants": [{"process_name": "rrxor", ...}],
+                # No depends_on for root
+            },
+            {
+                "component_type": "hmm",
+                "variants": [
+                    {"process_name": "mess3", "x": 0.15, "a": 0.6},
+                    {"process_name": "mess3", "x": 0.5, "a": 0.6},
+                ],
+                "depends_on": 0,  # Depends on Factor 0
+                "control_map": [0, 1],  # Maps parent tokens -> variants
+            },
+            {
+                "component_type": "hmm",
+                "variants": [
+                    {"process_name": "mess3", "x": 0.15, "a": 0.6},
+                    {"process_name": "mess3", "x": 0.5, "a": 0.6},
+                ],
+                "depends_on": 0,  # Also depends on Factor 0 (fan-out)
+                "control_map": [0, 1],
+            },
+        ]
+        ```
+    """
+    if not tree:
+        raise ValueError("tree must contain at least one node")
+
+    # Build base matrices
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(tree)
+
+    # Extract parent indices and control maps
+    parent_indices: list[int | None] = []
+    control_maps: list[jax.Array | None] = []
+
+    for idx, node in enumerate(tree):
+        parent_idx = node.get("depends_on", None)
+
+        if parent_idx is None:
+            # Root factor
+            parent_indices.append(None)
+            control_maps.append(None)
+        else:
+            # Validate parent index
+            if not isinstance(parent_idx, int):
+                raise ValueError(f"tree[{idx}].depends_on must be an integer, got {type(parent_idx)}")
+            if parent_idx < 0 or parent_idx >= idx:
+                raise ValueError(f"tree[{idx}].depends_on={parent_idx} must be in range [0, {idx})")
+
+            parent_indices.append(parent_idx)
+
+            # Get control map
+            cm = node.get("control_map", None)
+            if cm is None:
+                raise ValueError(f"tree[{idx}].control_map is required when depends_on is specified")
+
+            cm_arr = jnp.asarray(cm, dtype=jnp.int32)
+
+            # Validate control map length matches parent vocab size
+            parent_vocab = int(transition_matrices[parent_idx].shape[1])
+            if int(cm_arr.shape[0]) != parent_vocab:
+                raise ValueError(
+                    f"tree[{idx}].control_map length {cm_arr.shape[0]} must equal "
+                    f"parent (factor {parent_idx}) vocab size {parent_vocab}"
+                )
+
+            control_maps.append(cm_arr)
+
+    return component_types, transition_matrices, normalizing_eigenvectors, initial_states, parent_indices, control_maps

@@ -26,6 +26,9 @@ from simplexity.generative_processes.structures.protocol import (
 from simplexity.generative_processes.structures.sequential_conditional import (
     SequentialConditional,
 )
+from simplexity.generative_processes.structures.tree_conditional import (
+    TreeConditional,
+)
 
 __all__ = [
     "ConditionalContext",
@@ -34,4 +37,5 @@ __all__ = [
     "FullyConditional",
     "IndependentStructure",
     "SequentialConditional",
+    "TreeConditional",
 ]
