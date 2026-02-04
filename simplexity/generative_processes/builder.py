@@ -19,6 +19,7 @@ import jax.numpy as jnp
 from simplexity.generative_processes.factored_generative_process import ComponentType, FactoredGenerativeProcess
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.nonergodic_generative_process import NonErgodicGenerativeProcess
 from simplexity.generative_processes.structures import (
     ConditionalTransitions,
     FullyConditional,
@@ -633,4 +634,98 @@ def build_transition_coupled_from_spec(
         control_maps_arrays,
         emission_variant_indices_array,
         emission_control_maps_arrays,
+    )
+
+
+def build_nonergodic_process_from_spec(
+    components: Sequence[dict[str, Any]],
+    component_weights: Sequence[float],
+    vocab_maps: Sequence[Sequence[int]] | None = None,
+    device: str | None = None,
+) -> NonErgodicGenerativeProcess:
+    """Build a nonergodic process from component specifications.
+
+    Creates a NonErgodicGenerativeProcess that composes multiple GenerativeProcess
+    instances into a truly nonergodic mixture with block diagonal structure.
+
+    Args:
+        components: List of component specs. Each spec has:
+            - component_type: "hmm", "ghmm", or "factored"
+            - For hmm/ghmm: process_name, process_params
+            - For factored: structure_type, spec, and structure-specific params
+            - vocab_map: Optional per-component vocab mapping
+        component_weights: Mixture weights for components (will be normalized).
+        vocab_maps: Optional global vocab maps (overrides per-component).
+        device: Device placement.
+
+    Returns:
+        NonErgodicGenerativeProcess instance.
+
+    Example:
+        ```yaml
+        instance:
+          _target_: simplexity.generative_processes.builder.build_nonergodic_process_from_spec
+          components:
+            - component_type: hmm
+              process_name: mess3
+              process_params: {x: 0.15, a: 0.6}
+            - component_type: ghmm
+              process_name: tom_quantum
+              process_params: {alpha: 1.0, beta: 4.0}
+            - component_type: factored
+              structure_type: independent
+              spec:
+                - component_type: hmm
+                  variants:
+                    - process_name: coin
+                      process_params: {p: 0.5}
+          component_weights: [0.5, 0.3, 0.2]
+          vocab_maps:
+            - [0, 1, 2]
+            - [0, 1, 2]
+            - [0, 1]
+        ```
+
+    Raises:
+        ValueError: If component_type is unknown.
+    """
+    built_components = []
+    inferred_vocab_maps = []
+
+    for comp_spec in components:
+        comp_type = comp_spec.get("component_type", "hmm")
+
+        if comp_type == "hmm":
+            process = build_hidden_markov_model(
+                process_name=comp_spec["process_name"],
+                process_params=comp_spec.get("process_params", {}),
+                device=device,
+            )
+        elif comp_type == "ghmm":
+            process = build_generalized_hidden_markov_model(
+                process_name=comp_spec["process_name"],
+                process_params=comp_spec.get("process_params", {}),
+                device=device,
+            )
+        elif comp_type == "factored":
+            # Extract factored-specific params
+            factored_kwargs = {k: v for k, v in comp_spec.items() if k not in ("component_type", "vocab_map")}
+            process = build_factored_process_from_spec(**factored_kwargs)
+        else:
+            raise ValueError(f"Unknown component_type: {comp_type}")
+
+        built_components.append(process)
+
+        # Infer vocab map if not provided globally
+        if vocab_maps is None:
+            comp_vocab_map = comp_spec.get("vocab_map", list(range(process.vocab_size)))
+            inferred_vocab_maps.append(comp_vocab_map)
+
+    final_vocab_maps = vocab_maps if vocab_maps is not None else inferred_vocab_maps
+
+    return NonErgodicGenerativeProcess(
+        components=built_components,
+        component_weights=component_weights,
+        vocab_maps=final_vocab_maps,
+        device=device,
     )

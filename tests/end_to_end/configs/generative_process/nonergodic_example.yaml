@@ -1,0 +1,39 @@
+# Nonergodic Generative Process Example
+# A mixture of independent generative processes with block diagonal structure.
+# No transitions occur between components - the process "picks" a component
+# at the start and stays with it forever.
+
+name: nonergodic_example
+base_vocab_size: ???  # Will auto-infer as 3
+vocab_size: ???
+
+instance:
+  _target_: simplexity.generative_processes.builder.build_nonergodic_process_from_spec
+
+  components:
+    # Component 0: mess3 HMM with specific parameters
+    - component_type: hmm
+      process_name: mess3
+      process_params:
+        x: 0.15
+        a: 0.6
+
+    # Component 1: mess3 HMM with different parameters
+    - component_type: hmm
+      process_name: mess3
+      process_params:
+        x: 0.5
+        a: 0.6
+
+  # Initial mixture weights (will be normalized)
+  # 60% chance of starting in component 0, 40% in component 1
+  component_weights: [0.6, 0.4]
+
+bos_token: ???
+eos_token: null
+
+# Interpretation:
+# - With probability 0.6, sequences come from mess3(x=0.15, a=0.6)
+# - With probability 0.4, sequences come from mess3(x=0.5, a=0.6)
+# - Once a component is "chosen" by the initial state, all future observations
+#   come from that component (truly nonergodic - no mixing/switching)
