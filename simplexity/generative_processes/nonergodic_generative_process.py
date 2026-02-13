@@ -527,7 +527,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
                 carry_state: NonErgodicState, obs: chex.Array
             ) -> tuple[NonErgodicState, NonErgodicState]:
                 new_state = self.transition_states(carry_state, obs)
-                return new_state, new_state
+                return new_state, carry_state
 
             # Use original initial state for inference (not modified by generation)
             _, state_trajectory = jax.lax.scan(inference_step, state, observations)
