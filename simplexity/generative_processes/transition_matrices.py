@@ -389,6 +389,40 @@ def leaky_zero_random_random(p1: float, p2: float, epsilon: float) -> jax.Array:
 
     return transition_matrices
 
+
+def random_random_random(p0: float, p1: float, p2: float) -> jax.Array:
+    """Creates a transition matrix for the Random Random Random (RRR) Process.
+    """
+    assert 0 <= p0 <= 1
+    assert 0 <= p1 <= 1
+    assert 0 <= p2 <= 1
+    q0 = 1 - p0
+    q1 = 1 - p1
+    q2 = 1 - p2
+    return jnp.array(
+        [
+            [
+                [0, q0,  0],
+                [0,  0, q1],
+                [q2, 0,  0],
+            ],
+            [
+                [0,  p0,  0],
+                [0,  0, p1],
+                [p2, 0,  0],
+            ],
+        ]
+    )
+
+def leaky_random_random_random(p0: float, p1: float, p2: float, epsilon: float) -> jax.Array:
+    """Creates a transition matrix for the Leaky Random Random Random (LRRR) Process.
+    """
+    assert 0 <= epsilon <= 1
+    transition_matrices_base = random_random_random(p0, p1, p2)
+    leak = jnp.ones((2, 3, 3))
+    transition_matrices = (1 - epsilon) * transition_matrices_base + (epsilon / 6) * leak
+    return transition_matrices
+
 def zero_random_random_random(p1: float, p2: float, p3: float) -> jax.Array:
     """Creates a transition matrix for the Zero Random Random Random (ZRRR) Process.
     """
@@ -429,6 +463,8 @@ HMM_MATRIX_FUNCTIONS = {
     "zero_random_random": zero_random_random,
     "leaky_zero_random_random": leaky_zero_random_random,
     "zero_random_random_random": zero_random_random_random,
+    "random_random_random": random_random_random,
+    "leaky_random_random_random": leaky_random_random_random,
 }
 
 GHMM_MATRIX_FUNCTIONS = HMM_MATRIX_FUNCTIONS | {
