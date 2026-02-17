@@ -18,7 +18,9 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.factored_generative_process import ComponentType, FactoredGenerativeProcess
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
+from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.inflated_vocabulary_process import InflatedVocabularyProcess
 from simplexity.generative_processes.nonergodic_generative_process import NonErgodicGenerativeProcess
 from simplexity.generative_processes.structures import (
     ConditionalTransitions,
@@ -729,3 +731,65 @@ def build_nonergodic_process_from_spec(
         vocab_maps=final_vocab_maps,
         device=device,
     )
+
+
+def build_inflated_process(
+    base_process: GenerativeProcess,
+    inflation_factor: int,
+) -> InflatedVocabularyProcess:
+    """Build an inflated vocabulary process wrapping a base process.
+
+    Args:
+        base_process: Any GenerativeProcess to wrap.
+        inflation_factor: Number of noise variants per base token (K >= 2).
+
+    Returns:
+        InflatedVocabularyProcess with vocab_size = K * base_process.vocab_size.
+    """
+    return InflatedVocabularyProcess(base_process, inflation_factor)
+
+
+def build_inflated_process_from_spec(
+    base_spec: dict[str, Any],
+    inflation_factor: int,
+    device: str | None = None,
+) -> InflatedVocabularyProcess:
+    """Build an inflated vocabulary process from a base process specification.
+
+    Args:
+        base_spec: Specification for the base process. Must include:
+            - component_type: "hmm", "ghmm", or "factored"
+            - For hmm/ghmm: process_name, process_params
+            - For factored: structure_type, spec, and structure-specific params
+        inflation_factor: Number of noise variants per base token (K >= 2).
+        device: Device placement.
+
+    Returns:
+        InflatedVocabularyProcess wrapping the built base process.
+
+    Raises:
+        ValueError: If component_type is unknown.
+    """
+    comp_type = base_spec.get("component_type", "hmm")
+
+    if comp_type == "hmm":
+        base_process: GenerativeProcess = build_hidden_markov_model(
+            process_name=base_spec["process_name"],
+            process_params=base_spec.get("process_params", {}),
+            device=device,
+            noise_epsilon=base_spec.get("noise_epsilon", 0.0),
+        )
+    elif comp_type == "ghmm":
+        base_process = build_generalized_hidden_markov_model(
+            process_name=base_spec["process_name"],
+            process_params=base_spec.get("process_params", {}),
+            device=device,
+            noise_epsilon=base_spec.get("noise_epsilon", 0.0),
+        )
+    elif comp_type == "factored":
+        factored_kwargs = {k: v for k, v in base_spec.items() if k not in ("component_type",)}
+        base_process = build_factored_process_from_spec(**factored_kwargs)
+    else:
+        raise ValueError(f"Unknown base component_type: {comp_type}")
+
+    return InflatedVocabularyProcess(base_process, inflation_factor)
