@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -131,7 +132,7 @@ class TokenEncoder(eqx.Module):
             multiplier *= self.vocab_sizes[i]
         return token
 
-    def token_to_tuple(self, token: jax.Array) -> tuple[jax.Array, ...]:
+    def token_to_tuple(self, token: chex.Array) -> tuple[jax.Array, ...]:
         """Convert composite token to per-factor tokens.
 
         Args:

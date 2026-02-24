@@ -19,6 +19,14 @@ def test_construct_layer_specific_key_given_non_factor_specific_key() -> None:
     assert construct_layer_specific_key(key, layer_name) == expected_key
 
 
+def test_construct_layer_specific_key_given_non_factor_suffix() -> None:
+    """Test that a key with '/' but a non-F suffix appends the layer name."""
+    key = "orth/overlap"
+    layer_name = "L0.resid.post"
+    expected_key = "orth/overlap/L0.resid.post"
+    assert construct_layer_specific_key(key, layer_name) == expected_key
+
+
 def test_format_layer_spec_concatenated() -> None:
     """Test that the function returns the correct format for concatenated layers."""
     layer_name = "concatenated"

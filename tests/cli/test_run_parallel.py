@@ -1,8 +1,20 @@
 """Tests for the run_parallel CLI module."""
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-from simplexity.cli.run_parallel import Job, generate_jobs
+from simplexity.cli.run_parallel import (
+    Job,
+    _run_single_job,
+    dispatch_jobs,
+    generate_jobs,
+    generate_override_combinations,
+    load_sweep_file,
+    main,
+    parse_sweep_param,
+)
 
 
 class TestJob:
@@ -47,6 +59,78 @@ class TestJob:
         """Verify device_str shows CPU when gpu_id is None."""
         job = Job(script="train.py", config_name="config", overrides="", gpu_id=None, job_num=0)
         assert job.device_str == "CPU"
+
+
+class TestParseSweepParam:
+    """Tests for parse_sweep_param."""
+
+    def test_single_value(self) -> None:
+        key, values = parse_sweep_param("seed=42")
+        assert key == "seed"
+        assert values == ["42"]
+
+    def test_multiple_values(self) -> None:
+        key, values = parse_sweep_param("lr=0.01,0.001,0.0001")
+        assert key == "lr"
+        assert values == ["0.01", "0.001", "0.0001"]
+
+    def test_values_with_spaces_are_stripped(self) -> None:
+        key, values = parse_sweep_param("a=1, 2, 3")
+        assert key == "a"
+        assert values == ["1", "2", "3"]
+
+    def test_dotted_key(self) -> None:
+        key, values = parse_sweep_param("model.n_heads=1,2,4")
+        assert key == "model.n_heads"
+        assert values == ["1", "2", "4"]
+
+    def test_value_containing_equals(self) -> None:
+        key, values = parse_sweep_param("path=/a=b,/c=d")
+        assert key == "path"
+        assert values == ["/a=b", "/c=d"]
+
+
+class TestGenerateOverrideCombinations:
+    """Tests for generate_override_combinations."""
+
+    def test_empty_sweeps(self) -> None:
+        assert generate_override_combinations([]) == [""]
+
+    def test_single_sweep(self) -> None:
+        result = generate_override_combinations(["seed=1,2,3"])
+        assert result == ["seed=1", "seed=2", "seed=3"]
+
+    def test_two_sweeps_cartesian(self) -> None:
+        result = generate_override_combinations(["a=1,2", "b=x,y"])
+        assert result == ["a=1 b=x", "a=1 b=y", "a=2 b=x", "a=2 b=y"]
+
+    def test_three_sweeps_cartesian(self) -> None:
+        result = generate_override_combinations(["a=1,2", "b=x,y", "c=p,q"])
+        assert len(result) == 8
+        assert result[0] == "a=1 b=x c=p"
+        assert result[-1] == "a=2 b=y c=q"
+
+
+class TestLoadSweepFile:
+    """Tests for load_sweep_file."""
+
+    def test_load_list_values(self, tmp_path: Path) -> None:
+        sweep_file = tmp_path / "sweep.yaml"
+        sweep_file.write_text("seed: [1, 2, 3]\nmodel.lr: [0.01, 0.001]\n")
+        result = load_sweep_file(str(sweep_file))
+        assert result == ["seed=1,2,3", "model.lr=0.01,0.001"]
+
+    def test_load_scalar_value(self, tmp_path: Path) -> None:
+        sweep_file = tmp_path / "sweep.yaml"
+        sweep_file.write_text("seed: 42\n")
+        result = load_sweep_file(str(sweep_file))
+        assert result == ["seed=42"]
+
+    def test_load_mixed_values(self, tmp_path: Path) -> None:
+        sweep_file = tmp_path / "sweep.yaml"
+        sweep_file.write_text("seed: [1, 2]\nbatch_size: 64\n")
+        result = load_sweep_file(str(sweep_file))
+        assert result == ["seed=1,2", "batch_size=64"]
 
 
 class TestGenerateJobs:
@@ -189,3 +273,267 @@ class TestGenerateJobs:
         )
 
         assert len(jobs) == expected_count
+
+
+class TestRunSingleJob:
+    """Tests for _run_single_job."""
+
+    def test_successful_job_returns_success(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "output"
+        mock_result.stderr = ""
+
+        job = Job(script="train.py", config_name="config", overrides="seed=1", gpu_id=0, job_num=0)
+
+        with patch("simplexity.cli.run_parallel.subprocess.run", return_value=mock_result) as mock_run:
+            result = _run_single_job(job)
+
+        assert result["status"] == "success"
+        assert result["job_num"] == 0
+        assert result["gpu"] == 0
+        assert result["returncode"] == 0
+        assert result["overrides"] == "seed=1"
+        call_env = mock_run.call_args.kwargs["env"]
+        assert call_env["CUDA_VISIBLE_DEVICES"] == "0"
+
+    def test_failed_job_returns_failed(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_result.stderr = "error message"
+
+        job = Job(script="train.py", config_name="config", overrides="", gpu_id=1, job_num=3)
+
+        with patch("simplexity.cli.run_parallel.subprocess.run", return_value=mock_result):
+            result = _run_single_job(job)
+
+        assert result["status"] == "failed"
+        assert result["returncode"] == 1
+        assert result["stderr"] == "error message"
+
+    def test_cpu_mode_sets_empty_cuda_visible(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        job = Job(script="train.py", config_name="config", overrides="", gpu_id=None, job_num=0)
+
+        with patch("simplexity.cli.run_parallel.subprocess.run", return_value=mock_result) as mock_run:
+            _run_single_job(job)
+
+        call_env = mock_run.call_args.kwargs["env"]
+        assert call_env["CUDA_VISIBLE_DEVICES"] == ""
+
+    def test_exception_returns_error(self) -> None:
+        job = Job(script="train.py", config_name="config", overrides="", gpu_id=0, job_num=0)
+
+        with patch("simplexity.cli.run_parallel.subprocess.run", side_effect=OSError("spawn failed")):
+            result = _run_single_job(job)
+
+        assert result["status"] == "error"
+        assert "spawn failed" in result["error"]
+
+    def test_long_stdout_truncated(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "x" * 5000
+        mock_result.stderr = ""
+
+        job = Job(script="train.py", config_name="config", overrides="", gpu_id=0, job_num=0)
+
+        with patch("simplexity.cli.run_parallel.subprocess.run", return_value=mock_result):
+            result = _run_single_job(job)
+
+        assert len(result["stdout"]) == 2000
+
+
+class TestDispatchJobs:
+    """Tests for dispatch_jobs."""
+
+    @staticmethod
+    def _make_mock_executor(mock_result: dict):
+        """Create a mock ProcessPoolExecutor that returns mock_result for every submit."""
+        mock_future = MagicMock()
+        mock_future.result.return_value = mock_result
+
+        mock_executor = MagicMock()
+        mock_executor.__enter__ = MagicMock(return_value=mock_executor)
+        mock_executor.__exit__ = MagicMock(return_value=False)
+        mock_executor.submit.return_value = mock_future
+        return mock_executor, mock_future
+
+    @staticmethod
+    def _success_result(**overrides: object) -> dict:
+        base = {
+            "job_num": 0,
+            "gpu": 0,
+            "status": "success",
+            "returncode": 0,
+            "overrides": "",
+            "stdout": "",
+            "stderr": "",
+        }
+        base.update(overrides)
+        return base
+
+    @staticmethod
+    def _failed_result(**overrides: object) -> dict:
+        base = {
+            "job_num": 0,
+            "gpu": 0,
+            "status": "failed",
+            "returncode": 1,
+            "overrides": "",
+            "stdout": "",
+            "stderr": "",
+        }
+        base.update(overrides)
+        return base
+
+    def test_dispatches_all_jobs(self) -> None:
+        jobs = [
+            Job(script="train.py", config_name="config", overrides=f"seed={i}", gpu_id=0, job_num=i) for i in range(3)
+        ]
+
+        mock_result = self._success_result()
+        mock_executor, mock_future = self._make_mock_executor(mock_result)
+
+        with (
+            patch("simplexity.cli.run_parallel.ProcessPoolExecutor", return_value=mock_executor),
+            patch("simplexity.cli.run_parallel.as_completed", return_value=[mock_future] * 3),
+            patch("simplexity.cli.run_parallel.time.sleep"),
+        ):
+            results = dispatch_jobs(jobs, max_parallel=2)
+
+        assert len(results) == 3
+
+    def test_reports_failed_jobs(self, capsys: pytest.CaptureFixture[str]) -> None:
+        jobs = [Job(script="train.py", config_name="config", overrides="", gpu_id=0, job_num=0)]
+
+        mock_result = self._failed_result(stderr="some error")
+        mock_executor, mock_future = self._make_mock_executor(mock_result)
+
+        with (
+            patch("simplexity.cli.run_parallel.ProcessPoolExecutor", return_value=mock_executor),
+            patch("simplexity.cli.run_parallel.as_completed", return_value=[mock_future]),
+            patch("simplexity.cli.run_parallel.time.sleep"),
+        ):
+            results = dispatch_jobs(jobs, max_parallel=1)
+
+        assert results[0]["status"] == "failed"
+        captured = capsys.readouterr()
+        assert "some error" in captured.out
+
+    def test_cpu_mode_display(self, capsys: pytest.CaptureFixture[str]) -> None:
+        jobs = [Job(script="train.py", config_name="config", overrides="", gpu_id=None, job_num=0)]
+
+        mock_result = self._success_result(gpu=None)
+        mock_executor, mock_future = self._make_mock_executor(mock_result)
+
+        with (
+            patch("simplexity.cli.run_parallel.ProcessPoolExecutor", return_value=mock_executor),
+            patch("simplexity.cli.run_parallel.as_completed", return_value=[mock_future]),
+            patch("simplexity.cli.run_parallel.time.sleep"),
+        ):
+            results = dispatch_jobs(jobs, max_parallel=1)
+
+        assert results[0]["status"] == "success"
+        captured = capsys.readouterr()
+        assert "CPU" in captured.out
+
+
+class TestMain:
+    """Tests for the main CLI entry point."""
+
+    @staticmethod
+    def _argv(*args: str) -> list[str]:
+        return ["prog", "train.py", "-c", "config", *args]
+
+    def test_dry_run_prints_commands(self, capsys: pytest.CaptureFixture[str]) -> None:
+        argv = self._argv("--gpus", "0,1", "--sweep", "seed=1,2", "--dry-run")
+        with patch("sys.argv", argv):
+            main()
+
+        captured = capsys.readouterr()
+        assert "[Job 0]" in captured.out
+        assert "[Job 1]" in captured.out
+        assert "GPU 0" in captured.out
+        assert "GPU 1" in captured.out
+
+    def test_cpu_dry_run(self, capsys: pytest.CaptureFixture[str]) -> None:
+        argv = self._argv("--cpu", "--workers", "2", "--sweep", "seed=1,2", "--dry-run")
+        with patch("sys.argv", argv):
+            main()
+
+        captured = capsys.readouterr()
+        assert "CPU" in captured.out
+        assert "2 CPU workers" in captured.out
+
+    def test_no_device_exits_with_error(self) -> None:
+        argv = self._argv("--sweep", "seed=1")
+        with patch("sys.argv", argv), pytest.raises(SystemExit):
+            main()
+
+    def test_cpu_without_workers_exits_with_error(self) -> None:
+        argv = self._argv("--cpu", "--sweep", "seed=1")
+        with patch("sys.argv", argv), pytest.raises(SystemExit):
+            main()
+
+    def test_sweep_file_integration(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        sweep_file = tmp_path / "sweep.yaml"
+        sweep_file.write_text("seed: [1, 2]\n")
+
+        argv = self._argv("--gpus", "0", "--sweep-file", str(sweep_file), "--dry-run")
+        with patch("sys.argv", argv):
+            main()
+
+        captured = capsys.readouterr()
+        assert "[Job 0]" in captured.out
+        assert "[Job 1]" in captured.out
+
+    def test_successful_run_exits_cleanly(self) -> None:
+        mock_result = {
+            "job_num": 0,
+            "gpu": 0,
+            "status": "success",
+            "returncode": 0,
+            "overrides": "seed=1",
+            "stdout": "",
+            "stderr": "",
+        }
+        argv = self._argv("--gpus", "0", "--sweep", "seed=1")
+
+        with (
+            patch("sys.argv", argv),
+            patch("simplexity.cli.run_parallel.dispatch_jobs", return_value=[mock_result]),
+        ):
+            main()
+
+    def test_failed_run_exits_with_code_1(self) -> None:
+        mock_result = {
+            "job_num": 0,
+            "gpu": 0,
+            "status": "failed",
+            "returncode": 1,
+            "overrides": "seed=1",
+            "stdout": "",
+            "stderr": "err",
+        }
+        argv = self._argv("--gpus", "0", "--sweep", "seed=1")
+
+        with (
+            patch("sys.argv", argv),
+            patch("simplexity.cli.run_parallel.dispatch_jobs", return_value=[mock_result]),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            main()
+
+    def test_max_parallel_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
+        argv = self._argv("--gpus", "0,1", "--max-parallel", "1", "--sweep", "seed=1,2", "--dry-run")
+        with patch("sys.argv", argv):
+            main()
+
+        captured = capsys.readouterr()
+        assert "Max parallel: 1" in captured.out
