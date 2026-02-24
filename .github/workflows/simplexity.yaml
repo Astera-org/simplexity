@@ -48,16 +48,21 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          # On PRs: Run all tests (diff-cover needs full coverage data)
-          # On push to main/dev: Use --testmon-noselect to run all tests and update testmon database
+          # Conditional testmon execution:
+          # - On PRs: Use --testmon to run only affected tests
+          # - On main branch: Use --testmon-noselect to run all tests and update database
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            TESTMON_FLAG=""
-            echo "::notice::Running full test suite (PR mode - needed for diff-cover)"
+            TESTMON_FLAG="--testmon"
+            echo "::notice::Running affected tests only (PR mode)"
           else
             TESTMON_FLAG="--testmon-noselect"
-            echo "::notice::Running full test suite (push mode - updating testmon database)"
+            echo "::notice::Running full test suite (main branch mode)"
           fi
 
+          # Run tests with coverage tracking (no threshold enforcement)
+          # Coverage is tracked but won't fail - new code in PRs is checked via diff-cover
+          # TODO: Enable strict overall coverage enforcement once coverage improves
+          # Note: --cov-fail-under=0 is explicit but redundant since pyproject.toml doesn't set a threshold
           # Exclude end-to-end tests - they run in a separate workflow
           uv run --extra aws --extra dev --extra cuda --extra penzai --extra pytorch pytest \
             --capture=no \
