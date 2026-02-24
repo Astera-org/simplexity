@@ -22,7 +22,6 @@ from simplexity.analysis.pca import (
     DEFAULT_VARIANCE_THRESHOLDS,
     layer_pca_analysis,
 )
-from simplexity.logger import SIMPLEXITY_LOGGER
 
 AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]]
 
@@ -59,8 +58,6 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
                 raise TypeError("rcond_values must be a sequence of floats")
             if len(rcond_values) == 0:
                 raise ValueError("rcond_values must not be empty")
-            if not use_svd:
-                SIMPLEXITY_LOGGER.warning("rcond_values are only used when use_svd is True")
             rcond_values = tuple(float(v) for v in rcond_values)
         resolved_kwargs["rcond_values"] = rcond_values
     elif rcond_values is not None:
@@ -76,10 +73,10 @@ def set_use_svd(
     def wrapper(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
         if kwargs and "use_svd" in kwargs and not kwargs["use_svd"]:
             raise ValueError("use_svd cannot be set to False for linear_regression_svd")
-        modified_kwargs = dict(kwargs) if kwargs else {}  # Make a copy to avoid mutating the input
+        modified_kwargs = dict(kwargs) if kwargs else {}
         modified_kwargs["use_svd"] = True
         resolved = fn(modified_kwargs)
-        resolved.pop("use_svd", None)  # Remove use_svd to avoid duplicate argument with partial
+        resolved.pop("use_svd", None)
         return resolved
 
     return wrapper

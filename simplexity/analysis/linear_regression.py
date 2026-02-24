@@ -45,8 +45,6 @@ def _regression_metrics(
     r2 = 1.0 - (weighted_ss_res / float(weighted_ss_tot)) if float(weighted_ss_tot) > 0 else 0.0
     dists = jnp.sqrt(jnp.sum(residuals**2, axis=1))
     dist = float(jnp.sum(dists * weights))
-    # RMSE and MAE are returned as means over target dimensions
-    # rather than sums to keep consistent with R²
     return {
         "r2": float(r2),
         "rmse": float(rmse.mean()),
@@ -80,19 +78,18 @@ def linear_regression(
     predictions = design @ beta
     scalars = _regression_metrics(predictions, y_arr, w_arr)
 
-    # Separate intercept and coefficients
     if fit_intercept:
         arrays = {
             "projected": predictions,
             "targets": y_arr,
-            "coeffs": beta[1:],  # Linear coefficients (excluding intercept)
-            "intercept": beta[:1],  # Intercept term (keep 2D: [1, n_targets])
+            "coeffs": beta[1:],
+            "intercept": beta[:1],
         }
     else:
         arrays = {
             "projected": predictions,
             "targets": y_arr,
-            "coeffs": beta,  # All parameters are coefficients when no intercept
+            "coeffs": beta,
         }
 
     return scalars, arrays
@@ -180,24 +177,24 @@ def linear_regression_svd(
             best_scalars = scalars
             best_rcond = rcond
             best_beta = beta
-    if best_pred is None or best_scalars is None or best_beta is None:
-        raise RuntimeError("Unable to compute linear regression solution")
+    assert best_pred is not None
+    assert best_scalars is not None
+    assert best_beta is not None
     scalars = dict(best_scalars)
     scalars["best_rcond"] = float(best_rcond)
 
-    # Separate intercept and coefficients
     if fit_intercept:
         arrays = {
             "projected": best_pred,
             "targets": y_arr,
-            "coeffs": best_beta[1:],  # Linear coefficients (excluding intercept)
-            "intercept": best_beta[:1],  # Intercept term (keep 2D: [1, n_targets])
+            "coeffs": best_beta[1:],
+            "intercept": best_beta[:1],
         }
     else:
         arrays = {
             "projected": best_pred,
             "targets": y_arr,
-            "coeffs": best_beta,  # All parameters are coefficients when no intercept
+            "coeffs": best_beta,
         }
 
     return scalars, arrays
@@ -300,7 +297,7 @@ def _split_concat_results(
 
 
 def get_robust_basis(matrix: jax.Array) -> jax.Array:
-    """Extracts an orthonormal basis for the column space of the matrx.
+    """Extracts an orthonormal basis for the column space of the matrix.
 
     Handles rank deficiency gracefully by discarding directions associated with singular values below a
     certain tolerance.

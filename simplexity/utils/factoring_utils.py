@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -103,16 +102,8 @@ class TokenEncoder(eqx.Module):
             vocab_sizes: Array of shape [F] with vocabulary size per factor
         """
         self.vocab_sizes = jnp.asarray(vocab_sizes)
-
-        # Compute radix multipliers
-        f = len(vocab_sizes)
-        multipliers = []
-        for i in range(f):
-            m = 1
-            for j in range(i + 1, f):
-                m *= int(vocab_sizes[j])
-            multipliers.append(m)
-        self.radix_multipliers = jnp.array(multipliers)
+        suffixes = jnp.cumprod(self.vocab_sizes[::-1])[::-1]
+        self.radix_multipliers = suffixes // self.vocab_sizes
 
     @property
     def num_factors(self) -> int:
@@ -140,7 +131,7 @@ class TokenEncoder(eqx.Module):
             multiplier *= self.vocab_sizes[i]
         return token
 
-    def token_to_tuple(self, token: chex.Array) -> tuple[jax.Array, ...]:
+    def token_to_tuple(self, token: jax.Array) -> tuple[jax.Array, ...]:
         """Convert composite token to per-factor tokens.
 
         Args:

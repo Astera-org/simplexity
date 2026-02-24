@@ -399,7 +399,7 @@ def _get_persister(persisters: dict[str, ModelPersister] | None) -> ModelPersist
     if persisters:
         if len(persisters) == 1:
             return next(iter(persisters.values()))
-        SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model model checkpoint loading will be skipped")
+        SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model checkpoint loading will be skipped")
         return None
     SIMPLEXITY_LOGGER.warning("No persister found, any model checkpoint loading will be skipped")
     return None
