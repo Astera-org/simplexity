@@ -64,7 +64,7 @@ jobs:
           # TODO: Enable strict overall coverage enforcement once coverage improves
           # Note: --cov-fail-under=0 is explicit but redundant since pyproject.toml doesn't set a threshold
           # Exclude end-to-end tests - they run in a separate workflow
-          uv run --extra aws --extra dev --extra cuda --extra penzai pytest \
+          uv run --extra aws --extra dev --extra cuda --extra penzai --extra pytorch pytest \
             --capture=no \
             --verbose \
             --cov-fail-under=0 \
