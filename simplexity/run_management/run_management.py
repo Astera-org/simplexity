@@ -610,7 +610,6 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
     if instance_config:
         tracker_cfg = OmegaConf.create(OmegaConf.to_container(instance_config, resolve=False))
         converted_analyses: dict[str, DictConfig] = {}
-        converted_visualizations: dict[str, list[Any]] = {}
         analyses_cfg = instance_config.get("analyses") or {}
         for key, analysis_cfg in analyses_cfg.items():
             name_override = analysis_cfg.get("name")
@@ -618,16 +617,7 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
             cfg_to_instantiate = analysis_cfg.instance
             converted_analyses[analysis_name] = cfg_to_instantiate
 
-            # Extract visualizations for this analysis (if present)
-            viz_cfg = analysis_cfg.get("visualizations")
-            if viz_cfg is not None:
-                viz_container = OmegaConf.to_container(viz_cfg, resolve=False)
-                assert isinstance(viz_container, list)
-                converted_visualizations[analysis_name] = viz_container
-
         tracker_cfg.analyses = converted_analyses
-        if converted_visualizations:
-            tracker_cfg.visualizations = converted_visualizations
         tracker = hydra.utils.instantiate(tracker_cfg)
         SIMPLEXITY_LOGGER.info("[activation tracker] instantiated activation tracker: %s", tracker.__class__.__name__)
         return tracker
