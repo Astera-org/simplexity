@@ -65,26 +65,31 @@ class TestParseSweepParam:
     """Tests for parse_sweep_param."""
 
     def test_single_value(self) -> None:
+        """Verify parsing a single-value sweep string."""
         key, values = parse_sweep_param("seed=42")
         assert key == "seed"
         assert values == ["42"]
 
     def test_multiple_values(self) -> None:
+        """Verify parsing a multi-value sweep string."""
         key, values = parse_sweep_param("lr=0.01,0.001,0.0001")
         assert key == "lr"
         assert values == ["0.01", "0.001", "0.0001"]
 
     def test_values_with_spaces_are_stripped(self) -> None:
+        """Verify whitespace around values is stripped."""
         key, values = parse_sweep_param("a=1, 2, 3")
         assert key == "a"
         assert values == ["1", "2", "3"]
 
     def test_dotted_key(self) -> None:
+        """Verify dotted parameter keys are preserved."""
         key, values = parse_sweep_param("model.n_heads=1,2,4")
         assert key == "model.n_heads"
         assert values == ["1", "2", "4"]
 
     def test_value_containing_equals(self) -> None:
+        """Verify only the first '=' is used as the key-value separator."""
         key, values = parse_sweep_param("path=/a=b,/c=d")
         assert key == "path"
         assert values == ["/a=b", "/c=d"]
@@ -94,17 +99,21 @@ class TestGenerateOverrideCombinations:
     """Tests for generate_override_combinations."""
 
     def test_empty_sweeps(self) -> None:
+        """Verify empty input returns a single empty override string."""
         assert generate_override_combinations([]) == [""]
 
     def test_single_sweep(self) -> None:
+        """Verify a single sweep expands to individual overrides."""
         result = generate_override_combinations(["seed=1,2,3"])
         assert result == ["seed=1", "seed=2", "seed=3"]
 
     def test_two_sweeps_cartesian(self) -> None:
+        """Verify two sweeps produce their cartesian product."""
         result = generate_override_combinations(["a=1,2", "b=x,y"])
         assert result == ["a=1 b=x", "a=1 b=y", "a=2 b=x", "a=2 b=y"]
 
     def test_three_sweeps_cartesian(self) -> None:
+        """Verify three sweeps produce their cartesian product."""
         result = generate_override_combinations(["a=1,2", "b=x,y", "c=p,q"])
         assert len(result) == 8
         assert result[0] == "a=1 b=x c=p"
@@ -115,18 +124,21 @@ class TestLoadSweepFile:
     """Tests for load_sweep_file."""
 
     def test_load_list_values(self, tmp_path: Path) -> None:
+        """Verify YAML list values are joined with commas."""
         sweep_file = tmp_path / "sweep.yaml"
         sweep_file.write_text("seed: [1, 2, 3]\nmodel.lr: [0.01, 0.001]\n")
         result = load_sweep_file(str(sweep_file))
         assert result == ["seed=1,2,3", "model.lr=0.01,0.001"]
 
     def test_load_scalar_value(self, tmp_path: Path) -> None:
+        """Verify YAML scalar values are stringified directly."""
         sweep_file = tmp_path / "sweep.yaml"
         sweep_file.write_text("seed: 42\n")
         result = load_sweep_file(str(sweep_file))
         assert result == ["seed=42"]
 
     def test_load_mixed_values(self, tmp_path: Path) -> None:
+        """Verify mixed list and scalar values are handled correctly."""
         sweep_file = tmp_path / "sweep.yaml"
         sweep_file.write_text("seed: [1, 2]\nbatch_size: 64\n")
         result = load_sweep_file(str(sweep_file))
@@ -279,6 +291,7 @@ class TestRunSingleJob:
     """Tests for _run_single_job."""
 
     def test_successful_job_returns_success(self) -> None:
+        """Verify a zero-returncode subprocess produces a success result."""
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = "output"
@@ -298,6 +311,7 @@ class TestRunSingleJob:
         assert call_env["CUDA_VISIBLE_DEVICES"] == "0"
 
     def test_failed_job_returns_failed(self) -> None:
+        """Verify a nonzero-returncode subprocess produces a failed result."""
         mock_result = MagicMock()
         mock_result.returncode = 1
         mock_result.stdout = ""
@@ -313,6 +327,7 @@ class TestRunSingleJob:
         assert result["stderr"] == "error message"
 
     def test_cpu_mode_sets_empty_cuda_visible(self) -> None:
+        """Verify CPU-only jobs set CUDA_VISIBLE_DEVICES to empty string."""
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = ""
@@ -327,6 +342,7 @@ class TestRunSingleJob:
         assert call_env["CUDA_VISIBLE_DEVICES"] == ""
 
     def test_exception_returns_error(self) -> None:
+        """Verify subprocess exceptions are caught and returned as error status."""
         job = Job(script="train.py", config_name="config", overrides="", gpu_id=0, job_num=0)
 
         with patch("simplexity.cli.run_parallel.subprocess.run", side_effect=OSError("spawn failed")):
@@ -336,6 +352,7 @@ class TestRunSingleJob:
         assert "spawn failed" in result["error"]
 
     def test_long_stdout_truncated(self) -> None:
+        """Verify stdout longer than 2000 chars is truncated."""
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = "x" * 5000
@@ -393,6 +410,7 @@ class TestDispatchJobs:
         return base
 
     def test_dispatches_all_jobs(self) -> None:
+        """Verify all submitted jobs produce results."""
         jobs = [
             Job(script="train.py", config_name="config", overrides=f"seed={i}", gpu_id=0, job_num=i) for i in range(3)
         ]
@@ -410,6 +428,7 @@ class TestDispatchJobs:
         assert len(results) == 3
 
     def test_reports_failed_jobs(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Verify failed job stderr is printed to stdout."""
         jobs = [Job(script="train.py", config_name="config", overrides="", gpu_id=0, job_num=0)]
 
         mock_result = self._failed_result(stderr="some error")
@@ -427,6 +446,7 @@ class TestDispatchJobs:
         assert "some error" in captured.out
 
     def test_cpu_mode_display(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Verify CPU mode jobs display 'CPU' in output."""
         jobs = [Job(script="train.py", config_name="config", overrides="", gpu_id=None, job_num=0)]
 
         mock_result = self._success_result(gpu=None)
@@ -452,6 +472,7 @@ class TestMain:
         return ["prog", "train.py", "-c", "config", *args]
 
     def test_dry_run_prints_commands(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Verify --dry-run prints job commands without executing."""
         argv = self._argv("--gpus", "0,1", "--sweep", "seed=1,2", "--dry-run")
         with patch("sys.argv", argv):
             main()
@@ -463,6 +484,7 @@ class TestMain:
         assert "GPU 1" in captured.out
 
     def test_cpu_dry_run(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Verify --cpu --dry-run shows CPU worker count."""
         argv = self._argv("--cpu", "--workers", "2", "--sweep", "seed=1,2", "--dry-run")
         with patch("sys.argv", argv):
             main()
@@ -472,16 +494,19 @@ class TestMain:
         assert "2 CPU workers" in captured.out
 
     def test_no_device_exits_with_error(self) -> None:
+        """Verify missing --gpus/--cpu exits with an error."""
         argv = self._argv("--sweep", "seed=1")
         with patch("sys.argv", argv), pytest.raises(SystemExit):
             main()
 
     def test_cpu_without_workers_exits_with_error(self) -> None:
+        """Verify --cpu without --workers exits with an error."""
         argv = self._argv("--cpu", "--sweep", "seed=1")
         with patch("sys.argv", argv), pytest.raises(SystemExit):
             main()
 
     def test_sweep_file_integration(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """Verify --sweep-file loads parameters and generates jobs."""
         sweep_file = tmp_path / "sweep.yaml"
         sweep_file.write_text("seed: [1, 2]\n")
 
@@ -494,6 +519,7 @@ class TestMain:
         assert "[Job 1]" in captured.out
 
     def test_successful_run_exits_cleanly(self) -> None:
+        """Verify a fully successful run does not call sys.exit."""
         mock_result = {
             "job_num": 0,
             "gpu": 0,
@@ -512,6 +538,7 @@ class TestMain:
             main()
 
     def test_failed_run_exits_with_code_1(self) -> None:
+        """Verify any failed job causes sys.exit(1)."""
         mock_result = {
             "job_num": 0,
             "gpu": 0,
@@ -531,6 +558,7 @@ class TestMain:
             main()
 
     def test_max_parallel_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Verify --max-parallel is displayed in output."""
         argv = self._argv("--gpus", "0,1", "--max-parallel", "1", "--sweep", "seed=1,2", "--dry-run")
         with patch("sys.argv", argv):
             main()
