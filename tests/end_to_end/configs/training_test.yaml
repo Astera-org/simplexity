@@ -9,7 +9,7 @@ defaults:
   - lr_scheduler: reduce_lr_on_plateau
   - metric_tracker@training_metric_tracker: default
   - metric_tracker@eval_metric_tracker: loss_only
-  - activation_tracker: with_visuals
+  - activation_tracker: default
   - training: minimal
 
 experiment_name: training_test

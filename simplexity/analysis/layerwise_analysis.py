@@ -138,9 +138,9 @@ class LayerwiseAnalysis:
         *,
         last_token_only: bool = False,
         concat_layers: bool = False,
-        use_probs_as_weights: bool = True,
+        use_probs_as_weights: bool = False,
         skip_first_token: bool = False,
-        skip_deduplication: bool = False,
+        skip_deduplication: bool = True,
         analysis_kwargs: Mapping[str, Any] | None = None,
     ) -> None:
         if analysis_type not in ANALYSIS_REGISTRY:

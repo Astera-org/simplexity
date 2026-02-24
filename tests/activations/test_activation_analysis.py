@@ -20,12 +20,6 @@ from simplexity.activations.activation_analyses import (
     PcaAnalysis,
 )
 from simplexity.activations.activation_tracker import ActivationTracker, PrepareOptions, prepare_activations
-from simplexity.activations.visualization.dataframe_builders import _build_scalar_series_dataframe
-from simplexity.activations.visualization_configs import (
-    ActivationVisualizationControlsConfig,
-    ScalarSeriesMapping,
-)
-from simplexity.exceptions import ConfigValidationError
 
 
 @pytest.fixture
@@ -487,7 +481,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, arrays, visualizations = tracker.analyze(
+        scalars, arrays = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -499,7 +493,6 @@ class TestActivationTracker:
 
         assert "regression/projected/layer_0" in arrays
         assert "pca/pca/layer_0" in arrays
-        assert visualizations == {}
 
     def test_all_tokens_mode(self, synthetic_data):
         """Test tracker with all tokens mode."""
@@ -512,7 +505,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, arrays, visualizations = tracker.analyze(
+        scalars, arrays = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -521,7 +514,6 @@ class TestActivationTracker:
 
         assert "regression/r2/layer_0" in scalars
         assert "regression/projected/layer_0" in arrays
-        assert visualizations == {}
 
     def test_mixed_requirements(self, synthetic_data):
         """Test tracker with analyses that have different requirements."""
@@ -539,7 +531,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, _, visualizations = tracker.analyze(
+        scalars, _ = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -548,7 +540,6 @@ class TestActivationTracker:
 
         assert "regression/r2/layer_0" in scalars
         assert "pca/var_exp/layer_0" in scalars
-        assert visualizations == {}
 
     def test_concatenated_layers(self, synthetic_data):
         """Test tracker with concatenated layers."""
@@ -566,7 +557,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, arrays, visualizations = tracker.analyze(
+        scalars, arrays = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -578,7 +569,6 @@ class TestActivationTracker:
 
         assert "regression/projected/Lcat" in arrays
         assert "pca/pca/Lcat" in arrays
-        assert visualizations == {}
 
     def test_uniform_weights(self, synthetic_data):
         """Test tracker with uniform weights."""
@@ -592,7 +582,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, _, visualizations = tracker.analyze(
+        scalars, _ = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -600,7 +590,6 @@ class TestActivationTracker:
         )
 
         assert "regression/r2/layer_0" in scalars
-        assert visualizations == {}
 
     def test_multiple_configs_efficiency(self, synthetic_data):
         """Test that tracker efficiently pre-computes only needed preprocessing modes."""
@@ -623,7 +612,7 @@ class TestActivationTracker:
             }
         )
 
-        scalars, arrays, visualizations = tracker.analyze(
+        scalars, arrays = tracker.analyze(
             inputs=synthetic_data["inputs"],
             beliefs=synthetic_data["beliefs"],
             probs=synthetic_data["probs"],
@@ -637,7 +626,6 @@ class TestActivationTracker:
         assert "pca_all_tokens/pca/layer_0" in arrays
         assert "pca_last_token/pca/layer_0" in arrays
         assert "regression_concat/projected/Lcat" in arrays
-        assert visualizations == {}
 
     def test_tracker_accepts_torch_inputs(self, synthetic_data):
         """ActivationTracker should handle PyTorch tensors via conversion."""
@@ -663,7 +651,7 @@ class TestActivationTracker:
             name: torch.tensor(np.asarray(layer)) for name, layer in synthetic_data["activations"].items()
         }
 
-        scalars, arrays, visualizations = tracker.analyze(
+        scalars, arrays = tracker.analyze(
             inputs=torch_inputs,
             beliefs=torch_beliefs,
             probs=torch_probs,
@@ -672,72 +660,6 @@ class TestActivationTracker:
 
         assert "regression/r2/layer_0" in scalars
         assert "pca/pca/layer_0" in arrays
-        assert visualizations == {}
-
-    def test_tracker_builds_visualizations(self, synthetic_data, monkeypatch):
-        """Tracker should build configured visualization payloads."""
-        monkeypatch.setattr(
-            "simplexity.activations.activation_visualizations.build_altair_chart",
-            lambda plot_cfg, registry, controls=None: {
-                "backend": "altair",
-                "layers": len(plot_cfg.layers),
-            },
-        )
-        monkeypatch.setattr(
-            "simplexity.activations.activation_visualizations.build_plotly_figure",
-            lambda plot_cfg, registry, controls=None: {
-                "backend": "plotly",
-                "layers": len(plot_cfg.layers),
-            },
-        )
-        viz_cfg = {
-            "name": "pca_projection",
-            "data_mapping": {
-                "mappings": {
-                    "pc0": {"source": "arrays", "key": "pca", "component": 0},
-                    "belief_state": {"source": "belief_states", "reducer": "argmax"},
-                }
-            },
-            "controls": {"slider": "step", "dropdown": "layer"},
-            "layer": {
-                "geometry": {"type": "point"},
-                "aesthetics": {
-                    "x": {"field": "pc0", "type": "quantitative"},
-                    "color": {"field": "belief_state", "type": "nominal"},
-                },
-            },
-        }
-        tracker = ActivationTracker(
-            {
-                "pca": PcaAnalysis(
-                    n_components=1,
-                    last_token_only=False,
-                    concat_layers=False,
-                ),
-            },
-            visualizations={"pca": [viz_cfg]},
-        )
-
-        _, _, visualizations = tracker.analyze(
-            inputs=synthetic_data["inputs"],
-            beliefs=synthetic_data["beliefs"],
-            probs=synthetic_data["probs"],
-            activations=synthetic_data["activations"],
-        )
-
-        key = "pca/pca_projection"
-        assert key in visualizations
-        payload = visualizations[key]
-        assert not payload.dataframe.empty
-        assert payload.controls is not None
-        assert payload.controls.slider is not None
-        assert payload.controls.slider.field == "step"
-        assert set(payload.dataframe["layer"]) == {"layer_0", "layer_1"}
-
-    def test_controls_accumulate_steps_conflict(self):
-        """Controls should forbid accumulate_steps with slider targeting step."""
-        with pytest.raises(ConfigValidationError):
-            ActivationVisualizationControlsConfig(slider="step", accumulate_steps=True)
 
 
 class TestTupleBeliefStates:
@@ -978,7 +900,7 @@ class TestTupleBeliefStates:
             }
         )
 
-        scalars, arrays, _ = tracker.analyze(
+        scalars, arrays = tracker.analyze(
             inputs=factored_belief_data["inputs"],
             beliefs=factored_belief_data["factored_beliefs"],
             probs=factored_belief_data["probs"],
@@ -1163,37 +1085,3 @@ class TestTupleBeliefStates:
         )
 
         assert "orth/overlap/layer_0-F0,1" in scalars_svd
-
-
-class TestScalarSeriesMapping:
-    """Tests for scalar_series dataframe construction."""
-
-    def test_infers_indices_when_not_provided(self):
-        mapping = ScalarSeriesMapping(
-            key_template="{layer}_metric_{index}",
-            index_field="component",
-            value_field="score",
-        )
-        metadata_columns = {"step": np.array([0])}
-        scalars = {
-            "test_analysis/layer_0_metric_1": 0.1,
-            "test_analysis/layer_0_metric_2": 0.2,
-            "test_analysis/layer_1_metric_1": 0.3,
-        }
-        df = _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0", "layer_1"], "test_analysis")
-
-        assert set(df["component"]) == {1, 2}
-        assert set(df[df["layer"] == "layer_0"]["component"]) == {1, 2}
-        assert set(df[df["layer"] == "layer_1"]["component"]) == {1}
-
-    def test_infer_indices_errors_when_missing(self):
-        mapping = ScalarSeriesMapping(
-            key_template="{layer}_metric_{index}",
-            index_field="k",
-            value_field="value",
-        )
-        metadata_columns = {"step": np.array([0])}
-        scalars = {}
-
-        with pytest.raises(ConfigValidationError):
-            _build_scalar_series_dataframe(mapping, metadata_columns, scalars, ["layer_0"], "test_analysis")
