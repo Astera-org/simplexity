@@ -10,6 +10,7 @@
 # the problematic imports checker that would crash during AST traversal.
 
 import inspect
+import random
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Literal
 
@@ -20,6 +21,7 @@ from simplexity.generative_processes.factored_generative_process import Componen
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.hidden_markov_model import HiddenMarkovModel
+from simplexity.generative_processes.independent_factored_generative_process import IndependentFactoredGenerativeProcess
 from simplexity.generative_processes.inflated_vocabulary_process import InflatedVocabularyProcess
 from simplexity.generative_processes.nonergodic_generative_process import NonErgodicGenerativeProcess
 from simplexity.generative_processes.structures import (
@@ -195,7 +197,16 @@ def build_factored_process(
 
     if structure_type == "independent":
         structure = IndependentStructure()
-    elif structure_type == "chain":
+        return IndependentFactoredGenerativeProcess(
+            component_types=component_types,
+            transition_matrices=transition_matrices,
+            normalizing_eigenvectors=normalizing_eigenvectors,
+            initial_states=initial_states,
+            structure=structure,
+            noise_epsilon=noise_epsilon,
+        )
+
+    if structure_type == "chain":
         if "control_maps" not in structure_kwargs:
             raise ValueError("Missing required argument 'control_maps' for chain structure")
         structure = SequentialConditional(control_maps=tuple(structure_kwargs["control_maps"]), vocab_sizes=vocab_sizes)
@@ -731,6 +742,120 @@ def build_nonergodic_process_from_spec(
         vocab_maps=final_vocab_maps,
         device=device,
     )
+
+
+def build_nonergodic_disjoint_vocab(
+    components: Sequence[dict[str, Any]],
+    component_weights: Sequence[float],
+    device: str | None = None,
+) -> NonErgodicGenerativeProcess:
+    """Build a nonergodic process where each component has a fully disjoint alphabet.
+
+    First builds each component to discover its vocab_size, then assigns
+    non-overlapping vocab_maps: C0 -> [0..V0-1], C1 -> [V0..V0+V1-1], etc.
+
+    Args:
+        components: List of component specs (same format as build_nonergodic_process_from_spec).
+        component_weights: Mixture weights for components.
+        device: Device placement.
+
+    Returns:
+        NonErgodicGenerativeProcess with disjoint per-component vocabularies.
+    """
+    temp = build_nonergodic_process_from_spec(components, component_weights, device=device)
+    comp_vocab_sizes = [c.vocab_size for c in temp.components]
+
+    vocab_maps: list[list[int]] = []
+    offset = 0
+    for v in comp_vocab_sizes:
+        vocab_maps.append(list(range(offset, offset + v)))
+        offset += v
+
+    return build_nonergodic_process_from_spec(components, component_weights, vocab_maps=vocab_maps, device=device)
+
+
+def _build_prefix_vocab_maps(n_components: int, v: int, n_shared: int, n_unique: int) -> list[list[int]]:
+    """Build vocab maps using the prefix strategy.
+
+    C0 gets [0..V-1]. Ci>0 gets shared [0..n_shared-1] + unique tokens above V.
+    """
+    vocab_maps: list[list[int]] = []
+    for i in range(n_components):
+        if i == 0:
+            vocab_maps.append(list(range(v)))
+        else:
+            unique_start = v + (i - 1) * n_unique
+            vocab_maps.append(list(range(n_shared)) + list(range(unique_start, unique_start + n_unique)))
+    return vocab_maps
+
+
+def _build_sliding_vocab_maps(n_components: int, v: int, n_unique: int) -> list[list[int]]:
+    """Build vocab maps using the sliding/offset strategy.
+
+    Ci gets [i*offset..i*offset+V-1] where offset = max(1, n_unique).
+    """
+    offset = max(1, n_unique)
+    return [list(range(i * offset, i * offset + v)) for i in range(n_components)]
+
+
+def _build_random_vocab_maps(n_components: int, v: int, n_shared: int, n_unique: int, seed: int) -> list[list[int]]:
+    """Build vocab maps using the prefix strategy, then randomly permute global token indices."""
+    prefix_maps = _build_prefix_vocab_maps(n_components, v, n_shared, n_unique)
+    global_vocab_size = max(max(vm) for vm in prefix_maps) + 1
+    rng = random.Random(seed)
+    perm = list(range(global_vocab_size))
+    rng.shuffle(perm)
+    return [[perm[tok] for tok in vm] for vm in prefix_maps]
+
+
+def build_nonergodic_partial_overlap(
+    components: Sequence[dict[str, Any]],
+    component_weights: Sequence[float],
+    overlap_frac: float = 0.7,
+    mode: Literal["prefix", "sliding", "random"] = "prefix",
+    seed: int | None = None,
+    device: str | None = None,
+) -> NonErgodicGenerativeProcess:
+    """Build a nonergodic process with partially overlapping alphabets.
+
+    Args:
+        components: List of component specs (same format as build_nonergodic_process_from_spec).
+        component_weights: Mixture weights for components.
+        overlap_frac: Fraction of tokens shared between components (0.0 = disjoint, 1.0 = full overlap).
+        mode: Strategy for assigning vocab maps:
+            - "prefix": C0 gets [0..V-1], Ci>0 gets shared prefix + unique suffix above V.
+            - "sliding": Each component's vocab is offset by V * (1 - overlap_frac) from the previous.
+            - "random": Same overlap structure as prefix, but with a random permutation
+              of global token indices. Requires the ``seed`` parameter.
+        seed: Random seed for reproducibility. Required when mode="random".
+        device: Device placement.
+
+    Returns:
+        NonErgodicGenerativeProcess with partially overlapping vocabularies.
+
+    Raises:
+        ValueError: If mode is unknown or seed is missing for random mode.
+    """
+    if mode == "random" and seed is None:
+        raise ValueError("seed is required when mode='random'")
+
+    temp = build_nonergodic_process_from_spec(components, component_weights, device=device)
+    v = temp.components[0].vocab_size
+    n_shared = int(v * overlap_frac)
+    n_unique = v - n_shared
+    n_components = len(components)
+
+    if mode == "prefix":
+        vocab_maps = _build_prefix_vocab_maps(n_components, v, n_shared, n_unique)
+    elif mode == "sliding":
+        vocab_maps = _build_sliding_vocab_maps(n_components, v, n_unique)
+    elif mode == "random":
+        assert seed is not None
+        vocab_maps = _build_random_vocab_maps(n_components, v, n_shared, n_unique, seed)
+    else:
+        raise ValueError(f"Unknown mode '{mode}'. Must be 'prefix', 'sliding', or 'random'.")
+
+    return build_nonergodic_process_from_spec(components, component_weights, vocab_maps=vocab_maps, device=device)
 
 
 def build_inflated_process(

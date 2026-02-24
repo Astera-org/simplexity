@@ -49,6 +49,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
         initial_states: Sequence[jax.Array],
         structure: ConditionalStructure,
         device: str | None = None,
+        noise_epsilon: float = 0.0,
         frozen_factor_indices: frozenset[int] = frozenset(),
         frozen_key: jax.Array | None = None,
     ) -> None:
@@ -63,6 +64,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             initial_states: Initial state per factor (shape [S_i])
             structure: Conditional structure defining factor interactions
             device: Device to place arrays on (e.g., "cpu", "gpu")
+            noise_epsilon: Noisy channel epsilon value
             frozen_factor_indices: Indices of factors whose sequences are frozen across batch
             frozen_key: JAX random key for frozen sequence generation. Required if
                 frozen_factor_indices is non-empty.
@@ -78,6 +80,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             initial_states=initial_states,
             structure=structure,
             device=device,
+            noise_epsilon=noise_epsilon,
         )
 
         num_factors = len(component_types)

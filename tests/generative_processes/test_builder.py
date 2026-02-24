@@ -23,8 +23,10 @@ from simplexity.generative_processes.builder import (
     build_generalized_hidden_markov_model,
     build_hidden_markov_model,
     build_matrices_from_spec,
+    build_nonergodic_disjoint_vocab,
     build_nonergodic_hidden_markov_model,
     build_nonergodic_initial_state,
+    build_nonergodic_partial_overlap,
     build_nonergodic_transition_matrices,
     build_symmetric_from_spec,
     build_transition_coupled_from_spec,
@@ -603,3 +605,227 @@ def test_build_chain_from_spec_empty_chain_raises():
     """Empty chain should raise ValueError."""
     with pytest.raises(ValueError, match="chain must contain at least one node"):
         build_chain_from_spec([])
+
+
+# --- Tests for IndependentFactoredGenerativeProcess in build_factored_process ---
+
+
+def test_build_factored_process_independent_returns_independent_subclass(components_spec):
+    """build_factored_process with independent structure should return IndependentFactoredGenerativeProcess."""
+    from simplexity.generative_processes.independent_factored_generative_process import (
+        IndependentFactoredGenerativeProcess,
+    )
+
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
+        components_spec
+    )
+    process = build_factored_process(
+        structure_type="independent",
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+    )
+    assert isinstance(process, IndependentFactoredGenerativeProcess)
+    assert isinstance(process.structure, IndependentStructure)
+
+
+def test_build_factored_process_independent_passes_noise_epsilon(components_spec):
+    """noise_epsilon should be propagated to IndependentFactoredGenerativeProcess."""
+    component_types, transition_matrices, normalizing_eigenvectors, initial_states = build_matrices_from_spec(
+        components_spec
+    )
+    process = build_factored_process(
+        structure_type="independent",
+        component_types=component_types,
+        transition_matrices=transition_matrices,
+        normalizing_eigenvectors=normalizing_eigenvectors,
+        initial_states=initial_states,
+        noise_epsilon=0.05,
+    )
+    assert process.noise_epsilon == 0.05
+
+
+def test_build_factored_process_from_spec_independent_returns_independent_subclass(components_spec):
+    """build_factored_process_from_spec with independent structure returns IndependentFactoredGenerativeProcess."""
+    from simplexity.generative_processes.independent_factored_generative_process import (
+        IndependentFactoredGenerativeProcess,
+    )
+
+    process = build_factored_process_from_spec(structure_type="independent", spec=components_spec)
+    assert isinstance(process, IndependentFactoredGenerativeProcess)
+
+
+# --- Tests for build_nonergodic_disjoint_vocab ---
+
+
+TWO_COINS = [
+    {"component_type": "hmm", "process_name": "coin", "process_params": {"p": 0.6}},
+    {"component_type": "hmm", "process_name": "coin", "process_params": {"p": 0.4}},
+]
+
+
+class TestBuildNonErgodicDisjointVocab:
+    """Tests for build_nonergodic_disjoint_vocab."""
+
+    def test_vocab_maps_are_non_overlapping(self):
+        """Each component should get a unique, non-overlapping vocab range."""
+        process = build_nonergodic_disjoint_vocab(components=TWO_COINS, component_weights=[0.5, 0.5])
+        vm0 = set(process.vocab_maps[0].tolist())
+        vm1 = set(process.vocab_maps[1].tolist())
+        assert vm0 == {0, 1}
+        assert vm1 == {2, 3}
+        assert vm0.isdisjoint(vm1)
+
+    def test_vocab_size_is_sum_of_components(self):
+        """Total vocab size should be sum of all component vocab sizes."""
+        process = build_nonergodic_disjoint_vocab(components=TWO_COINS, component_weights=[0.5, 0.5])
+        assert process.vocab_size == 4
+
+    def test_distribution_sums_to_one(self):
+        """Observation distribution should be a valid probability distribution."""
+        process = build_nonergodic_disjoint_vocab(components=TWO_COINS, component_weights=[0.5, 0.5])
+        dist = process.observation_probability_distribution(process.initial_state)
+        chex.assert_trees_all_close(jnp.sum(dist), 1.0, atol=1e-6)
+
+    def test_three_components_disjoint(self):
+        """Three-component disjoint should produce three non-overlapping ranges."""
+        components = [
+            {"component_type": "hmm", "process_name": "coin", "process_params": {"p": 0.5}},
+            {"component_type": "hmm", "process_name": "mess3", "process_params": {"x": 0.15, "a": 0.6}},
+            {"component_type": "hmm", "process_name": "coin", "process_params": {"p": 0.3}},
+        ]
+        process = build_nonergodic_disjoint_vocab(components=components, component_weights=[0.4, 0.3, 0.3])
+        assert process.vocab_size == 7  # 2 + 3 + 2
+        all_tokens = set()
+        for vm in process.vocab_maps:
+            tokens = set(vm.tolist())
+            assert all_tokens.isdisjoint(tokens)
+            all_tokens.update(tokens)
+
+
+# --- Tests for build_nonergodic_partial_overlap ---
+
+
+class TestBuildNonErgodicPartialOverlap:
+    """Tests for build_nonergodic_partial_overlap."""
+
+    def test_prefix_mode_shared_and_unique_tokens(self):
+        """Prefix mode: components should share some tokens and have unique tokens."""
+        process = build_nonergodic_partial_overlap(
+            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode="prefix"
+        )
+        vm0 = process.vocab_maps[0].tolist()
+        vm1 = process.vocab_maps[1].tolist()
+        assert vm0 == [0, 1]
+        assert vm1 == [0, 2]
+
+    def test_prefix_mode_full_overlap(self):
+        """overlap_frac=1.0 should give fully shared vocabularies."""
+        process = build_nonergodic_partial_overlap(
+            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=1.0, mode="prefix"
+        )
+        vm0 = process.vocab_maps[0].tolist()
+        vm1 = process.vocab_maps[1].tolist()
+        assert vm0 == vm1
+
+    def test_prefix_mode_zero_overlap_is_disjoint(self):
+        """overlap_frac=0.0 with prefix mode should produce disjoint vocabs."""
+        process = build_nonergodic_partial_overlap(
+            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.0, mode="prefix"
+        )
+        vm0 = set(process.vocab_maps[0].tolist())
+        vm1 = set(process.vocab_maps[1].tolist())
+        assert vm0.isdisjoint(vm1)
+
+    def test_sliding_mode_produces_offset_maps(self):
+        """Sliding mode should produce overlapping ranges offset by V * (1 - overlap_frac)."""
+        components = [
+            {"component_type": "hmm", "process_name": "mess3", "process_params": {"x": 0.15, "a": 0.6}},
+            {"component_type": "hmm", "process_name": "mess3", "process_params": {"x": 0.35, "a": 0.6}},
+            {"component_type": "hmm", "process_name": "mess3", "process_params": {"x": 0.5, "a": 0.6}},
+        ]
+        # V=3, overlap_frac=2/3 => n_unique=1, offset=1
+        process = build_nonergodic_partial_overlap(
+            components=components, component_weights=[0.333, 0.333, 0.334], overlap_frac=2.0 / 3.0, mode="sliding"
+        )
+        assert process.vocab_maps[0].tolist() == [0, 1, 2]
+        assert process.vocab_maps[1].tolist() == [1, 2, 3]
+        assert process.vocab_maps[2].tolist() == [2, 3, 4]
+
+    def test_sliding_mode_full_overlap(self):
+        """Sliding with overlap_frac=1.0 should still offset by at least 1."""
+        process = build_nonergodic_partial_overlap(
+            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=1.0, mode="sliding"
+        )
+        vm0 = process.vocab_maps[0].tolist()
+        vm1 = process.vocab_maps[1].tolist()
+        # offset = max(1, 0) = 1, so C0=[0,1], C1=[1,2]
+        assert vm0 == [0, 1]
+        assert vm1 == [1, 2]
+
+    def test_random_mode_preserves_overlap_structure(self):
+        """Random mode should have the same overlap counts as prefix mode."""
+        process_prefix = build_nonergodic_partial_overlap(
+            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode="prefix"
+        )
+        process_random = build_nonergodic_partial_overlap(
+            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode="random", seed=42
+        )
+        prefix_shared = len(set(process_prefix.vocab_maps[0].tolist()) & set(process_prefix.vocab_maps[1].tolist()))
+        random_shared = len(set(process_random.vocab_maps[0].tolist()) & set(process_random.vocab_maps[1].tolist()))
+        assert prefix_shared == random_shared
+
+    def test_random_mode_is_deterministic_with_seed(self):
+        """Same seed should produce identical vocab maps."""
+        p1 = build_nonergodic_partial_overlap(
+            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode="random", seed=123
+        )
+        p2 = build_nonergodic_partial_overlap(
+            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode="random", seed=123
+        )
+        for vm1, vm2 in zip(p1.vocab_maps, p2.vocab_maps, strict=True):
+            assert vm1.tolist() == vm2.tolist()
+
+    def test_random_mode_different_seeds_differ(self):
+        """Different seeds should produce different vocab maps."""
+        three_mess3 = [
+            {"component_type": "hmm", "process_name": "mess3", "process_params": {"x": 0.15, "a": 0.6}},
+            {"component_type": "hmm", "process_name": "mess3", "process_params": {"x": 0.35, "a": 0.6}},
+            {"component_type": "hmm", "process_name": "mess3", "process_params": {"x": 0.5, "a": 0.6}},
+        ]
+        weights = [0.333, 0.333, 0.334]
+        p1 = build_nonergodic_partial_overlap(
+            components=three_mess3, component_weights=weights, overlap_frac=0.5, mode="random", seed=1
+        )
+        p2 = build_nonergodic_partial_overlap(
+            components=three_mess3, component_weights=weights, overlap_frac=0.5, mode="random", seed=2
+        )
+        maps_differ = any(vm1.tolist() != vm2.tolist() for vm1, vm2 in zip(p1.vocab_maps, p2.vocab_maps, strict=True))
+        assert maps_differ
+
+    def test_random_mode_requires_seed(self):
+        """Random mode without seed should raise ValueError."""
+        with pytest.raises(ValueError, match="seed is required"):
+            build_nonergodic_partial_overlap(
+                components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode="random"
+            )
+
+    def test_distribution_sums_to_one_all_modes(self):
+        """Observation distribution should be valid for all modes."""
+        for mode, kwargs in [("prefix", {}), ("sliding", {}), ("random", {"seed": 42})]:
+            process = build_nonergodic_partial_overlap(
+                components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode=mode, **kwargs
+            )
+            dist = process.observation_probability_distribution(process.initial_state)
+            chex.assert_trees_all_close(jnp.sum(dist), 1.0, atol=1e-6)
+
+    def test_unknown_mode_raises(self):
+        """Unknown mode should raise ValueError."""
+        with pytest.raises(ValueError, match="Unknown mode"):
+            build_nonergodic_partial_overlap(
+                components=TWO_COINS,
+                component_weights=[0.5, 0.5],
+                overlap_frac=0.5,
+                mode="bogus",  # type: ignore[arg-type]
+            )
