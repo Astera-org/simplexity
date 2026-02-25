@@ -799,13 +799,16 @@ def _build_sliding_vocab_maps(n_components: int, v: int, n_unique: int) -> list[
 
 
 def _build_random_vocab_maps(n_components: int, v: int, n_shared: int, n_unique: int, seed: int) -> list[list[int]]:
-    """Build vocab maps using the prefix strategy, then randomly permute global token indices."""
+    """Build vocab maps by having each component randomly sample V tokens from the global pool.
+
+    The global vocab size is the same as in prefix mode (V + (n_components - 1) * n_unique),
+    and each component independently samples V tokens without replacement.
+    """
     prefix_maps = _build_prefix_vocab_maps(n_components, v, n_shared, n_unique)
     global_vocab_size = max(max(vm) for vm in prefix_maps) + 1
     rng = random.Random(seed)
-    perm = list(range(global_vocab_size))
-    rng.shuffle(perm)
-    return [[perm[tok] for tok in vm] for vm in prefix_maps]
+    global_tokens = list(range(global_vocab_size))
+    return [sorted(rng.sample(global_tokens, v)) for _ in range(n_components)]
 
 
 def build_nonergodic_partial_overlap(
@@ -825,8 +828,8 @@ def build_nonergodic_partial_overlap(
         mode: Strategy for assigning vocab maps:
             - "prefix": C0 gets [0..V-1], Ci>0 gets shared prefix + unique suffix above V.
             - "sliding": Each component's vocab is offset by V * (1 - overlap_frac) from the previous.
-            - "random": Same overlap structure as prefix, but with a random permutation
-              of global token indices. Requires the ``seed`` parameter.
+            - "random": Each component independently samples V tokens from the global pool.
+              Global pool size matches prefix mode. Requires the ``seed`` parameter.
         seed: Random seed for reproducibility. Required when mode="random".
         device: Device placement.
 

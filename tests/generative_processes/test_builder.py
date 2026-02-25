@@ -764,17 +764,15 @@ class TestBuildNonErgodicPartialOverlap:
         assert vm0 == [0, 1]
         assert vm1 == [1, 2]
 
-    def test_random_mode_preserves_overlap_structure(self):
-        """Random mode should have the same overlap counts as prefix mode."""
-        process_prefix = build_nonergodic_partial_overlap(
-            components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode="prefix"
-        )
-        process_random = build_nonergodic_partial_overlap(
+    def test_random_mode_independent_sampling(self):
+        """Random mode should independently sample V tokens per component from the global pool."""
+        process = build_nonergodic_partial_overlap(
             components=TWO_COINS, component_weights=[0.5, 0.5], overlap_frac=0.5, mode="random", seed=42
         )
-        prefix_shared = len(set(process_prefix.vocab_maps[0].tolist()) & set(process_prefix.vocab_maps[1].tolist()))
-        random_shared = len(set(process_random.vocab_maps[0].tolist()) & set(process_random.vocab_maps[1].tolist()))
-        assert prefix_shared == random_shared
+        v = process.components[0].vocab_size
+        for vm in process.vocab_maps:
+            assert len(vm.tolist()) == v
+            assert len(set(vm.tolist())) == v  # no duplicates within a component
 
     def test_random_mode_is_deterministic_with_seed(self):
         """Same seed should produce identical vocab maps."""
