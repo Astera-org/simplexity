@@ -17,7 +17,11 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.structures.protocol import ConditionalContext
-from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
+from simplexity.utils.factoring_utils import (
+    compute_obs_dist_for_variant,
+    compute_other_multipliers,
+    compute_prefix_multipliers,
+)
 
 
 class ConditionalTransitions(eqx.Module):
@@ -88,37 +92,8 @@ class ConditionalTransitions(eqx.Module):
         self.emission_control_maps = tuple(ecm_list)
         self.use_emission_chain = bool(use_chain)
 
-        # Precompute multipliers for other-factor indexing (for transitions)
-        other_multipliers: list[jax.Array] = []
-        for i in range(num_factors):
-            mult = []
-            for j in range(num_factors):
-                if j == i:
-                    mult.append(0)  # Unused
-                else:
-                    m = 1
-                    for k in range(j + 1, num_factors):
-                        if k == i:
-                            continue
-                        m *= self.vocab_sizes_py[k]
-                    mult.append(m)
-            other_multipliers.append(jnp.array(mult))
-        self.other_multipliers = tuple(other_multipliers)
-
-        # Precompute multipliers for prefix indexing (for sequential emissions)
-        prefix_multipliers: list[jax.Array] = []
-        for i in range(num_factors):
-            pmult = []
-            for j in range(num_factors):
-                if j >= i:
-                    pmult.append(0)  # Unused
-                else:
-                    m = 1
-                    for k in range(j + 1, i):
-                        m *= self.vocab_sizes_py[k]
-                    pmult.append(m)
-            prefix_multipliers.append(jnp.array(pmult))
-        self.prefix_multipliers = tuple(prefix_multipliers)
+        self.other_multipliers = compute_other_multipliers(self.vocab_sizes_py)
+        self.prefix_multipliers = compute_prefix_multipliers(self.vocab_sizes_py)
 
     def _flatten_other_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
         """Flatten other-factor tokens to transition control map index."""

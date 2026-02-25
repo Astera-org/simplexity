@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.structures.protocol import ConditionalContext
-from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
+from simplexity.utils.factoring_utils import compute_obs_dist_for_variant, compute_other_multipliers
 
 
 class FullyConditional(eqx.Module):
@@ -54,47 +54,26 @@ class FullyConditional(eqx.Module):
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
         num_factors = len(vocab_sizes)
 
-        # Compute joint vocab size
-        jv = 1
-        for v in self.vocab_sizes_py:
-            jv *= v
-        self.joint_vocab_size = jv
+        import math
 
-        # Precompute indexing helpers for each factor
-        other_multipliers: list[jax.Array] = []
+        self.joint_vocab_size = math.prod(self.vocab_sizes_py)
+        self.other_multipliers = compute_other_multipliers(self.vocab_sizes_py)
+
         other_shapes: list[tuple[int, ...]] = []
         perms_py: list[tuple[int, ...]] = []
-
         for i in range(num_factors):
-            # Compute radix multipliers for "other" factors (excluding i)
-            mult = []
-            for j in range(num_factors):
-                if j == i:
-                    mult.append(0)  # Unused
-                else:
-                    m = 1
-                    for k in range(j + 1, num_factors):
-                        if k == i:
-                            continue
-                        m *= self.vocab_sizes_py[k]
-                    mult.append(m)
-            other_multipliers.append(jnp.array(mult))
-
-            # Shape for reshaping conditional [prod_others, V_i] -> [*others, V_i]
             other_shapes.append(tuple(self.vocab_sizes_py[j] for j in range(num_factors) if j != i))
 
-            # Permutation to align [*others, V_i] to [V_0, ..., V_{F-1}]
             others = [j for j in range(num_factors) if j != i]
             axis_pos = {j: pos for pos, j in enumerate(others)}
             perm = []
             for j in range(num_factors):
                 if j == i:
-                    perm.append(len(others))  # V_i is the last axis
+                    perm.append(len(others))
                 else:
                     perm.append(axis_pos[j])
             perms_py.append(tuple(perm))
 
-        self.other_multipliers = tuple(other_multipliers)
         self.other_shapes = tuple(other_shapes)
         self.perms_py = tuple(perms_py)
 
