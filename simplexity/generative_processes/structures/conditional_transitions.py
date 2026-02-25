@@ -25,25 +25,7 @@ from simplexity.utils.factoring_utils import (
 
 
 class ConditionalTransitions(eqx.Module):
-    """Conditional transitions structure with flexible emission modes.
-
-    Emissions can be:
-    - Independent (use_emission_chain=False): P(t) = ∏_i P_i(t_i | s_i, k_emit_i)
-    - Sequential (use_emission_chain=True): P(t) = P0(t0) * ∏_{i>0} P_i(t_i | t_0..t_{i-1}, s_i)
-
-    Transitions are always mutually conditional: factor i selects transition variant based on
-    all other factors' tokens.
-
-    Attributes:
-        control_maps_transition: Transition control maps. control_maps_transition[i]
-            has shape [prod(V_j for j!=i)] mapping other tokens to transition variant.
-        emission_variant_indices: Fixed emission variants per factor (shape [F])
-        emission_control_maps: Optional sequential emission control maps
-        use_emission_chain: Whether to use sequential emissions
-        other_multipliers: Precomputed radix multipliers for other-factor indexing
-        prefix_multipliers: Precomputed radix multipliers for prefix indexing
-        vocab_sizes_py: Python int tuple of vocab sizes
-    """
+    """Conditional transitions with flexible emission modes and mutually conditional transitions."""
 
     control_maps_transition: tuple[jax.Array, ...]
     emission_variant_indices: jax.Array  # shape [F]
@@ -60,17 +42,6 @@ class ConditionalTransitions(eqx.Module):
         vocab_sizes: jax.Array,
         emission_control_maps: tuple[jax.Array | None, ...] | None = None,
     ):
-        """Initialize conditional transitions structure.
-
-        Args:
-            control_maps_transition: Transition control maps for each factor.
-                control_maps_transition[i] should have shape [prod(V_j for j!=i)].
-            emission_variant_indices: Fixed emission variant per factor (shape [F])
-            vocab_sizes: Vocabulary sizes per factor (shape [F])
-            emission_control_maps: Optional sequential emission control maps.
-                If provided, emission_control_maps[i] should have shape
-                [prod(V_j for j<i)] for i>0.
-        """
         self.control_maps_transition = tuple(jnp.asarray(cm, dtype=jnp.int32) for cm in control_maps_transition)
         self.emission_variant_indices = jnp.asarray(emission_variant_indices, dtype=jnp.int32)
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
@@ -106,14 +77,7 @@ class ConditionalTransitions(eqx.Module):
         return jnp.sum(tokens * mult)
 
     def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
-        """Compute joint distribution based on emission mode.
-
-        Args:
-            context: Conditional context with states and parameters
-
-        Returns:
-            Flattened joint distribution of shape [prod(V_i)]
-        """
+        """Compute joint distribution based on emission mode."""
         num_factors = len(context.vocab_sizes)
         states = context.states
         component_types = context.component_types
@@ -178,17 +142,7 @@ class ConditionalTransitions(eqx.Module):
         obs_tuple: tuple[jax.Array, ...],
         context: ConditionalContext,  # pylint: disable=unused-argument
     ) -> tuple[jax.Array, ...]:
-        """Select transition variants based on other factors' tokens.
-
-        Note: This returns TRANSITION variants, not emission variants.
-
-        Args:
-            obs_tuple: Tuple of observed tokens (one per factor)
-            context: Conditional context (unused)
-
-        Returns:
-            Tuple of transition variant indices (one per factor)
-        """
+        """Select transition variants based on other factors' tokens."""
         tokens_arr = jnp.array(obs_tuple)
         variants = []
         for i in range(len(obs_tuple)):

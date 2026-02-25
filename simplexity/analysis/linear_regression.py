@@ -318,20 +318,7 @@ def _compute_subspace_orthogonality(
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
     """Compute orthogonality metrics between two coefficient subspaces.
 
-    Args:
-        basis_pair: List of two orthonormal basis matrices
-
-    Returns:
-        Tuple[dict[str, float], dict[str, jax.Array]]: A tuple containing:
-            - scalars: A dictionary with the following keys and float values:
-                - 'subspace_overlap': Average squared singular value (overlap score).
-                - 'max_singular_value': Largest singular value.
-                - 'min_singular_value': Smallest singular value.
-                - 'participation_ratio': Participation ratio of the singular values.
-                - 'entropy': Entropy of the squared singular values.
-                - 'effective_rank': Effective rank (exp(entropy)) of the singular value distribution.
-            - singular_values: A dictionary with a single key:
-                - 'singular_values': jax.Array of the singular values between the two subspaces.
+    Returns dict keys: overlap, sv_max, sv_min, p_ratio, entropy, eff_rank, singular_values.
     """
     q1 = basis_pair[0]
     q2 = basis_pair[1]
@@ -399,18 +386,7 @@ def _compute_subspace_orthogonality(
 def _compute_all_pairwise_orthogonality(
     coeffs_list: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
-    """Compute pairwise orthogonality metrics for all factor pairs.
-
-    Args:
-        coeffs_list: List of coefficient matrices (one per factor, excludes intercepts)
-
-    Returns:
-        Tuple[dict[str, float], dict[str, jax.Array]]:
-            - scalars: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to scalar float metrics for
-            each pair of factors (i, j).
-            - arrays: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to array-valued
-            metrics for each pair of factors (i, j).
-    """
+    """Compute pairwise orthogonality metrics for all factor pairs."""
     scalars = {}
     arrays = {}
     factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
@@ -513,21 +489,7 @@ def layer_linear_regression(
     use_svd: bool = False,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Layer-wise regression helper that wraps :func:`linear_regression` or :func:`linear_regression_svd`.
-
-    Args:
-        layer_activations: Neural network activations for a single layer
-        weights: Sample weights for weighted regression
-        belief_states: Target belief states (single array or tuple for factored processes)
-        concat_belief_states: If True and belief_states is a tuple, concatenate and regress jointly
-        compute_subspace_orthogonality: If True, compute orthogonality between factor subspaces
-        use_svd: If True, use SVD-based regression instead of standard least squares
-        **kwargs: Additional arguments passed to regression function (fit_intercept, rcond_values, etc.)
-
-    Returns:
-        scalars: Dictionary of scalar metrics
-        arrays: Dictionary of arrays (projected predictions, parameters, singular values if orthogonality computed)
-    """
+    """Layer-wise regression helper that wraps linear_regression or linear_regression_svd."""
     # If no belief states are provided, raise an error
     if (
         belief_states is None

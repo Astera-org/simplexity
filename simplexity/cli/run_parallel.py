@@ -94,15 +94,7 @@ JOB_START_DELAY_SECONDS = 5
 
 @dataclass(frozen=True)
 class Job:
-    """Represents a single experiment job to be executed.
-
-    Attributes:
-        script: Path to the Python script to run.
-        config_name: Hydra config name.
-        overrides: Space-separated Hydra overrides.
-        gpu_id: GPU ID to assign via CUDA_VISIBLE_DEVICES, or None for CPU-only.
-        job_num: Job number for logging and identification.
-    """
+    """Represents a single experiment job to be executed."""
 
     script: str
     config_name: str
@@ -111,11 +103,7 @@ class Job:
     job_num: int
 
     def to_cmd(self) -> list[str]:
-        """Render the full command list for this job.
-
-        Returns:
-            List of command arguments suitable for subprocess execution.
-        """
+        """Render the full command list for this job."""
         cmd = [
             "uv",
             "run",
@@ -136,19 +124,7 @@ class Job:
 
 
 def load_sweep_file(path: str) -> list[str]:
-    """Load sweep parameters from a YAML file.
-
-    The file should contain parameter names as keys and lists of values:
-
-        seed: [1, 2, 3, 4]
-        model.lr: [0.01, 0.001]
-
-    Args:
-        path: Path to the sweep YAML file.
-
-    Returns:
-        List of sweep strings like ['seed=1,2,3,4', 'model.lr=0.01,0.001']
-    """
+    """Load sweep parameters from a YAML file."""
     cfg = OmegaConf.load(path)
     sweeps = []
     for key, values in cfg.items():
@@ -168,14 +144,7 @@ def parse_sweep_param(sweep_str: str) -> tuple[str, list[str]]:
 
 
 def generate_override_combinations(sweeps: list[str]) -> list[str]:
-    """Generate all combinations of sweep parameters (cartesian product).
-
-    Args:
-        sweeps: List of sweep strings like ['a=1,2', 'b=x,y']
-
-    Returns:
-        List of override strings like ['a=1 b=x', 'a=1 b=y', 'a=2 b=x', 'a=2 b=y']
-    """
+    """Generate all combinations of sweep parameters (cartesian product)."""
     if not sweeps:
         return [""]
 
@@ -198,21 +167,7 @@ def generate_jobs(
     overrides: list[str],
     gpus: list[int] | None,
 ) -> list[Job]:
-    """Generate a list of jobs from sweep parameters and device configuration.
-
-    This is a pure function with no side effects, making it trivially testable.
-
-    Args:
-        script: Path to the Python script to run.
-        config_name: Hydra config name.
-        sweeps: List of sweep strings like ['a=1,2', 'b=x,y']. Should include
-            any sweeps loaded from sweep files.
-        overrides: Explicit override strings (alternative to sweeps).
-        gpus: List of GPU IDs for round-robin assignment, or None for CPU mode.
-
-    Returns:
-        List of Job objects ready for dispatch.
-    """
+    """Generate a list of jobs from sweep parameters and device configuration."""
     if overrides:
         override_list = overrides
     elif sweeps:
@@ -237,16 +192,7 @@ def generate_jobs(
 
 
 def _run_single_job(job: Job) -> dict:
-    """Run a single experiment job.
-
-    This is an internal function called by dispatch_jobs via ProcessPoolExecutor.
-
-    Args:
-        job: The Job to execute.
-
-    Returns:
-        Dict with job results including status, stdout, stderr.
-    """
+    """Run a single experiment job in a subprocess."""
     env = os.environ.copy()
     if job.gpu_id is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(job.gpu_id)
@@ -286,15 +232,7 @@ def _run_single_job(job: Job) -> dict:
 
 
 def dispatch_jobs(jobs: list[Job], max_parallel: int) -> list[dict]:
-    """Execute jobs in parallel with staggered starts.
-
-    Args:
-        jobs: List of Job objects to execute.
-        max_parallel: Maximum number of jobs to run concurrently.
-
-    Returns:
-        List of result dictionaries, one per job.
-    """
+    """Execute jobs in parallel with staggered starts."""
     results = []
 
     with ProcessPoolExecutor(max_workers=max_parallel) as executor:

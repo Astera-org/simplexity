@@ -15,20 +15,7 @@ from simplexity.utils.factoring_utils import compute_obs_dist_for_variant, compu
 
 
 class FullyConditional(eqx.Module):
-    """Fully conditional structure with mutual dependencies.
-
-    Each factor i selects its variant based on all other factors' tokens.
-    Joint distribution uses product-of-experts with normalization.
-
-    Attributes:
-        control_maps: Tuple of F arrays. control_maps[i] has shape [prod(V_j for j!=i)]
-            mapping flattened other-tokens to variant index for factor i.
-        other_multipliers: Precomputed radix multipliers for flattening other tokens
-        other_shapes: Reshape targets for conditioning on other factors
-        perms_py: Axis permutations to align conditional distributions
-        vocab_sizes_py: Python int tuple of vocab sizes for shape operations
-        joint_vocab_size: Total vocabulary size (product of all V_i)
-    """
+    """Fully conditional structure with mutual dependencies between all factors."""
 
     control_maps: tuple[jax.Array, ...]
     other_multipliers: tuple[jax.Array, ...]
@@ -42,14 +29,6 @@ class FullyConditional(eqx.Module):
         control_maps: tuple[jax.Array, ...],
         vocab_sizes: jax.Array,
     ):
-        """Initialize fully conditional structure.
-
-        Args:
-            control_maps: Control maps for each factor. control_maps[i] should
-                have shape [prod(V_j for j!=i)] mapping other-factor tokens
-                to variant index for factor i.
-            vocab_sizes: Array of shape [F] with vocab sizes per factor
-        """
         self.control_maps = tuple(jnp.asarray(cm, dtype=jnp.int32) for cm in control_maps)
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
         num_factors = len(vocab_sizes)
@@ -78,31 +57,13 @@ class FullyConditional(eqx.Module):
         self.perms_py = tuple(perms_py)
 
     def _flatten_other_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
-        """Flatten other-factor tokens to control map index.
-
-        Args:
-            tokens: Array of shape [F] with all tokens
-            i: Factor index to exclude
-
-        Returns:
-            Scalar index for control_maps[i]
-        """
+        """Flatten other-factor tokens to control map index."""
         mult = self.other_multipliers[i]
         # Multiply elementwise and sum (mult[i] == 0)
         return jnp.sum(tokens * mult)
 
     def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
-        """Compute joint distribution using product-of-experts.
-
-        For each factor i, computes conditional P(t_i | all other t_j),
-        then multiplies all conditionals and normalizes.
-
-        Args:
-            context: Conditional context with states and parameters
-
-        Returns:
-            Flattened joint distribution of shape [prod(V_i)]
-        """
+        """Compute joint distribution using product-of-experts."""
         num_factors = len(context.vocab_sizes)
         states = context.states
         component_types = context.component_types
@@ -153,15 +114,7 @@ class FullyConditional(eqx.Module):
         obs_tuple: tuple[jax.Array, ...],
         context: ConditionalContext,  # pylint: disable=unused-argument
     ) -> tuple[jax.Array, ...]:
-        """Select variants based on all other factors' tokens.
-
-        Args:
-            obs_tuple: Tuple of observed tokens (one per factor)
-            context: Conditional context (unused for fully conditional structure)
-
-        Returns:
-            Tuple of variant indices (one per factor)
-        """
+        """Select variants based on all other factors' tokens."""
         tokens_arr = jnp.array(obs_tuple)
         variants = []
         for i in range(len(obs_tuple)):
