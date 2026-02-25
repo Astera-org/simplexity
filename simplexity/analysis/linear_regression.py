@@ -348,27 +348,20 @@ def _compute_subspace_orthogonality(
 
     is_degenerate = sum_quad_sv == 0
 
-    # Define the False branch function (does nothing)
-    def do_nothing_branch(x):
-        """JAX 'False' branch function.
-
-        Serves only to return a value that matches the 'True' branch's type (None) for jax.lax.cond.
-        """
-        return None
-
-    # Define the True branch function (runs the callback)
-    def execute_all_zeros_warning_branch(x):
-        callback(log_all_zeros, x)
-        return None
-
-    def log_all_zeros(_):
-        SIMPLEXITY_LOGGER.warning(
-            "Degenerate subspace detected during orthogonality computation."
-            " All singular values are zero."
-            " Setting probability values and participation ratio to zero."
-        )
-
-    jax.lax.cond(is_degenerate, execute_all_zeros_warning_branch, do_nothing_branch, sum_sq_sv)
+    def _warn_subspace_issues(sum_quad: jax.Array, num_zero_probs: jax.Array) -> None:
+        if sum_quad.item() == 0:
+            SIMPLEXITY_LOGGER.warning(
+                "Degenerate subspace detected during orthogonality computation."
+                " All singular values are zero."
+                " Setting probability values and participation ratio to zero."
+            )
+        if num_zero_probs.item() > 0:
+            SIMPLEXITY_LOGGER.warning(
+                "Encountered %d probability values of zero during entropy computation."
+                " This is likely due to numerical instability."
+                " Setting corresponding entropy contribution to zero.",
+                num_zero_probs.item(),
+            )
 
     pratio_denominator_safe = jnp.where(is_degenerate, 1.0, sum_quad_sv)
     probs_denominator_safe = jnp.where(is_degenerate, 1.0, sum_sq_sv)
@@ -376,24 +369,10 @@ def _compute_subspace_orthogonality(
 
     subspace_overlap_score = sum_sq_sv / min_dim
 
-    # Compute the entropy probabilities
     probs = singular_values**2 / probs_denominator_safe
-
-    def execute_some_zeros_warning_branch(x):
-        callback(log_some_zeros, x)
-        return None
-
-    def log_some_zeros(num_zeros_array: jax.Array) -> None:
-        num_zeros = num_zeros_array.item()
-        SIMPLEXITY_LOGGER.warning(
-            f"Encountered {num_zeros} probability values of zero during entropy computation."
-            " This is likely due to numerical instability."
-            " Setting corresponding entropy contribution to zero."
-        )
-
     num_zeros = jnp.sum(probs == 0)
-    has_some_zeros = num_zeros > 0
-    jax.lax.cond(has_some_zeros, execute_some_zeros_warning_branch, do_nothing_branch, num_zeros)
+
+    callback(_warn_subspace_issues, sum_quad_sv, num_zeros)
 
     p_log_p = probs * jnp.log(probs)
     entropy = -jnp.sum(jnp.where(probs > 0, p_log_p, 0.0))
