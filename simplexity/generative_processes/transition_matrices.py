@@ -142,6 +142,21 @@ def mess3(x: float, a: float) -> jax.Array:
         ]
     )
 
+def mess3_2(x: float, a: float, p:float, q:float, r:float) -> jax.Array:
+    """Creates a transition matrix for the Mess3_2 Process."""
+
+    assert 0 <= p <= 1
+    assert 0 <= q <= 1
+    assert 0 <= r <= 1
+    
+    transition_matrices_base = mess3(x, a)
+
+    transition_matrices_0 = p * transition_matrices_base[0] + q * transition_matrices_base[1] + r * transition_matrices_base[2]
+    transition_matrices_1 = (1-p) * transition_matrices_base[0] + (1-q) * transition_matrices_base[1] + (1-r) * transition_matrices_base[2] 
+
+
+    return jnp.array([transition_matrices_0, transition_matrices_1])
+
 
 def mr_name(p: float, q: float) -> jax.Array:
     """Creates a transition matrix for the Mr. Dursley/Wonka Process."""
@@ -455,6 +470,7 @@ HMM_MATRIX_FUNCTIONS = {
     "even_ones": even_ones,
     "matching_parens": matching_parens,
     "mess3": mess3,
+    "mess3_2": mess3_2,
     "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,
     "rrxor": rrxor,
