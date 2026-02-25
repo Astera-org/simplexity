@@ -159,7 +159,6 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
             num_variants=self.num_variants,
         )
 
-    # ------------------------ GenerativeProcess API -------------------------
     @property
     def vocab_size(self) -> int:
         """Total vocabulary size of composite observations."""
