@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from functools import partial
 from typing import Any
 
 import jax
@@ -65,21 +64,13 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     return resolved_kwargs
 
 
-def set_use_svd(
-    fn: ValidatorFn,
-) -> ValidatorFn:
-    """Decorator to set use_svd to True in the kwargs and remove it from output to avoid duplicate with partial."""
-
-    def wrapper(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
-        if kwargs and "use_svd" in kwargs and not kwargs["use_svd"]:
-            raise ValueError("use_svd cannot be set to False for linear_regression_svd")
-        modified_kwargs = dict(kwargs) if kwargs else {}
-        modified_kwargs["use_svd"] = True
-        resolved = fn(modified_kwargs)
-        resolved.pop("use_svd", None)
-        return resolved
-
-    return wrapper
+def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Validate kwargs for linear_regression_svd, forcing use_svd=True."""
+    provided = dict(kwargs or {})
+    if "use_svd" in provided and not provided["use_svd"]:
+        raise ValueError("use_svd cannot be set to False for linear_regression_svd")
+    provided["use_svd"] = True
+    return _validate_linear_regression_kwargs(provided)
 
 
 def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -114,9 +105,9 @@ ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
         validator=_validate_linear_regression_kwargs,
     ),
     "linear_regression_svd": AnalysisRegistration(
-        fn=partial(layer_linear_regression, use_svd=True),
+        fn=layer_linear_regression,
         requires_belief_states=True,
-        validator=set_use_svd(_validate_linear_regression_kwargs),
+        validator=_validate_linear_regression_svd_kwargs,
     ),
     "pca": AnalysisRegistration(
         fn=layer_pca_analysis,
