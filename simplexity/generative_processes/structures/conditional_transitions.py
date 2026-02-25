@@ -140,7 +140,7 @@ class ConditionalTransitions(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jax.Array, ...],
-        context: ConditionalContext,  # pylint: disable=unused-argument
+        context: ConditionalContext,
     ) -> tuple[jax.Array, ...]:
         """Select transition variants based on other factors' tokens."""
         tokens_arr = jnp.array(obs_tuple)

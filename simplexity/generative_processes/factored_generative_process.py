@@ -102,14 +102,13 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
                 raise ValueError(f"transition_matrices[{i}] square mismatch: {state_dim1} vs {state_dim2}")
             vocab_sizes.append(vocab_size)
             num_variants.append(num_var)
-        self.num_variants = tuple(int(k) for k in num_variants)
+        self.num_variants = tuple(num_variants)
         self.encoder = TokenEncoder(jnp.array(vocab_sizes))
 
         # Store noise parameters
         self.noise_epsilon = noise_epsilon
         if noise_epsilon > 0.0:
-            vocab_sizes_tuple = tuple(map(int, vocab_sizes))
-            self._blur_matrix = compute_joint_blur_matrix(vocab_sizes_tuple, noise_epsilon)
+            self._blur_matrix = compute_joint_blur_matrix(tuple(vocab_sizes), noise_epsilon)
         else:
             self._blur_matrix = None
 

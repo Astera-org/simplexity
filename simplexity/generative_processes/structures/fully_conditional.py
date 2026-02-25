@@ -33,9 +33,7 @@ class FullyConditional(eqx.Module):
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
         num_factors = len(vocab_sizes)
 
-        import math
-
-        self.joint_vocab_size = math.prod(self.vocab_sizes_py)
+        self.joint_vocab_size = int(jnp.prod(jnp.array(self.vocab_sizes_py)))
         self.other_multipliers = compute_other_multipliers(self.vocab_sizes_py)
 
         other_shapes: list[tuple[int, ...]] = []
@@ -112,7 +110,7 @@ class FullyConditional(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jax.Array, ...],
-        context: ConditionalContext,  # pylint: disable=unused-argument
+        context: ConditionalContext,
     ) -> tuple[jax.Array, ...]:
         """Select variants based on all other factors' tokens."""
         tokens_arr = jnp.array(obs_tuple)

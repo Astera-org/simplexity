@@ -5,8 +5,6 @@ replacing each output symbol with probability epsilon to another
 uniformly chosen symbol.
 """
 
-import math
-
 import jax
 import jax.numpy as jnp
 
@@ -59,7 +57,7 @@ def compute_joint_blur_matrix(vocab_sizes: tuple[int, ...], noise_epsilon: float
     if not 0.0 <= noise_epsilon <= 1.0:
         raise ValueError(f"noise_epsilon must be in [0, 1], got {noise_epsilon}")
 
-    joint_vocab = math.prod(vocab_sizes)
+    joint_vocab = int(jnp.prod(jnp.array(vocab_sizes)))
 
     if noise_epsilon == 0.0:
         return jnp.eye(joint_vocab)
