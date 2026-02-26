@@ -6,10 +6,13 @@ ALL OTHER factors via a control map, producing mutual dependencies.
 
 from __future__ import annotations
 
+from typing import Literal
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from simplexity.generative_processes.structures.indexing import build_other_factor_multipliers, flatten_index
 from simplexity.generative_processes.structures.protocol import ConditionalContext
 from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
@@ -18,7 +21,7 @@ class FullyConditional(eqx.Module):
     """Fully conditional structure with mutual dependencies.
 
     Each factor i selects its variant based on all other factors' tokens.
-    Joint distribution uses product-of-experts with normalization.
+    Joint distribution uses a normalized product-of-conditionals approximation.
 
     Attributes:
         control_maps: Tuple of F arrays. control_maps[i] has shape [prod(V_j for j!=i)]
@@ -28,6 +31,8 @@ class FullyConditional(eqx.Module):
         perms_py: Axis permutations to align conditional distributions
         vocab_sizes_py: Python int tuple of vocab sizes for shape operations
         joint_vocab_size: Total vocabulary size (product of all V_i)
+        fallback_strategy: Strategy used when unnormalized mass is zero
+        fallback_epsilon: Additive smoothing for epsilon fallback
     """
 
     control_maps: tuple[jax.Array, ...]
@@ -36,11 +41,15 @@ class FullyConditional(eqx.Module):
     perms_py: tuple[tuple[int, ...], ...]
     vocab_sizes_py: tuple[int, ...]
     joint_vocab_size: int
+    fallback_strategy: Literal["uniform", "epsilon_smooth"]
+    fallback_epsilon: float
 
     def __init__(
         self,
         control_maps: tuple[jax.Array, ...],
         vocab_sizes: jax.Array,
+        fallback_strategy: Literal["uniform", "epsilon_smooth"] = "uniform",
+        fallback_epsilon: float = 1e-12,
     ):
         """Initialize fully conditional structure.
 
@@ -49,10 +58,32 @@ class FullyConditional(eqx.Module):
                 have shape [prod(V_j for j!=i)] mapping other-factor tokens
                 to variant index for factor i.
             vocab_sizes: Array of shape [F] with vocab sizes per factor
+            fallback_strategy: How to recover when total unnormalized mass is zero.
+                - "uniform": use uniform distribution over joint vocabulary
+                - "epsilon_smooth": add epsilon and renormalize
+            fallback_epsilon: Additive smoothing value for "epsilon_smooth"
         """
         self.control_maps = tuple(jnp.asarray(cm, dtype=jnp.int32) for cm in control_maps)
         self.vocab_sizes_py = tuple(int(v) for v in vocab_sizes)
-        num_factors = len(vocab_sizes)
+        self.fallback_strategy = fallback_strategy
+        self.fallback_epsilon = float(fallback_epsilon)
+        num_factors = len(self.vocab_sizes_py)
+
+        if num_factors == 0:
+            raise ValueError("FullyConditional requires at least one factor")
+        if len(self.control_maps) != num_factors:
+            raise ValueError(
+                f"Expected {num_factors} control maps (one per factor), got {len(self.control_maps)}"
+            )
+        if any(v <= 0 for v in self.vocab_sizes_py):
+            raise ValueError(f"All vocab sizes must be positive, got {self.vocab_sizes_py}")
+        if self.fallback_strategy not in ("uniform", "epsilon_smooth"):
+            raise ValueError(
+                "fallback_strategy must be one of {'uniform', 'epsilon_smooth'}, "
+                f"got '{self.fallback_strategy}'"
+            )
+        if self.fallback_strategy == "epsilon_smooth" and self.fallback_epsilon <= 0.0:
+            raise ValueError(f"fallback_epsilon must be positive for epsilon smoothing, got {self.fallback_epsilon}")
 
         # Compute joint vocab size
         jv = 1
@@ -61,24 +92,22 @@ class FullyConditional(eqx.Module):
         self.joint_vocab_size = jv
 
         # Precompute indexing helpers for each factor
-        other_multipliers: list[jax.Array] = []
         other_shapes: list[tuple[int, ...]] = []
         perms_py: list[tuple[int, ...]] = []
 
+        # Validate control maps and build shape/alignment metadata
         for i in range(num_factors):
-            # Compute radix multipliers for "other" factors (excluding i)
-            mult = []
-            for j in range(num_factors):
-                if j == i:
-                    mult.append(0)  # Unused
-                else:
-                    m = 1
-                    for k in range(j + 1, num_factors):
-                        if k == i:
-                            continue
-                        m *= self.vocab_sizes_py[k]
-                    mult.append(m)
-            other_multipliers.append(jnp.array(mult))
+            cm = self.control_maps[i]
+            if cm.ndim != 1:
+                raise ValueError(f"control_maps[{i}] must be 1D, got shape {cm.shape}")
+            expected_len = 1
+            for j, vj in enumerate(self.vocab_sizes_py):
+                if j != i:
+                    expected_len *= vj
+            if int(cm.shape[0]) != expected_len:
+                raise ValueError(
+                    f"control_maps[{i}] length {cm.shape[0]} must equal prod(V_j for j!=[{i}]) = {expected_len}"
+                )
 
             # Shape for reshaping conditional [prod_others, V_i] -> [*others, V_i]
             other_shapes.append(tuple(self.vocab_sizes_py[j] for j in range(num_factors) if j != i))
@@ -94,7 +123,7 @@ class FullyConditional(eqx.Module):
                     perm.append(axis_pos[j])
             perms_py.append(tuple(perm))
 
-        self.other_multipliers = tuple(other_multipliers)
+        self.other_multipliers = build_other_factor_multipliers(self.vocab_sizes_py)
         self.other_shapes = tuple(other_shapes)
         self.perms_py = tuple(perms_py)
 
@@ -109,11 +138,10 @@ class FullyConditional(eqx.Module):
             Scalar index for control_maps[i]
         """
         mult = self.other_multipliers[i]
-        # Multiply elementwise and sum (mult[i] == 0)
-        return jnp.sum(tokens * mult)
+        return flatten_index(tokens, mult)
 
     def compute_joint_distribution(self, context: ConditionalContext) -> jax.Array:
-        """Compute joint distribution using product-of-experts.
+        """Compute an approximate joint distribution via product-of-conditionals.
 
         For each factor i, computes conditional P(t_i | all other t_j),
         then multiplies all conditionals and normalizes.
@@ -122,7 +150,7 @@ class FullyConditional(eqx.Module):
             context: Conditional context with states and parameters
 
         Returns:
-            Flattened joint distribution of shape [prod(V_i)]
+            Flattened approximate joint distribution of shape [prod(V_i)]
         """
         num_factors = len(context.vocab_sizes)
         states = context.states
@@ -131,7 +159,7 @@ class FullyConditional(eqx.Module):
         normalizing_eigenvectors = context.normalizing_eigenvectors
         num_variants = context.num_variants
 
-        # Compute per-factor conditionals
+        # Compute per-factor conditional log probabilities aligned to [V_0, ..., V_{F-1}]
         parts = []
         for i in range(num_factors):
             variant_k = num_variants[i]
@@ -154,18 +182,28 @@ class FullyConditional(eqx.Module):
 
             # Permute to [V_0, ..., V_{F-1}] with V_i at position i
             aligned = jnp.transpose(cond_nd, self.perms_py[i])
-            parts.append(aligned)
+            aligned_log = jnp.where(aligned > 0.0, jnp.log(aligned), -jnp.inf)
+            parts.append(aligned_log)
 
-        # Product of experts
-        prod_j = parts[0]
-        for p in parts[1:]:
-            prod_j = prod_j * p
+        # Product in log-space for numerical stability.
+        log_joint = parts[0]
+        for log_p in parts[1:]:
+            log_joint = log_joint + log_p
+        log_z = jax.nn.logsumexp(log_joint)
 
-        # Normalize
-        sum_j = jnp.sum(prod_j)
-        norm_j = jnp.where(sum_j > 0, prod_j / sum_j, jnp.ones_like(prod_j) / self.joint_vocab_size)
+        if self.fallback_strategy == "uniform":
+            fallback = jnp.ones_like(log_joint) / self.joint_vocab_size
+        else:
+            unnormalized = jnp.exp(log_joint)
+            smoothed = unnormalized + self.fallback_epsilon
+            fallback = smoothed / jnp.sum(smoothed)
 
-        assert isinstance(norm_j, jax.Array)
+        norm_j = jax.lax.cond(
+            jnp.isfinite(log_z),
+            lambda _: jnp.exp(log_joint - log_z),
+            lambda _: fallback,
+            operand=None,
+        )
 
         return norm_j.reshape(-1)
 

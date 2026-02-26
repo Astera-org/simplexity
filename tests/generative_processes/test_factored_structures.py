@@ -3,6 +3,7 @@
 import chex
 import jax
 import jax.numpy as jnp
+import pytest
 
 from simplexity.generative_processes.structures import (
     ConditionalTransitions,
@@ -265,21 +266,59 @@ def test_fully_conditional_get_required_params():
 def test_fully_conditional_with_zero_normalization():
     """FullyConditional should handle zero normalization edge case."""
     states = (jnp.array([1.0], dtype=jnp.float32), jnp.array([1.0], dtype=jnp.float32))
-    # Create distributions that will multiply to zero
+    # Create all-zero conditionals so product-of-conditionals has zero total mass.
     transition_matrices = (
-        _tensor_from_probs([[0.0, 0.0], [1.0, 0.0]]),
-        _tensor_from_probs([[1.0, 0.0], [0.0, 1.0]]),
+        _tensor_from_probs([[0.0, 0.0]]),
+        _tensor_from_probs([[0.0, 0.0]]),
     )
     context = _make_context(states, transition_matrices)
     structure = FullyConditional(
-        control_maps=(jnp.array([0, 1], dtype=jnp.int32), jnp.array([1, 0], dtype=jnp.int32)),
+        control_maps=(jnp.array([0, 0], dtype=jnp.int32), jnp.array([0, 0], dtype=jnp.int32)),
         vocab_sizes=jnp.array([2, 2], dtype=jnp.int32),
     )
 
     dist = structure.compute_joint_distribution(context)
     # Should fall back to uniform distribution when Z=0
-    assert dist.shape == (4,)
-    assert jnp.all(dist >= 0.0)
+    expected = jnp.ones((4,), dtype=jnp.float32) / 4.0
+    chex.assert_trees_all_close(dist, expected)
+
+
+def test_fully_conditional_validates_control_map_shape_and_count():
+    """FullyConditional should validate control maps at construction."""
+    with pytest.raises(ValueError, match="Expected 2 control maps"):
+        FullyConditional(control_maps=(jnp.array([0, 1], dtype=jnp.int32),), vocab_sizes=jnp.array([2, 2]))
+
+    with pytest.raises(ValueError, match="control_maps\\[0\\] length"):
+        FullyConditional(
+            control_maps=(jnp.array([0], dtype=jnp.int32), jnp.array([0, 1], dtype=jnp.int32)),
+            vocab_sizes=jnp.array([2, 2]),
+        )
+
+
+def test_fully_conditional_product_of_conditionals_distorts_true_joint():
+    """Even compatible conditionals generally do not recover the original joint."""
+    states = (jnp.array([1.0], dtype=jnp.float32), jnp.array([1.0], dtype=jnp.float32))
+
+    # Conditionals derived from target joint:
+    # P = [[0.1, 0.4], [0.2, 0.3]]
+    # P(t0|t1=0)=[1/3,2/3], P(t0|t1=1)=[4/7,3/7]
+    # P(t1|t0=0)=[1/5,4/5], P(t1|t0=1)=[2/5,3/5]
+    transition_matrices = (
+        _tensor_from_probs([[1 / 3, 2 / 3], [4 / 7, 3 / 7]]),
+        _tensor_from_probs([[1 / 5, 4 / 5], [2 / 5, 3 / 5]]),
+    )
+    context = _make_context(states, transition_matrices)
+    structure = FullyConditional(
+        control_maps=(jnp.array([0, 1], dtype=jnp.int32), jnp.array([0, 1], dtype=jnp.int32)),
+        vocab_sizes=jnp.array([2, 2], dtype=jnp.int32),
+    )
+
+    poe_dist = structure.compute_joint_distribution(context)
+    target_joint = jnp.array([0.1, 0.4, 0.2, 0.3], dtype=jnp.float32)
+    expected_poe = jnp.array([7 / 110, 24 / 55, 14 / 55, 27 / 110], dtype=jnp.float32)
+
+    chex.assert_trees_all_close(poe_dist, expected_poe, atol=1e-6)
+    assert not jnp.allclose(poe_dist, target_joint, atol=1e-6)
 
 
 def test_conditional_transitions_get_required_params():

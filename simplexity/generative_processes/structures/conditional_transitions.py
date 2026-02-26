@@ -16,6 +16,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from simplexity.generative_processes.structures.indexing import build_other_factor_multipliers, flatten_index
 from simplexity.generative_processes.structures.protocol import ConditionalContext
 from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
@@ -89,21 +90,7 @@ class ConditionalTransitions(eqx.Module):
         self.use_emission_chain = bool(use_chain)
 
         # Precompute multipliers for other-factor indexing (for transitions)
-        other_multipliers: list[jax.Array] = []
-        for i in range(num_factors):
-            mult = []
-            for j in range(num_factors):
-                if j == i:
-                    mult.append(0)  # Unused
-                else:
-                    m = 1
-                    for k in range(j + 1, num_factors):
-                        if k == i:
-                            continue
-                        m *= self.vocab_sizes_py[k]
-                    mult.append(m)
-            other_multipliers.append(jnp.array(mult))
-        self.other_multipliers = tuple(other_multipliers)
+        self.other_multipliers = build_other_factor_multipliers(self.vocab_sizes_py)
 
         # Precompute multipliers for prefix indexing (for sequential emissions)
         prefix_multipliers: list[jax.Array] = []
@@ -123,7 +110,7 @@ class ConditionalTransitions(eqx.Module):
     def _flatten_other_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
         """Flatten other-factor tokens to transition control map index."""
         mult = self.other_multipliers[i]
-        return jnp.sum(tokens * mult)
+        return flatten_index(tokens, mult)
 
     def _flatten_prev_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
         """Flatten prefix tokens to emission control map index."""
