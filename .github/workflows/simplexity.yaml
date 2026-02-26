@@ -48,23 +48,22 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          # Conditional testmon execution:
-          # - On PRs: Use --testmon to run only affected tests
-          # - On main branch: Use --testmon-noselect to run all tests and update database
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # PRs to main: Run all tests (diff-cover enforces 80% threshold, needs full coverage)
+          # PRs to dev: Use --testmon to run only affected tests (diff-cover threshold is 0%)
+          # Push to main/dev: Use --testmon-noselect to run all tests and update testmon database
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.pull_request.base.ref }}" = "main" ]; then
+            TESTMON_FLAG=""
+            echo "::notice::Running full test suite (PR to main - needed for diff-cover)"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
             TESTMON_FLAG="--testmon"
-            echo "::notice::Running affected tests only (PR mode)"
+            echo "::notice::Running affected tests only (PR to dev)"
           else
             TESTMON_FLAG="--testmon-noselect"
-            echo "::notice::Running full test suite (main branch mode)"
+            echo "::notice::Running full test suite (push - updating testmon database)"
           fi
 
-          # Run tests with coverage tracking (no threshold enforcement)
-          # Coverage is tracked but won't fail - new code in PRs is checked via diff-cover
-          # TODO: Enable strict overall coverage enforcement once coverage improves
-          # Note: --cov-fail-under=0 is explicit but redundant since pyproject.toml doesn't set a threshold
           # Exclude end-to-end tests - they run in a separate workflow
-          uv run --extra aws --extra dev --extra cuda --extra penzai pytest \
+          uv run --extra aws --extra dev --extra cuda --extra penzai --extra pytorch pytest \
             --capture=no \
             --verbose \
             --cov-fail-under=0 \

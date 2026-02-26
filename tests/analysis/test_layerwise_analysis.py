@@ -27,25 +27,27 @@ def analysis_inputs() -> tuple[dict[str, jnp.ndarray], jnp.ndarray, jnp.ndarray]
 
 
 def test_layerwise_analysis_linear_regression_namespacing(analysis_inputs) -> None:
-    """Metrics and projections should be namespace-qualified per layer."""
+    """Metrics and arrays should be namespace-qualified per layer."""
 
     activations, weights, belief_states = analysis_inputs
     analysis = LayerwiseAnalysis("linear_regression", last_token_only=True)
 
-    scalars, projections = analysis.analyze(
+    scalars, arrays = analysis.analyze(
         activations=activations,
         weights=weights,
         belief_states=belief_states,
     )
 
-    assert set(scalars) >= {"layer_a_r2", "layer_b_r2"}
-    assert set(projections) == {
-        "layer_a_projected",
-        "layer_b_projected",
-        "layer_a_coeffs",
-        "layer_b_coeffs",
-        "layer_a_intercept",
-        "layer_b_intercept",
+    assert set(scalars) >= {"r2/layer_a", "r2/layer_b"}
+    assert set(arrays) == {
+        "projected/layer_a",
+        "projected/layer_b",
+        "targets/layer_a",
+        "targets/layer_b",
+        "coeffs/layer_a",
+        "coeffs/layer_b",
+        "intercept/layer_a",
+        "intercept/layer_b",
     }
 
 
@@ -84,14 +86,15 @@ def test_pca_analysis_does_not_require_beliefs(analysis_inputs) -> None:
         "pca",
         analysis_kwargs={"n_components": 2, "variance_thresholds": (0.5,)},
     )
-    scalars, projections = analysis.analyze(
+    scalars, arrays = analysis.analyze(
         activations=activations,
         weights=weights,
         belief_states=None,
     )
-    assert "layer_a_cumvar_1" in scalars
-    assert "layer_a_n_components_50pct" in scalars
-    assert "layer_a_pca" in projections
+    assert "var_exp/layer_a" in scalars
+    assert "nc_50/layer_a" in scalars
+    assert "pca/layer_a" in arrays
+    assert "cev/layer_a" in arrays
 
 
 def test_invalid_pca_kwargs() -> None:
@@ -253,14 +256,13 @@ def test_linear_regression_svd_rejects_false_use_svd() -> None:
         validator({"use_svd": False})
 
 
-def test_linear_regression_svd_excludes_use_svd_from_output() -> None:
-    """linear_regression_svd validator should not include use_svd in resolved kwargs."""
+def test_linear_regression_svd_includes_use_svd_in_output() -> None:
+    """linear_regression_svd validator should include use_svd=True in resolved kwargs."""
 
     validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
     params = validator({"rcond_values": [1e-3]})
 
-    # use_svd should not be in the output since it's already bound in the partial
-    assert "use_svd" not in params
+    assert params["use_svd"] is True
     assert params["rcond_values"] == (0.001,)
 
 

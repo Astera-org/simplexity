@@ -28,20 +28,22 @@ def test_variance_threshold_counts_increasing() -> None:
 
 
 def test_layer_pca_analysis_metrics() -> None:
-    """Layer PCA wrapper returns metrics and projections without beliefs."""
+    """Layer PCA wrapper returns metrics and arrays without beliefs."""
     activations = jnp.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
     weights = jnp.ones(3) / 3.0
-    scalars, projections = layer_pca_analysis(
+    scalars, arrays = layer_pca_analysis(
         activations,
         weights,
         belief_states=None,
         n_components=2,
         variance_thresholds=(0.5,),
     )
-    assert "cumvar_1" in scalars
-    assert "n_components_50pct" in scalars
-    assert "pca" in projections
-    assert projections["pca"].shape == (3, 2)
+    assert "nc_50" in scalars
+    assert "var_exp" in scalars
+    assert "pca" in arrays
+    assert arrays["pca"].shape == (3, 2)
+    assert "cev" in arrays
+    assert arrays["cev"].shape == (2,)
 
 
 def test_compute_weighted_pca_rejects_bad_weights_shape() -> None:
@@ -94,14 +96,14 @@ def test_layer_pca_analysis_zero_variance_threshold_reporting() -> None:
     """Layer PCA should propagate fallback counts into the scalar outputs."""
     activations = jnp.ones((4, 3))
     weights = jnp.ones(4) / 4.0
-    scalars, projections = layer_pca_analysis(
+    scalars, arrays = layer_pca_analysis(
         activations,
         weights,
         belief_states=None,
         variance_thresholds=(0.5,),
     )
-    assert scalars["n_components_50pct"] == 3.0
-    assert projections["pca"].shape == (4, 3)
+    assert scalars["nc_50"] == 3.0
+    assert arrays["pca"].shape == (4, 3)
 
 
 def test_compute_weighted_pca_requires_two_dimensional_inputs() -> None:

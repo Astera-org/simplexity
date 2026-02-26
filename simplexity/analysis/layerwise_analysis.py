@@ -11,17 +11,16 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from functools import partial
 from typing import Any
 
 import jax
 
 from simplexity.analysis.linear_regression import layer_linear_regression
+from simplexity.analysis.metric_keys import construct_layer_specific_key, format_layer_spec
 from simplexity.analysis.pca import (
     DEFAULT_VARIANCE_THRESHOLDS,
     layer_pca_analysis,
 )
-from simplexity.logger import SIMPLEXITY_LOGGER
 
 AnalysisFn = Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]]
 
@@ -49,8 +48,7 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     resolved_kwargs["concat_belief_states"] = bool(provided.get("concat_belief_states", False))
     resolved_kwargs["compute_subspace_orthogonality"] = bool(provided.get("compute_subspace_orthogonality", False))
     rcond_values = provided.get("rcond_values")
-    should_use_svd = rcond_values is not None
-    use_svd = bool(provided.get("use_svd", should_use_svd))
+    use_svd = bool(provided.get("use_svd", False))
     resolved_kwargs["use_svd"] = use_svd
     if use_svd:
         if rcond_values is not None:
@@ -58,8 +56,6 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
                 raise TypeError("rcond_values must be a sequence of floats")
             if len(rcond_values) == 0:
                 raise ValueError("rcond_values must not be empty")
-            if not use_svd:
-                SIMPLEXITY_LOGGER.warning("rcond_values are only used when use_svd is True")
             rcond_values = tuple(float(v) for v in rcond_values)
         resolved_kwargs["rcond_values"] = rcond_values
     elif rcond_values is not None:
@@ -67,21 +63,13 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     return resolved_kwargs
 
 
-def set_use_svd(
-    fn: ValidatorFn,
-) -> ValidatorFn:
-    """Decorator to set use_svd to True in the kwargs and remove it from output to avoid duplicate with partial."""
-
-    def wrapper(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
-        if kwargs and "use_svd" in kwargs and not kwargs["use_svd"]:
-            raise ValueError("use_svd cannot be set to False for linear_regression_svd")
-        modified_kwargs = dict(kwargs) if kwargs else {}  # Make a copy to avoid mutating the input
-        modified_kwargs["use_svd"] = True
-        resolved = fn(modified_kwargs)
-        resolved.pop("use_svd", None)  # Remove use_svd to avoid duplicate argument with partial
-        return resolved
-
-    return wrapper
+def _validate_linear_regression_svd_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Validate kwargs for linear_regression_svd, forcing use_svd=True."""
+    provided = dict(kwargs or {})
+    if "use_svd" in provided and not provided["use_svd"]:
+        raise ValueError("use_svd cannot be set to False for linear_regression_svd")
+    provided["use_svd"] = True
+    return _validate_linear_regression_kwargs(provided)
 
 
 def _validate_pca_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -116,9 +104,9 @@ ANALYSIS_REGISTRY: dict[str, AnalysisRegistration] = {
         validator=_validate_linear_regression_kwargs,
     ),
     "linear_regression_svd": AnalysisRegistration(
-        fn=partial(layer_linear_regression, use_svd=True),
+        fn=layer_linear_regression,
         requires_belief_states=True,
-        validator=set_use_svd(_validate_linear_regression_kwargs),
+        validator=_validate_linear_regression_svd_kwargs,
     ),
     "pca": AnalysisRegistration(
         fn=layer_pca_analysis,
@@ -137,8 +125,9 @@ class LayerwiseAnalysis:
         *,
         last_token_only: bool = False,
         concat_layers: bool = False,
-        use_probs_as_weights: bool = True,
+        use_probs_as_weights: bool = False,
         skip_first_token: bool = False,
+        skip_deduplication: bool = True,
         analysis_kwargs: Mapping[str, Any] | None = None,
     ) -> None:
         if analysis_type not in ANALYSIS_REGISTRY:
@@ -151,6 +140,7 @@ class LayerwiseAnalysis:
         self._concat_layers = concat_layers
         self._use_probs_as_weights = use_probs_as_weights
         self._skip_first_token = skip_first_token
+        self._skip_deduplication = skip_deduplication
 
     @property
     def last_token_only(self) -> bool:
@@ -177,29 +167,37 @@ class LayerwiseAnalysis:
         """Whether to skip the first token (useful for off-manifold initial states)."""
         return self._skip_first_token
 
+    @property
+    def skip_deduplication(self) -> bool:
+        """Whether to skip prefix/sequence deduplication (faster for large vocabularies)."""
+        return self._skip_deduplication
+
     def analyze(
         self,
         activations: Mapping[str, jax.Array],
         weights: jax.Array,
         belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-        """Analyze activations and return namespaced scalar metrics and projections."""
+        """Analyze activations and return namespaced scalar metrics and arrays."""
         if self._requires_belief_states and belief_states is None:
             raise ValueError("This analysis requires belief_states")
         scalars: dict[str, float] = {}
-        projections: dict[str, jax.Array] = {}
+        arrays: dict[str, jax.Array] = {}
         for layer_name, layer_activations in activations.items():
-            layer_scalars, layer_projections = self._analysis_fn(
+            layer_scalars, layer_arrays = self._analysis_fn(
                 layer_activations,
                 weights,
                 belief_states,
                 **self._analysis_kwargs,
             )
+            formatted_layer_name = format_layer_spec(layer_name)
             for key, value in layer_scalars.items():
-                scalars[f"{layer_name}_{key}"] = value
-            for key, value in layer_projections.items():
-                projections[f"{layer_name}_{key}"] = value
-        return scalars, projections
+                constructed_key = construct_layer_specific_key(key, formatted_layer_name)
+                scalars[constructed_key] = value
+            for key, value in layer_arrays.items():
+                constructed_key = construct_layer_specific_key(key, formatted_layer_name)
+                arrays[constructed_key] = value
+        return scalars, arrays
 
 
 __all__ = ["LayerwiseAnalysis", "ANALYSIS_REGISTRY"]

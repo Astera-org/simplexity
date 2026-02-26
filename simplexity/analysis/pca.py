@@ -115,9 +115,7 @@ def layer_pca_analysis(
 
     cumulative_variance = jnp.cumsum(result["explained_variance_ratio"])
     scalars: dict[str, float] = {}
-    for idx, value in enumerate(cumulative_variance, start=1):
-        scalars[f"cumvar_{idx}"] = float(value)
-    scalars["variance_explained"] = float(cumulative_variance[-1])
+    scalars["var_exp"] = float(cumulative_variance[-1])
 
     threshold_counts = variance_threshold_counts(
         result["all_explained_variance_ratio"],
@@ -125,10 +123,10 @@ def layer_pca_analysis(
     )
     for threshold, count in threshold_counts.items():
         percentage = int(threshold * 100)
-        scalars[f"n_components_{percentage}pct"] = float(count)
+        scalars[f"nc_{percentage}"] = float(count)
 
-    projections = {"pca": result["X_proj"]}
-    return scalars, projections
+    arrays = {"pca": result["X_proj"], "cev": cumulative_variance}
+    return scalars, arrays
 
 
 __all__ = [

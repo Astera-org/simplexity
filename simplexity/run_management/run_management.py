@@ -14,12 +14,17 @@ management, and cleanup via the `managed_run` decorator.
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import configparser
+import logging
+import logging.config
 import os
 import random
 import subprocess
+import traceback
 import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
+from pathlib import Path
 from typing import Any
 
 import hydra
@@ -27,11 +32,12 @@ import jax
 import mlflow
 import torch
 from jax._src.config import StateContextManager
+from mlflow.exceptions import MlflowException, RestException
 from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.logger import SIMPLEXITY_LOGGER
+from simplexity.logger import SIMPLEXITY_LOGGER, add_handlers_to_existing_loggers, get_log_files, remove_log_files
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
@@ -79,9 +85,8 @@ from simplexity.structured_configs.persistence import (
     validate_persistence_config,
 )
 from simplexity.structured_configs.predictive_model import (
-    is_hooked_transformer_config,
     is_predictive_model_target,
-    resolve_hooked_transformer_config,
+    resolve_nested_model_config,
 )
 from simplexity.utils.config_utils import (
     filter_instance_keys,
@@ -126,6 +131,30 @@ def _suppress_pydantic_field_attribute_warning() -> Iterator[None]:
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
         yield
+
+
+def _setup_python_logging(cfg: DictConfig) -> None:
+    """Setup the logging."""
+    logging_config_path = cfg.get("logging_config_path")
+    if not logging_config_path:
+        SIMPLEXITY_LOGGER.debug("[logging] config path not found")
+        return
+    config_path = Path(logging_config_path)
+    if not config_path.exists():
+        SIMPLEXITY_LOGGER.warning("[Logging] config file not found: %s", config_path)
+        return
+
+    try:
+        logging.config.fileConfig(str(config_path), disable_existing_loggers=False)
+        add_handlers_to_existing_loggers()
+    except (configparser.Error, ValueError, OSError) as e:
+        SIMPLEXITY_LOGGER.error(
+            "[logging] failed to load config from %s: %s\n%s",
+            config_path,
+            e,
+            "".join(traceback.format_exception(type(e), e, e.__traceback__)),
+            exc_info=True,
+        )
 
 
 def _setup_environment() -> None:
@@ -370,7 +399,7 @@ def _get_persister(persisters: dict[str, ModelPersister] | None) -> ModelPersist
     if persisters:
         if len(persisters) == 1:
             return next(iter(persisters.values()))
-        SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model model checkpoint loading will be skipped")
+        SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model checkpoint loading will be skipped")
         return None
     SIMPLEXITY_LOGGER.warning("No persister found, any model checkpoint loading will be skipped")
     return None
@@ -435,12 +464,10 @@ def _setup_predictive_models(
     model_instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
     for instance_key in model_instance_keys:
         instance_config: DictConfig | None = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
-        if instance_config and is_hooked_transformer_config(instance_config):
-            instance_config_config: DictConfig | None = instance_config.get("cfg", None)
-            if instance_config_config is None:
-                raise RuntimeError("Error selecting predictive model config")
+        instance_config_config: DictConfig | None = instance_config.get("cfg", None) if instance_config else None
+        if instance_config_config is not None:
             vocab_size = _get_attribute_value(cfg, instance_keys, "vocab_size")
-            resolve_hooked_transformer_config(instance_config_config, vocab_size=vocab_size)
+            resolve_nested_model_config(instance_config_config, vocab_size=vocab_size)
         model = _instantiate_predictive_model(cfg, instance_key)
         step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
         load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
@@ -583,7 +610,6 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
     if instance_config:
         tracker_cfg = OmegaConf.create(OmegaConf.to_container(instance_config, resolve=False))
         converted_analyses: dict[str, DictConfig] = {}
-        converted_visualizations: dict[str, list[Any]] = {}
         analyses_cfg = instance_config.get("analyses") or {}
         for key, analysis_cfg in analyses_cfg.items():
             name_override = analysis_cfg.get("name")
@@ -591,16 +617,7 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
             cfg_to_instantiate = analysis_cfg.instance
             converted_analyses[analysis_name] = cfg_to_instantiate
 
-            # Extract visualizations for this analysis (if present)
-            viz_cfg = analysis_cfg.get("visualizations")
-            if viz_cfg is not None:
-                viz_container = OmegaConf.to_container(viz_cfg, resolve=False)
-                assert isinstance(viz_container, list)
-                converted_visualizations[analysis_name] = viz_container
-
         tracker_cfg.analyses = converted_analyses
-        if converted_visualizations:
-            tracker_cfg.visualizations = converted_visualizations
         tracker = hydra.utils.instantiate(tracker_cfg)
         SIMPLEXITY_LOGGER.info("[activation tracker] instantiated activation tracker: %s", tracker.__class__.__name__)
         return tracker
@@ -663,14 +680,40 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     return components
 
 
+def _log_log_files(logger: Logger, log_files: list[str], logger_name: str | None = None) -> list[str]:
+    """Log the log files to the loggers."""
+    logger_name = logger_name or type(logger).__name__
+    successfully_saved: list[str] = []
+    for log_file in log_files:
+        try:
+            logger.log_artifact(log_file)
+        except (MlflowException, RestException, FileNotFoundError, IsADirectoryError, PermissionError) as e:
+            SIMPLEXITY_LOGGER.warning(
+                "[run] failed to upload log file %s to logger %s: %s", log_file, logger_name, e, exc_info=True
+            )
+        else:
+            successfully_saved.append(log_file)
+            SIMPLEXITY_LOGGER.info("[run] uploaded log file %s to logger %s", log_file, logger_name)
+    return successfully_saved
+
+
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
+    log_files = get_log_files()
+    successfully_saved: set[str] = set()
     if components.loggers:
-        for logger in components.loggers.values():
-            logger.close()
+        for logger_key, logger in components.loggers.items():
+            successfully_saved_to_logger = _log_log_files(logger, log_files, logger_name=logger_key)
+            successfully_saved.update(successfully_saved_to_logger)
+            try:
+                logger.close()
+            except Exception as e:
+                logging.warning(f"Failed to close logger {type(logger).__name__}: {e}", exc_info=True)
+
     if components.persisters:
         for persister in components.persisters.values():
             persister.cleanup()
+    remove_log_files(successfully_saved)
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -678,8 +721,10 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            components = Components()
             try:
                 cfg = get_config(args, kwargs)
+                _setup_python_logging(cfg)
                 validate_base_config(cfg)
                 resolve_base_config(cfg, strict=strict)
                 with _setup_device(cfg), _setup_mlflow(cfg):
@@ -689,8 +734,11 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 return output
             except Exception as e:
                 SIMPLEXITY_LOGGER.error("[run] error: %s", e)
-                # TODO: cleanup
-                raise e
+                try:
+                    _cleanup(components)
+                except Exception as cleanup_error:
+                    SIMPLEXITY_LOGGER.error("[run] error during cleanup: %s", cleanup_error, exc_info=True)
+                raise
 
         return wrapper
 

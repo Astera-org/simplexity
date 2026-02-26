@@ -32,6 +32,11 @@ class ActivationAnalysis(Protocol):
         ...
 
     @property
+    def skip_deduplication(self) -> bool:
+        """Whether to skip prefix/sequence deduplication (faster for large vocabularies)."""
+        ...
+
+    @property
     def requires_belief_states(self) -> bool:
         """Whether the analysis needs belief state targets."""
         ...
@@ -42,7 +47,7 @@ class ActivationAnalysis(Protocol):
         weights: jax.Array,
         belief_states: jax.Array | tuple[jax.Array, ...] | None = None,
     ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-        """Analyze activations and return scalar metrics and projections."""
+        """Analyze activations and return scalar metrics and arrays."""
         ...
 
 
@@ -56,8 +61,9 @@ class PcaAnalysis(LayerwiseAnalysis):
         *,
         last_token_only: bool = False,
         concat_layers: bool = False,
-        use_probs_as_weights: bool = True,
+        use_probs_as_weights: bool = False,
         skip_first_token: bool = False,
+        skip_deduplication: bool = True,
     ) -> None:
         analysis_kwargs: dict[str, Any] = {
             "n_components": n_components,
@@ -69,6 +75,7 @@ class PcaAnalysis(LayerwiseAnalysis):
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,
             skip_first_token=skip_first_token,
+            skip_deduplication=skip_deduplication,
             analysis_kwargs=analysis_kwargs,
         )
 
@@ -81,10 +88,12 @@ class LinearRegressionAnalysis(LayerwiseAnalysis):
         *,
         last_token_only: bool = False,
         concat_layers: bool = False,
-        use_probs_as_weights: bool = True,
+        use_probs_as_weights: bool = False,
         skip_first_token: bool = False,
+        skip_deduplication: bool = True,
         fit_intercept: bool = True,
         concat_belief_states: bool = False,
+        compute_subspace_orthogonality: bool = False,
     ) -> None:
         super().__init__(
             analysis_type="linear_regression",
@@ -92,7 +101,12 @@ class LinearRegressionAnalysis(LayerwiseAnalysis):
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,
             skip_first_token=skip_first_token,
-            analysis_kwargs={"fit_intercept": fit_intercept, "concat_belief_states": concat_belief_states},
+            skip_deduplication=skip_deduplication,
+            analysis_kwargs={
+                "fit_intercept": fit_intercept,
+                "concat_belief_states": concat_belief_states,
+                "compute_subspace_orthogonality": compute_subspace_orthogonality,
+            },
         )
 
 
@@ -104,13 +118,19 @@ class LinearRegressionSVDAnalysis(LayerwiseAnalysis):
         *,
         last_token_only: bool = False,
         concat_layers: bool = False,
-        use_probs_as_weights: bool = True,
+        use_probs_as_weights: bool = False,
         skip_first_token: bool = False,
+        skip_deduplication: bool = True,
         rcond_values: Sequence[float] | None = None,
         fit_intercept: bool = True,
         concat_belief_states: bool = False,
+        compute_subspace_orthogonality: bool = False,
     ) -> None:
-        analysis_kwargs: dict[str, Any] = {"fit_intercept": fit_intercept, "concat_belief_states": concat_belief_states}
+        analysis_kwargs: dict[str, Any] = {
+            "fit_intercept": fit_intercept,
+            "concat_belief_states": concat_belief_states,
+            "compute_subspace_orthogonality": compute_subspace_orthogonality,
+        }
         if rcond_values is not None:
             analysis_kwargs["rcond_values"] = tuple(rcond_values)
         super().__init__(
@@ -119,5 +139,6 @@ class LinearRegressionSVDAnalysis(LayerwiseAnalysis):
             concat_layers=concat_layers,
             use_probs_as_weights=use_probs_as_weights,
             skip_first_token=skip_first_token,
+            skip_deduplication=skip_deduplication,
             analysis_kwargs=analysis_kwargs,
         )

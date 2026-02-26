@@ -16,7 +16,12 @@ from omegaconf import DictConfig
 from simplexity.exceptions import ConfigValidationError
 from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.structured_configs.mlflow import MLFlowConfig, validate_mlflow_config
-from simplexity.structured_configs.validation import validate_mapping, validate_non_negative_int, validate_nonempty_str
+from simplexity.structured_configs.validation import (
+    validate_mapping,
+    validate_non_negative_int,
+    validate_nonempty_str,
+    validate_path,
+)
 from simplexity.utils.config_utils import dynamic_resolve
 
 
@@ -27,6 +32,7 @@ class BaseConfig:
     device: str | None = None
     seed: int | None = None
     tags: dict[str, str] | None = None
+    logging_config_path: str | None = None
     mlflow: MLFlowConfig | None = None
 
 
@@ -39,6 +45,7 @@ def validate_base_config(cfg: DictConfig) -> None:
     device = cfg.get("device")
     seed = cfg.get("seed")
     tags = cfg.get("tags")
+    logging_config_path = cfg.get("logging_config_path")
     mlflow = cfg.get("mlflow")
 
     validate_nonempty_str(device, "BaseConfig.device", is_none_allowed=True)
@@ -47,6 +54,7 @@ def validate_base_config(cfg: DictConfig) -> None:
         raise ConfigValidationError(f"BaseConfig.device must be one of: {allowed_devices}")
     validate_non_negative_int(seed, "BaseConfig.seed", is_none_allowed=True)
     validate_mapping(tags, "BaseConfig.tags", key_type=str, value_type=str, is_none_allowed=True)
+    validate_path(logging_config_path, "BaseConfig.logging_config_path", is_none_allowed=True, must_exist=True)
     if mlflow is not None:
         if not isinstance(mlflow, DictConfig):
             raise ConfigValidationError("BaseConfig.mlflow must be a MLFlowConfig")

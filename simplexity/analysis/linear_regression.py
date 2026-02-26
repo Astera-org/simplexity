@@ -45,8 +45,6 @@ def _regression_metrics(
     r2 = 1.0 - (weighted_ss_res / float(weighted_ss_tot)) if float(weighted_ss_tot) > 0 else 0.0
     dists = jnp.sqrt(jnp.sum(residuals**2, axis=1))
     dist = float(jnp.sum(dists * weights))
-    # RMSE and MAE are returned as means over target dimensions
-    # rather than sums to keep consistent with R²
     return {
         "r2": float(r2),
         "rmse": float(rmse.mean()),
@@ -80,17 +78,18 @@ def linear_regression(
     predictions = design @ beta
     scalars = _regression_metrics(predictions, y_arr, w_arr)
 
-    # Separate intercept and coefficients
     if fit_intercept:
         arrays = {
             "projected": predictions,
-            "coeffs": beta[1:],  # Linear coefficients (excluding intercept)
-            "intercept": beta[:1],  # Intercept term (keep 2D: [1, n_targets])
+            "targets": y_arr,
+            "coeffs": beta[1:],
+            "intercept": beta[:1],
         }
     else:
         arrays = {
             "projected": predictions,
-            "coeffs": beta,  # All parameters are coefficients when no intercept
+            "targets": y_arr,
+            "coeffs": beta,
         }
 
     return scalars, arrays
@@ -178,22 +177,24 @@ def linear_regression_svd(
             best_scalars = scalars
             best_rcond = rcond
             best_beta = beta
-    if best_pred is None or best_scalars is None or best_beta is None:
-        raise RuntimeError("Unable to compute linear regression solution")
+    assert best_pred is not None
+    assert best_scalars is not None
+    assert best_beta is not None
     scalars = dict(best_scalars)
     scalars["best_rcond"] = float(best_rcond)
 
-    # Separate intercept and coefficients
     if fit_intercept:
         arrays = {
             "projected": best_pred,
-            "coeffs": best_beta[1:],  # Linear coefficients (excluding intercept)
-            "intercept": best_beta[:1],  # Intercept term (keep 2D: [1, n_targets])
+            "targets": y_arr,
+            "coeffs": best_beta[1:],
+            "intercept": best_beta[:1],
         }
     else:
         arrays = {
             "projected": best_pred,
-            "coeffs": best_beta,  # All parameters are coefficients when no intercept
+            "targets": y_arr,
+            "coeffs": best_beta,
         }
 
     return scalars, arrays
@@ -228,6 +229,17 @@ def _merge_results_with_prefix(
     arrays.update({f"{prefix}/{key}": value for key, value in results_arrays.items()})
 
 
+def _merge_results_with_suffix(
+    scalars: dict[str, float],
+    arrays: dict[str, jax.Array],
+    results: tuple[Mapping[str, float], Mapping[str, jax.Array]],
+    suffix: str,
+) -> None:
+    results_scalars, results_arrays = results
+    scalars.update({f"{key}/{suffix}": value for key, value in results_scalars.items()})
+    arrays.update({f"{key}/{suffix}": value for key, value in results_arrays.items()})
+
+
 def _split_concat_results(
     layer_activations: jax.Array,
     weights: jax.Array,
@@ -244,6 +256,7 @@ def _split_concat_results(
 
     coeffs_list = jnp.split(concat_arrays["coeffs"], split_indices, axis=-1)
     projections_list = jnp.split(concat_arrays["projected"], split_indices, axis=-1)
+    targets_list = jnp.split(concat_arrays["targets"], split_indices, axis=-1)
 
     # Handle intercept - split if present
     if "intercept" in concat_arrays:
@@ -256,8 +269,8 @@ def _split_concat_results(
     metrics_kwargs = {k: v for k, v in kwargs.items() if k != "rcond_values"}
 
     results = []
-    for factor, coeffs, intercept, projections in zip(
-        belief_states, coeffs_list, intercepts_list, projections_list, strict=True
+    for factor, coeffs, intercept, projections, targets in zip(
+        belief_states, coeffs_list, intercepts_list, projections_list, targets_list, strict=True
     ):
         # Reconstruct full beta for metrics computation
         if intercept is not None:
@@ -275,7 +288,7 @@ def _split_concat_results(
         )
 
         # Build factor arrays - include intercept only if present
-        factor_arrays = {"projected": projections, "coeffs": coeffs}
+        factor_arrays = {"projected": projections, "targets": targets, "coeffs": coeffs}
         if intercept is not None:
             factor_arrays["intercept"] = intercept
 
@@ -284,7 +297,7 @@ def _split_concat_results(
 
 
 def get_robust_basis(matrix: jax.Array) -> jax.Array:
-    """Extracts an orthonormal basis for the column space of the matrx.
+    """Extracts an orthonormal basis for the column space of the matrix.
 
     Handles rank deficiency gracefully by discarding directions associated with singular values below a
     certain tolerance.
@@ -305,20 +318,7 @@ def _compute_subspace_orthogonality(
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
     """Compute orthogonality metrics between two coefficient subspaces.
 
-    Args:
-        basis_pair: List of two orthonormal basis matrices
-
-    Returns:
-        Tuple[dict[str, float], dict[str, jax.Array]]: A tuple containing:
-            - scalars: A dictionary with the following keys and float values:
-                - 'subspace_overlap': Average squared singular value (overlap score).
-                - 'max_singular_value': Largest singular value.
-                - 'min_singular_value': Smallest singular value.
-                - 'participation_ratio': Participation ratio of the singular values.
-                - 'entropy': Entropy of the squared singular values.
-                - 'effective_rank': Effective rank (exp(entropy)) of the singular value distribution.
-            - singular_values: A dictionary with a single key:
-                - 'singular_values': jax.Array of the singular values between the two subspaces.
+    Returns dict keys: overlap, sv_max, sv_min, p_ratio, entropy, eff_rank, singular_values.
     """
     q1 = basis_pair[0]
     q2 = basis_pair[1]
@@ -335,27 +335,20 @@ def _compute_subspace_orthogonality(
 
     is_degenerate = sum_quad_sv == 0
 
-    # Define the False branch function (does nothing)
-    def do_nothing_branch(x):
-        """JAX 'False' branch function.
-
-        Serves only to return a value that matches the 'True' branch's type (None) for jax.lax.cond.
-        """
-        return None
-
-    # Define the True branch function (runs the callback)
-    def execute_all_zeros_warning_branch(x):
-        callback(log_all_zeros, x)
-        return None
-
-    def log_all_zeros(_):
-        SIMPLEXITY_LOGGER.warning(
-            "Degenerate subspace detected during orthogonality computation."
-            " All singular values are zero."
-            " Setting probability values and participation ratio to zero."
-        )
-
-    jax.lax.cond(is_degenerate, execute_all_zeros_warning_branch, do_nothing_branch, sum_sq_sv)
+    def _warn_subspace_issues(sum_quad: jax.Array, num_zero_probs: jax.Array) -> None:
+        if sum_quad.item() == 0:
+            SIMPLEXITY_LOGGER.warning(
+                "Degenerate subspace detected during orthogonality computation."
+                " All singular values are zero."
+                " Setting probability values and participation ratio to zero."
+            )
+        if num_zero_probs.item() > 0:
+            SIMPLEXITY_LOGGER.warning(
+                "Encountered %d probability values of zero during entropy computation."
+                " This is likely due to numerical instability."
+                " Setting corresponding entropy contribution to zero.",
+                num_zero_probs.item(),
+            )
 
     pratio_denominator_safe = jnp.where(is_degenerate, 1.0, sum_quad_sv)
     probs_denominator_safe = jnp.where(is_degenerate, 1.0, sum_sq_sv)
@@ -363,24 +356,10 @@ def _compute_subspace_orthogonality(
 
     subspace_overlap_score = sum_sq_sv / min_dim
 
-    # Compute the entropy probabilities
     probs = singular_values**2 / probs_denominator_safe
-
-    def execute_some_zeros_warning_branch(x):
-        callback(log_some_zeros, x)
-        return None
-
-    def log_some_zeros(num_zeros_array: jax.Array) -> None:
-        num_zeros = num_zeros_array.item()
-        SIMPLEXITY_LOGGER.warning(
-            f"Encountered {num_zeros} probability values of zero during entropy computation."
-            " This is likely due to numerical instability."
-            " Setting corresponding entropy contribution to zero."
-        )
-
     num_zeros = jnp.sum(probs == 0)
-    has_some_zeros = num_zeros > 0
-    jax.lax.cond(has_some_zeros, execute_some_zeros_warning_branch, do_nothing_branch, num_zeros)
+
+    callback(_warn_subspace_issues, sum_quad_sv, num_zeros)
 
     p_log_p = probs * jnp.log(probs)
     entropy = -jnp.sum(jnp.where(probs > 0, p_log_p, 0.0))
@@ -389,12 +368,12 @@ def _compute_subspace_orthogonality(
     effective_rank = jnp.exp(entropy)
 
     scalars = {
-        "subspace_overlap": float(subspace_overlap_score),
-        "max_singular_value": float(jnp.max(singular_values)),
-        "min_singular_value": float(jnp.min(singular_values)),
-        "participation_ratio": float(participation_ratio),
+        "overlap": float(subspace_overlap_score),
+        "sv_max": float(jnp.max(singular_values)),
+        "sv_min": float(jnp.min(singular_values)),
+        "p_ratio": float(participation_ratio),
         "entropy": float(entropy),
-        "effective_rank": float(effective_rank),
+        "eff_rank": float(effective_rank),
     }
 
     arrays = {
@@ -407,18 +386,7 @@ def _compute_subspace_orthogonality(
 def _compute_all_pairwise_orthogonality(
     coeffs_list: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
-    """Compute pairwise orthogonality metrics for all factor pairs.
-
-    Args:
-        coeffs_list: List of coefficient matrices (one per factor, excludes intercepts)
-
-    Returns:
-        Tuple[dict[str, float], dict[str, jax.Array]]:
-            - scalars: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to scalar float metrics for
-            each pair of factors (i, j).
-            - arrays: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to array-valued
-            metrics for each pair of factors (i, j).
-    """
+    """Compute pairwise orthogonality metrics for all factor pairs."""
     scalars = {}
     arrays = {}
     factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
@@ -426,8 +394,8 @@ def _compute_all_pairwise_orthogonality(
     for i, j in factor_pairs:
         basis_pair = [basis_list[i], basis_list[j]]
         orthogonality_scalars, orthogonality_arrays = _compute_subspace_orthogonality(basis_pair)
-        scalars.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_scalars.items()})
-        arrays.update({f"orthogonality_{i}_{j}/{key}": value for key, value in orthogonality_arrays.items()})
+        scalars.update({f"{i},{j}/{key}": value for key, value in orthogonality_scalars.items()})
+        arrays.update({f"{i},{j}/{key}": value for key, value in orthogonality_arrays.items()})
     return scalars, arrays
 
 
@@ -453,7 +421,7 @@ def _handle_factored_regression(
     if concat_belief_states:
         belief_states_concat = jnp.concatenate(belief_states, axis=-1)
         concat_results = regression_fn(layer_activations, belief_states_concat, weights, **kwargs)
-        _merge_results_with_prefix(scalars, arrays, concat_results, "concat")
+        _merge_results_with_suffix(scalars, arrays, concat_results, "Fcat")
 
         # Split the concatenated parameters and projections into the individual factors
         factor_results = _split_concat_results(
@@ -467,15 +435,20 @@ def _handle_factored_regression(
         factor_results = _process_individual_factors(layer_activations, belief_states, weights, use_svd, **kwargs)
 
     for factor_idx, factor_result in enumerate(factor_results):
-        _merge_results_with_prefix(scalars, arrays, factor_result, f"factor_{factor_idx}")
+        _merge_results_with_suffix(scalars, arrays, factor_result, f"F{factor_idx}")
 
     if compute_subspace_orthogonality:
         # Extract coefficients (excludes intercept) for orthogonality computation
         coeffs_list = [factor_arrays["coeffs"] for _, factor_arrays in factor_results]
-        orthogonality_scalars, orthogonality_singular_values = _compute_all_pairwise_orthogonality(coeffs_list)
-        scalars.update(orthogonality_scalars)
-        arrays.update(orthogonality_singular_values)
-
+        orthogonality_scalars, orthogonality_arrays = _compute_all_pairwise_orthogonality(coeffs_list)
+        for key, value in orthogonality_scalars.items():
+            factors, metric = key.split("/")
+            new_key = f"orth/{metric}/F{factors}"
+            scalars.update({new_key: value})
+        for key, value in orthogonality_arrays.items():
+            factors, metric = key.split("/")
+            new_key = f"orth/{metric}/F{factors}"
+            arrays.update({new_key: value})
     return scalars, arrays
 
 
@@ -490,18 +463,18 @@ def _apply_layer_regression(
     """Apply a regression function, optionally per-factor."""
     if to_factors:
         scalars: dict[str, float] = {}
-        projections: dict[str, jax.Array] = {}
+        arrays: dict[str, jax.Array] = {}
         if not isinstance(belief_states, tuple):
             raise ValueError("belief_states must be a tuple when to_factors is True")
         for factor_idx, factor in enumerate(belief_states):
             if not isinstance(factor, jax.Array):
                 raise ValueError("Each factor in belief_states must be a jax.Array")
-            factor_scalars, factor_projections = regression_fn(layer_activations, factor, weights, **kwargs)
+            factor_scalars, factor_arrays = regression_fn(layer_activations, factor, weights, **kwargs)
             for key, value in factor_scalars.items():
                 scalars[f"factor_{factor_idx}/{key}"] = value
-            for key, value in factor_projections.items():
-                projections[f"factor_{factor_idx}/{key}"] = value
-        return scalars, projections
+            for key, value in factor_arrays.items():
+                arrays[f"factor_{factor_idx}/{key}"] = value
+        return scalars, arrays
     else:
         targets = jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
         return regression_fn(layer_activations, targets, weights, **kwargs)
@@ -516,21 +489,7 @@ def layer_linear_regression(
     use_svd: bool = False,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Layer-wise regression helper that wraps :func:`linear_regression` or :func:`linear_regression_svd`.
-
-    Args:
-        layer_activations: Neural network activations for a single layer
-        weights: Sample weights for weighted regression
-        belief_states: Target belief states (single array or tuple for factored processes)
-        concat_belief_states: If True and belief_states is a tuple, concatenate and regress jointly
-        compute_subspace_orthogonality: If True, compute orthogonality between factor subspaces
-        use_svd: If True, use SVD-based regression instead of standard least squares
-        **kwargs: Additional arguments passed to regression function (fit_intercept, rcond_values, etc.)
-
-    Returns:
-        scalars: Dictionary of scalar metrics
-        arrays: Dictionary of arrays (projected predictions, parameters, singular values if orthogonality computed)
-    """
+    """Layer-wise regression helper that wraps linear_regression or linear_regression_svd."""
     # If no belief states are provided, raise an error
     if (
         belief_states is None

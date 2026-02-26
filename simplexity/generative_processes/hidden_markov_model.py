@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.generalized_hidden_markov_model import GeneralizedHiddenMarkovModel, State
+from simplexity.generative_processes.noisy_channel import apply_noisy_channel
 from simplexity.generative_processes.transition_matrices import get_stationary_state
 from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.utils.jnp_utils import resolve_jax_device
@@ -32,7 +33,11 @@ class HiddenMarkovModel(GeneralizedHiddenMarkovModel[State]):
         transition_matrices: jax.Array,
         initial_state: jax.Array | None = None,
         device: str | None = None,
+        noise_epsilon: float = 0.0,
     ):
+        if noise_epsilon > 0.0:
+            transition_matrices = apply_noisy_channel(transition_matrices, noise_epsilon)
+
         self.device = resolve_jax_device(device)
         self.validate_transition_matrices(transition_matrices)
 

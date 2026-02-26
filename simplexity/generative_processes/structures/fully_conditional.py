@@ -72,15 +72,12 @@ class FullyConditional(eqx.Module):
         if num_factors == 0:
             raise ValueError("FullyConditional requires at least one factor")
         if len(self.control_maps) != num_factors:
-            raise ValueError(
-                f"Expected {num_factors} control maps (one per factor), got {len(self.control_maps)}"
-            )
+            raise ValueError(f"Expected {num_factors} control maps (one per factor), got {len(self.control_maps)}")
         if any(v <= 0 for v in self.vocab_sizes_py):
             raise ValueError(f"All vocab sizes must be positive, got {self.vocab_sizes_py}")
         if self.fallback_strategy not in ("uniform", "epsilon_smooth"):
             raise ValueError(
-                "fallback_strategy must be one of {'uniform', 'epsilon_smooth'}, "
-                f"got '{self.fallback_strategy}'"
+                f"fallback_strategy must be one of {{'uniform', 'epsilon_smooth'}}, got '{self.fallback_strategy}'"
             )
         if self.fallback_strategy == "epsilon_smooth" and self.fallback_epsilon <= 0.0:
             raise ValueError(f"fallback_epsilon must be positive for epsilon smoothing, got {self.fallback_epsilon}")
@@ -112,13 +109,12 @@ class FullyConditional(eqx.Module):
             # Shape for reshaping conditional [prod_others, V_i] -> [*others, V_i]
             other_shapes.append(tuple(self.vocab_sizes_py[j] for j in range(num_factors) if j != i))
 
-            # Permutation to align [*others, V_i] to [V_0, ..., V_{F-1}]
             others = [j for j in range(num_factors) if j != i]
             axis_pos = {j: pos for pos, j in enumerate(others)}
             perm = []
             for j in range(num_factors):
                 if j == i:
-                    perm.append(len(others))  # V_i is the last axis
+                    perm.append(len(others))
                 else:
                     perm.append(axis_pos[j])
             perms_py.append(tuple(perm))
@@ -128,15 +124,7 @@ class FullyConditional(eqx.Module):
         self.perms_py = tuple(perms_py)
 
     def _flatten_other_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
-        """Flatten other-factor tokens to control map index.
-
-        Args:
-            tokens: Array of shape [F] with all tokens
-            i: Factor index to exclude
-
-        Returns:
-            Scalar index for control_maps[i]
-        """
+        """Flatten other-factor tokens to control map index."""
         mult = self.other_multipliers[i]
         return flatten_index(tokens, mult)
 
@@ -210,17 +198,9 @@ class FullyConditional(eqx.Module):
     def select_variants(
         self,
         obs_tuple: tuple[jax.Array, ...],
-        context: ConditionalContext,  # pylint: disable=unused-argument
+        context: ConditionalContext,
     ) -> tuple[jax.Array, ...]:
-        """Select variants based on all other factors' tokens.
-
-        Args:
-            obs_tuple: Tuple of observed tokens (one per factor)
-            context: Conditional context (unused for fully conditional structure)
-
-        Returns:
-            Tuple of variant indices (one per factor)
-        """
+        """Select variants based on all other factors' tokens."""
         tokens_arr = jnp.array(obs_tuple)
         variants = []
         for i in range(len(obs_tuple)):

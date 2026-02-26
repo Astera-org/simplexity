@@ -9,13 +9,14 @@ defaults:
   - lr_scheduler: windowed_reduce_lr_on_plateau
   - metric_tracker@training_metric_tracker: default
   - metric_tracker@eval_metric_tracker: loss_only
-  - activation_tracker: with_factor_visuals
+  - activation_tracker: default
   - training: full
 
 experiment_name: training_test_factored
 run_name: training_test_factored_${now:%Y%m%d_%H%M%S}
 device: auto
 seed: 0
+logging_config_path: tests/end_to_end/configs/logging.ini
 tags:
   research_step: demo
   retention: temp
