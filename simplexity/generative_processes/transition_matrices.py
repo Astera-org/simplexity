@@ -464,6 +464,24 @@ def zero_random_random_random(p1: float, p2: float, p3: float) -> jax.Array:
         ]
     )
 
+def river() -> jax.Array:
+    """Creates the transition matrix for Augustin's River Process."""
+    return jnp.array(
+        [
+            [
+                [0.05, 0.0, 0.0],
+                [0.1, 0.1, 0.2],
+                [0.0, 0.5, 0.0],
+            ],
+            [
+                [0.85, 0.0, 0.1],
+                [0.1, 0.0, 0.5],
+                [0.0, 0.45, 0.05],
+            ],
+        ]
+    )
+
+
 HMM_MATRIX_FUNCTIONS = {
     "coin": coin,
     "days_of_week": days_of_week,
@@ -481,6 +499,7 @@ HMM_MATRIX_FUNCTIONS = {
     "zero_random_random_random": zero_random_random_random,
     "random_random_random": random_random_random,
     "leaky_random_random_random": leaky_random_random_random,
+    "river": river,
 }
 
 GHMM_MATRIX_FUNCTIONS = HMM_MATRIX_FUNCTIONS | {
