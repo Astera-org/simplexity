@@ -21,14 +21,14 @@ from simplexity.generative_processes.nonergodic_generative_process import NonErg
 
 @eqx.filter_jit
 def generate_data_batch(
-    gen_states: jax.Array | tuple[jax.Array, ...] | NonErgodicState,
+    gen_states: jax.Array | tuple[jax.Array, ...],
     data_generator: GenerativeProcess,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array | tuple[jax.Array, ...] | NonErgodicState, jax.Array, jax.Array]:
+) -> tuple[jax.Array | tuple[jax.Array, ...], jax.Array, jax.Array]:
     """Generate a batch of data without tracking intermediate beliefs."""
     batch_keys = jax.random.split(key, batch_size)
     gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, False)
@@ -45,14 +45,14 @@ def generate_data_batch(
 
 @eqx.filter_jit
 def generate_data_batch_with_full_history(
-    gen_states: jax.Array | tuple[jax.Array, ...] | NonErgodicState,
+    gen_states: jax.Array | tuple[jax.Array, ...],
     data_generator: GenerativeProcess,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> dict[str, jax.Array | tuple[jax.Array, ...] | NonErgodicState]:
+) -> dict[str, jax.Array | tuple[jax.Array, ...]]:
     """Generate sequences plus per-token belief states and prefix probabilities."""
     batch_keys = jax.random.split(key, batch_size)
     belief_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, True)
@@ -120,10 +120,10 @@ def _slice_belief_states(
 
 def _compute_prefix_probabilities(
     data_generator: GenerativeProcess,
-    initial_states: jax.Array | tuple[jax.Array, ...] | NonErgodicState,
+    initial_states: jax.Array | tuple[jax.Array, ...],
     tokens: jax.Array,
 ) -> jax.Array:
-    def run_sequence(state: jax.Array | tuple[jax.Array, ...] | NonErgodicState, seq: jax.Array) -> jax.Array:
+    def run_sequence(state: jax.Array | tuple[jax.Array, ...], seq: jax.Array) -> jax.Array:
         def step(carry_state: Any, token: jax.Array) -> tuple[Any, jax.Array]:
             obs_probs = data_generator.observation_probability_distribution(carry_state)
             token_prob = obs_probs[token]

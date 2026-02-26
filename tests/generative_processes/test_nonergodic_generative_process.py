@@ -472,7 +472,7 @@ class TestGenerateDataBatchWithFullHistory:
         batch_states = _expand_state(process.initial_state, batch_size)
 
         result = generate_data_batch_with_full_history(
-            batch_states,
+            batch_states,  # type: ignore[arg-type]
             process,
             batch_size,
             seq_len,
@@ -506,7 +506,7 @@ class TestGenerateDataBatchWithFullHistory:
         batch_states = _expand_state(process.initial_state, batch_size)
 
         result = generate_data_batch_with_full_history(
-            batch_states,
+            batch_states,  # type: ignore[arg-type]
             process,
             batch_size,
             seq_len,
