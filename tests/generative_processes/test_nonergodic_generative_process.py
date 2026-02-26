@@ -22,24 +22,28 @@ from simplexity.generative_processes.builder import (
 )
 from simplexity.generative_processes.generator import generate_data_batch_with_full_history
 from simplexity.generative_processes.nonergodic_generative_process import (
+    ComponentState,
     NonErgodicGenerativeProcess,
     NonErgodicState,
 )
 
 
-def _expand_state(
-    state: jax.Array | tuple[jax.Array, ...] | NonErgodicState,
+def _expand_component_state(
+    state: ComponentState,
     batch_size: int,
-) -> jax.Array | tuple[jax.Array, ...] | NonErgodicState:
-    """Expand a single state to a batch of identical states."""
-    if isinstance(state, NonErgodicState):
-        return NonErgodicState(
-            component_beliefs=jnp.repeat(state.component_beliefs[None, :], batch_size, axis=0),
-            component_states=tuple(_expand_state(cs, batch_size) for cs in state.component_states),
-        )
-    elif isinstance(state, tuple):
+) -> ComponentState:
+    """Expand a single component state to a batch of identical states."""
+    if isinstance(state, tuple):
         return tuple(jnp.repeat(s[None, :], batch_size, axis=0) for s in state)
     return jnp.repeat(state[None, :], batch_size, axis=0)
+
+
+def _expand_state(state: NonErgodicState, batch_size: int) -> NonErgodicState:
+    """Expand a single NonErgodicState to a batch of identical states."""
+    return NonErgodicState(
+        component_beliefs=jnp.repeat(state.component_beliefs[None, :], batch_size, axis=0),
+        component_states=tuple(_expand_component_state(cs, batch_size) for cs in state.component_states),
+    )
 
 
 class TestNonErgodicState:
@@ -465,11 +469,7 @@ class TestGenerateDataBatchWithFullHistory:
 
         batch_size = 4
         seq_len = 8
-        state = process.initial_state
-        batch_states = NonErgodicState(
-            component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
-            component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
-        )
+        batch_states = _expand_state(process.initial_state, batch_size)
 
         result = generate_data_batch_with_full_history(
             batch_states,
@@ -481,12 +481,13 @@ class TestGenerateDataBatchWithFullHistory:
 
         belief_states = result["belief_states"]
         inputs = result["inputs"]
-        labels = result["labels"]
+        assert isinstance(inputs, jax.Array)
 
         assert isinstance(belief_states, NonErgodicState)
         input_len = inputs.shape[1]
         assert belief_states.component_beliefs.shape == (batch_size, input_len, 2)
         for cs in belief_states.component_states:
+            assert not isinstance(cs, tuple)
             assert cs.shape[0] == batch_size
             assert cs.shape[1] == input_len
 
@@ -502,11 +503,7 @@ class TestGenerateDataBatchWithFullHistory:
         batch_size = 4
         seq_len = 8
         bos_token = process.vocab_size
-        state = process.initial_state
-        batch_states = NonErgodicState(
-            component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
-            component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
-        )
+        batch_states = _expand_state(process.initial_state, batch_size)
 
         result = generate_data_batch_with_full_history(
             batch_states,
@@ -519,10 +516,12 @@ class TestGenerateDataBatchWithFullHistory:
 
         belief_states = result["belief_states"]
         inputs = result["inputs"]
+        assert isinstance(inputs, jax.Array)
 
         assert isinstance(belief_states, NonErgodicState)
         input_len = inputs.shape[1]
         assert belief_states.component_beliefs.shape == (batch_size, input_len, 2)
         for cs in belief_states.component_states:
+            assert not isinstance(cs, tuple)
             assert cs.shape[0] == batch_size
             assert cs.shape[1] == input_len
