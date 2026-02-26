@@ -15,14 +15,31 @@ import jax.numpy as jnp
 import pytest
 
 from simplexity.generative_processes.builder import (
+    build_factored_process_from_spec,
     build_generalized_hidden_markov_model,
     build_hidden_markov_model,
     build_nonergodic_process_from_spec,
 )
+from simplexity.generative_processes.generator import generate_data_batch_with_full_history
 from simplexity.generative_processes.nonergodic_generative_process import (
     NonErgodicGenerativeProcess,
     NonErgodicState,
 )
+
+
+def _expand_state(
+    state: jax.Array | tuple[jax.Array, ...] | NonErgodicState,
+    batch_size: int,
+) -> jax.Array | tuple[jax.Array, ...] | NonErgodicState:
+    """Expand a single state to a batch of identical states."""
+    if isinstance(state, NonErgodicState):
+        return NonErgodicState(
+            component_beliefs=jnp.repeat(state.component_beliefs[None, :], batch_size, axis=0),
+            component_states=tuple(_expand_state(cs, batch_size) for cs in state.component_states),
+        )
+    elif isinstance(state, tuple):
+        return tuple(jnp.repeat(s[None, :], batch_size, axis=0) for s in state)
+    return jnp.repeat(state[None, :], batch_size, axis=0)
 
 
 class TestNonErgodicState:
@@ -330,3 +347,174 @@ class TestEdgeCases:
                 components=[coin, coin],
                 component_weights=[1.0],  # Only 1 weight for 2 components
             )
+
+
+class TestGenerateReturnAllStates:
+    """Tests for generate with return_all_states=True."""
+
+    @pytest.fixture
+    def two_mess3_process(self):
+        """Two mess3 HMMs as a nonergodic mixture."""
+        hmm1 = build_hidden_markov_model("mess3", {"x": 0.15, "a": 0.6})
+        hmm2 = build_hidden_markov_model("mess3", {"x": 0.5, "a": 0.6})
+        return NonErgodicGenerativeProcess(
+            components=[hmm1, hmm2],
+            component_weights=[0.6, 0.4],
+        )
+
+    def test_return_all_states_shapes(self, two_mess3_process):
+        """Both component_beliefs and component_states should have time dimension."""
+        batch_size = 4
+        seq_len = 8
+        state = two_mess3_process.initial_state
+        batch_states = NonErgodicState(
+            component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
+            component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
+        )
+        keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
+
+        trajectory, observations = two_mess3_process.generate(batch_states, keys, seq_len, True)
+
+        assert observations.shape == (batch_size, seq_len)
+        assert trajectory.component_beliefs.shape == (batch_size, seq_len, 2)
+        for i, comp in enumerate(two_mess3_process.components):
+            assert trajectory.component_states[i].shape == (batch_size, seq_len, comp.initial_state.shape[0])
+
+    def test_return_all_states_beliefs_are_valid_distributions(self, two_mess3_process):
+        """Component beliefs at each timestep should sum to 1."""
+        batch_size = 4
+        seq_len = 8
+        state = two_mess3_process.initial_state
+        batch_states = NonErgodicState(
+            component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
+            component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
+        )
+        keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
+
+        trajectory, _ = two_mess3_process.generate(batch_states, keys, seq_len, True)
+
+        belief_sums = jnp.sum(trajectory.component_beliefs, axis=-1)
+        chex.assert_trees_all_close(belief_sums, jnp.ones_like(belief_sums), atol=1e-5)
+
+
+class TestFactoredComponent:
+    """Tests for FactoredGenerativeProcess as a NonErgodic component."""
+
+    @pytest.fixture
+    def hmm_factored_process(self):
+        """NonErgodic process with one HMM and one factored component."""
+        hmm = build_hidden_markov_model("coin", {"p": 0.7})
+        factored = build_factored_process_from_spec(
+            structure_type="independent",
+            spec=[
+                {"component_type": "hmm", "variants": [{"process_name": "coin", "process_params": {"p": 0.6}}]},
+                {"component_type": "hmm", "variants": [{"process_name": "coin", "process_params": {"p": 0.4}}]},
+            ],
+        )
+        return NonErgodicGenerativeProcess(
+            components=[hmm, factored],
+            component_weights=[0.5, 0.5],
+        )
+
+    def test_factored_component_generate(self, hmm_factored_process):
+        """NonErgodic with a factored component should generate valid sequences."""
+        process = hmm_factored_process
+        batch_size = 4
+        seq_len = 6
+        batch_states = _expand_state(process.initial_state, batch_size)
+        keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
+
+        final_states, observations = process.generate(batch_states, keys, seq_len, False)
+
+        assert observations.shape == (batch_size, seq_len)
+        assert jnp.all(observations >= 0)
+        assert jnp.all(observations < process.vocab_size)
+
+    def test_factored_component_return_all_states(self, hmm_factored_process):
+        """Factored component state trajectory should have correct shapes."""
+        process = hmm_factored_process
+
+        batch_size = 4
+        seq_len = 6
+        batch_states = _expand_state(process.initial_state, batch_size)
+        keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
+
+        trajectory, observations = process.generate(batch_states, keys, seq_len, True)
+
+        assert observations.shape == (batch_size, seq_len)
+        assert trajectory.component_beliefs.shape == (batch_size, seq_len, 2)
+        # HMM component state: flat array
+        assert trajectory.component_states[0].ndim == 3  # [batch, seq, state_dim]
+        # Factored component state: tuple of arrays
+        assert isinstance(trajectory.component_states[1], tuple)
+        for factor_state in trajectory.component_states[1]:
+            assert factor_state.ndim == 3  # [batch, seq, factor_dim]
+
+
+class TestGenerateDataBatchWithFullHistory:
+    """Tests for generate_data_batch_with_full_history with NonErgodicGenerativeProcess."""
+
+    def test_full_history_shapes(self):
+        """Belief states should have consistent shapes after slicing."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.6, 0.4],
+        )
+
+        batch_size = 4
+        seq_len = 8
+        state = process.initial_state
+        batch_states = NonErgodicState(
+            component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
+            component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
+        )
+
+        result = generate_data_batch_with_full_history(
+            batch_states, process, batch_size, seq_len, jax.random.PRNGKey(0),
+        )
+
+        belief_states = result["belief_states"]
+        inputs = result["inputs"]
+        labels = result["labels"]
+
+        assert isinstance(belief_states, NonErgodicState)
+        input_len = inputs.shape[1]
+        assert belief_states.component_beliefs.shape == (batch_size, input_len, 2)
+        for cs in belief_states.component_states:
+            assert cs.shape[0] == batch_size
+            assert cs.shape[1] == input_len
+
+    def test_full_history_with_bos(self):
+        """Belief states should align with inputs when BOS token is used."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.6, 0.4],
+        )
+
+        batch_size = 4
+        seq_len = 8
+        bos_token = process.vocab_size
+        state = process.initial_state
+        batch_states = NonErgodicState(
+            component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
+            component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
+        )
+
+        result = generate_data_batch_with_full_history(
+            batch_states, process, batch_size, seq_len, jax.random.PRNGKey(0),
+            bos_token=bos_token,
+        )
+
+        belief_states = result["belief_states"]
+        inputs = result["inputs"]
+
+        assert isinstance(belief_states, NonErgodicState)
+        input_len = inputs.shape[1]
+        assert belief_states.component_beliefs.shape == (batch_size, input_len, 2)
+        for cs in belief_states.component_states:
+            assert cs.shape[0] == batch_size
+            assert cs.shape[1] == input_len

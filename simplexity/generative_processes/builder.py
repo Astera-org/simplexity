@@ -650,6 +650,53 @@ def build_transition_coupled_from_spec(
     )
 
 
+def _build_components_from_spec(
+    components: Sequence[dict[str, Any]],
+    device: str | None = None,
+) -> list[GenerativeProcess]:
+    """Build component GenerativeProcess instances from specifications.
+
+    Args:
+        components: List of component specs. Each spec has:
+            - component_type: "hmm", "ghmm", or "factored"
+            - For hmm/ghmm: process_name, process_params
+            - For factored: structure_type, spec, and structure-specific params
+        device: Device placement.
+
+    Returns:
+        List of built GenerativeProcess instances.
+
+    Raises:
+        ValueError: If component_type is unknown.
+    """
+    built_components = []
+
+    for comp_spec in components:
+        comp_type = comp_spec.get("component_type", "hmm")
+
+        if comp_type == "hmm":
+            process: GenerativeProcess = build_hidden_markov_model(
+                process_name=comp_spec["process_name"],
+                process_params=comp_spec.get("process_params", {}),
+                device=device,
+            )
+        elif comp_type == "ghmm":
+            process = build_generalized_hidden_markov_model(
+                process_name=comp_spec["process_name"],
+                process_params=comp_spec.get("process_params", {}),
+                device=device,
+            )
+        elif comp_type == "factored":
+            factored_kwargs = {k: v for k, v in comp_spec.items() if k not in ("component_type", "vocab_map")}
+            process = build_factored_process_from_spec(**factored_kwargs)
+        else:
+            raise ValueError(f"Unknown component_type: {comp_type}")
+
+        built_components.append(process)
+
+    return built_components
+
+
 def build_nonergodic_process_from_spec(
     components: Sequence[dict[str, Any]],
     component_weights: Sequence[float],
@@ -702,39 +749,16 @@ def build_nonergodic_process_from_spec(
     Raises:
         ValueError: If component_type is unknown.
     """
-    built_components = []
-    inferred_vocab_maps = []
+    built_components = _build_components_from_spec(components, device=device)
 
-    for comp_spec in components:
-        comp_type = comp_spec.get("component_type", "hmm")
-
-        if comp_type == "hmm":
-            process = build_hidden_markov_model(
-                process_name=comp_spec["process_name"],
-                process_params=comp_spec.get("process_params", {}),
-                device=device,
-            )
-        elif comp_type == "ghmm":
-            process = build_generalized_hidden_markov_model(
-                process_name=comp_spec["process_name"],
-                process_params=comp_spec.get("process_params", {}),
-                device=device,
-            )
-        elif comp_type == "factored":
-            # Extract factored-specific params
-            factored_kwargs = {k: v for k, v in comp_spec.items() if k not in ("component_type", "vocab_map")}
-            process = build_factored_process_from_spec(**factored_kwargs)
-        else:
-            raise ValueError(f"Unknown component_type: {comp_type}")
-
-        built_components.append(process)
-
-        # Infer vocab map if not provided globally
-        if vocab_maps is None:
+    if vocab_maps is None:
+        inferred_vocab_maps = []
+        for comp_spec, process in zip(components, built_components, strict=True):
             comp_vocab_map = comp_spec.get("vocab_map", list(range(process.vocab_size)))
             inferred_vocab_maps.append(comp_vocab_map)
-
-    final_vocab_maps = vocab_maps if vocab_maps is not None else inferred_vocab_maps
+        final_vocab_maps: Sequence[Sequence[int]] = inferred_vocab_maps
+    else:
+        final_vocab_maps = vocab_maps
 
     return NonErgodicGenerativeProcess(
         components=built_components,
@@ -751,7 +775,7 @@ def build_nonergodic_disjoint_vocab(
 ) -> NonErgodicGenerativeProcess:
     """Build a nonergodic process where each component has a fully disjoint alphabet.
 
-    First builds each component to discover its vocab_size, then assigns
+    Builds each component once to discover its vocab_size, then assigns
     non-overlapping vocab_maps: C0 -> [0..V0-1], C1 -> [V0..V0+V1-1], etc.
 
     Args:
@@ -762,16 +786,20 @@ def build_nonergodic_disjoint_vocab(
     Returns:
         NonErgodicGenerativeProcess with disjoint per-component vocabularies.
     """
-    temp = build_nonergodic_process_from_spec(components, component_weights, device=device)
-    comp_vocab_sizes = [c.vocab_size for c in temp.components]
+    built_components = _build_components_from_spec(components, device=device)
 
     vocab_maps: list[list[int]] = []
     offset = 0
-    for v in comp_vocab_sizes:
-        vocab_maps.append(list(range(offset, offset + v)))
-        offset += v
+    for c in built_components:
+        vocab_maps.append(list(range(offset, offset + c.vocab_size)))
+        offset += c.vocab_size
 
-    return build_nonergodic_process_from_spec(components, component_weights, vocab_maps=vocab_maps, device=device)
+    return NonErgodicGenerativeProcess(
+        components=built_components,
+        component_weights=component_weights,
+        vocab_maps=vocab_maps,
+        device=device,
+    )
 
 
 def _build_prefix_vocab_maps(n_components: int, v: int, n_shared: int, n_unique: int) -> list[list[int]]:
@@ -842,8 +870,11 @@ def build_nonergodic_partial_overlap(
     if mode == "random" and seed is None:
         raise ValueError("seed is required when mode='random'")
 
-    temp = build_nonergodic_process_from_spec(components, component_weights, device=device)
-    v = temp.components[0].vocab_size
+    built_components = _build_components_from_spec(components, device=device)
+    comp_vocab_sizes = [c.vocab_size for c in built_components]
+    if len(set(comp_vocab_sizes)) != 1:
+        raise ValueError(f"All components must have equal vocab_size for partial_overlap, got {comp_vocab_sizes}")
+    v = comp_vocab_sizes[0]
     n_shared = int(v * overlap_frac)
     n_unique = v - n_shared
     n_components = len(components)
@@ -858,7 +889,12 @@ def build_nonergodic_partial_overlap(
     else:
         raise ValueError(f"Unknown mode '{mode}'. Must be 'prefix', 'sliding', or 'random'.")
 
-    return build_nonergodic_process_from_spec(components, component_weights, vocab_maps=vocab_maps, device=device)
+    return NonErgodicGenerativeProcess(
+        components=built_components,
+        component_weights=component_weights,
+        vocab_maps=vocab_maps,
+        device=device,
+    )
 
 
 def build_inflated_process(

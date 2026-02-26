@@ -102,14 +102,15 @@ def _slice_belief_states(
     Handles different state representations:
     - Plain array: slice directly
     - Tuple of arrays: slice each element
-    - NonErgodicState: slice component_beliefs, keep component_states as-is
+    - NonErgodicState: slice both component_beliefs and component_states
     """
     if isinstance(belief_states, NonErgodicState):
-        # For NonErgodicState, slice component_beliefs trajectory
-        # component_states are final states, not trajectories, so don't slice
         return NonErgodicState(
             component_beliefs=belief_states.component_beliefs[:, seq_slice, ...],
-            component_states=belief_states.component_states,
+            component_states=tuple(
+                tuple(s[:, seq_slice, ...] for s in cs) if isinstance(cs, tuple) else cs[:, seq_slice, ...]
+                for cs in belief_states.component_states
+            ),
         )
     elif isinstance(belief_states, tuple):
         return tuple(b[:, seq_slice, ...] for b in belief_states)

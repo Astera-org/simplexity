@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from functools import partial
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 import chex
 import equinox as eqx
@@ -14,27 +14,7 @@ import jax.numpy as jnp
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.utils.jnp_utils import resolve_jax_device
 
-# Type alias for component states: either a flat array or tuple of arrays (FactoredState)
 ComponentState = jax.Array | tuple[jax.Array, ...]
-
-
-# -----------------------------------------------------------------------------
-# Helper functions for handling heterogeneous component state types.
-#
-# The generate() method uses jax.lax.switch to select which component to use.
-# This requires all branches to return the same shape, but components may have
-# different state types:
-#   - HMM/GHMM: flat jax.Array of shape [state_dim]
-#   - FactoredGenerativeProcess: tuple of arrays (FactoredState)
-#
-# To handle this uniformly, we:
-#   1. Flatten each state to a 1D array (preserving total element count)
-#   2. Pad to a common max size for switch compatibility
-#   3. After processing, unpad and unflatten back to original structure
-#
-# This lets us work with uniform arrays inside jax.lax.switch while components
-# still receive their native state structures.
-# -----------------------------------------------------------------------------
 
 
 def _get_flat_size(state: ComponentState) -> int:
@@ -85,8 +65,6 @@ def _unflatten_state(flat: jax.Array, template: ComponentState) -> ComponentStat
         time), so we can compute offsets as Python ints.
     """
     if isinstance(template, tuple):
-        # Extract parts using dynamic_slice with concrete offsets and sizes
-        # This avoids jnp.split which requires concrete split indices
         offset = 0
         parts = []
         for t in template:
@@ -108,7 +86,7 @@ class NonErgodicState(NamedTuple):
     """
 
     component_beliefs: jax.Array
-    component_states: tuple[Any, ...]
+    component_states: tuple[ComponentState, ...]
 
 
 class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
@@ -168,7 +146,6 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         self.device = resolve_jax_device(device)
         self.components = tuple(components)
 
-        # Normalize weights
         weights = jnp.array(component_weights)
         if weights.shape[0] != len(components):
             raise ValueError(
@@ -179,17 +156,12 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         self.component_weights = weights / jnp.sum(weights)
         self.component_weights = jax.device_put(self.component_weights, self.device)
 
-        # Set up vocab maps
         if vocab_maps is None:
-            # Default: each component uses its natural vocab [0, 1, ..., V_i-1]
             vocab_maps = [list(range(c.vocab_size)) for c in components]
 
         self.vocab_maps = tuple(jax.device_put(jnp.array(vm, dtype=jnp.int32), self.device) for vm in vocab_maps)
-
-        # Compute global vocab size
         self._vocab_size = max(max(vm) for vm in vocab_maps) + 1
 
-        # Build inverse vocab maps (global -> local, -1 if not mapped)
         inverse_maps = []
         for vm in vocab_maps:
             inv = jnp.full((self._vocab_size,), -1, dtype=jnp.int32)
@@ -227,9 +199,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
 
         for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=False)):
             comp_state = state.component_states[i]
-            # Get component's distribution over its local vocab
             local_dist = component.observation_probability_distribution(comp_state)
-            # Scatter to global vocab positions
             component_contrib = jnp.zeros(self._vocab_size).at[vm].add(local_dist)
             global_dist = global_dist + state.component_beliefs[i] * component_contrib
 
@@ -239,7 +209,9 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
     def log_observation_probability_distribution(self, log_belief_state: NonErgodicState) -> jax.Array:
         """Compute log P(global_obs | state).
 
-        Note: This expects log_belief_state with log-space component_beliefs and component_states.
+        Expects log-space component_beliefs and component_states. Unmapped tokens
+        get -inf. Component beliefs weight via addition in log space, then combined
+        via logsumexp across components.
         """
         log_probs = []
 
@@ -248,13 +220,10 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             comp_log_belief = log_belief_state.component_beliefs[i]
 
             local_log_dist = component.log_observation_probability_distribution(comp_log_state)
-            # Create global distribution with -inf for unmapped tokens
             global_log_dist = jnp.full(self._vocab_size, -jnp.inf)
             global_log_dist = global_log_dist.at[vm].set(local_log_dist)
-            # Weight by component belief (in log space: add)
             log_probs.append(comp_log_belief + global_log_dist)
 
-        # Combine via logsumexp across components
         log_probs_stacked = jnp.stack(log_probs, axis=0)
         return jax.nn.logsumexp(log_probs_stacked, axis=0)
 
@@ -266,11 +235,8 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         that component and maps to global vocab.
         """
         key1, key2 = jax.random.split(key)
-
-        # Sample component based on current beliefs
         component_idx = jax.random.categorical(key1, jnp.log(state.component_beliefs))
 
-        # Emit from chosen component using switch for JIT compatibility
         def emit_from_component(i: int, k: chex.PRNGKey) -> chex.Array:
             comp_state = state.component_states[i]
             local_obs = self.components[i].emit_observation(comp_state, k)
@@ -288,9 +254,11 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
     def transition_states(self, state: NonErgodicState, obs: chex.Array) -> NonErgodicState:
         """Update state given observation using Bayesian filtering.
 
-        1. Compute P(obs | component_i) for each component using current states
-        2. Update component_beliefs using Bayes rule
-        3. Update each component's internal state independently
+        For each component: computes P(obs | component_i) as the likelihood
+        (0 if obs not in that component's vocab), conditionally updates the
+        component's internal state only when likelihood > 0, then applies
+        Bayes rule to update component_beliefs. Falls back to prior beliefs
+        if all likelihoods are 0.
         """
         new_component_states = []
         likelihoods = []
@@ -299,10 +267,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             comp_state = state.component_states[i]
             local_obs = inv_map[obs]
 
-            # Get observation probability from this component
             local_dist = component.observation_probability_distribution(comp_state)
-
-            # Likelihood is 0 if obs not in this component's vocab
             likelihood = jnp.where(
                 local_obs >= 0,
                 local_dist[jnp.clip(local_obs, 0, local_dist.shape[0] - 1)],
@@ -310,10 +275,6 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             )
             likelihoods.append(likelihood)
 
-            # Update component's internal state
-            # Only update if the observation was possible for this component
-            # (likelihood > 0 checks both vocab membership AND state feasibility)
-            # Bind component via default arg to avoid B023 (late binding in loop)
             new_comp_state = jax.lax.cond(
                 likelihood > 0,
                 lambda s, lo, c=component: c.transition_states(s, lo),
@@ -323,15 +284,13 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             )
             new_component_states.append(new_comp_state)
 
-        # Bayes update for component beliefs
         likelihoods_arr = jnp.array(likelihoods)
         unnorm_beliefs = state.component_beliefs * likelihoods_arr
-        # Handle case where all likelihoods are 0 (shouldn't happen with valid obs)
         normalizer = jnp.sum(unnorm_beliefs)
         new_beliefs = jnp.where(
             normalizer > 0,
             unnorm_beliefs / normalizer,
-            state.component_beliefs,  # Keep old beliefs if normalizer is 0
+            state.component_beliefs,
         )
 
         return NonErgodicState(
@@ -349,11 +308,8 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         def compute_component_prob(i: int) -> jax.Array:
             component = self.components[i]
             inv_map = self._inverse_vocab_maps[i]
-            # Map global observations to local
             local_obs = inv_map[observations]
-            # Check if all observations are valid for this component
             all_valid = jnp.all(local_obs >= 0)
-            # Compute probability (0 if any obs invalid)
             prob = jax.lax.cond(
                 all_valid,
                 lambda lo: component.probability(lo),
@@ -362,7 +318,6 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             )
             return self.component_weights[i] * prob
 
-        # Sum over components
         total_prob = jnp.array(0.0)
         for i in range(len(self.components)):
             total_prob = total_prob + compute_component_prob(i)
@@ -376,11 +331,8 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         def compute_component_log_prob(i: int) -> jax.Array:
             component = self.components[i]
             inv_map = self._inverse_vocab_maps[i]
-            # Map global observations to local
             local_obs = inv_map[observations]
-            # Check if all observations are valid for this component
             all_valid = jnp.all(local_obs >= 0)
-            # Compute log probability (-inf if any obs invalid)
             log_prob = jax.lax.cond(
                 all_valid,
                 lambda lo: component.log_probability(lo),
@@ -389,7 +341,6 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             )
             return jnp.log(self.component_weights[i]) + log_prob
 
-        # Combine via logsumexp
         log_probs = jnp.array([compute_component_log_prob(i) for i in range(len(self.components))])
         return jax.nn.logsumexp(log_probs)
 
@@ -412,6 +363,11 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         we implement generation directly using jax.lax.scan over emit_observation
         and transition_states.
 
+        Because jax.lax.switch requires all branches to return the same shape, and
+        components may have different state types (HMM: flat array vs Factored: tuple
+        of arrays), we flatten each state to 1D, pad to a common max size for switch
+        compatibility, and unflatten back to native structures after processing.
+
         Args:
             state: Initial NonErgodicState with component_beliefs and component_states.
                 The batch dimension is handled by vmap.
@@ -426,54 +382,28 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         key1, key2 = jax.random.split(key)
         keys = jax.random.split(key2, sequence_len)
 
-        # 1. Sample which component to use for this entire sequence
         component_idx = jax.random.categorical(key1, jnp.log(state.component_beliefs))
 
-        # 2. Flatten and pad component states for jax.lax.switch compatibility
-        #
-        # jax.lax.switch requires all branches to return arrays of identical shape.
-        # But components can have different state structures:
-        #   - HMM/GHMM: flat array of shape [state_dim]
-        #   - FactoredGenerativeProcess: tuple of arrays (FactoredState)
-        #
-        # Our approach:
-        #   a) Save original state structures as templates (for unflattening later)
-        #   b) Flatten each state to 1D (handles both arrays and tuples)
-        #   c) Pad to a common max size
-        #   d) Inside switch: unpad + unflatten → call component → flatten + repad
-        #   e) After scan: unpad + unflatten to restore native structures
-        #
-        # Components never see the padding - they work with their native shapes.
         num_components = len(self.components)
-
-        # Store original structures as templates for restoring after processing
         state_templates = state.component_states
         flat_sizes = [_get_flat_size(s) for s in state_templates]
         max_flat_size = max(flat_sizes)
 
         def flatten_and_pad(s: ComponentState) -> jax.Array:
-            """Convert any state to padded 1D array for uniform shape in switch."""
             flat = _flatten_state(s)
             return jnp.pad(flat, (0, max_flat_size - flat.size))
 
         def unpad_and_unflatten(padded: jax.Array, original_size: int, template: ComponentState) -> ComponentState:
-            """Restore original state structure from padded 1D array."""
-            flat = padded[:original_size]
-            return _unflatten_state(flat, template)
+            return _unflatten_state(padded[:original_size], template)
 
         padded_states = tuple(flatten_and_pad(s) for s in state.component_states)
 
-        # 3. Generate sequence using scan, selecting component via switch at each step
         def gen_step_for_component(
             i: int, padded_state: jax.Array, step_key: chex.PRNGKey
         ) -> tuple[jax.Array, chex.Array]:
-            """Generate one observation from component i and update its state."""
-            # Unpad and unflatten to get native state structure
             real_state = unpad_and_unflatten(padded_state, flat_sizes[i], state_templates[i])
-            # Call component's methods with native state shapes
             local_obs = self.components[i].emit_observation(real_state, step_key)
             new_real_state = self.components[i].transition_states(real_state, local_obs)
-            # Flatten and repad for uniform shape in switch
             new_padded_state = flatten_and_pad(new_real_state)
             global_obs = self.vocab_maps[i][local_obs]
             return new_padded_state, global_obs
@@ -481,10 +411,8 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         def scan_step(
             carry: tuple[jax.Array, tuple[jax.Array, ...]], step_key: chex.PRNGKey
         ) -> tuple[tuple[jax.Array, tuple[jax.Array, ...]], chex.Array]:
-            """One generation step: emit from active component, update its state."""
             idx, padded_comp_states = carry
 
-            # Use switch to call the correct component's emit/transition
             def gen_from_i(i: int) -> tuple[jax.Array, chex.Array]:
                 return gen_step_for_component(i, padded_comp_states[i], step_key)
 
@@ -493,8 +421,6 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
                 [partial(gen_from_i, i) for i in range(num_components)],
             )
 
-            # Update only the active component's state, keep others unchanged
-            # Now all states have uniform shape, so cond works
             new_padded_comp_states = tuple(
                 jax.lax.cond(
                     idx == i,
@@ -506,32 +432,24 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
 
             return (idx, new_padded_comp_states), global_obs
 
-        # Run the scan over all timesteps with padded states
         init_carry = (component_idx, padded_states)
         (_, final_padded_states), observations = jax.lax.scan(scan_step, init_carry, keys)
 
-        # 4. Unpad and unflatten final states back to native structures
         final_comp_states = tuple(
             unpad_and_unflatten(final_padded_states[i], flat_sizes[i], state_templates[i])
             for i in range(num_components)
         )
 
-        # 5. Construct final state with one-hot beliefs
         one_hot_beliefs = jax.nn.one_hot(component_idx, len(self.components), dtype=self.component_weights.dtype)
 
         if return_all_states:
-            # Run inference pass to compute state trajectory
-            # This simulates what an observer would compute via Bayesian filtering
-            # on the generated sequence, starting from the original initial state.
             def inference_step(
                 carry_state: NonErgodicState, obs: chex.Array
             ) -> tuple[NonErgodicState, NonErgodicState]:
                 new_state = self.transition_states(carry_state, obs)
                 return new_state, carry_state
 
-            # Use original initial state for inference (not modified by generation)
             _, state_trajectory = jax.lax.scan(inference_step, state, observations)
-
             return state_trajectory, observations
         else:
             return NonErgodicState(
