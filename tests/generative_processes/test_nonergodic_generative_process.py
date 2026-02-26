@@ -472,7 +472,11 @@ class TestGenerateDataBatchWithFullHistory:
         )
 
         result = generate_data_batch_with_full_history(
-            batch_states, process, batch_size, seq_len, jax.random.PRNGKey(0),
+            batch_states,
+            process,
+            batch_size,
+            seq_len,
+            jax.random.PRNGKey(0),
         )
 
         belief_states = result["belief_states"]
@@ -505,7 +509,11 @@ class TestGenerateDataBatchWithFullHistory:
         )
 
         result = generate_data_batch_with_full_history(
-            batch_states, process, batch_size, seq_len, jax.random.PRNGKey(0),
+            batch_states,
+            process,
+            batch_size,
+            seq_len,
+            jax.random.PRNGKey(0),
             bos_token=bos_token,
         )
 

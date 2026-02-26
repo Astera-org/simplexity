@@ -443,6 +443,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         one_hot_beliefs = jax.nn.one_hot(component_idx, len(self.components), dtype=self.component_weights.dtype)
 
         if return_all_states:
+
             def inference_step(
                 carry_state: NonErgodicState, obs: chex.Array
             ) -> tuple[NonErgodicState, NonErgodicState]:
