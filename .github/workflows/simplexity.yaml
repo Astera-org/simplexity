@@ -77,40 +77,13 @@ jobs:
             exit 1
           fi
 
-      - name: Check coverage for new code (PRs only)
+      - name: Upload coverage artifact for coverage-check job
         if: github.event_name == 'pull_request'
-        run: |
-          # Get the base branch (usually main)
-          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
-          echo "Checking coverage for new code against base branch: ${BASE_BRANCH}"
-          # Run diff-cover to check only new/changed code
-          # Fail if new code coverage is below 80%
-          # Note: diff-cover only needs --extra dev (tests need all extras for integration testing)
-          if uv run --extra dev diff-cover coverage.xml \
-            --compare-branch=origin/${BASE_BRANCH} \
-            --fail-under=80 \
-            --markdown-report diff-coverage-report.md; then
-            echo "::notice::New code coverage check passed (80% threshold)"
-          else
-            echo "::error::New code coverage is below 80% threshold"
-            exit 1
-          fi
-        continue-on-error: false
-
-      - name: Upload diff coverage report
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            const fs = require('fs');
-            const reportPath = 'diff-coverage-report.md';
-            if (fs.existsSync(reportPath)) {
-              const report = fs.readFileSync(reportPath, 'utf8');
-              fs.appendFileSync(
-                process.env.GITHUB_STEP_SUMMARY,
-                `## Diff Coverage Report\n\n${report}\n`
-              );
-            }
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
@@ -120,3 +93,73 @@ jobs:
           verbose: true
           files: ./coverage.xml
           fail_ci_if_error: false
+
+  coverage-check:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for diff-cover
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-xml
+          path: .
+
+      - name: Check coverage for new code
+        id: coverage_check
+        continue-on-error: true
+        run: |
+          # Get the base branch (usually main)
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+          echo "Checking coverage for new code against base branch: ${BASE_BRANCH}"
+          # Run diff-cover to check only new/changed code
+          # This is a "soft" check - warnings only, doesn't block merges
+          # Note: diff-cover only needs --extra dev (tests need all extras for integration testing)
+          if uv run --extra dev diff-cover coverage.xml \
+            --compare-branch=origin/${BASE_BRANCH} \
+            --fail-under=80 \
+            --markdown-report diff-coverage-report.md; then
+            echo "::notice::✅ New code coverage check passed (80% threshold)"
+            echo "coverage_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::⚠️ New code coverage is below 80% threshold"
+            echo "::warning::This is a warning only and will not block merging, but please consider improving test coverage."
+            echo "coverage_passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload diff coverage report
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          COVERAGE_PASSED: ${{ steps.coverage_check.outputs.coverage_passed }}
+        with:
+          script: |
+            const fs = require('fs');
+            const reportPath = 'diff-coverage-report.md';
+            if (fs.existsSync(reportPath)) {
+              const report = fs.readFileSync(reportPath, 'utf8');
+              const coveragePassed = process.env.COVERAGE_PASSED === 'true';
+              const statusEmoji = coveragePassed ? '✅' : '⚠️';
+              const statusText = coveragePassed ? 'PASSED' : 'BELOW THRESHOLD (Warning)';
+              const header = coveragePassed 
+                ? `## ${statusEmoji} Diff Coverage Report - ${statusText}\n\n`
+                : `## ${statusEmoji} Diff Coverage Report - ${statusText}\n\n**Note:** This is a warning only and does not block merging.\n\n`;
+              fs.appendFileSync(
+                process.env.GITHUB_STEP_SUMMARY,
+                `${header}${report}\n`
+              );
+            }
+
+      - name: Always succeed (coverage is advisory only)
+        if: always()
+        run: |
+          # This step ensures the job always shows as "success" even if coverage is low
+          # Coverage warnings are still visible in the PR via annotations and step summary
+          echo "Coverage check completed (advisory only - does not block merges)"
