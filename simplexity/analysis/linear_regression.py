@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import itertools
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import jax
@@ -216,17 +216,6 @@ def _process_individual_factors(
         factor_scalars, factor_arrays = regression_fn(layer_activations, factor, weights, **kwargs)
         results.append((factor_scalars, factor_arrays))
     return results
-
-
-def _merge_results_with_prefix(
-    scalars: dict[str, float],
-    arrays: dict[str, jax.Array],
-    results: tuple[Mapping[str, float], Mapping[str, jax.Array]],
-    prefix: str,
-) -> None:
-    results_scalars, results_arrays = results
-    scalars.update({f"{prefix}/{key}": value for key, value in results_scalars.items()})
-    arrays.update({f"{prefix}/{key}": value for key, value in results_arrays.items()})
 
 
 def _merge_results_with_suffix(
@@ -450,34 +439,6 @@ def _handle_factored_regression(
             new_key = f"orth/{metric}/F{factors}"
             arrays.update({new_key: value})
     return scalars, arrays
-
-
-def _apply_layer_regression(
-    regression_fn: Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]],
-    layer_activations: jax.Array,
-    weights: jax.Array,
-    belief_states: jax.Array | tuple[jax.Array, ...],
-    to_factors: bool,
-    **kwargs: Any,
-) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Apply a regression function, optionally per-factor."""
-    if to_factors:
-        scalars: dict[str, float] = {}
-        arrays: dict[str, jax.Array] = {}
-        if not isinstance(belief_states, tuple):
-            raise ValueError("belief_states must be a tuple when to_factors is True")
-        for factor_idx, factor in enumerate(belief_states):
-            if not isinstance(factor, jax.Array):
-                raise ValueError("Each factor in belief_states must be a jax.Array")
-            factor_scalars, factor_arrays = regression_fn(layer_activations, factor, weights, **kwargs)
-            for key, value in factor_scalars.items():
-                scalars[f"factor_{factor_idx}/{key}"] = value
-            for key, value in factor_arrays.items():
-                arrays[f"factor_{factor_idx}/{key}"] = value
-        return scalars, arrays
-    else:
-        targets = jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
-        return regression_fn(layer_activations, targets, weights, **kwargs)
 
 
 def layer_linear_regression(
