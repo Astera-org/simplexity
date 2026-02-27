@@ -481,6 +481,24 @@ def river() -> jax.Array:
         ]
     )
 
+def flake(x: float) -> jax.Array:
+    """Creates a transition matrix for the Flake Process."""
+    assert 0 <= x <= 1
+    return jnp.array(
+        [
+            [
+                [1 / 32, 3 / 32, 3 / 8],
+                [3 * x / 4, 1 / 16, 1 / 32],
+                [1 / 32, 3 / 8, 1 / 8],
+            ],
+            [
+                [3 / 32, 1 / 32, 3 / 8],
+                [3 * (1 - x) / 4, 1 / 16, 3 / 32],
+                [3 / 32, 3 / 8, 0],
+            ],
+        ]
+    )
+
 
 HMM_MATRIX_FUNCTIONS = {
     "coin": coin,
@@ -500,6 +518,7 @@ HMM_MATRIX_FUNCTIONS = {
     "random_random_random": random_random_random,
     "leaky_random_random_random": leaky_random_random_random,
     "river": river,
+    "flake": flake,
 }
 
 GHMM_MATRIX_FUNCTIONS = HMM_MATRIX_FUNCTIONS | {
