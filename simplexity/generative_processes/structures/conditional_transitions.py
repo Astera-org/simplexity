@@ -16,12 +16,9 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from simplexity.generative_processes.structures.indexing import build_other_factor_multipliers, flatten_index
 from simplexity.generative_processes.structures.protocol import ConditionalContext
-from simplexity.utils.factoring_utils import (
-    compute_obs_dist_for_variant,
-    compute_other_multipliers,
-    compute_prefix_multipliers,
-)
+from simplexity.utils.factoring_utils import compute_obs_dist_for_variant
 
 
 class ConditionalTransitions(eqx.Module):
@@ -63,13 +60,28 @@ class ConditionalTransitions(eqx.Module):
         self.emission_control_maps = tuple(ecm_list)
         self.use_emission_chain = bool(use_chain)
 
-        self.other_multipliers = compute_other_multipliers(self.vocab_sizes_py)
-        self.prefix_multipliers = compute_prefix_multipliers(self.vocab_sizes_py)
+        # Precompute multipliers for other-factor indexing (for transitions)
+        self.other_multipliers = build_other_factor_multipliers(self.vocab_sizes_py)
+
+        # Precompute multipliers for prefix indexing (for sequential emissions)
+        prefix_multipliers: list[jax.Array] = []
+        for i in range(num_factors):
+            pmult = []
+            for j in range(num_factors):
+                if j >= i:
+                    pmult.append(0)  # Unused
+                else:
+                    m = 1
+                    for k in range(j + 1, i):
+                        m *= self.vocab_sizes_py[k]
+                    pmult.append(m)
+            prefix_multipliers.append(jnp.array(pmult))
+        self.prefix_multipliers = tuple(prefix_multipliers)
 
     def _flatten_other_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
         """Flatten other-factor tokens to transition control map index."""
         mult = self.other_multipliers[i]
-        return jnp.sum(tokens * mult)
+        return flatten_index(tokens, mult)
 
     def _flatten_prev_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
         """Flatten prefix tokens to emission control map index."""
