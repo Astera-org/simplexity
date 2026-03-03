@@ -256,14 +256,13 @@ def test_linear_regression_svd_rejects_false_use_svd() -> None:
         validator({"use_svd": False})
 
 
-def test_linear_regression_svd_excludes_use_svd_from_output() -> None:
-    """linear_regression_svd validator should not include use_svd in resolved kwargs."""
+def test_linear_regression_svd_includes_use_svd_in_output() -> None:
+    """linear_regression_svd validator should include use_svd=True in resolved kwargs."""
 
     validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
     params = validator({"rcond_values": [1e-3]})
 
-    # use_svd should not be in the output since it's already bound in the partial
-    assert "use_svd" not in params
+    assert params["use_svd"] is True
     assert params["rcond_values"] == (0.001,)
 
 

@@ -89,7 +89,6 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-# Delay between starting jobs to avoid initialization race conditions
 JOB_START_DELAY_SECONDS = 5
 
 
@@ -153,7 +152,6 @@ def load_sweep_file(path: str) -> list[str]:
     cfg = OmegaConf.load(path)
     sweeps = []
     for key, values in cfg.items():
-        # Convert OmegaConf types to Python types
         values = OmegaConf.to_object(values) if OmegaConf.is_config(values) else values
         if isinstance(values, (list, tuple)):
             values_str = ",".join(str(v) for v in values)
@@ -202,8 +200,6 @@ def generate_jobs(
 ) -> list[Job]:
     """Generate a list of jobs from sweep parameters and device configuration.
 
-    This is a pure function with no side effects, making it trivially testable.
-
     Args:
         script: Path to the Python script to run.
         config_name: Hydra config name.
@@ -239,9 +235,7 @@ def generate_jobs(
 
 
 def _run_single_job(job: Job) -> dict:
-    """Run a single experiment job.
-
-    This is an internal function called by dispatch_jobs via ProcessPoolExecutor.
+    """Run a single experiment job in a subprocess.
 
     Args:
         job: The Job to execute.
@@ -394,7 +388,6 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Determine devices (GPUs or CPU workers)
     gpus: list[int] | None = None
     n_workers: int = 0
     device_desc: str = ""
@@ -420,7 +413,6 @@ def main() -> None:
             "  simplexity-multirun run.py -c config --cpu --workers 4 --sweep 'seed=1,2,3,4'"
         )
 
-    # Phase 1: Generate jobs (pure, no I/O except sweep file loading)
     all_sweeps = list(args.sweep)
     if args.sweep_file:
         all_sweeps.extend(load_sweep_file(args.sweep_file))
@@ -440,16 +432,13 @@ def main() -> None:
     print(f"Max parallel: {max_parallel}")
     print()
 
-    # Handle dry-run: print commands and exit before dispatch
     if args.dry_run:
         for job in jobs:
             print(f"[Job {job.job_num}] {job.device_str}: {' '.join(job.to_cmd())}")
         return
 
-    # Phase 2: Dispatch jobs (handles all subprocess/parallelism complexity)
     results = dispatch_jobs(jobs, max_parallel)
 
-    # Summary
     print()
     print("=" * 60)
     successes = sum(1 for r in results if r["status"] == "success")

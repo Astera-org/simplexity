@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import itertools
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import jax
@@ -45,8 +45,6 @@ def _regression_metrics(
     r2 = 1.0 - (weighted_ss_res / float(weighted_ss_tot)) if float(weighted_ss_tot) > 0 else 0.0
     dists = jnp.sqrt(jnp.sum(residuals**2, axis=1))
     dist = float(jnp.sum(dists * weights))
-    # RMSE and MAE are returned as means over target dimensions
-    # rather than sums to keep consistent with R²
     return {
         "r2": float(r2),
         "rmse": float(rmse.mean()),
@@ -80,19 +78,18 @@ def linear_regression(
     predictions = design @ beta
     scalars = _regression_metrics(predictions, y_arr, w_arr)
 
-    # Separate intercept and coefficients
     if fit_intercept:
         arrays = {
             "projected": predictions,
             "targets": y_arr,
-            "coeffs": beta[1:],  # Linear coefficients (excluding intercept)
-            "intercept": beta[:1],  # Intercept term (keep 2D: [1, n_targets])
+            "coeffs": beta[1:],
+            "intercept": beta[:1],
         }
     else:
         arrays = {
             "projected": predictions,
             "targets": y_arr,
-            "coeffs": beta,  # All parameters are coefficients when no intercept
+            "coeffs": beta,
         }
 
     return scalars, arrays
@@ -180,24 +177,24 @@ def linear_regression_svd(
             best_scalars = scalars
             best_rcond = rcond
             best_beta = beta
-    if best_pred is None or best_scalars is None or best_beta is None:
-        raise RuntimeError("Unable to compute linear regression solution")
+    assert best_pred is not None
+    assert best_scalars is not None
+    assert best_beta is not None
     scalars = dict(best_scalars)
     scalars["best_rcond"] = float(best_rcond)
 
-    # Separate intercept and coefficients
     if fit_intercept:
         arrays = {
             "projected": best_pred,
             "targets": y_arr,
-            "coeffs": best_beta[1:],  # Linear coefficients (excluding intercept)
-            "intercept": best_beta[:1],  # Intercept term (keep 2D: [1, n_targets])
+            "coeffs": best_beta[1:],
+            "intercept": best_beta[:1],
         }
     else:
         arrays = {
             "projected": best_pred,
             "targets": y_arr,
-            "coeffs": best_beta,  # All parameters are coefficients when no intercept
+            "coeffs": best_beta,
         }
 
     return scalars, arrays
@@ -219,17 +216,6 @@ def _process_individual_factors(
         factor_scalars, factor_arrays = regression_fn(layer_activations, factor, weights, **kwargs)
         results.append((factor_scalars, factor_arrays))
     return results
-
-
-def _merge_results_with_prefix(
-    scalars: dict[str, float],
-    arrays: dict[str, jax.Array],
-    results: tuple[Mapping[str, float], Mapping[str, jax.Array]],
-    prefix: str,
-) -> None:
-    results_scalars, results_arrays = results
-    scalars.update({f"{prefix}/{key}": value for key, value in results_scalars.items()})
-    arrays.update({f"{prefix}/{key}": value for key, value in results_arrays.items()})
 
 
 def _merge_results_with_suffix(
@@ -300,7 +286,7 @@ def _split_concat_results(
 
 
 def get_robust_basis(matrix: jax.Array) -> jax.Array:
-    """Extracts an orthonormal basis for the column space of the matrx.
+    """Extracts an orthonormal basis for the column space of the matrix.
 
     Handles rank deficiency gracefully by discarding directions associated with singular values below a
     certain tolerance.
@@ -321,20 +307,7 @@ def _compute_subspace_orthogonality(
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
     """Compute orthogonality metrics between two coefficient subspaces.
 
-    Args:
-        basis_pair: List of two orthonormal basis matrices
-
-    Returns:
-        Tuple[dict[str, float], dict[str, jax.Array]]: A tuple containing:
-            - scalars: A dictionary with the following keys and float values:
-                - 'subspace_overlap': Average squared singular value (overlap score).
-                - 'max_singular_value': Largest singular value.
-                - 'min_singular_value': Smallest singular value.
-                - 'participation_ratio': Participation ratio of the singular values.
-                - 'entropy': Entropy of the squared singular values.
-                - 'effective_rank': Effective rank (exp(entropy)) of the singular value distribution.
-            - singular_values: A dictionary with a single key:
-                - 'singular_values': jax.Array of the singular values between the two subspaces.
+    Returns dict keys: overlap, sv_max, sv_min, p_ratio, entropy, eff_rank, singular_values.
     """
     q1 = basis_pair[0]
     q2 = basis_pair[1]
@@ -351,27 +324,20 @@ def _compute_subspace_orthogonality(
 
     is_degenerate = sum_quad_sv == 0
 
-    # Define the False branch function (does nothing)
-    def do_nothing_branch(x):
-        """JAX 'False' branch function.
-
-        Serves only to return a value that matches the 'True' branch's type (None) for jax.lax.cond.
-        """
-        return None
-
-    # Define the True branch function (runs the callback)
-    def execute_all_zeros_warning_branch(x):
-        callback(log_all_zeros, x)
-        return None
-
-    def log_all_zeros(_):
-        SIMPLEXITY_LOGGER.warning(
-            "Degenerate subspace detected during orthogonality computation."
-            " All singular values are zero."
-            " Setting probability values and participation ratio to zero."
-        )
-
-    jax.lax.cond(is_degenerate, execute_all_zeros_warning_branch, do_nothing_branch, sum_sq_sv)
+    def _warn_subspace_issues(sum_quad: jax.Array, num_zero_probs: jax.Array) -> None:
+        if sum_quad.item() == 0:
+            SIMPLEXITY_LOGGER.warning(
+                "Degenerate subspace detected during orthogonality computation."
+                " All singular values are zero."
+                " Setting probability values and participation ratio to zero."
+            )
+        if num_zero_probs.item() > 0:
+            SIMPLEXITY_LOGGER.warning(
+                "Encountered %d probability values of zero during entropy computation."
+                " This is likely due to numerical instability."
+                " Setting corresponding entropy contribution to zero.",
+                num_zero_probs.item(),
+            )
 
     pratio_denominator_safe = jnp.where(is_degenerate, 1.0, sum_quad_sv)
     probs_denominator_safe = jnp.where(is_degenerate, 1.0, sum_sq_sv)
@@ -379,24 +345,10 @@ def _compute_subspace_orthogonality(
 
     subspace_overlap_score = sum_sq_sv / min_dim
 
-    # Compute the entropy probabilities
     probs = singular_values**2 / probs_denominator_safe
-
-    def execute_some_zeros_warning_branch(x):
-        callback(log_some_zeros, x)
-        return None
-
-    def log_some_zeros(num_zeros_array: jax.Array) -> None:
-        num_zeros = num_zeros_array.item()
-        SIMPLEXITY_LOGGER.warning(
-            f"Encountered {num_zeros} probability values of zero during entropy computation."
-            " This is likely due to numerical instability."
-            " Setting corresponding entropy contribution to zero."
-        )
-
     num_zeros = jnp.sum(probs == 0)
-    has_some_zeros = num_zeros > 0
-    jax.lax.cond(has_some_zeros, execute_some_zeros_warning_branch, do_nothing_branch, num_zeros)
+
+    callback(_warn_subspace_issues, sum_quad_sv, num_zeros)
 
     p_log_p = probs * jnp.log(probs)
     entropy = -jnp.sum(jnp.where(probs > 0, p_log_p, 0.0))
@@ -423,18 +375,7 @@ def _compute_subspace_orthogonality(
 def _compute_all_pairwise_orthogonality(
     coeffs_list: list[jax.Array],
 ) -> tuple[dict[str, float], dict[str, jax.Array]]:
-    """Compute pairwise orthogonality metrics for all factor pairs.
-
-    Args:
-        coeffs_list: List of coefficient matrices (one per factor, excludes intercepts)
-
-    Returns:
-        Tuple[dict[str, float], dict[str, jax.Array]]:
-            - scalars: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to scalar float metrics for
-            each pair of factors (i, j).
-            - arrays: Dictionary mapping keys of the form "orthogonality_{i}_{j}/<metric>" to array-valued
-            metrics for each pair of factors (i, j).
-    """
+    """Compute pairwise orthogonality metrics for all factor pairs."""
     scalars = {}
     arrays = {}
     factor_pairs = list(itertools.combinations(range(len(coeffs_list)), 2))
@@ -500,34 +441,6 @@ def _handle_factored_regression(
     return scalars, arrays
 
 
-def _apply_layer_regression(
-    regression_fn: Callable[..., tuple[Mapping[str, float], Mapping[str, jax.Array]]],
-    layer_activations: jax.Array,
-    weights: jax.Array,
-    belief_states: jax.Array | tuple[jax.Array, ...],
-    to_factors: bool,
-    **kwargs: Any,
-) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Apply a regression function, optionally per-factor."""
-    if to_factors:
-        scalars: dict[str, float] = {}
-        arrays: dict[str, jax.Array] = {}
-        if not isinstance(belief_states, tuple):
-            raise ValueError("belief_states must be a tuple when to_factors is True")
-        for factor_idx, factor in enumerate(belief_states):
-            if not isinstance(factor, jax.Array):
-                raise ValueError("Each factor in belief_states must be a jax.Array")
-            factor_scalars, factor_arrays = regression_fn(layer_activations, factor, weights, **kwargs)
-            for key, value in factor_scalars.items():
-                scalars[f"factor_{factor_idx}/{key}"] = value
-            for key, value in factor_arrays.items():
-                arrays[f"factor_{factor_idx}/{key}"] = value
-        return scalars, arrays
-    else:
-        targets = jnp.concatenate(belief_states, axis=-1) if isinstance(belief_states, tuple) else belief_states
-        return regression_fn(layer_activations, targets, weights, **kwargs)
-
-
 def layer_linear_regression(
     layer_activations: jax.Array,
     weights: jax.Array,
@@ -537,21 +450,7 @@ def layer_linear_regression(
     use_svd: bool = False,
     **kwargs: Any,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Layer-wise regression helper that wraps :func:`linear_regression` or :func:`linear_regression_svd`.
-
-    Args:
-        layer_activations: Neural network activations for a single layer
-        weights: Sample weights for weighted regression
-        belief_states: Target belief states (single array or tuple for factored processes)
-        concat_belief_states: If True and belief_states is a tuple, concatenate and regress jointly
-        compute_subspace_orthogonality: If True, compute orthogonality between factor subspaces
-        use_svd: If True, use SVD-based regression instead of standard least squares
-        **kwargs: Additional arguments passed to regression function (fit_intercept, rcond_values, etc.)
-
-    Returns:
-        scalars: Dictionary of scalar metrics
-        arrays: Dictionary of arrays (projected predictions, parameters, singular values if orthogonality computed)
-    """
+    """Layer-wise regression helper that wraps linear_regression or linear_regression_svd."""
     # If no belief states are provided, raise an error
     if (
         belief_states is None

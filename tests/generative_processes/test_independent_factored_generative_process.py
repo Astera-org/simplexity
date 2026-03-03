@@ -1,5 +1,7 @@
 """Tests for IndependentFactoredGenerativeProcess."""
 
+import logging
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -321,13 +323,16 @@ class TestValidation:
             vocab_sizes=jnp.array([2, 2], dtype=jnp.int32),
         )
 
-        IndependentFactoredGenerativeProcess(
-            component_types=component_types,
-            transition_matrices=transition_matrices,
-            normalizing_eigenvectors=normalizing_eigenvectors,
-            initial_states=initial_states,
-            structure=structure,
-        )
+        logger = logging.getLogger("simplexity")
+        with caplog.at_level(logging.WARNING, logger=logger.name):
+            logger.propagate = True
+            IndependentFactoredGenerativeProcess(
+                component_types=component_types,
+                transition_matrices=transition_matrices,
+                normalizing_eigenvectors=normalizing_eigenvectors,
+                initial_states=initial_states,
+                structure=structure,
+            )
 
         assert "IndependentFactoredGenerativeProcess is designed for IndependentStructure" in caplog.text
 

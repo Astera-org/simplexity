@@ -12,7 +12,6 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any
 
 import hydra
@@ -119,8 +118,6 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     activation_tracker = components.get_activation_tracker()
     assert activation_tracker is not None
 
-    visualization_path = TemporaryDirectory()
-
     gen_states = _expand_init_state(
         generative_process.initial_state,
         cfg.training.batch_size,
@@ -207,18 +204,12 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
         assert isinstance(prefix_probs, (jax.Array, torch.Tensor))
         _, act_cache = predictive_model.run_with_cache(inputs)
         act_cache = {k: v.detach().cpu() for k, v in act_cache.items() if "resid" in k}
-        scalars, _, visualizations = activation_tracker.analyze(
+        scalars, _ = activation_tracker.analyze(
             inputs=inputs,
             beliefs=outs["belief_states"],
             probs=prefix_probs,
             activations=act_cache,
-            step=step,
         )
-        visualization_paths = activation_tracker.save_visualizations(
-            visualizations, Path(visualization_path.name), step
-        )
-        for key, path in visualization_paths.items():
-            logger.log_artifact(str(path), artifact_path=f"activation_plots/{key.split('/')[0]}")
         scalars = add_key_prefix(dict(scalars), "activations")
         logger.log_metrics(step, scalars)
 
@@ -248,8 +239,6 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
     # TODO(https://github.com/Astera-org/simplexity/issues/125): This is a hack
     step += 1  # pyright: ignore[reportPossiblyUnboundVariable]
     persister.save_model_to_registry(predictive_model, registered_model_name, model_inputs=sample_inputs, step=step)
-
-    visualization_path.cleanup()
 
 
 if __name__ == "__main__":

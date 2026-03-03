@@ -23,9 +23,9 @@ PRs targeting `dev` must meet the following criteria:
 - Avoid patterns that will require breaking changes later
 
 **Static Analysis**
-- Strive to pass formatting (`black`, `ruff format`, or equivalent)
-- Strive to pass linting (`ruff`, `flake8`, or equivalent)
-- Strive to pass type checking (`pyright`, `mypy`, or equivalent)
+- Strive to pass formatting (`ruff format`)
+- Strive to pass linting (`ruff`)
+- Strive to pass type checking (`pyright`)
 - Minor violations may be accepted with justification
 
 ### Merging into `main`
@@ -51,12 +51,12 @@ PRs targeting `main` must meet all `dev` requirements plus:
 
 ### Before Opening a PR
 
-1. Run the test suite locally: `pytest`
+1. Run the test suite locally: `uv run --extra dev --extra pytorch pytest`
 2. Run static checks:
    ```bash
-   ruff format --check .
-   ruff check .
-   pyright
+   uv run --extra dev ruff format --check .
+   uv run --extra dev ruff check .
+   uv run --extra dev --extra pytorch pyright
    ```
 3. Ensure your branch is up to date with the target branch
 

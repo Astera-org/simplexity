@@ -81,6 +81,61 @@ def transition_with_obs(
         return new_state / (new_state @ normalizing_eigenvector)
 
 
+def _radix_multipliers(vs: jax.Array) -> jax.Array:
+    """Compute radix multipliers for an array of vocab sizes."""
+    suffixes = jnp.cumprod(vs[::-1])[::-1]
+    return suffixes // vs
+
+
+def compute_other_multipliers(vocab_sizes: tuple[int, ...]) -> tuple[jax.Array, ...]:
+    """Compute radix multipliers for other-factor indexing.
+
+    For each factor i, computes the radix multipliers over all other factors,
+    with a zero inserted at position i.
+
+    Args:
+        vocab_sizes: Tuple of vocabulary sizes, one per factor.
+
+    Returns:
+        Tuple of arrays, one per factor, each of shape [num_factors].
+    """
+    vs = jnp.array(vocab_sizes)
+    num_factors = len(vocab_sizes)
+    result = []
+    for i in range(num_factors):
+        other_vs = jnp.concatenate([vs[:i], vs[i + 1 :]])
+        if len(other_vs) == 0:
+            result.append(jnp.zeros(num_factors, dtype=jnp.int32))
+        else:
+            mults = _radix_multipliers(other_vs)
+            result.append(jnp.concatenate([mults[:i], jnp.array([0]), mults[i:]]))
+    return tuple(result)
+
+
+def compute_prefix_multipliers(vocab_sizes: tuple[int, ...]) -> tuple[jax.Array, ...]:
+    """Compute radix multipliers for prefix-factor indexing.
+
+    For each factor i, computes the radix multipliers over factors [0, i),
+    padded with zeros for the remaining positions.
+
+    Args:
+        vocab_sizes: Tuple of vocabulary sizes, one per factor.
+
+    Returns:
+        Tuple of arrays, one per factor, each of shape [num_factors].
+    """
+    vs = jnp.array(vocab_sizes)
+    num_factors = len(vocab_sizes)
+    result = []
+    for i in range(num_factors):
+        if i == 0:
+            result.append(jnp.zeros(num_factors, dtype=jnp.int32))
+        else:
+            mults = _radix_multipliers(vs[:i])
+            result.append(jnp.concatenate([mults, jnp.zeros(num_factors - i, dtype=jnp.int32)]))
+    return tuple(result)
+
+
 class TokenEncoder(eqx.Module):
     """Encodes/decodes composite observations from per-factor tokens.
 
@@ -103,16 +158,7 @@ class TokenEncoder(eqx.Module):
             vocab_sizes: Array of shape [F] with vocabulary size per factor
         """
         self.vocab_sizes = jnp.asarray(vocab_sizes)
-
-        # Compute radix multipliers
-        f = len(vocab_sizes)
-        multipliers = []
-        for i in range(f):
-            m = 1
-            for j in range(i + 1, f):
-                m *= int(vocab_sizes[j])
-            multipliers.append(m)
-        self.radix_multipliers = jnp.array(multipliers)
+        self.radix_multipliers = _radix_multipliers(self.vocab_sizes)
 
     @property
     def num_factors(self) -> int:
