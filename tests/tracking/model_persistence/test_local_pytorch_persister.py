@@ -5,7 +5,9 @@ from pathlib import Path
 import torch
 from torch.nn import GRU, Embedding, Linear, Module
 
-from simplexity.persistence.local_pytorch_persister import LocalPytorchPersister
+from simplexity.tracking.model_persistence.local_pytorch_persister import (
+    LocalPytorchPersister,
+)
 
 
 class SimpleLM(Module):

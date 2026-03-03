@@ -91,26 +91,26 @@ class TestBaseConfig:
 
     def test_validate_base_config_invalid_mlflow(self) -> None:
         """Test validate_base_config with invalid mlflow."""
-        # Non-MLFlowConfig mlflow
-        cfg = DictConfig({"mlflow": "not an MLFlowConfig"})
-        with pytest.raises(ConfigValidationError, match="BaseConfig.mlflow must be a MLFlowConfig"):
+        # Non-MlflowConfig mlflow
+        cfg = DictConfig({"mlflow": "not an MlflowConfig"})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.mlflow must be a MlflowConfig"):
             validate_base_config(cfg)
 
-        # MLFlowConfig with empty experiment_name (whitespace)
+        # MlflowConfig with empty experiment_name (whitespace)
         cfg = DictConfig({"mlflow": DictConfig({"experiment_name": "  "})})
-        with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
+        with pytest.raises(ConfigValidationError, match="MlflowConfig.experiment_name must be a non-empty string"):
             validate_base_config(cfg)
 
     def test_validate_base_config_propagates_mlflow_errors(self) -> None:
         """Test that MLflow validation errors propagate correctly."""
         # Invalid tracking_uri scheme
         cfg = DictConfig({"mlflow": DictConfig({"tracking_uri": "relative/path"})})
-        with pytest.raises(ConfigValidationError, match="MLFlowConfig.tracking_uri must have a valid URI scheme"):
+        with pytest.raises(ConfigValidationError, match="MlflowConfig.tracking_uri must have a valid URI scheme"):
             validate_base_config(cfg)
 
         # Empty experiment_name
         cfg = DictConfig({"mlflow": DictConfig({"experiment_name": "  "})})
-        with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
+        with pytest.raises(ConfigValidationError, match="MlflowConfig.experiment_name must be a non-empty string"):
             validate_base_config(cfg)
 
     def test_resolve_base_config(self) -> None:

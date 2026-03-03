@@ -1,4 +1,4 @@
-"""Tests for MLFlowConfig validation.
+"""Tests for MlflowConfig validation.
 
 This module contains tests for MLFlow configuration validation, including
 validation of experiment_name, run_name, tracking_uri, registry_uri, and
@@ -18,15 +18,15 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
-from simplexity.structured_configs.mlflow import MLFlowConfig, validate_mlflow_config
+from simplexity.structured_configs.mlflow import MlflowConfig, validate_mlflow_config
 
 
-class TestMLFlowConfig:
-    """Test MLFlowConfig."""
+class TestMlflowConfig:
+    """Test MlflowConfig."""
 
     def test_mlflow_config(self) -> None:
         """Test creating mlflow config from dataclass."""
-        cfg: DictConfig = OmegaConf.structured(MLFlowConfig(experiment_name="some_experiment", run_name="some_run"))
+        cfg: DictConfig = OmegaConf.structured(MlflowConfig(experiment_name="some_experiment", run_name="some_run"))
         assert cfg.get("experiment_name") == "some_experiment"
         assert cfg.get("run_name") == "some_run"
         assert cfg.get("tracking_uri") is None
@@ -63,7 +63,7 @@ class TestMLFlowConfig:
                 "downgrade_unity_catalog": "not_a_bool",
             }
         )
-        with pytest.raises(ConfigValidationError, match="MLFlowConfig.downgrade_unity_catalog must be a bool"):
+        with pytest.raises(ConfigValidationError, match="MlflowConfig.downgrade_unity_catalog must be a bool"):
             validate_mlflow_config(cfg)
 
     @pytest.mark.parametrize("uri_type", ["tracking_uri", "registry_uri"])
@@ -77,7 +77,7 @@ class TestMLFlowConfig:
                 uri_type: "  ",
             }
         )
-        with pytest.raises(ConfigValidationError, match=f"MLFlowConfig.{uri_type} cannot be empty"):
+        with pytest.raises(ConfigValidationError, match=f"MlflowConfig.{uri_type} cannot be empty"):
             validate_mlflow_config(cfg)
 
         # parse error (urlparse raises an exception)
@@ -88,7 +88,7 @@ class TestMLFlowConfig:
                 uri_type: "%parse_error%",
             }
         )
-        with pytest.raises(ConfigValidationError, match=f"MLFlowConfig.{uri_type} is not a valid URI"):
+        with pytest.raises(ConfigValidationError, match=f"MlflowConfig.{uri_type} is not a valid URI"):
             validate_mlflow_config(cfg)
 
         # missing scheme
@@ -99,5 +99,5 @@ class TestMLFlowConfig:
                 uri_type: "no_scheme",
             }
         )
-        with pytest.raises(ConfigValidationError, match=f"MLFlowConfig.{uri_type} must have a valid URI scheme"):
+        with pytest.raises(ConfigValidationError, match=f"MlflowConfig.{uri_type} must have a valid URI scheme"):
             validate_mlflow_config(cfg)

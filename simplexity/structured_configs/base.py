@@ -15,7 +15,7 @@ from omegaconf import DictConfig
 
 from simplexity.exceptions import ConfigValidationError
 from simplexity.logger import SIMPLEXITY_LOGGER
-from simplexity.structured_configs.mlflow import MLFlowConfig, validate_mlflow_config
+from simplexity.structured_configs.mlflow import MlflowConfig, validate_mlflow_config
 from simplexity.structured_configs.validation import validate_mapping, validate_non_negative_int, validate_nonempty_str
 from simplexity.utils.config_utils import dynamic_resolve
 
@@ -27,7 +27,7 @@ class BaseConfig:
     device: str | None = None
     seed: int | None = None
     tags: dict[str, str] | None = None
-    mlflow: MLFlowConfig | None = None
+    mlflow: MlflowConfig | None = None
 
 
 def validate_base_config(cfg: DictConfig) -> None:
@@ -49,7 +49,7 @@ def validate_base_config(cfg: DictConfig) -> None:
     validate_mapping(tags, "BaseConfig.tags", key_type=str, value_type=str, is_none_allowed=True)
     if mlflow is not None:
         if not isinstance(mlflow, DictConfig):
-            raise ConfigValidationError("BaseConfig.mlflow must be a MLFlowConfig")
+            raise ConfigValidationError("BaseConfig.mlflow must be a MlflowConfig")
         validate_mlflow_config(mlflow)
 
 

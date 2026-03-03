@@ -1,6 +1,6 @@
-name: mlflow_logger
+name: mlflow_tracker
 instance:
-  _target_: simplexity.logging.mlflow_logger.MLFlowLogger
+  _target_: simplexity.tracking.mlflow_tracker.MlflowTracker
   experiment_name:
   run_name:
   tracking_uri:

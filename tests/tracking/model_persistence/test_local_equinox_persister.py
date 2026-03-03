@@ -7,7 +7,9 @@ import equinox as eqx
 import jax
 import pytest
 
-from simplexity.persistence.local_equinox_persister import LocalEquinoxPersister
+from simplexity.tracking.model_persistence.local_equinox_persister import (
+    LocalEquinoxPersister,
+)
 
 
 def get_model(seed: int) -> eqx.Module:
