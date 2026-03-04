@@ -1,0 +1,8 @@
+defaults:
+  - _self_
+  - group_a: subconfig_a1
+  - group_b: subconfig_b1
+
+key: 1
+dict:
+  subkey: 10

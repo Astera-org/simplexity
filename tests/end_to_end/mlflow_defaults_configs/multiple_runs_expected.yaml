@@ -1,0 +1,38 @@
+old_model_1:
+  key: 1
+  dict:
+    subkey: 10
+  group_a:
+    a_key: 1
+    a_dict:
+      a_subkey: 10
+  group_b:
+    b_key: 1
+    b_dict:
+      b_subkey: 10
+old_model_2:
+  key: 2
+  dict:
+    subkey: 20
+  group_a:
+    a_key: 2
+    a_dict:
+      a_subkey: 20
+  group_b:
+    b_key: 2
+    b_dict:
+      b_subkey: 20
+load_source_1:
+  experiment_name: test_mlflow_defaults
+  run_name: prev_run_1
+  tracking_uri: sqlite:///mlflow.db  # placeholder
+  registry_uri: null
+  experiment_id: "1"  # placeholder
+  run_id: "00000000000000000000000000000000"  # placeholder
+load_source_2:
+  experiment_name: test_mlflow_defaults
+  run_name: prev_run_2
+  tracking_uri: sqlite:///mlflow.db  # placeholder
+  registry_uri: null
+  experiment_id: "1"  # placeholder
+  run_id: "00000000000000000000000000000000"  # placeholder

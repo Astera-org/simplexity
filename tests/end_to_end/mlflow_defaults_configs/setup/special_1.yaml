@@ -1,0 +1,11 @@
+key: 3
+dict:
+  subkey: 30
+group_a:
+  a_key: 3
+  a_dict:
+    a_subkey: 30
+group_b:
+  b_key: 3
+  b_dict:
+    b_subkey: 30

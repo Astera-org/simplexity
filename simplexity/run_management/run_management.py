@@ -74,6 +74,7 @@ from simplexity.structured_configs.metric_tracker import (
     validate_metric_tracker_config,
 )
 from simplexity.structured_configs.mlflow import update_mlflow_config
+from simplexity.structured_configs.mlflow_defaults import load_mlflow_defaults
 from simplexity.structured_configs.optimizer import (
     is_optimizer_target,
     is_pytorch_optimizer_config,
@@ -724,6 +725,13 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
             components = Components()
             try:
                 cfg = get_config(args, kwargs)
+                cfg = load_mlflow_defaults(cfg)
+                if "cfg" in kwargs:
+                    kwargs["cfg"] = cfg
+                elif args and isinstance(args[0], DictConfig):
+                    args = (cfg, *args[1:])
+                else:
+                    kwargs["cfg"] = cfg
                 _setup_python_logging(cfg)
                 validate_base_config(cfg)
                 resolve_base_config(cfg, strict=strict)
