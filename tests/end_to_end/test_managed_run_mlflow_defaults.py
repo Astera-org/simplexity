@@ -43,6 +43,7 @@ def test_managed_run_loads_mlflow_defaults(setup_dir: Path) -> None:
 
     actual_container = OmegaConf.to_container(actual, resolve=True)
     actual_filtered = OmegaConf.create(actual_container)
+    assert isinstance(actual_filtered, DictConfig)
     for key in ("device", "seed", "tags"):
         if key in actual_filtered:
             del actual_filtered[key]
