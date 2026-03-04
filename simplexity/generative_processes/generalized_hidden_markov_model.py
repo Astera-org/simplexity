@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.generative_processes.noisy_channel import apply_noisy_channel
 from simplexity.generative_processes.transition_matrices import get_stationary_state
 from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.utils.jnp_utils import resolve_jax_device
@@ -42,7 +43,11 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         transition_matrices: jax.Array,
         initial_state: jax.Array | None = None,
         device: str | None = None,
+        noise_epsilon: float = 0.0,
     ):
+        if noise_epsilon > 0.0:
+            transition_matrices = apply_noisy_channel(transition_matrices, noise_epsilon)
+
         self.device = resolve_jax_device(device)
         self.validate_transition_matrices(transition_matrices)
 
@@ -87,9 +92,25 @@ class GeneralizedHiddenMarkovModel(GenerativeProcess[State]):
         self.log_normalizing_constant = jax.nn.logsumexp(self.log_initial_state + self.log_normalizing_eigenvector)
 
     def validate_transition_matrices(self, transition_matrices: jax.Array):
-        """Validate the transition matrices."""
+        """Validate the transition matrices.
+
+        For GHMM, transition matrices must be non-negative and the net transition
+        matrix T = sum_x T^(x) should have a dominant eigenvalue close to 1.
+        """
         if transition_matrices.ndim != 3 or transition_matrices.shape[1] != transition_matrices.shape[2]:
             raise ValueError("Transition matrices must have shape (vocab_size, num_states, num_states)")
+
+        # Check that net transition matrix has dominant eigenvalue close to 1
+        state_transition_matrix = jnp.asarray(jnp.sum(transition_matrices, axis=0))
+        eigenvalues, _ = jnp.linalg.eig(state_transition_matrix)
+        eigenvalues = jnp.asarray(eigenvalues)
+        principal_eigenvalue = jnp.max(jnp.abs(eigenvalues))
+
+        if not jnp.isclose(principal_eigenvalue, 1.0, rtol=1e-5):
+            SIMPLEXITY_LOGGER.warning(
+                "Net transition matrix has principal eigenvalue %.6f (expected 1.0). Matrices will be normalized.",
+                float(principal_eigenvalue),
+            )
 
     @property
     def vocab_size(self) -> int:

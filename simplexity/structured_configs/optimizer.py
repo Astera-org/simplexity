@@ -76,6 +76,8 @@ class OptimizerConfig:
 
 def is_optimizer_target(target: str) -> bool:
     """Check if the target is an optimizer target."""
+    if target.startswith("torch.optim.lr_scheduler."):
+        return False
     return target.startswith("torch.optim.") or target.startswith("optax.")
 
 
@@ -91,7 +93,7 @@ def is_pytorch_optimizer_config(cfg: DictConfig) -> bool:
     """Check if the configuration is a PyTorch optimizer configuration."""
     target = cfg.get("_target_", None)
     if isinstance(target, str):
-        return target.startswith("torch.optim.")
+        return is_optimizer_target(target) and target.startswith("torch.optim.")
     return False
 
 

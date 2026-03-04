@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
+from simplexity.exceptions import ConfigValidationError
 from simplexity.run_management.run_management import (
     _instantiate_activation_tracker,
     _setup_activation_trackers,
@@ -13,9 +14,6 @@ from simplexity.structured_configs.activation_tracker import (
     is_activation_tracker_target,
     validate_activation_analysis_config,
     validate_activation_tracker_config,
-)
-from simplexity.structured_configs.base import (
-    ConfigValidationError,
 )
 
 
@@ -252,11 +250,11 @@ def test_instantiate_activation_tracker_builds_analysis_objects(tracker_cfg: Dic
     probs = jnp.ones((1, 2), dtype=jnp.float32) * 0.5
     activations = {"layer": jnp.ones((1, 2, 4), dtype=jnp.float32)}
 
-    scalars, projections = tracker.analyze(
+    scalars, arrays = tracker.analyze(
         inputs=inputs,
         beliefs=beliefs,
         probs=probs,
         activations=activations,
     )
-    assert "pca_custom/layer_cumvar_1" in scalars
-    assert any(key.startswith("linear/") for key in projections)
+    assert "pca_custom/var_exp/layer" in scalars
+    assert any(key.startswith("linear/") for key in arrays)

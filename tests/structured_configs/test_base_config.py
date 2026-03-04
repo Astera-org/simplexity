@@ -13,6 +13,7 @@ including validation of seed, tags, and MLFlow configuration fields.
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+from pathlib import Path
 from unittest.mock import call, patch
 
 import pytest
@@ -22,19 +23,23 @@ from simplexity.exceptions import ConfigValidationError
 from simplexity.structured_configs.base import resolve_base_config, validate_base_config
 
 
-class TestBaseConfig:
-    """Test BaseConfig."""
+class TestValidateBaseConfig:
+    """Test validate_base_config."""
 
-    def test_validate_base_config_valid(self) -> None:
+    def test_validate_base_config_valid(self, tmp_path: Path) -> None:
         """Test validate_base_config with valid configs."""
         cfg = DictConfig({})
         validate_base_config(cfg)
+
+        logging_config_path = tmp_path / "logging.ini"
+        logging_config_path.touch()
 
         cfg = DictConfig(
             {
                 "device": "auto",
                 "seed": 42,
                 "tags": DictConfig({"key": "value"}),
+                "logging_config_path": str(logging_config_path),
                 "mlflow": DictConfig({"experiment_name": "test", "run_name": "test"}),
             }
         )
@@ -89,6 +94,12 @@ class TestBaseConfig:
         with pytest.raises(ConfigValidationError, match="BaseConfig.tags values must be strs"):
             validate_base_config(cfg)
 
+    def test_validate_base_config_invalid_logging_config_path(self) -> None:
+        """Test validate_base_config with invalid logging_config_path."""
+        cfg = DictConfig({"logging_config_path": "does/not/exist.ini"})
+        with pytest.raises(ConfigValidationError, match="BaseConfig.logging_config_path does not exist"):
+            validate_base_config(cfg)
+
     def test_validate_base_config_invalid_mlflow(self) -> None:
         """Test validate_base_config with invalid mlflow."""
         # Non-MLFlowConfig mlflow
@@ -113,38 +124,56 @@ class TestBaseConfig:
         with pytest.raises(ConfigValidationError, match="MLFlowConfig.experiment_name must be a non-empty string"):
             validate_base_config(cfg)
 
-    def test_resolve_base_config(self) -> None:
+
+class TestResolveBaseConfig:
+    """Test resolve_base_config."""
+
+    def test_empty_config_with_explicit_param_values(self) -> None:
         """Test resolve_base_config with valid configs."""
         cfg = DictConfig({})
-        resolve_base_config(cfg, strict=True, seed=34, device="gpu")
+        resolve_base_config(cfg, strict=True, seed=0, device="gpu")
         assert cfg.device == "gpu"
-        assert cfg.seed == 34
+        assert cfg.seed == 0
         assert cfg.tags.strict == "true"
 
-        # default seed
+    def test_empty_config_with_default_param_values(self) -> None:
+        """Test resolve_base_config with default values."""
         cfg = DictConfig({})
         resolve_base_config(cfg, strict=False)
         assert cfg.device == "auto"
         assert cfg.seed == 42
         assert cfg.tags.strict == "false"
 
-    def test_resolve_base_config_with_existing_values(self) -> None:
-        """Test resolve_base_config overrides mismatched seed and strict values."""
+    def test_config_with_matching_param_values(self) -> None:
+        """Test resolve_base_config preserves matching seed, strict and device values."""
         # matching values
-        cfg = DictConfig({"seed": 34, "tags": DictConfig({"strict": "true"})})
-        resolve_base_config(cfg, strict=True, seed=34)
-        assert cfg.seed == 34
+        cfg = DictConfig({"device": "gpu", "seed": 0, "tags": DictConfig({"strict": "true"})})
+        resolve_base_config(cfg, strict=True, seed=0, device="gpu")
+        assert cfg.device == "gpu"
+        assert cfg.seed == 0
         assert cfg.tags.strict == "true"
 
+    def test_config_with_non_matching_param_values(self) -> None:
+        """Test resolve_base_config overrides mismatched device, seed, and strict values."""
         # non-matching values
-        cfg = DictConfig({"seed": 34, "tags": DictConfig({"strict": "true"})})
+        cfg = DictConfig({"device": "gpu", "seed": 34, "tags": DictConfig({"strict": "true"})})
         with patch("simplexity.structured_configs.base.SIMPLEXITY_LOGGER.warning") as mock_warning:
-            resolve_base_config(cfg, strict=False, seed=56)
+            resolve_base_config(cfg, strict=False, seed=0, device="cpu")
             mock_warning.assert_has_calls(
                 [
-                    call("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", 34, 56),
+                    call("Device tag set to '%s', but device is '%s'. Overriding device tag.", "gpu", "cpu"),
+                    call("Seed tag set to '%s', but seed is '%s'. Overriding seed tag.", 34, 0),
                     call("Strict tag set to '%s', but strict mode is '%s'. Overriding strict tag.", "true", "false"),
                 ]
             )
-            assert cfg.seed == 56
+            assert cfg.device == "cpu"
+            assert cfg.seed == 0
             assert cfg.tags.strict == "false"
+
+    def test_config_with_no_param_values(self) -> None:
+        """Test resolve_base_config preserves existing config values when not explicitly overridden."""
+        cfg = DictConfig({"device": "gpu", "seed": 34})
+        resolve_base_config(cfg, strict=False)
+        assert cfg.device == "gpu"
+        assert cfg.seed == 34
+        assert cfg.tags.strict == "false"

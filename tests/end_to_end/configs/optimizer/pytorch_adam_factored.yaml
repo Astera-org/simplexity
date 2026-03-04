@@ -1,0 +1,4 @@
+name: pytorch_adam
+instance:
+  _target_: torch.optim.Adam
+  lr: 1e-4

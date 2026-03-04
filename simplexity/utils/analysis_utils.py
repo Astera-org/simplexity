@@ -38,6 +38,24 @@ def dedup_tensor_first(
     return jnp.stack(values, axis=0), prefixes
 
 
+def dedup_tuple_of_tensors_first(
+    tensors: tuple[jax.Array, ...],
+    prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
+) -> tuple[tuple[jax.Array, ...], list[tuple[int, ...]]]:
+    """Deduplicate a tuple of (batch, seq_len, ...) tensors by prefixes, taking the first occurrence in each tuple."""
+    combined_values = []
+    prefixes = prefix_to_indices.keys()
+
+    for tensor in tensors:
+        values = []
+        for idxs in prefix_to_indices.values():
+            seq_idx, pos = idxs[0]
+            values.append(tensor[seq_idx, pos])
+        combined_values.append(jnp.stack(values, axis=0))
+
+    return tuple(combined_values), list(prefixes)
+
+
 def dedup_probs_sum(
     probs: jax.Array,
     prefix_to_indices: dict[tuple[int, ...], list[tuple[int, int]]],
@@ -127,30 +145,164 @@ def dedup_last_token_probs_sum(
     return dedup_probs, sequences
 
 
+def dedup_last_token_tuple_of_tensors_first(
+    tensors: tuple[jax.Array, ...],
+    sequence_to_indices: dict[tuple[int, ...], list[int]],
+) -> tuple[tuple[jax.Array, ...], list[tuple[int, ...]]]:
+    """Deduplicate a tuple of (batch, ...) tensors by full sequences, taking the first occurrence in each tuple."""
+    combined_values = []
+    sequences = list(sequence_to_indices.keys())
+
+    for tensor in tensors:
+        values = []
+        for idxs in sequence_to_indices.values():
+            seq_idx = idxs[0]
+            values.append(tensor[seq_idx])
+        combined_values.append(jnp.stack(values, axis=0))
+
+    return tuple(combined_values), sequences
+
+
 @dataclass
 class DeduplicatedDataset:
     """A clean container for last-token-only data."""
 
     sequences: list[tuple[int, ...]]
-    beliefs: jax.Array
+    beliefs: jax.Array | tuple[jax.Array, ...]
     probs: jax.Array
     activations_by_layer: dict[str, jax.Array]
 
 
+def build_raw_dataset(
+    inputs: jax.Array,
+    beliefs: jax.Array | tuple[jax.Array, ...],
+    probs: jax.Array,
+    activations_by_layer: dict[str, jax.Array],
+    skip_first_token: bool = False,
+) -> DeduplicatedDataset:
+    """Return dataset without deduplication - flatten batch x seq_len using vectorized operations."""
+    if skip_first_token:
+        inputs = inputs[:, 1:]
+        if isinstance(beliefs, tuple):
+            beliefs = tuple(b[:, 1:, ...] for b in beliefs)
+        else:
+            beliefs = beliefs[:, 1:, ...]
+        probs = probs[:, 1:]
+        activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
+
+    batch_size, seq_len = inputs.shape
+    n_samples = batch_size * seq_len
+
+    # Flatten beliefs: (batch, seq_len, ...) -> (n_samples, ...)
+    if isinstance(beliefs, tuple):
+        flat_beliefs: jax.Array | tuple[jax.Array, ...] = tuple(b.reshape(n_samples, *b.shape[2:]) for b in beliefs)
+    else:
+        flat_beliefs = beliefs.reshape(n_samples, *beliefs.shape[2:])
+
+    # Flatten and normalize probs
+    flat_probs = probs.reshape(n_samples)
+    total_mass = flat_probs.sum()
+    if total_mass > 0:
+        flat_probs = flat_probs / total_mass
+    else:
+        raise ValueError("Total probability mass is zero")
+
+    # Flatten activations
+    flat_activations = {name: acts.reshape(n_samples, *acts.shape[2:]) for name, acts in activations_by_layer.items()}
+
+    # Generate sequences for metadata using numpy (faster than JAX for tuple creation)
+    inputs_np = np.asarray(inputs)
+    sequences: list[tuple[int, ...]] = [
+        tuple(inputs_np[i, : j + 1].tolist()) for i in range(batch_size) for j in range(seq_len)
+    ]
+
+    return DeduplicatedDataset(
+        sequences=sequences,
+        beliefs=flat_beliefs,
+        probs=flat_probs,
+        activations_by_layer=flat_activations,
+    )
+
+
+def build_raw_last_token_dataset(
+    inputs: jax.Array,
+    beliefs: jax.Array | tuple[jax.Array, ...],
+    probs: jax.Array,
+    activations_by_layer: dict[str, jax.Array],
+    skip_first_token: bool = False,
+) -> DeduplicatedDataset:
+    """Return last-token dataset without deduplication - keep all batch samples."""
+    if skip_first_token:
+        inputs = inputs[:, 1:]
+        if isinstance(beliefs, tuple):
+            beliefs = tuple(b[:, 1:, ...] for b in beliefs)
+        else:
+            beliefs = beliefs[:, 1:, ...]
+        probs = probs[:, 1:]
+        activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
+
+    # Select last token
+    if isinstance(beliefs, tuple):
+        last_beliefs: jax.Array | tuple[jax.Array, ...] = tuple(b[:, -1, :] for b in beliefs)
+    else:
+        last_beliefs = beliefs[:, -1, :]
+    last_probs = probs[:, -1]
+    last_activations = {name: acts[:, -1, :] for name, acts in activations_by_layer.items()}
+
+    # Normalize probs
+    total_mass = last_probs.sum()
+    if total_mass > 0:
+        last_probs = last_probs / total_mass
+    else:
+        raise ValueError("Total probability mass is zero")
+
+    # Generate sequences for metadata
+    inputs_np = np.asarray(inputs)
+    batch_size = inputs.shape[0]
+    sequences: list[tuple[int, ...]] = [tuple(inputs_np[i].tolist()) for i in range(batch_size)]
+
+    return DeduplicatedDataset(
+        sequences=sequences,
+        beliefs=last_beliefs,
+        probs=last_probs,
+        activations_by_layer=last_activations,
+    )
+
+
 def build_deduplicated_dataset(
     inputs: jax.Array,
-    beliefs: jax.Array,
+    beliefs: jax.Array | tuple[jax.Array, ...],
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
     select_last_token: bool = False,
+    skip_first_token: bool = False,
+    skip_deduplication: bool = False,
 ) -> DeduplicatedDataset:
-    """Deduplicate everything by prefix."""
+    """Build dataset, optionally deduplicating by prefix or sequence."""
+    if skip_deduplication:
+        if select_last_token:
+            return build_raw_last_token_dataset(
+                inputs,
+                beliefs,
+                probs,
+                activations_by_layer,
+                skip_first_token=skip_first_token,
+            )
+        else:
+            return build_raw_dataset(
+                inputs,
+                beliefs,
+                probs,
+                activations_by_layer,
+                skip_first_token=skip_first_token,
+            )
     if select_last_token:
         return build_last_token_dataset(
             inputs,
             beliefs,
             probs,
             activations_by_layer,
+            skip_first_token=skip_first_token,
         )
     else:
         return build_prefix_dataset(
@@ -158,19 +310,33 @@ def build_deduplicated_dataset(
             beliefs,
             probs,
             activations_by_layer,
+            skip_first_token=skip_first_token,
         )
 
 
 def build_prefix_dataset(
     inputs: jax.Array,
-    beliefs: jax.Array,
+    beliefs: jax.Array | tuple[jax.Array, ...],
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
+    skip_first_token: bool = False,
 ) -> DeduplicatedDataset:
     """Deduplicate everything by prefix."""
+    if skip_first_token:
+        inputs = inputs[:, 1:]
+        if isinstance(beliefs, tuple):
+            beliefs = tuple(b[:, 1:, ...] for b in beliefs)
+        else:
+            beliefs = beliefs[:, 1:, ...]
+        probs = probs[:, 1:]
+        activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
     prefix_to_indices = make_prefix_groups(inputs)
 
-    dedup_beliefs, prefixes = dedup_tensor_first(beliefs, prefix_to_indices)
+    dedup_beliefs, prefixes = (
+        dedup_tensor_first(beliefs, prefix_to_indices)
+        if isinstance(beliefs, jax.Array)
+        else dedup_tuple_of_tensors_first(beliefs, prefix_to_indices)
+    )
     dedup_probs, prefixes2 = dedup_probs_sum(probs, prefix_to_indices)
 
     if prefixes != prefixes2:
@@ -193,18 +359,34 @@ def build_prefix_dataset(
 
 def build_last_token_dataset(
     inputs: jax.Array,
-    beliefs: jax.Array,
+    beliefs: jax.Array | tuple[jax.Array, ...],
     probs: jax.Array,
     activations_by_layer: dict[str, jax.Array],
+    skip_first_token: bool = False,
 ) -> DeduplicatedDataset:
     """Deduplicate everything by full sequence."""
-    beliefs = beliefs[:, -1, :]
+    if skip_first_token:
+        inputs = inputs[:, 1:]
+        if isinstance(beliefs, tuple):
+            beliefs = tuple(b[:, 1:, ...] for b in beliefs)
+        else:
+            beliefs = beliefs[:, 1:, ...]
+        probs = probs[:, 1:]
+        activations_by_layer = {name: acts[:, 1:, ...] for name, acts in activations_by_layer.items()}
+    if isinstance(beliefs, tuple):
+        beliefs = tuple(b[:, -1, :] for b in beliefs)
+    else:
+        beliefs = beliefs[:, -1, :]
     probs = probs[:, -1]
     activations_by_layer = {name: acts[:, -1, :] for name, acts in activations_by_layer.items()}
     sequence_to_indices = make_sequence_groups(inputs)
 
     # Dedup beliefs & probs
-    dedup_beliefs, sequences = dedup_last_token_tensor_first(beliefs, sequence_to_indices)
+    dedup_beliefs, sequences = (
+        dedup_last_token_tensor_first(beliefs, sequence_to_indices)
+        if isinstance(beliefs, jax.Array)
+        else dedup_last_token_tuple_of_tensors_first(beliefs, sequence_to_indices)
+    )
     dedup_probs, sequences2 = dedup_last_token_probs_sum(probs, sequence_to_indices)
 
     if sequences != sequences2:

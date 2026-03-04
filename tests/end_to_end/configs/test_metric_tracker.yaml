@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - mlflow: databricks
+  - logging: mlflow_logger
+  - metric_tracker: basic
+
+experiment_name: metric_tracker_test
+run_name: metric_tracker_test_${now:%Y%m%d_%H%M%S}
+device: auto
+seed: 42
+logging_config_path: tests/end_to_end/configs/logging.ini
+tags:
+  research_step: test
+  retention: temp

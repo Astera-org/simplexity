@@ -1,11 +1,15 @@
 """Tests for analysis utilities."""
 
+import jax
 import jax.numpy as jnp
 import pytest
 
 from simplexity.utils.analysis_utils import (
+    build_deduplicated_dataset,
     build_last_token_dataset,
     build_prefix_dataset,
+    build_raw_dataset,
+    build_raw_last_token_dataset,
     dedup_last_token_probs_sum,
     dedup_last_token_tensor_first,
     dedup_probs_sum,
@@ -327,6 +331,7 @@ class TestBuildPrefixDataset:
         assert jnp.allclose(jnp.sum(dataset.probs), 1.0)
 
         # Check shapes are consistent
+        assert isinstance(dataset.beliefs, jax.Array)
         n_prefixes = dataset.beliefs.shape[0]
         assert dataset.probs.shape[0] == n_prefixes
         for layer_acts in dataset.activations_by_layer.values():
@@ -347,6 +352,7 @@ class TestBuildPrefixDataset:
         dataset = build_prefix_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Beliefs should have 2 dimensions (from fixture)
+        assert isinstance(dataset.beliefs, jax.Array)
         assert dataset.beliefs.shape[1] == 2
 
 
@@ -373,6 +379,7 @@ class TestBuildLastTokenDataset:
         dataset = build_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Should have 2 unique sequences
+        assert isinstance(dataset.beliefs, jax.Array)
         assert dataset.beliefs.shape[0] == 2
         assert dataset.probs.shape[0] == 2
 
@@ -381,8 +388,218 @@ class TestBuildLastTokenDataset:
         dataset = build_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
 
         # Check belief dimension
+        assert isinstance(dataset.beliefs, jax.Array)
         assert dataset.beliefs.shape[1] == 2
 
         # Check layer dimensions
         assert dataset.activations_by_layer["layer_0"].shape[1] == 4
         assert dataset.activations_by_layer["layer_1"].shape[1] == 6
+
+
+class TestBuildRawDataset:
+    """Test build_raw_dataset (skip deduplication) function."""
+
+    def test_flattens_batch_and_seq_len(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that batch and seq_len dimensions are flattened."""
+        batch_size, seq_len = simple_inputs.shape
+        expected_samples = batch_size * seq_len
+
+        dataset = build_raw_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        assert isinstance(dataset.beliefs, jax.Array)
+        assert dataset.beliefs.shape[0] == expected_samples
+        assert dataset.probs.shape[0] == expected_samples
+        for layer_acts in dataset.activations_by_layer.values():
+            assert layer_acts.shape[0] == expected_samples
+
+    def test_preserves_feature_dimensions(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that feature dimensions are preserved after flattening."""
+        dataset = build_raw_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        # Beliefs should have 2 features
+        assert isinstance(dataset.beliefs, jax.Array)
+        assert dataset.beliefs.shape[1] == 2
+
+        # Layer 0 should have 4 features, Layer 1 should have 6 features
+        assert dataset.activations_by_layer["layer_0"].shape[1] == 4
+        assert dataset.activations_by_layer["layer_1"].shape[1] == 6
+
+    def test_probs_normalized(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that probabilities are normalized to sum to 1."""
+        dataset = build_raw_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        assert jnp.allclose(jnp.sum(dataset.probs), 1.0)
+
+    def test_sequences_generated(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that sequences metadata is generated correctly."""
+        batch_size, seq_len = simple_inputs.shape
+        dataset = build_raw_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        # Should have batch_size * seq_len sequences
+        assert len(dataset.sequences) == batch_size * seq_len
+
+        # First sequence should be prefix of length 1 from first batch item
+        assert dataset.sequences[0] == (1,)
+        # Second sequence should be prefix of length 2 from first batch item
+        assert dataset.sequences[1] == (1, 2)
+        # Third sequence should be full prefix from first batch item
+        assert dataset.sequences[2] == (1, 2, 3)
+
+    def test_skip_first_token(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test skip_first_token option."""
+        batch_size, seq_len = simple_inputs.shape
+        expected_samples = batch_size * (seq_len - 1)
+
+        dataset = build_raw_dataset(
+            simple_inputs, simple_beliefs, simple_probs, simple_activations, skip_first_token=True
+        )
+
+        assert isinstance(dataset.beliefs, jax.Array)
+        assert dataset.beliefs.shape[0] == expected_samples
+        assert dataset.probs.shape[0] == expected_samples
+
+    def test_tuple_beliefs(self, simple_inputs, simple_probs, simple_activations):
+        """Test with tuple beliefs (factored processes)."""
+        batch_size, seq_len = simple_inputs.shape
+        # Create tuple of beliefs for factored process
+        beliefs_factor_0 = jnp.ones((batch_size, seq_len, 3)) * 0.1
+        beliefs_factor_1 = jnp.ones((batch_size, seq_len, 4)) * 0.2
+        tuple_beliefs = (beliefs_factor_0, beliefs_factor_1)
+
+        dataset = build_raw_dataset(simple_inputs, tuple_beliefs, simple_probs, simple_activations)
+
+        assert isinstance(dataset.beliefs, tuple)
+        assert len(dataset.beliefs) == 2
+        assert dataset.beliefs[0].shape == (batch_size * seq_len, 3)
+        assert dataset.beliefs[1].shape == (batch_size * seq_len, 4)
+
+    def test_more_samples_than_dedup(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that raw dataset has more samples than deduplicated (when duplicates exist)."""
+        raw_dataset = build_raw_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+        dedup_dataset = build_prefix_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        # Raw should have all batch*seq_len samples
+        assert isinstance(raw_dataset.beliefs, jax.Array)
+        assert isinstance(dedup_dataset.beliefs, jax.Array)
+        assert raw_dataset.beliefs.shape[0] >= dedup_dataset.beliefs.shape[0]
+
+
+class TestBuildRawLastTokenDataset:
+    """Test build_raw_last_token_dataset (skip deduplication, last token only) function."""
+
+    def test_keeps_all_batch_samples(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that all batch samples are kept (no deduplication)."""
+        batch_size = simple_inputs.shape[0]
+
+        dataset = build_raw_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        assert isinstance(dataset.beliefs, jax.Array)
+        assert dataset.beliefs.shape[0] == batch_size
+        assert dataset.probs.shape[0] == batch_size
+
+    def test_selects_last_token(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that last token is selected from each sequence."""
+        dataset = build_raw_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        # Check beliefs match last token
+        assert isinstance(dataset.beliefs, jax.Array)
+        assert jnp.allclose(dataset.beliefs[0], simple_beliefs[0, -1, :])
+        assert jnp.allclose(dataset.beliefs[1], simple_beliefs[1, -1, :])
+
+    def test_probs_normalized(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that probabilities are normalized."""
+        dataset = build_raw_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        assert jnp.allclose(jnp.sum(dataset.probs), 1.0)
+
+    def test_sequences_are_full_sequences(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that sequences metadata contains full sequences."""
+        dataset = build_raw_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        # Should have one sequence per batch item
+        assert len(dataset.sequences) == simple_inputs.shape[0]
+
+        # Each should be a full sequence
+        assert dataset.sequences[0] == (1, 2, 3)
+        assert dataset.sequences[1] == (1, 2, 4)
+        assert dataset.sequences[2] == (1, 2, 3)
+
+    def test_skip_first_token(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test skip_first_token option."""
+        dataset = build_raw_last_token_dataset(
+            simple_inputs, simple_beliefs, simple_probs, simple_activations, skip_first_token=True
+        )
+
+        # Sequences should start from second token
+        assert dataset.sequences[0] == (2, 3)
+        assert dataset.sequences[1] == (2, 4)
+
+    def test_tuple_beliefs(self, simple_inputs, simple_probs, simple_activations):
+        """Test with tuple beliefs (factored processes)."""
+        batch_size, seq_len = simple_inputs.shape
+        beliefs_factor_0 = jnp.ones((batch_size, seq_len, 3)) * 0.1
+        beliefs_factor_1 = jnp.ones((batch_size, seq_len, 4)) * 0.2
+        tuple_beliefs = (beliefs_factor_0, beliefs_factor_1)
+
+        dataset = build_raw_last_token_dataset(simple_inputs, tuple_beliefs, simple_probs, simple_activations)
+
+        assert isinstance(dataset.beliefs, tuple)
+        assert len(dataset.beliefs) == 2
+        assert dataset.beliefs[0].shape == (batch_size, 3)
+        assert dataset.beliefs[1].shape == (batch_size, 4)
+
+    def test_more_samples_than_dedup(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that raw dataset has more samples than deduplicated when duplicates exist."""
+        raw_dataset = build_raw_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+        dedup_dataset = build_last_token_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+
+        # Raw should have 3 samples, dedup should have 2 (sequences 0 and 2 are identical)
+        assert isinstance(raw_dataset.beliefs, jax.Array)
+        assert isinstance(dedup_dataset.beliefs, jax.Array)
+        assert raw_dataset.beliefs.shape[0] == 3
+        assert dedup_dataset.beliefs.shape[0] == 2
+
+
+class TestBuildDeduplicatedDatasetSkipDeduplication:
+    """Test build_deduplicated_dataset with skip_deduplication flag."""
+
+    def test_skip_deduplication_false_uses_dedup(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that skip_deduplication=False uses deduplication."""
+        dataset = build_deduplicated_dataset(
+            simple_inputs, simple_beliefs, simple_probs, simple_activations, skip_deduplication=False
+        )
+
+        # With deduplication, should have fewer samples due to duplicate prefixes
+        assert isinstance(dataset.beliefs, jax.Array)
+        dedup_dataset = build_prefix_dataset(simple_inputs, simple_beliefs, simple_probs, simple_activations)
+        assert isinstance(dedup_dataset.beliefs, jax.Array)
+        assert dataset.beliefs.shape[0] == dedup_dataset.beliefs.shape[0]
+
+    def test_skip_deduplication_true_skips_dedup(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test that skip_deduplication=True skips deduplication."""
+        batch_size, seq_len = simple_inputs.shape
+
+        dataset = build_deduplicated_dataset(
+            simple_inputs, simple_beliefs, simple_probs, simple_activations, skip_deduplication=True
+        )
+
+        # Should have all batch*seq_len samples
+        assert isinstance(dataset.beliefs, jax.Array)
+        assert dataset.beliefs.shape[0] == batch_size * seq_len
+
+    def test_skip_deduplication_with_last_token(self, simple_inputs, simple_beliefs, simple_probs, simple_activations):
+        """Test skip_deduplication with select_last_token=True."""
+        batch_size = simple_inputs.shape[0]
+
+        dataset = build_deduplicated_dataset(
+            simple_inputs,
+            simple_beliefs,
+            simple_probs,
+            simple_activations,
+            select_last_token=True,
+            skip_deduplication=True,
+        )
+
+        # Should have all batch samples (not deduplicated)
+        assert isinstance(dataset.beliefs, jax.Array)
+        assert dataset.beliefs.shape[0] == batch_size

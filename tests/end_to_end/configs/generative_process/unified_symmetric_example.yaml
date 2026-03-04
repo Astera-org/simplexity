@@ -1,0 +1,100 @@
+# Unified API: Fully Conditional Structure
+# Fully conditional structure creates mutual dependencies:
+# Each factor's variant selection depends on ALL OTHER factors' tokens.
+# Uses product-of-experts to compute joint distribution.
+
+name: unified_symmetric_example
+base_vocab_size: ???  # Will auto-infer as 3 * 3 * 3 = 27
+vocab_size: ???
+
+instance:
+  _target_: simplexity.generative_processes.builder.build_factored_process_from_spec
+
+  structure_type: symmetric
+
+  # Component specifications
+  spec:
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.15
+            a: 0.6
+        - process_name: mess3
+          process_params:
+            x: 0.11
+            a: 0.79
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.6
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.21
+
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.15
+            a: 0.6
+        - process_name: mess3
+          process_params:
+            x: 0.11
+            a: 0.79
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.6
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.21
+
+    - component_type: hmm
+      variants:
+        - process_name: mess3
+          process_params:
+            x: 0.15
+            a: 0.6
+        - process_name: mess3
+          process_params:
+            x: 0.11
+            a: 0.79
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.6
+        - process_name: mess3
+          process_params:
+            x: 0.5
+            a: 0.21
+
+  # Control maps: define how other-tokens select variant
+  # control_maps[i] has shape [prod(V_j for j!=i)]
+  # For 3 factors with vocab_sizes [3,3,3]:
+  #   - Factor 0 depends on (t1, t2): 3*3=9 combinations
+  #   - Factor 1 depends on (t0, t2): 3*3=9 combinations
+  #   - Factor 2 depends on (t0, t1): 3*3=9 combinations
+  # Each maps to one of K_i=4 variants
+  control_maps:
+    # Factor 0: 9 other-token combinations -> 4 variants
+    - [0, 1, 2, 3, 0, 1, 2, 3, 0]
+
+    # Factor 1: 9 other-token combinations -> 4 variants
+    - [1, 2, 3, 0, 1, 2, 3, 0, 1]
+
+    # Factor 2: 9 other-token combinations -> 4 variants
+    - [2, 3, 0, 1, 2, 3, 0, 1, 2]
+
+bos_token: ???
+eos_token: null
+batch_size: 1024
+
+# Example interpretation:
+# At each timestep, factors emit jointly using product-of-experts:
+# - Factor 0 selects variant based on what tokens factors 1&2 will emit
+# - Factor 1 selects variant based on what tokens factors 0&2 will emit
+# - Factor 2 selects variant based on what tokens factors 0&1 will emit
+# The joint distribution is computed, normalized, and sampled from.

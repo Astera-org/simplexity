@@ -1,5 +1,14 @@
 """Tests for predictive-model structured configs."""
 
+# pylint: disable=all
+# Temporarily disable all pylint checkers during AST traversal to prevent crash.
+# The imports checker crashes when resolving simplexity package imports due to a bug
+# in pylint/astroid: https://github.com/pylint-dev/pylint/issues/10185
+# pylint: enable=all
+# Re-enable all pylint checkers for the checking phase. This allows other checks
+# (code quality, style, undefined names, etc.) to run normally while bypassing
+# the problematic imports checker that would crash during AST traversal.
+
 import re
 from unittest.mock import call, patch
 
@@ -14,7 +23,7 @@ from simplexity.structured_configs.predictive_model import (
     is_hooked_transformer_config,
     is_predictive_model_config,
     is_predictive_model_target,
-    resolve_hooked_transformer_config,
+    resolve_nested_model_config,
     validate_hooked_transformer_config,
     validate_hooked_transformer_config_config,
     validate_predictive_model_config,
@@ -257,8 +266,8 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
         with pytest.raises(ConfigValidationError, match="HookedTransformerConfig.cfg is required"):
             validate_hooked_transformer_config(cfg)
 
-    def test_resolve_hooked_transformer_config_without_kwargs(self) -> None:
-        """Test resolve_hooked_transformer_config with valid configs."""
+    def test_resolve_nested_model_config_without_kwargs(self) -> None:
+        """Test resolve_nested_model_config with valid configs."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -275,14 +284,14 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.info") as mock_info,
             patch("simplexity.structured_configs.predictive_model.resolve_device", return_value="cpu"),
         ):
-            resolve_hooked_transformer_config(cfg)
+            resolve_nested_model_config(cfg)
             mock_debug.assert_called_once_with("[predictive model] no vocab_size set")
             mock_info.assert_called_once_with("[predictive model] device resolved to: %s", "cpu")
         assert OmegaConf.is_missing(cfg, "d_vocab")
         assert cfg.get("device") == "cpu"
 
-    def test_resolve_hooked_transformer_config_with_complete_values(self) -> None:
-        """Test resolve_hooked_transformer_config with complete values."""
+    def test_resolve_nested_model_config_with_complete_values(self) -> None:
+        """Test resolve_nested_model_config with complete values."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -299,7 +308,7 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.debug") as mock_debug,
             patch("simplexity.structured_configs.predictive_model.resolve_device", return_value="cuda"),
         ):
-            resolve_hooked_transformer_config(cfg, vocab_size=4)
+            resolve_nested_model_config(cfg, vocab_size=4)
             mock_debug.assert_has_calls(
                 [
                     call("[predictive model] d_vocab defined as: %s", 4),
@@ -309,8 +318,8 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
         assert cfg.get("d_vocab") == 4
         assert cfg.get("device") == "cuda"
 
-    def test_resolve_hooked_transformer_config_with_missing_values(self) -> None:
-        """Test resolve_hooked_transformer_config with missing values."""
+    def test_resolve_nested_model_config_with_missing_values(self) -> None:
+        """Test resolve_nested_model_config with missing values."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -327,7 +336,7 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.info") as mock_info,
             patch("simplexity.structured_configs.predictive_model.resolve_device", return_value="cuda"),
         ):
-            resolve_hooked_transformer_config(cfg, vocab_size=4)
+            resolve_nested_model_config(cfg, vocab_size=4)
             mock_info.assert_has_calls(
                 [
                     call("[predictive model] d_vocab resolved to: %s", 4),
@@ -337,8 +346,8 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
         assert cfg.get("d_vocab") == 4
         assert cfg.get("device") == "cuda"
 
-    def test_resolve_hooked_transformer_config_with_invalid_values(self) -> None:
-        """Test resolve_hooked_transformer_config with invalid values."""
+    def test_resolve_nested_model_config_with_invalid_values(self) -> None:
+        """Test resolve_nested_model_config with invalid values."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -350,13 +359,11 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
                 "d_vocab": 3,
             }
         )
-        with pytest.raises(
-            ConfigValidationError, match=re.escape("HookedTransformerConfig.d_vocab (3) must be equal to 4")
-        ):
-            resolve_hooked_transformer_config(cfg, vocab_size=4)
+        with pytest.raises(ConfigValidationError, match=re.escape("d_vocab (3) must be equal to 4")):
+            resolve_nested_model_config(cfg, vocab_size=4)
 
-    def test_resolve_hooked_transformer_config_with_conflicting_device(self) -> None:
-        """Test resolve_hooked_transformer_config with conflicting device."""
+    def test_resolve_nested_model_config_with_conflicting_device(self) -> None:
+        """Test resolve_nested_model_config with conflicting device."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -374,7 +381,7 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.warning") as mock_warning,
             patch("simplexity.structured_configs.predictive_model.resolve_device", side_effect=error),
         ):
-            resolve_hooked_transformer_config(cfg)
+            resolve_nested_model_config(cfg)
             mock_warning.assert_has_calls(
                 [
                     call(
@@ -387,8 +394,8 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             )
         assert cfg.get("device") == "cpu"
 
-    def test_resolve_hooked_transformer_config_device_mismatch_updates_cfg(self) -> None:
-        """Test resolve_hooked_transformer_config device mismatch updates config."""
+    def test_resolve_nested_model_config_device_mismatch_updates_cfg(self) -> None:
+        """Test resolve_nested_model_config device mismatch updates config."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -405,12 +412,12 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.warning") as mock_warning,
             patch("simplexity.structured_configs.predictive_model.resolve_device", return_value="cpu"),
         ):
-            resolve_hooked_transformer_config(cfg)
+            resolve_nested_model_config(cfg)
             mock_warning.assert_called_once_with("[predictive model] specified device %s resolved to %s", "cuda", "cpu")
         assert cfg.get("device") == "cpu"
 
-    def test_resolve_hooked_transformer_config_device_auto(self) -> None:
-        """Test resolve_hooked_transformer_config with auto device."""
+    def test_resolve_nested_model_config_device_auto(self) -> None:
+        """Test resolve_nested_model_config with auto device."""
         cfg = DictConfig(
             {
                 "_target_": "transformer_lens.HookedTransformerConfig",
@@ -427,9 +434,33 @@ class TestHookedTransformerConfig:  # pylint: disable=too-many-public-methods
             patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.info") as mock_info,
             patch("simplexity.structured_configs.predictive_model.resolve_device", return_value="mps"),
         ):
-            resolve_hooked_transformer_config(cfg)
+            resolve_nested_model_config(cfg)
             mock_info.assert_any_call("[predictive model] device resolved to: %s", "mps")
         assert cfg.get("device") == "mps"
+
+    def test_resolve_nested_model_config_generic_model(self) -> None:
+        """Test resolve_nested_model_config with a generic (non-HookedTransformer) config."""
+        cfg = DictConfig(
+            {
+                "_target_": "some_library.CustomModelConfig",
+                "hidden_size": 256,
+                "d_vocab": MISSING,
+                "device": None,
+            }
+        )
+        with (
+            patch("simplexity.structured_configs.predictive_model.SIMPLEXITY_LOGGER.info") as mock_info,
+            patch("simplexity.structured_configs.predictive_model.resolve_device", return_value="cuda"),
+        ):
+            resolve_nested_model_config(cfg, vocab_size=100)
+            mock_info.assert_has_calls(
+                [
+                    call("[predictive model] d_vocab resolved to: %s", 100),
+                    call("[predictive model] device resolved to: %s", "cuda"),
+                ]
+            )
+        assert cfg.get("d_vocab") == 100
+        assert cfg.get("device") == "cuda"
 
     def test_is_predictive_model_target_valid(self) -> None:
         """Test is_predictive_model_target with valid model targets."""

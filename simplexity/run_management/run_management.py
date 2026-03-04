@@ -14,12 +14,17 @@ management, and cleanup via the `managed_run` decorator.
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+import configparser
+import logging
+import logging.config
 import os
 import random
 import subprocess
+import traceback
 import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
+from pathlib import Path
 from typing import Any
 
 import hydra
@@ -27,11 +32,12 @@ import jax
 import mlflow
 import torch
 from jax._src.config import StateContextManager
+from mlflow.exceptions import MlflowException, RestException
 from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
-from simplexity.logger import SIMPLEXITY_LOGGER
+from simplexity.logger import SIMPLEXITY_LOGGER, add_handlers_to_existing_loggers, get_log_files, remove_log_files
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
@@ -53,6 +59,10 @@ from simplexity.structured_configs.generative_process import (
     is_generative_process_target,
     resolve_generative_process_config,
     validate_generative_process_config,
+)
+from simplexity.structured_configs.learning_rate_scheduler import (
+    is_lr_scheduler_target,
+    validate_lr_scheduler_config,
 )
 from simplexity.structured_configs.logging import (
     is_logger_target,
@@ -76,9 +86,8 @@ from simplexity.structured_configs.persistence import (
     validate_persistence_config,
 )
 from simplexity.structured_configs.predictive_model import (
-    is_hooked_transformer_config,
     is_predictive_model_target,
-    resolve_hooked_transformer_config,
+    resolve_nested_model_config,
 )
 from simplexity.utils.config_utils import (
     filter_instance_keys,
@@ -123,6 +132,30 @@ def _suppress_pydantic_field_attribute_warning() -> Iterator[None]:
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
         yield
+
+
+def _setup_python_logging(cfg: DictConfig) -> None:
+    """Setup the logging."""
+    logging_config_path = cfg.get("logging_config_path")
+    if not logging_config_path:
+        SIMPLEXITY_LOGGER.debug("[logging] config path not found")
+        return
+    config_path = Path(logging_config_path)
+    if not config_path.exists():
+        SIMPLEXITY_LOGGER.warning("[Logging] config file not found: %s", config_path)
+        return
+
+    try:
+        logging.config.fileConfig(str(config_path), disable_existing_loggers=False)
+        add_handlers_to_existing_loggers()
+    except (configparser.Error, ValueError, OSError) as e:
+        SIMPLEXITY_LOGGER.error(
+            "[logging] failed to load config from %s: %s\n%s",
+            config_path,
+            e,
+            "".join(traceback.format_exception(type(e), e, e.__traceback__)),
+            exc_info=True,
+        )
 
 
 def _setup_environment() -> None:
@@ -367,7 +400,7 @@ def _get_persister(persisters: dict[str, ModelPersister] | None) -> ModelPersist
     if persisters:
         if len(persisters) == 1:
             return next(iter(persisters.values()))
-        SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model model checkpoint loading will be skipped")
+        SIMPLEXITY_LOGGER.warning("Multiple persisters found, any model checkpoint loading will be skipped")
         return None
     SIMPLEXITY_LOGGER.warning("No persister found, any model checkpoint loading will be skipped")
     return None
@@ -432,12 +465,10 @@ def _setup_predictive_models(
     model_instance_keys = filter_instance_keys(cfg, instance_keys, is_predictive_model_target)
     for instance_key in model_instance_keys:
         instance_config: DictConfig | None = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
-        if instance_config and is_hooked_transformer_config(instance_config):
-            instance_config_config: DictConfig | None = instance_config.get("cfg", None)
-            if instance_config_config is None:
-                raise RuntimeError("Error selecting predictive model config")
+        instance_config_config: DictConfig | None = instance_config.get("cfg", None) if instance_config else None
+        if instance_config_config is not None:
             vocab_size = _get_attribute_value(cfg, instance_keys, "vocab_size")
-            resolve_hooked_transformer_config(instance_config_config, vocab_size=vocab_size)
+            resolve_nested_model_config(instance_config_config, vocab_size=vocab_size)
         model = _instantiate_predictive_model(cfg, instance_key)
         step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
         load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
@@ -505,6 +536,37 @@ def _setup_optimizers(
     return None
 
 
+def _instantiate_lr_scheduler(cfg: DictConfig, instance_key: str, optimizer: Any | None) -> Any:
+    """Setup the learning rate scheduler."""
+    instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
+    if instance_config:
+        if optimizer is None:
+            SIMPLEXITY_LOGGER.warning("No optimizer provided, LR scheduler will be skipped")
+            return None
+        lr_scheduler = hydra.utils.instantiate(instance_config, optimizer=optimizer)
+        SIMPLEXITY_LOGGER.info("[lr_scheduler] instantiated LR scheduler: %s", lr_scheduler.__class__.__name__)
+        return lr_scheduler
+    raise KeyError
+
+
+def _setup_lr_schedulers(
+    cfg: DictConfig, instance_keys: list[str], optimizers: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """Setup the learning rate schedulers."""
+    instance_keys = filter_instance_keys(
+        cfg,
+        instance_keys,
+        is_lr_scheduler_target,
+        validate_fn=validate_lr_scheduler_config,
+        component_name="lr_scheduler",
+    )
+    if instance_keys:
+        optimizer = _get_optimizer(optimizers)
+        return {instance_key: _instantiate_lr_scheduler(cfg, instance_key, optimizer) for instance_key in instance_keys}
+    SIMPLEXITY_LOGGER.info("[lr_scheduler] no LR scheduler configs found")
+    return None
+
+
 def _instantiate_metric_tracker(
     cfg: DictConfig, instance_key: str, predictive_model: Any | None, optimizer: Any | None
 ) -> Any:
@@ -552,8 +614,9 @@ def _instantiate_activation_tracker(cfg: DictConfig, instance_key: str) -> Any:
         analyses_cfg = instance_config.get("analyses") or {}
         for key, analysis_cfg in analyses_cfg.items():
             name_override = analysis_cfg.get("name")
+            analysis_name = name_override or key
             cfg_to_instantiate = analysis_cfg.instance
-            converted_analyses[name_override or key] = cfg_to_instantiate
+            converted_analyses[analysis_name] = cfg_to_instantiate
 
         tracker_cfg.analyses = converted_analyses
         tracker = hydra.utils.instantiate(tracker_cfg)
@@ -609,6 +672,7 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     components.persisters = _setup_persisters(cfg, instance_keys)
     components.predictive_models = _setup_predictive_models(cfg, instance_keys, components.persisters)
     components.optimizers = _setup_optimizers(cfg, instance_keys, components.predictive_models)
+    components.lr_schedulers = _setup_lr_schedulers(cfg, instance_keys, components.optimizers)
     components.metric_trackers = _setup_metric_trackers(
         cfg, instance_keys, components.predictive_models, components.optimizers
     )
@@ -617,14 +681,40 @@ def _setup(cfg: DictConfig, strict: bool, verbose: bool) -> Components:
     return components
 
 
+def _log_log_files(logger: Logger, log_files: list[str], logger_name: str | None = None) -> list[str]:
+    """Log the log files to the loggers."""
+    logger_name = logger_name or type(logger).__name__
+    successfully_saved: list[str] = []
+    for log_file in log_files:
+        try:
+            logger.log_artifact(log_file)
+        except (MlflowException, RestException, FileNotFoundError, IsADirectoryError, PermissionError) as e:
+            SIMPLEXITY_LOGGER.warning(
+                "[run] failed to upload log file %s to logger %s: %s", log_file, logger_name, e, exc_info=True
+            )
+        else:
+            successfully_saved.append(log_file)
+            SIMPLEXITY_LOGGER.info("[run] uploaded log file %s to logger %s", log_file, logger_name)
+    return successfully_saved
+
+
 def _cleanup(components: Components) -> None:
     """Cleanup the run."""
+    log_files = get_log_files()
+    successfully_saved: set[str] = set()
     if components.loggers:
-        for logger in components.loggers.values():
-            logger.close()
+        for logger_key, logger in components.loggers.items():
+            successfully_saved_to_logger = _log_log_files(logger, log_files, logger_name=logger_key)
+            successfully_saved.update(successfully_saved_to_logger)
+            try:
+                logger.close()
+            except Exception as e:
+                logging.warning(f"Failed to close logger {type(logger).__name__}: {e}", exc_info=True)
+
     if components.persisters:
         for persister in components.persisters.values():
             persister.cleanup()
+    remove_log_files(successfully_saved)
 
 
 def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -632,6 +722,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            components = Components()
             try:
                 cfg = get_config(args, kwargs)
                 cfg = load_mlflow_defaults(cfg)
@@ -641,6 +732,7 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                     args = (cfg, *args[1:])
                 else:
                     kwargs["cfg"] = cfg
+                _setup_python_logging(cfg)
                 validate_base_config(cfg)
                 resolve_base_config(cfg, strict=strict)
                 with _setup_device(cfg), _setup_mlflow(cfg):
@@ -650,8 +742,11 @@ def managed_run(strict: bool = True, verbose: bool = False) -> Callable[[Callabl
                 return output
             except Exception as e:
                 SIMPLEXITY_LOGGER.error("[run] error: %s", e)
-                # TODO: cleanup
-                raise e
+                try:
+                    _cleanup(components)
+                except Exception as cleanup_error:
+                    SIMPLEXITY_LOGGER.error("[run] error during cleanup: %s", cleanup_error, exc_info=True)
+                raise
 
         return wrapper
 

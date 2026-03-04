@@ -51,7 +51,7 @@ def validate_ghmm_transition_matrices(transition_matrices: jax.Array, ergodic: b
 
 
 def validate_hmm_transition_matrices(
-    transition_matrices: jnp.ndarray, ergodic: bool = True, rtol: float = 1e-6, atol: float = 0
+    transition_matrices: jax.Array, ergodic: bool = True, rtol: float = 1e-6, atol: float = 0
 ):
     """Test the validate_hmm_transition_matrices function."""
     validate_ghmm_transition_matrices(transition_matrices, ergodic)

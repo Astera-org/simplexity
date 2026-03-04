@@ -855,3 +855,177 @@ class TestGenerativeProcessConfig:
             match=re.escape("GenerativeProcessConfig.vocab_size (4) must be equal to 3"),
         ):
             resolve_generative_process_config(cfg, base_vocab_size=3)
+
+
+class TestFactoredProcessBuilders:
+    """Tests for factored generative process builder configs."""
+
+    def test_factored_process_from_spec_config_detection(self) -> None:
+        """Test build_factored_process_from_spec config detection (unified builder)."""
+        target = "simplexity.generative_processes.builder.build_factored_process_from_spec"
+
+        # Test independent
+        cfg = DictConfig(
+            {
+                "_target_": target,
+                "structure_type": "independent",
+                "spec": [
+                    {
+                        "component_type": "hmm",
+                        "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                    }
+                ],
+            }
+        )
+        assert is_generative_process_target(target)
+        assert is_generative_process_config(cfg)
+
+        # Test chain
+        cfg = DictConfig(
+            {
+                "_target_": target,
+                "structure_type": "chain",
+                "spec": [
+                    {
+                        "component_type": "hmm",
+                        "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                    }
+                ],
+            }
+        )
+        assert is_generative_process_target(target)
+        assert is_generative_process_config(cfg)
+
+        # Test symmetric
+        cfg = DictConfig(
+            {
+                "_target_": target,
+                "structure_type": "symmetric",
+                "spec": [
+                    {
+                        "component_type": "hmm",
+                        "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                    }
+                ],
+                "control_maps": [[0]],
+            }
+        )
+        assert is_generative_process_target(target)
+        assert is_generative_process_config(cfg)
+
+        # Test transition_coupled
+        cfg = DictConfig(
+            {
+                "_target_": target,
+                "structure_type": "transition_coupled",
+                "spec": [
+                    {
+                        "component_type": "hmm",
+                        "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+                    }
+                ],
+                "control_maps_transition": [[0]],
+                "emission_variant_indices": [0],
+            }
+        )
+        assert is_generative_process_target(target)
+        assert is_generative_process_config(cfg)
+
+    def _make_factored_process_cfg(
+        self, structure_type: str, extra_instance_fields: dict[str, Any] | None = None
+    ) -> DictConfig:
+        """Helper to create a factored process config for testing."""
+        spec = [
+            {
+                "component_type": "hmm",
+                "variants": [{"process_name": "mess3", "x": 0.15, "a": 0.6}],
+            }
+        ]
+        instance_data: dict[str, Any] = {
+            "_target_": "simplexity.generative_processes.builder.build_factored_process_from_spec",
+            "structure_type": structure_type,
+            "spec": spec,
+        }
+        if extra_instance_fields:
+            instance_data.update(extra_instance_fields)
+
+        cfg = DictConfig(
+            {
+                "instance": DictConfig(instance_data),
+                "base_vocab_size": MISSING,
+                "vocab_size": MISSING,
+            }
+        )
+        return _with_missing_tokens(cfg)
+
+    @pytest.mark.parametrize(
+        ("structure_type", "extra_instance_fields"),
+        [
+            ("independent", None),
+            ("chain", None),
+            ("symmetric", {"control_maps": [[0]]}),
+            ("transition_coupled", {"control_maps_transition": [[0]], "emission_variant_indices": [0]}),
+        ],
+    )
+    def test_validate_generative_process_config_handles_factored_process_builders(
+        self, structure_type: str, extra_instance_fields: dict[str, Any] | None
+    ) -> None:
+        """Test validate_generative_process_config works with unified factored process builder."""
+        cfg = self._make_factored_process_cfg(structure_type, extra_instance_fields)
+        validate_generative_process_config(cfg)
+
+    @pytest.mark.parametrize(
+        ("structure_type", "extra_instance_fields", "expected_error_pattern"),
+        [
+            # Invalid structure_type values - these pass config validation (target is still valid)
+            # but would fail when the builder is called
+            (
+                "invalid_structure_type",
+                None,
+                None,  # Config validation passes, builder will raise ValueError
+            ),
+            (
+                "",
+                None,
+                None,  # Empty structure_type passes config validation
+            ),
+            # Missing required fields - these pass config validation
+            # (structure-specific fields are validated by the builder, not config validator)
+            (
+                "symmetric",
+                None,
+                None,  # Missing control_maps - builder will raise ValueError
+            ),
+            (
+                "chain",
+                None,
+                None,  # Missing control_maps - builder will raise ValueError
+            ),
+            (
+                "transition_coupled",
+                None,
+                None,  # Missing control_maps_transition - builder will raise ValueError
+            ),
+            (
+                "transition_coupled",
+                {"control_maps_transition": [[0]]},
+                None,  # Missing emission_variant_indices - builder will raise ValueError
+            ),
+        ],
+    )
+    def test_validate_generative_process_config_invalid_factored_process_configs(
+        self,
+        structure_type: str,
+        extra_instance_fields: dict[str, Any] | None,
+        expected_error_pattern: str | None,
+    ) -> None:
+        """Test validate_generative_process_config with invalid factored process configs.
+
+        Note: Config validation doesn't check structure-specific required fields (like control_maps
+        for symmetric/chain or control_maps_transition/emission_variant_indices for transition_coupled)
+        or invalid structure_type values. These are validated by the builder when the process is
+        actually constructed. This test documents that config validation passes for these cases.
+        """
+        cfg = self._make_factored_process_cfg(structure_type, extra_instance_fields)
+        # All these cases pass config validation (builder will validate later)
+        validate_generative_process_config(cfg)
