@@ -22,7 +22,7 @@ def test_managed_run_loads_mlflow_defaults(setup_dir: Path) -> None:
     captured: dict[str, DictConfig] = {}
 
     @simplexity.managed_run(strict=False)
-    def run(cfg: DictConfig, _components: simplexity.Components) -> None:
+    def run(cfg: DictConfig, components: simplexity.Components) -> None:  # pylint: disable=unused-argument
         captured["cfg"] = cfg
 
     run(cfg)  # pylint: disable=no-value-for-parameter
