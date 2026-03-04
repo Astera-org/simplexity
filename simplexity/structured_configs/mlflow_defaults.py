@@ -337,15 +337,14 @@ def load_mlflow_defaults(cfg: DictConfig) -> DictConfig:
     See Also:
         LOAD_SUBCONFIGS.md for the full specification and examples.
     """
-    mlflow_defaults: ListConfig | str | None = cfg.get("mlflow_defaults")
+    mlflow_defaults = cfg.get("mlflow_defaults")
     if mlflow_defaults is None:
         return cfg
 
-    if isinstance(mlflow_defaults, str):
-        mlflow_defaults = [mlflow_defaults]
+    mlflow_defaults_list = [mlflow_defaults] if isinstance(mlflow_defaults, str) else list(mlflow_defaults)
 
     # Create a copy to avoid mutating the input config
-    mlflow_defaults_copy = cast(ListConfig, OmegaConf.create(list(mlflow_defaults)))
+    mlflow_defaults_copy = cast(ListConfig, OmegaConf.create(mlflow_defaults_list))
     if "_self_" not in mlflow_defaults_copy:
         mlflow_defaults_copy.append("_self_")
 
