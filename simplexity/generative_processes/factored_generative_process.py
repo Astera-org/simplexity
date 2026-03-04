@@ -26,16 +26,7 @@ def _move_arrays_to_device(
     device: jax.Device,  # type: ignore[valid-type]
     name: str,
 ) -> tuple[jax.Array, ...]:
-    """Move arrays to specified device with warning if needed.
-
-    Args:
-        arrays: Sequence of arrays to move
-        device: Target device
-        name: Name for warning messages (e.g., "Transition matrices")
-
-    Returns:
-        Tuple of arrays on target device
-    """
+    """Move arrays to specified device with warning if needed."""
     result = []
     for i, arr in enumerate(arrays):
         if arr.device != device:
@@ -52,20 +43,7 @@ def _move_arrays_to_device(
 
 
 class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
-    """Unified factored generative process with pluggable conditional structures.
-
-    This class provides a single implementation of factored generative processes
-    that supports different conditional dependency patterns via the ConditionalStructure protocol.
-
-    Attributes:
-        component_types: Type of each factor ("hmm" or "ghmm")
-        transition_matrices: Per-factor transition tensors (shape [K_i, V_i, S_i, S_i])
-        normalizing_eigenvectors: Per-factor eigenvectors (shape [K_i, S_i])
-        initial_states: Initial state per factor (shape [S_i])
-        num_variants: Number of parameter variants per factor
-        structure: Conditional structure determining factor interactions
-        encoder: Token encoder for composite observations
-    """
+    """Unified factored generative process with pluggable conditional structures."""
 
     # Static structure
     component_types: tuple[ComponentType, ...]
@@ -96,19 +74,6 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
         device: str | None = None,
         noise_epsilon: float = 0.0,
     ) -> None:
-        """Initialize factored generative process.
-
-        Args:
-            component_types: Type of each factor ("hmm" or "ghmm")
-            transition_matrices: Per-factor transition tensors.
-                transition_matrices[i] has shape [K_i, V_i, S_i, S_i]
-            normalizing_eigenvectors: Per-factor eigenvectors for GHMM.
-                normalizing_eigenvectors[i] has shape [K_i, S_i]
-            initial_states: Initial state per factor (shape [S_i])
-            structure: Conditional structure defining factor interactions
-            device: Device to place arrays on (e.g., "cpu", "gpu")
-            noise_epsilon: Noisy channel epsilon value
-        """
         if len(component_types) == 0:
             raise ValueError("Must provide at least one component")
 
@@ -170,14 +135,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     @eqx.filter_jit
     def observation_probability_distribution(self, state: FactoredState) -> jax.Array:
-        """Compute P(composite_token | state) under the conditional structure.
-
-        Args:
-            state: Tuple of state vectors (one per factor)
-
-        Returns:
-            Distribution over composite tokens, shape [prod(V_i)]
-        """
+        """Compute P(composite_token | state) under the conditional structure."""
         context = self._make_context(state)
         joint_dist = self.structure.compute_joint_distribution(context)
 
@@ -188,44 +146,21 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     @eqx.filter_jit
     def log_observation_probability_distribution(self, log_belief_state: FactoredState) -> jax.Array:
-        """Compute log P(composite_token | state).
-
-        Args:
-            log_belief_state: Tuple of log-state vectors
-
-        Returns:
-            Log-distribution over composite tokens, shape [prod(V_i)]
-        """
+        """Compute log P(composite_token | state)."""
         state = tuple(jnp.exp(s) for s in log_belief_state)
         probs = self.observation_probability_distribution(state)
         return jnp.log(probs)
 
     @eqx.filter_jit
     def emit_observation(self, state: FactoredState, key: jax.Array) -> jax.Array:
-        """Sample composite observation from current state.
-
-        Args:
-            state: Tuple of state vectors
-            key: JAX random key
-
-        Returns:
-            Composite observation (scalar token)
-        """
+        """Sample a composite observation from the current state."""
         probs = self.observation_probability_distribution(state)
         token_flat = jax.random.categorical(key, jnp.log(probs))
         return token_flat
 
     @eqx.filter_jit
     def transition_states(self, state: FactoredState, obs: chex.Array) -> FactoredState:
-        """Update states given composite observation.
-
-        Args:
-            state: Tuple of current state vectors
-            obs: Composite observation (scalar token)
-
-        Returns:
-            Tuple of updated state vectors
-        """
+        """Update states given a composite observation."""
         # Decode composite observation to per-factor tokens
         obs_tuple = self.encoder.token_to_tuple(obs)
 
@@ -245,14 +180,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     @eqx.filter_jit
     def probability(self, observations: jax.Array) -> jax.Array:
-        """Compute P(observations) by scanning through sequence.
-
-        Args:
-            observations: Array of composite observations
-
-        Returns:
-            Scalar probability
-        """
+        """Compute P(observations) by scanning through the sequence."""
 
         def step(carry: FactoredState, obs: jax.Array):
             state = carry
@@ -266,14 +194,7 @@ class FactoredGenerativeProcess(GenerativeProcess[FactoredState]):
 
     @eqx.filter_jit
     def log_probability(self, observations: jax.Array) -> jax.Array:
-        """Compute log P(observations) by scanning through sequence.
-
-        Args:
-            observations: Array of composite observations
-
-        Returns:
-            Scalar log-probability
-        """
+        """Compute log P(observations) by scanning through the sequence."""
 
         def step(carry: FactoredState, obs: jax.Array):
             state = carry

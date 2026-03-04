@@ -104,15 +104,7 @@ class FullyConditional(eqx.Module):
         self.perms_py = tuple(perms_py)
 
     def _flatten_other_tokens_index(self, tokens: jax.Array, i: int) -> jax.Array:
-        """Flatten other-factor tokens to control map index.
-
-        Args:
-            tokens: Array of shape [F] with all tokens
-            i: Factor index to exclude
-
-        Returns:
-            Scalar index for control_maps[i]
-        """
+        """Flatten other-factor tokens to control map index."""
         mult = self.other_multipliers[i]
         return flatten_index(tokens, mult)
 
@@ -182,15 +174,7 @@ class FullyConditional(eqx.Module):
         obs_tuple: tuple[jax.Array, ...],
         context: ConditionalContext,
     ) -> tuple[jax.Array, ...]:
-        """Select variants based on all other factors' tokens.
-
-        Args:
-            obs_tuple: Tuple of observed tokens (one per factor)
-            context: Conditional context (unused for fully conditional structure)
-
-        Returns:
-            Tuple of variant indices (one per factor)
-        """
+        """Select variants based on all other factors' tokens."""
         tokens_arr = jnp.array(obs_tuple)
         variants = []
         for i in range(len(obs_tuple)):
