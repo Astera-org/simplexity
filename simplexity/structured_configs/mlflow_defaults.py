@@ -22,6 +22,7 @@ from typing import Any, NamedTuple, cast
 
 import yaml
 from mlflow import MlflowClient
+from mlflow.exceptions import MlflowException, RestException
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 
@@ -138,7 +139,7 @@ def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | Non
         return None
 
     try:
-        resolve_mlflow_config(target_node)
+        resolve_mlflow_config(target_node, create_if_missing=False)
     except (ValueError, RuntimeError) as e:
         SIMPLEXITY_LOGGER.warning("Error resolving MLflow config: %s", e)
         return None
@@ -153,7 +154,7 @@ def _get_target_config(cfg: DictConfig, parsed_entry: _ParsedEntry) -> Any | Non
     with tempfile.TemporaryDirectory() as tmp_dir:
         try:
             local_path = client.download_artifacts(run_id=run_id, path=artifact_path, dst_path=tmp_dir)
-        except (OSError, FileNotFoundError) as e:
+        except (MlflowException, RestException, OSError, FileNotFoundError) as e:
             SIMPLEXITY_LOGGER.warning("Failed to download artifact from MLflow '%s': %s", parsed_entry.target, e)
             return None
 
@@ -227,7 +228,7 @@ def _resolve_mlflow_configs_recursive(cfg: DictConfig) -> None:
         try:
             validate_mlflow_config(cfg)
             # If validation passes, this looks like an MLflow config, try to resolve it
-            resolve_mlflow_config(cfg)
+            resolve_mlflow_config(cfg, create_if_missing=False)
         except (ConfigValidationError, ValueError, RuntimeError):
             # Not an MLflow config or can't be resolved, continue to check nested configs
             pass
@@ -336,9 +337,12 @@ def load_mlflow_defaults(cfg: DictConfig) -> DictConfig:
     See Also:
         LOAD_SUBCONFIGS.md for the full specification and examples.
     """
-    mlflow_defaults: ListConfig | None = cfg.get("mlflow_defaults")
+    mlflow_defaults: ListConfig | str | None = cfg.get("mlflow_defaults")
     if mlflow_defaults is None:
         return cfg
+
+    if isinstance(mlflow_defaults, str):
+        mlflow_defaults = [mlflow_defaults]
 
     # Create a copy to avoid mutating the input config
     mlflow_defaults_copy = cast(ListConfig, OmegaConf.create(list(mlflow_defaults)))

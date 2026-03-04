@@ -56,7 +56,7 @@ def validate_mlflow_config(cfg: DictConfig) -> None:
 
 
 @dynamic_resolve
-def resolve_mlflow_config(cfg: DictConfig) -> None:
+def resolve_mlflow_config(cfg: DictConfig, *, create_if_missing: bool = True) -> None:
     """Resolve a MLFlowConfig."""
     # Resolve registry uri
     tracking_uri: str | None = cfg.get("tracking_uri")
@@ -73,7 +73,9 @@ def resolve_mlflow_config(cfg: DictConfig) -> None:
     # Resolve experiment id and name
     experiment_id: str | None = cfg.get("experiment_id")
     experiment_name: str | None = cfg.get("experiment_name")
-    experiment = get_experiment(experiment_id=experiment_id, experiment_name=experiment_name, client=client)
+    experiment = get_experiment(
+        experiment_id=experiment_id, experiment_name=experiment_name, client=client, create_if_missing=create_if_missing
+    )
     if experiment is None:
         raise ValueError(f"Experiment not found for id: {experiment_id} and name: {experiment_name}")
     cfg.experiment_id = experiment.experiment_id
@@ -82,7 +84,13 @@ def resolve_mlflow_config(cfg: DictConfig) -> None:
     # Resolve run id and name
     run_id: str | None = cfg.get("run_id")
     run_name: str | None = cfg.get("run_name")
-    run = get_run(run_id=run_id, run_name=run_name, experiment_id=cfg.experiment_id, client=client)
+    run = get_run(
+        run_id=run_id,
+        run_name=run_name,
+        experiment_id=cfg.experiment_id,
+        client=client,
+        create_if_missing=create_if_missing,
+    )
     if run is None:
         raise ValueError(f"Run not found for id: {run_id} and name: {run_name}")
     cfg.run_id = run.info.run_id

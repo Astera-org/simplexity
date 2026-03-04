@@ -5,6 +5,7 @@ from unittest.mock import ANY, MagicMock
 
 import pytest
 from mlflow.client import MlflowClient
+from mlflow.exceptions import MlflowException
 from omegaconf import DictConfig, OmegaConf
 
 from simplexity.exceptions import ConfigValidationError
@@ -820,3 +821,75 @@ def test_option_hash_empty_select(base_cfg: DictConfig, mock_download: MagicMock
     assert OmegaConf.select(loaded_cfg, "root_key") == "root_value"
     assert OmegaConf.select(loaded_cfg, "nested.nested_key") == "nested_value"
     assert mock_download.call_args.kwargs["path"] == "artifact.yaml"
+
+
+def test_mlflow_exception_caught_by_download(base_cfg: DictConfig, mock_download: MagicMock):
+    """Test that MlflowException from download_artifacts is caught."""
+    mock_download.side_effect = MlflowException("Artifact not found on remote store")
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["previous_run"],
+        },
+    )
+    with pytest.raises(ValueError, match="Target config not found for entry"):
+        load_mlflow_defaults(cfg)
+
+
+def test_mlflow_exception_caught_optional(base_cfg: DictConfig, mock_download: MagicMock):
+    """Test that MlflowException from download_artifacts is caught with optional flag."""
+    mock_download.side_effect = MlflowException("Artifact not found on remote store")
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["optional previous_run"],
+        },
+    )
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"
+
+
+def test_string_mlflow_defaults(base_cfg: DictConfig, mock_download: MagicMock, tmp_path: Path):
+    """Test that a string mlflow_defaults value is handled correctly."""
+    artifact_path = tmp_path / "config.yaml"
+    artifact_path.write_text("loaded_key: loaded_value\n")
+    mock_download.return_value = str(artifact_path)
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": "previous_run",
+        },
+    )
+
+    loaded_cfg: DictConfig = load_mlflow_defaults(cfg)
+    assert loaded_cfg.get("loaded_key") == "loaded_value"
+    assert OmegaConf.select(loaded_cfg, "other_section.foo") == "bar"
+
+
+def test_resolve_mlflow_config_called_with_create_if_missing_false(
+    base_cfg: DictConfig,
+    mock_download: MagicMock,
+    tmp_path: Path,
+    mocker,
+):
+    """Test that resolve_mlflow_config is called with create_if_missing=False."""
+    artifact_path = tmp_path / "config.yaml"
+    artifact_path.write_text("loaded_key: loaded_value\n")
+    mock_download.return_value = str(artifact_path)
+
+    mock_resolve = mocker.patch("simplexity.structured_configs.mlflow_defaults.resolve_mlflow_config")
+
+    cfg = OmegaConf.merge(
+        base_cfg,
+        {
+            "mlflow_defaults": ["previous_run"],
+        },
+    )
+
+    load_mlflow_defaults(cfg)
+    mock_resolve.assert_called()
+    for c in mock_resolve.call_args_list:
+        assert c.kwargs.get("create_if_missing") is False
