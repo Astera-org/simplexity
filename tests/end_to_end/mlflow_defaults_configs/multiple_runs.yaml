@@ -1,0 +1,6 @@
+defaults:
+  - mlflow@load_source_1: prev_run_1
+  - mlflow@load_source_2: prev_run_2
+mlflow_defaults:
+  - load_source_1@old_model_1
+  - load_source_2@old_model_2
