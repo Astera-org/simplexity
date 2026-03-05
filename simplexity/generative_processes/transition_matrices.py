@@ -107,6 +107,26 @@ def leaky_rrxor(p1: float, p2: float, epsilon: float) -> jax.Array:
     return transition_matrices
 
 
+def leopard(x: float) -> jax.Array:
+    """Creates a transition matrix for the Leopard Process.
+    """
+    assert 0 <= x <= 1
+    return jnp.array(
+        [
+            [
+                [0.0, 0.0, 0.3465],
+                [0.6435, 0.0, 0.0],
+                [0.0, 0.99 * x, 0.0],
+            ],
+            [
+                [0.005, 0.005, 0.6435],
+                [0.3465, 0.005, 0.005],
+                [0.005, 0.99 * (1 - x), 0.005],
+            ],
+        ]
+    )
+
+
 def matching_parens(open_probs: list[float]) -> jax.Array:
     """Creates a model for generating Matching Parentheses."""
     if len(open_probs) < 1:
@@ -370,6 +390,7 @@ HMM_MATRIX_FUNCTIONS = {
     "days_of_week": days_of_week,
     "even_ones": even_ones,
     "leaky_rrxor": leaky_rrxor,
+    "leopard": leopard,
     "matching_parens": matching_parens,
     "mess3": mess3,
     "mr_name": mr_name,
