@@ -10,11 +10,10 @@ from simplexity.generative_processes.data_prefetcher import DataPrefetcher
 
 def test_get_returns_correct_result():
     """Get should return the result of generate_fn called with the step number."""
-    prefetcher = DataPrefetcher(lambda step: step * 10, lookahead=1)
-    assert prefetcher.get(0) == 0
-    assert prefetcher.get(5) == 50
-    assert prefetcher.get(100) == 1000
-    prefetcher.shutdown()
+    with DataPrefetcher(lambda step: step * 10, lookahead=1) as prefetcher:
+        assert prefetcher.get(0) == 0
+        assert prefetcher.get(5) == 50
+        assert prefetcher.get(100) == 1000
 
 
 def test_prefetch_submits_future():
@@ -26,30 +25,19 @@ def test_prefetch_submits_future():
         call_count += 1
         return step
 
-    prefetcher = DataPrefetcher(counting_fn, lookahead=1)
-    prefetcher.prefetch(0)
-    result = prefetcher.get(0)
-    assert result == 0
-    assert call_count == 1
-    prefetcher.shutdown()
+    with DataPrefetcher(counting_fn, lookahead=1) as prefetcher:
+        prefetcher.prefetch(0)
+        result = prefetcher.get(0)
+        assert result == 0
+        assert call_count == 1
 
 
 def test_lookahead_prefetches_future_steps():
     """Get should trigger prefetch for the next lookahead steps."""
-    called_steps: list[int] = []
-
-    def tracking_fn(step: int) -> int:
-        called_steps.append(step)
-        return step
-
-    prefetcher = DataPrefetcher(tracking_fn, lookahead=2)
+    prefetcher = DataPrefetcher(lambda step: step, lookahead=2)
     prefetcher.get(0)
-    prefetcher.get(1)
-    prefetcher.get(2)
-    assert sorted(set(called_steps)) == [0, 1, 2]
-    assert called_steps.count(0) == 1
-    assert called_steps.count(1) == 1
-    assert called_steps.count(2) == 1
+    assert 1 in prefetcher._futures  # noqa: SLF001
+    assert 2 in prefetcher._futures  # noqa: SLF001
     prefetcher.shutdown()
 
 
@@ -62,14 +50,13 @@ def test_get_cleans_up_old_futures():
         call_count += 1
         return step
 
-    prefetcher = DataPrefetcher(counting_fn, lookahead=1)
-    prefetcher.prefetch(0)
-    prefetcher.prefetch(1)
-    prefetcher.get(2)
-    old_count = call_count
-    prefetcher.get(0)
-    assert call_count > old_count
-    prefetcher.shutdown()
+    with DataPrefetcher(counting_fn, lookahead=1) as prefetcher:
+        prefetcher.prefetch(0)
+        prefetcher.prefetch(1)
+        prefetcher.get(2)
+        old_count = call_count
+        prefetcher.get(0)
+        assert call_count > old_count
 
 
 def test_error_propagation():
@@ -78,22 +65,45 @@ def test_error_propagation():
     def failing_fn(step: int) -> int:
         raise ValueError(f"step {step} failed")
 
-    prefetcher = DataPrefetcher(failing_fn, lookahead=1)
-    with pytest.raises(ValueError, match="step 3 failed"):
-        prefetcher.get(3)
-    prefetcher.shutdown()
+    with DataPrefetcher(failing_fn, lookahead=1) as prefetcher:
+        with pytest.raises(ValueError, match="step 3 failed"):
+            prefetcher.get(3)
 
 
 def test_shutdown_does_not_hang():
-    """Shutdown should return promptly even with pending futures."""
+    """Shutdown via context manager should return promptly even with pending futures."""
 
     def slow_fn(step: int) -> int:
         time.sleep(10)
         return step
 
-    prefetcher = DataPrefetcher(slow_fn, lookahead=1)
-    prefetcher.prefetch(0)
-    prefetcher.shutdown()
+    completed = threading.Event()
+
+    def run_shutdown():
+        with DataPrefetcher(slow_fn, lookahead=1) as prefetcher:
+            prefetcher.prefetch(0)
+        completed.set()
+
+    t = threading.Thread(target=run_shutdown)
+    t.start()
+    assert completed.wait(timeout=2), "Shutdown blocked for over 2s"
+
+
+def test_context_manager_cleans_up_on_exception():
+    """Context manager should shut down the executor even if an exception occurs."""
+
+    def identity(step: int) -> int:
+        return step
+
+    prefetcher: DataPrefetcher[int] | None = None
+    with pytest.raises(RuntimeError, match="boom"):
+        with DataPrefetcher(identity, lookahead=1) as p:
+            prefetcher = p
+            p.get(0)
+            raise RuntimeError("boom")
+
+    assert prefetcher is not None
+    assert prefetcher._executor._shutdown
 
 
 def test_generate_fn_runs_in_background_thread():
@@ -106,11 +116,10 @@ def test_generate_fn_runs_in_background_thread():
         gen_thread_id = threading.current_thread().ident
         return step
 
-    prefetcher = DataPrefetcher(capture_thread, lookahead=1)
-    prefetcher.get(0)
-    assert gen_thread_id is not None
-    assert gen_thread_id != caller_thread
-    prefetcher.shutdown()
+    with DataPrefetcher(capture_thread, lookahead=1) as prefetcher:
+        prefetcher.get(0)
+        assert gen_thread_id is not None
+        assert gen_thread_id != caller_thread
 
 
 def test_duplicate_prefetch_is_noop():
@@ -122,9 +131,8 @@ def test_duplicate_prefetch_is_noop():
         call_count += 1
         return step
 
-    prefetcher = DataPrefetcher(counting_fn, lookahead=1)
-    prefetcher.prefetch(0)
-    prefetcher.prefetch(0)
-    prefetcher.get(0)
-    assert call_count == 1
-    prefetcher.shutdown()
+    with DataPrefetcher(counting_fn, lookahead=1) as prefetcher:
+        prefetcher.prefetch(0)
+        prefetcher.prefetch(0)
+        prefetcher.get(0)
+        assert call_count == 1
