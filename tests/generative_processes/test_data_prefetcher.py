@@ -36,8 +36,8 @@ def test_lookahead_prefetches_future_steps():
     """Get should trigger prefetch for the next lookahead steps."""
     prefetcher = DataPrefetcher(lambda step: step, lookahead=2)
     prefetcher.get(0)
-    assert 1 in prefetcher._futures  # noqa: SLF001
-    assert 2 in prefetcher._futures  # noqa: SLF001
+    assert 1 in prefetcher._futures  # noqa: SLF001  # pylint: disable=protected-access
+    assert 2 in prefetcher._futures  # noqa: SLF001  # pylint: disable=protected-access
     prefetcher.shutdown()
 
 
@@ -103,7 +103,8 @@ def test_context_manager_cleans_up_on_exception():
             raise RuntimeError("boom")
 
     assert prefetcher is not None
-    assert prefetcher._executor._shutdown
+    with pytest.raises(RuntimeError):
+        prefetcher.prefetch(99)
 
 
 def test_generate_fn_runs_in_background_thread():
