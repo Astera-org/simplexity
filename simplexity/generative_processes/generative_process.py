@@ -61,10 +61,10 @@ class GenerativeProcess[State](eqx.Module):
                 a structure-preserving empty sentinel
 
         if return_all_states is True:
-            belief_states is the sequence of belief states of shape:
+            all_states is the sequence of pre-transition states of shape:
                 (batch_size, sequence_len, num_states)
         otherwise:
-            belief_states is an empty array per state leaf of shape:
+            all_states is an empty array per state leaf of shape:
                 (batch_size, 0)
 
         observations is (batch_size, sequence_len)

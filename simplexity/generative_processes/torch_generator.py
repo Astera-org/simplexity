@@ -17,11 +17,7 @@ import torch
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.generator import (
     DataBatch,
-)
-from simplexity.generative_processes.generator import (
     generate_data_batch as generate_jax_data_batch,
-)
-from simplexity.generative_processes.generator import (
     generate_data_batch_with_full_history as generate_jax_data_batch_with_full_history,
 )
 from simplexity.utils.pytorch_utils import jax_to_torch
@@ -75,13 +71,13 @@ def generate_data_batch(
     labels = result["labels"]
     assert isinstance(inputs, jax.Array)
     assert isinstance(labels, jax.Array)
-    return {
-        "gen_states": result["gen_states"],
-        "belief_states": result["belief_states"],
-        "prefix_probabilities": result["prefix_probabilities"],
-        "inputs": jax_to_torch(inputs, device),
-        "labels": jax_to_torch(labels, device),
-    }
+    return TorchDataBatch(
+        gen_states=result["gen_states"],
+        belief_states=result["belief_states"],
+        prefix_probabilities=result["prefix_probabilities"],
+        inputs=jax_to_torch(inputs, device),
+        labels=jax_to_torch(labels, device),
+    )
 
 
 def generate_data_batch_with_full_history(
@@ -107,7 +103,8 @@ def generate_data_batch_with_full_history(
         device: Optional target device for PyTorch tensors
 
     Returns:
-        Dict with keys:
+        TorchDataBatch with keys:
+            - gen_states: Final generator state (jax.Array or tuple[jax.Array, ...])
             - belief_states: Belief states (jax.Array or tuple[jax.Array, ...])
             - prefix_probabilities: Prefix probabilities (jax.Array)
             - inputs: Input tokens (torch.Tensor)
@@ -128,10 +125,10 @@ def generate_data_batch_with_full_history(
     assert isinstance(inputs, jax.Array)
     assert isinstance(labels, jax.Array)
 
-    return {
-        "gen_states": result["gen_states"],
-        "belief_states": result["belief_states"],
-        "prefix_probabilities": result["prefix_probabilities"],
-        "inputs": jax_to_torch(inputs, device),
-        "labels": jax_to_torch(labels, device),
-    }
+    return TorchDataBatch(
+        gen_states=result["gen_states"],
+        belief_states=result["belief_states"],
+        prefix_probabilities=result["prefix_probabilities"],
+        inputs=jax_to_torch(inputs, device),
+        labels=jax_to_torch(labels, device),
+    )
