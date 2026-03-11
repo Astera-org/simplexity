@@ -130,7 +130,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
 
     def generate(step: int) -> tuple[torch.Tensor, torch.Tensor]:
         key = jax.random.key(step)
-        _, inputs, labels = generate_data_batch(
+        result = generate_data_batch(
             gen_states,
             generative_process,
             cfg.training.batch_size,
@@ -139,7 +139,7 @@ def train(cfg: TrainingRunConfig, components: simplexity.Components) -> None:
             device=device_arg,
             bos_token=cfg.generative_process.bos_token,
         )
-        return inputs, labels
+        return result["inputs"], result["labels"]
 
     loss_fn = torch.nn.CrossEntropyLoss()
 

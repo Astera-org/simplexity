@@ -14,6 +14,7 @@ from simplexity.generative_processes.factored_generative_process import (
     FactoredGenerativeProcess,
     FactoredState,
 )
+from simplexity.generative_processes.generative_process import GenerateResult
 from simplexity.generative_processes.structures import ConditionalStructure
 from simplexity.generative_processes.structures.independent import IndependentStructure
 from simplexity.logger import SIMPLEXITY_LOGGER
@@ -147,7 +148,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
     @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
     def generate(
         self, state: FactoredState, key: chex.PRNGKey, sequence_len: int, return_all_states: bool
-    ) -> tuple[FactoredState, chex.Array]:
+    ) -> GenerateResult[FactoredState]:
         """Generate sequences with frozen factor support.
 
         For frozen factors, the same key stream is used across all batch samples,
@@ -161,7 +162,7 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             return_all_states: Whether to return all intermediate states
 
         Returns:
-            Tuple of (final_states or all_states, observations)
+            Dict with final states, observations, and optional pre-transition state history
         """
         keys = jax.random.split(key, sequence_len)
         frozen_keys = jax.random.split(self.frozen_key, sequence_len) if self.frozen_key is not None else keys
@@ -183,7 +184,9 @@ class IndependentFactoredGenerativeProcess(FactoredGenerativeProcess):
             return new_state, (carry_state, obs)
 
         if return_all_states:
-            _, (states, obs) = jax.lax.scan(gen_states_and_obs, state, (keys, frozen_keys))
-            return states, obs
+            final_state, (states, obs) = jax.lax.scan(gen_states_and_obs, state, (keys, frozen_keys))
+            return GenerateResult(states=final_state, observations=obs, all_states=states)
 
-        return jax.lax.scan(gen_obs, state, (keys, frozen_keys))
+        final_state, obs = jax.lax.scan(gen_obs, state, (keys, frozen_keys))
+        empty_states = jax.tree.map(lambda leaf: jnp.empty(0, dtype=leaf.dtype), state)
+        return GenerateResult(states=final_state, observations=obs, all_states=empty_states)

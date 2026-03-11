@@ -132,20 +132,28 @@ def test_single_transition(z1r: HiddenMarkovModel):
     key = jax.random.PRNGKey(0)[None, :]
     single_transition = 1
 
-    next_state, observation = z1r.generate(zero_state, key, single_transition, False)
+    result = z1r.generate(zero_state, key, single_transition, False)
+    next_state = result["states"]
+    observation = result["observations"]
     assert_proportional(probability(next_state), one_state)
     assert observation == jnp.array(0)
 
-    next_state, observation = z1r.generate(one_state, key, single_transition, False)
+    result = z1r.generate(one_state, key, single_transition, False)
+    next_state = result["states"]
+    observation = result["observations"]
     assert_proportional(probability(next_state), random_state)
     assert observation == jnp.array(1)
 
-    next_state, observation = z1r.generate(random_state, key, single_transition, False)
+    result = z1r.generate(random_state, key, single_transition, False)
+    next_state = result["states"]
+    observation = result["observations"]
     assert_proportional(probability(next_state), zero_state)
 
     mixed_state = jnp.array([[0.4, 0.4, 0.2]])
 
-    next_state, observation = z1r.generate(mixed_state, key, single_transition, False)
+    result = z1r.generate(mixed_state, key, single_transition, False)
+    next_state = result["states"]
+    observation = result["observations"]
     # P(next=0 | obs=x) = P(prev=2 | obs=x)
     # P(next=1 | obs=x) = P(prev=0 | obs=x)
     # P(next=2 | obs=x) = P(prev=1 | obs=x)
@@ -169,14 +177,41 @@ def test_generate(z1r: HiddenMarkovModel):
 
     initial_states = jnp.repeat(z1r.normalizing_eigenvector[None, :], batch_size, axis=0)
     keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
-    intermediate_states, intermediate_observations = z1r.generate(initial_states, keys, sequence_len, False)
+    result = z1r.generate(initial_states, keys, sequence_len, False)
+    intermediate_states = result["states"]
+    intermediate_observations = result["observations"]
     assert intermediate_states.shape == (batch_size, z1r.num_states)
     assert intermediate_observations.shape == (batch_size, sequence_len)
+    assert result["all_states"].shape == (batch_size, 0)
 
     keys = jax.random.split(jax.random.PRNGKey(1), batch_size)
-    final_states, final_observations = z1r.generate(intermediate_states, keys, sequence_len, False)
+    result = z1r.generate(intermediate_states, keys, sequence_len, False)
+    final_states = result["states"]
+    final_observations = result["observations"]
     assert final_states.shape == (batch_size, z1r.num_states)
     assert final_observations.shape == (batch_size, sequence_len)
+
+
+def test_generate_with_all_states_returns_final_carry(z1r: HiddenMarkovModel):
+    """`states` should equal transitioning from the last intermediate state and last observation."""
+    batch_size = 4
+    sequence_len = 6
+    initial_states = jnp.repeat(z1r.normalizing_eigenvector[None, :], batch_size, axis=0)
+    keys = jax.random.split(jax.random.PRNGKey(7), batch_size)
+
+    result = z1r.generate(initial_states, keys, sequence_len, True)
+    all_states = result["all_states"]
+    observations = result["observations"]
+    final_states = result["states"]
+    assert all_states.shape == (batch_size, sequence_len, z1r.num_states)
+    assert observations.shape == (batch_size, sequence_len)
+    assert final_states.shape == (batch_size, z1r.num_states)
+
+    expected_final_states = eqx.filter_vmap(z1r.transition_states)(
+        all_states[:, -1, :],
+        observations[:, -1],
+    )
+    chex.assert_trees_all_close(final_states, expected_final_states)
 
 
 def test_observation_probability_distribution(z1r: HiddenMarkovModel):
