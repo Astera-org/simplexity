@@ -69,6 +69,38 @@ def even_ones(p: float) -> jax.Array:
     )
 
 
+def fan(x: float) -> jax.Array:
+    """Creates a transition matrix for the Fan Process."""
+    assert 0.0 <= x <= 0.4
+    s = jnp.array([
+        [0.98, 0.0, 0.02],
+        [0.49, 0.332, 0.178],
+        [0.0, 0.19, 0.81],
+    ])
+    t = jnp.array([
+        [x, 0.0, 0.0],
+        [0.0, 0.87, 0.25],
+        [0.0, 0.06, 1.0],
+    ])
+    return jnp.stack([t * s, (1 - t) * s])
+
+
+def fern(x: float) -> jax.Array:
+    """Creates a transition matrix for the Fern Process."""
+    assert 0.0 <= x <= 1.0
+    s = jnp.array([
+        [0.73, 0.016, 0.254],
+        [0.0, 0.53, 0.47],
+        [0.12, 0.326, 0.554],
+    ])
+    t = jnp.array([
+        [0.54, 0.32, 0.15],
+        [0.0, 1.0, 0.0],
+        [0.0, x, 1.0],
+    ])
+    return jnp.stack([t * s, (1 - t) * s])
+
+
 def fanizza(alpha: float, lamb: float) -> jax.Array:
     """Creates a transition matrix for the Faniza Process."""
     a_la = (1 - lamb * jnp.cos(alpha) + lamb * jnp.sin(alpha)) / (1 - 2 * lamb * jnp.cos(alpha) + lamb**2)
@@ -389,6 +421,8 @@ HMM_MATRIX_FUNCTIONS = {
     "coin": coin,
     "days_of_week": days_of_week,
     "even_ones": even_ones,
+    "fan": fan,
+    "fern": fern,
     "leaky_rrxor": leaky_rrxor,
     "leopard": leopard,
     "matching_parens": matching_parens,
