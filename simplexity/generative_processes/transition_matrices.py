@@ -72,33 +72,27 @@ def even_ones(p: float) -> jax.Array:
 def fan(x: float) -> jax.Array:
     """Creates a transition matrix for the Fan Process."""
     assert 0.0 <= x <= 0.4
-    s = jnp.array([
-        [0.98, 0.0, 0.02],
-        [0.49, 0.332, 0.178],
-        [0.0, 0.19, 0.81],
+    return jnp.array([
+        [[0.98 * x, 0.0, 0.0],
+         [0.0, 0.28884, 0.0445],
+         [0.0, 0.0114, 0.81]],
+        [[0.98 * (1 - x), 0.0, 0.02],
+         [0.49, 0.04316, 0.1335],
+         [0.0, 0.1786, 0.0]],
     ])
-    t = jnp.array([
-        [x, 0.0, 0.0],
-        [0.0, 0.87, 0.25],
-        [0.0, 0.06, 1.0],
-    ])
-    return jnp.stack([t * s, (1 - t) * s])
 
 
 def fern(x: float) -> jax.Array:
     """Creates a transition matrix for the Fern Process."""
     assert 0.0 <= x <= 1.0
-    s = jnp.array([
-        [0.73, 0.016, 0.254],
-        [0.0, 0.53, 0.47],
-        [0.12, 0.326, 0.554],
+    return jnp.array([
+        [[0.3942, 0.00512, 0.0381],
+         [0.0, 0.53, 0.0],
+         [0.0, 0.326 * x, 0.554]],
+        [[0.3358, 0.01088, 0.2159],
+         [0.0, 0.0, 0.47],
+         [0.12, 0.326 * (1 - x), 0.0]],
     ])
-    t = jnp.array([
-        [0.54, 0.32, 0.15],
-        [0.0, 1.0, 0.0],
-        [0.0, x, 1.0],
-    ])
-    return jnp.stack([t * s, (1 - t) * s])
 
 
 def fanizza(alpha: float, lamb: float) -> jax.Array:
@@ -359,6 +353,19 @@ def sns(p: float, q: float):
     )
 
 
+def stair(x: float) -> jax.Array:
+    """Creates a transition matrix for the Stair Process."""
+    assert 0.0 <= x <= 0.5
+    return jnp.array([
+        [[0.98 * x, 0.0, 0.0],
+         [0.0, 0.3159, 0.0],
+         [0.0, 0.0912, 0.81]],
+        [[0.98 * (1 - x), 0.0, 0.02],
+         [0.46, 0.0351, 0.189],
+         [0.0, 0.0988, 0.0]],
+    ])
+
+
 def tom_quantum(alpha: float, beta: float) -> jax.Array:
     """Creates a transition matrix for the Tom Quantum Process."""
     gamma2 = 1 / (4 * (alpha**2 + beta**2))
@@ -431,6 +438,7 @@ HMM_MATRIX_FUNCTIONS = {
     "no_consecutive_ones": no_consecutive_ones,
     "rrxor": rrxor,
     "sns": sns,
+    "stair": stair,
     "zero_one_random": zero_one_random,
 }
 
