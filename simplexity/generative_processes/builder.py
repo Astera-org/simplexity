@@ -808,8 +808,7 @@ def _build_prefix_vocab_maps(n_components: int, v: int, n_shared: int, n_unique:
     C0 gets [0..V-1]. Ci>0 gets shared [0..n_shared-1] + unique tokens above V.
     """
     return [list(range(v))] + [
-        list(range(n_shared)) + list(range(v + i * n_unique, v + (i + 1) * n_unique))
-        for i in range(n_components - 1)
+        list(range(n_shared)) + list(range(v + i * n_unique, v + (i + 1) * n_unique)) for i in range(n_components - 1)
     ]
 
 
