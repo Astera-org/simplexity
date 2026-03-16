@@ -877,6 +877,8 @@ def build_nonergodic_partial_overlap(
     elif mode == "sliding":
         vocab_maps = _build_sliding_vocab_maps(n_components, v, n_unique)
     elif mode == "random":
+        if seed is None:
+            raise ValueError("seed is required when mode='random'")
         vocab_maps = _build_random_vocab_maps(n_components, v, n_unique, seed)
     else:
         raise ValueError(f"Unknown mode '{mode}'. Must be 'prefix', 'sliding', or 'random'.")
