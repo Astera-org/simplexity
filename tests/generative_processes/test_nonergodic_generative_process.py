@@ -352,6 +352,28 @@ class TestEdgeCases:
                 component_weights=[1.0],  # Only 1 weight for 2 components
             )
 
+    def test_mismatched_vocab_maps_raises(self):
+        """Should raise if vocab map count doesn't match component count."""
+        coin = build_hidden_markov_model("coin", {"p": 0.5})
+
+        with pytest.raises(ValueError, match="Length of vocab maps"):
+            NonErgodicGenerativeProcess(
+                components=[coin, coin],
+                component_weights=[0.5, 0.5],
+                vocab_maps=[[0, 1]],
+            )
+
+    def test_duplicate_vocab_map_entries_raise(self):
+        """Should raise if a component vocab map reuses a global token index."""
+        coin = build_hidden_markov_model("coin", {"p": 0.5})
+
+        with pytest.raises(ValueError, match="must not contain duplicate"):
+            NonErgodicGenerativeProcess(
+                components=[coin],
+                component_weights=[1.0],
+                vocab_maps=[[0, 0]],
+            )
+
 
 class TestGenerateReturnAllStates:
     """Tests for generate with return_all_states=True."""

@@ -807,14 +807,10 @@ def _build_prefix_vocab_maps(n_components: int, v: int, n_shared: int, n_unique:
 
     C0 gets [0..V-1]. Ci>0 gets shared [0..n_shared-1] + unique tokens above V.
     """
-    vocab_maps: list[list[int]] = []
-    for i in range(n_components):
-        if i == 0:
-            vocab_maps.append(list(range(v)))
-        else:
-            unique_start = v + (i - 1) * n_unique
-            vocab_maps.append(list(range(n_shared)) + list(range(unique_start, unique_start + n_unique)))
-    return vocab_maps
+    return [list(range(v))] + [
+        list(range(n_shared)) + list(range(v + i * n_unique, v + (i + 1) * n_unique))
+        for i in range(n_components - 1)
+    ]
 
 
 def _build_sliding_vocab_maps(n_components: int, v: int, n_unique: int) -> list[list[int]]:
@@ -826,17 +822,15 @@ def _build_sliding_vocab_maps(n_components: int, v: int, n_unique: int) -> list[
     return [list(range(i * offset, i * offset + v)) for i in range(n_components)]
 
 
-def _build_random_vocab_maps(n_components: int, v: int, n_shared: int, n_unique: int, seed: int) -> list[list[int]]:
+def _build_random_vocab_maps(n_components: int, v: int, n_unique: int, seed: int) -> list[list[int]]:
     """Build vocab maps by having each component randomly sample V tokens from the global pool.
 
-    The global vocab size is the same as in prefix mode (V + (n_components - 1) * n_unique),
-    and each component independently samples V tokens without replacement.
+    The global vocab size is the same as in prefix mode:
+    V + (n_components - 1) * n_unique.
     """
-    prefix_maps = _build_prefix_vocab_maps(n_components, v, n_shared, n_unique)
-    global_vocab_size = max(max(vm) for vm in prefix_maps) + 1
+    global_vocab_size = v + (n_components - 1) * n_unique
     rng = random.Random(seed)
-    global_tokens = list(range(global_vocab_size))
-    return [sorted(rng.sample(global_tokens, v)) for _ in range(n_components)]
+    return [sorted(rng.sample(range(global_vocab_size), v)) for _ in range(n_components)]
 
 
 def build_nonergodic_partial_overlap(
@@ -884,8 +878,7 @@ def build_nonergodic_partial_overlap(
     elif mode == "sliding":
         vocab_maps = _build_sliding_vocab_maps(n_components, v, n_unique)
     elif mode == "random":
-        assert seed is not None
-        vocab_maps = _build_random_vocab_maps(n_components, v, n_shared, n_unique, seed)
+        vocab_maps = _build_random_vocab_maps(n_components, v, n_unique, seed)
     else:
         raise ValueError(f"Unknown mode '{mode}'. Must be 'prefix', 'sliding', or 'random'.")
 

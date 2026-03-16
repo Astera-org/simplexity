@@ -138,7 +138,9 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             device: Device to place arrays on (e.g., "cpu", "gpu").
 
         Raises:
-            ValueError: If components is empty or weights don't match component count.
+            ValueError: If components is empty, weights don't match component count,
+                vocab map count doesn't match component count, or a component
+                vocab_map contains duplicate global token indices.
         """
         if len(components) == 0:
             raise ValueError("Must provide at least one component")
@@ -158,6 +160,12 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
 
         if vocab_maps is None:
             vocab_maps = [list(range(c.vocab_size)) for c in components]
+        elif len(vocab_maps) != len(self.components):
+            raise ValueError("Length of vocab maps must equal length of components.")
+
+        for i, vm in enumerate(vocab_maps):
+            if len(set(vm)) != len(vm):
+                raise ValueError(f"vocab_maps[{i}] must not contain duplicate global token indices")
 
         self.vocab_maps = tuple(jax.device_put(jnp.array(vm, dtype=jnp.int32), self.device) for vm in vocab_maps)
         self._vocab_size = max(max(vm) for vm in vocab_maps) + 1
@@ -197,11 +205,11 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         """
         global_dist = jnp.zeros(self._vocab_size)
 
-        for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=False)):
+        for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=True)):
             comp_state = state.component_states[i]
             local_dist = component.observation_probability_distribution(comp_state)
             component_contrib = jnp.zeros(self._vocab_size).at[vm].add(local_dist)
-            global_dist = global_dist + state.component_beliefs[i] * component_contrib
+            global_dist += state.component_beliefs[i] * component_contrib
 
         return global_dist
 
@@ -215,7 +223,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         """
         log_probs = []
 
-        for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=False)):
+        for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=True)):
             comp_log_state = log_belief_state.component_states[i]
             comp_log_belief = log_belief_state.component_beliefs[i]
 
@@ -263,7 +271,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         new_component_states = []
         likelihoods = []
 
-        for i, (component, inv_map) in enumerate(zip(self.components, self._inverse_vocab_maps, strict=False)):
+        for i, (component, inv_map) in enumerate(zip(self.components, self._inverse_vocab_maps, strict=True)):
             comp_state = state.component_states[i]
             local_obs = inv_map[obs]
 
