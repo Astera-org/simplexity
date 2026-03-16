@@ -17,6 +17,14 @@ from simplexity.utils.jnp_utils import resolve_jax_device
 ComponentState = jax.Array | tuple[jax.Array, ...]
 
 
+class _GenerationLayout(NamedTuple):
+    """Static metadata needed to flatten and restore heterogeneous states."""
+
+    flat_sizes: tuple[int, ...]
+    state_templates: tuple[ComponentState, ...]
+    max_flat_size: int
+
+
 def _get_flat_size(state: ComponentState) -> int:
     """Get total number of elements in a component state.
 
@@ -43,6 +51,12 @@ def _flatten_state(state: ComponentState) -> jax.Array:
     if isinstance(state, tuple):
         return jnp.concatenate([arr.ravel() for arr in state])
     return state.ravel()
+
+
+def _flatten_and_pad_state(state: ComponentState, max_flat_size: int) -> jax.Array:
+    """Flatten a state and pad it to the shared switch-compatible size."""
+    flat = _flatten_state(state)
+    return jnp.pad(flat, (0, max_flat_size - flat.size))
 
 
 def _unflatten_state(flat: jax.Array, template: ComponentState) -> ComponentState:
@@ -73,6 +87,16 @@ def _unflatten_state(flat: jax.Array, template: ComponentState) -> ComponentStat
             offset += t.size
         return tuple(parts)
     return flat.reshape(template.shape)
+
+
+def _unpad_and_unflatten_state(padded: jax.Array, original_size: int, template: ComponentState) -> ComponentState:
+    """Remove padding and restore the component state structure."""
+    return _unflatten_state(padded[:original_size], template)
+
+
+def _keep_state(state: ComponentState, _obs: chex.Array) -> ComponentState:
+    """Return the existing state unchanged."""
+    return state
 
 
 class NonErgodicState(NamedTuple):
@@ -138,7 +162,9 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             device: Device to place arrays on (e.g., "cpu", "gpu").
 
         Raises:
-            ValueError: If components is empty or weights don't match component count.
+            ValueError: If components is empty, weights don't match component count,
+                vocab map count doesn't match component count, or a component
+                vocab_map contains duplicate global token indices.
         """
         if len(components) == 0:
             raise ValueError("Must provide at least one component")
@@ -158,6 +184,12 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
 
         if vocab_maps is None:
             vocab_maps = [list(range(c.vocab_size)) for c in components]
+        elif len(vocab_maps) != len(self.components):
+            raise ValueError("Length of vocab maps must equal length of components.")
+
+        for i, vm in enumerate(vocab_maps):
+            if len(set(vm)) != len(vm):
+                raise ValueError(f"vocab_maps[{i}] must not contain duplicate global token indices")
 
         self.vocab_maps = tuple(jax.device_put(jnp.array(vm, dtype=jnp.int32), self.device) for vm in vocab_maps)
         self._vocab_size = max(max(vm) for vm in vocab_maps) + 1
@@ -197,11 +229,11 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         """
         global_dist = jnp.zeros(self._vocab_size)
 
-        for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=False)):
+        for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=True)):
             comp_state = state.component_states[i]
             local_dist = component.observation_probability_distribution(comp_state)
             component_contrib = jnp.zeros(self._vocab_size).at[vm].add(local_dist)
-            global_dist = global_dist + state.component_beliefs[i] * component_contrib
+            global_dist += state.component_beliefs[i] * component_contrib
 
         return global_dist
 
@@ -215,7 +247,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         """
         log_probs = []
 
-        for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=False)):
+        for i, (component, vm) in enumerate(zip(self.components, self.vocab_maps, strict=True)):
             comp_log_state = log_belief_state.component_states[i]
             comp_log_belief = log_belief_state.component_beliefs[i]
 
@@ -250,6 +282,34 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
 
         return global_obs
 
+    def _update_component_for_observation(
+        self,
+        component: GenerativeProcess,
+        inv_map: jax.Array,
+        comp_state: ComponentState,
+        obs: chex.Array,
+    ) -> tuple[ComponentState, jax.Array]:
+        """Update one component state and return its observation likelihood."""
+        local_obs = inv_map[obs]
+        local_dist = component.observation_probability_distribution(comp_state)
+        likelihood = jnp.where(
+            local_obs >= 0,
+            local_dist[jnp.clip(local_obs, 0, local_dist.shape[0] - 1)],
+            0.0,
+        )
+
+        def transition_component(state: ComponentState, mapped_obs: chex.Array) -> ComponentState:
+            return component.transition_states(state, mapped_obs)
+
+        new_comp_state = jax.lax.cond(
+            likelihood > 0,
+            transition_component,
+            _keep_state,
+            comp_state,
+            local_obs,
+        )
+        return new_comp_state, likelihood
+
     @eqx.filter_jit
     def transition_states(self, state: NonErgodicState, obs: chex.Array) -> NonErgodicState:
         """Update state given observation using Bayesian filtering.
@@ -263,25 +323,10 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         new_component_states = []
         likelihoods = []
 
-        for i, (component, inv_map) in enumerate(zip(self.components, self._inverse_vocab_maps, strict=False)):
+        for i, (component, inv_map) in enumerate(zip(self.components, self._inverse_vocab_maps, strict=True)):
             comp_state = state.component_states[i]
-            local_obs = inv_map[obs]
-
-            local_dist = component.observation_probability_distribution(comp_state)
-            likelihood = jnp.where(
-                local_obs >= 0,
-                local_dist[jnp.clip(local_obs, 0, local_dist.shape[0] - 1)],
-                0.0,
-            )
+            new_comp_state, likelihood = self._update_component_for_observation(component, inv_map, comp_state, obs)
             likelihoods.append(likelihood)
-
-            new_comp_state = jax.lax.cond(
-                likelihood > 0,
-                lambda s, lo, c=component: c.transition_states(s, lo),
-                lambda s, lo, c=None: s,
-                comp_state,
-                local_obs,
-            )
             new_component_states.append(new_comp_state)
 
         likelihoods_arr = jnp.array(likelihoods)
@@ -310,9 +355,13 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             inv_map = self._inverse_vocab_maps[i]
             local_obs = inv_map[observations]
             all_valid = jnp.all(local_obs >= 0)
+
+            def compute_prob(lo: jax.Array) -> jax.Array:
+                return component.probability(lo)
+
             prob = jax.lax.cond(
                 all_valid,
-                lambda lo: component.probability(lo),
+                compute_prob,
                 lambda lo: jnp.array(0.0),
                 local_obs,
             )
@@ -333,9 +382,13 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             inv_map = self._inverse_vocab_maps[i]
             local_obs = inv_map[observations]
             all_valid = jnp.all(local_obs >= 0)
+
+            def compute_log_prob(lo: jax.Array) -> jax.Array:
+                return component.log_probability(lo)
+
             log_prob = jax.lax.cond(
                 all_valid,
-                lambda lo: component.log_probability(lo),
+                compute_log_prob,
                 lambda lo: jnp.array(-jnp.inf),
                 local_obs,
             )
@@ -343,6 +396,72 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
 
         log_probs = jnp.array([compute_component_log_prob(i) for i in range(len(self.components))])
         return jax.nn.logsumexp(log_probs)
+
+    def _generate_component_step(
+        self,
+        i: int,
+        padded_state: jax.Array,
+        step_key: chex.PRNGKey,
+        layout: _GenerationLayout,
+    ) -> tuple[jax.Array, chex.Array]:
+        """Advance one selected component by a single generation step."""
+        real_state = _unpad_and_unflatten_state(padded_state, layout.flat_sizes[i], layout.state_templates[i])
+        local_obs = self.components[i].emit_observation(real_state, step_key)
+        new_real_state = self.components[i].transition_states(real_state, local_obs)
+        new_padded_state = _flatten_and_pad_state(new_real_state, layout.max_flat_size)
+        global_obs = self.vocab_maps[i][local_obs]
+        return new_padded_state, global_obs
+
+    def _scan_component_generation(
+        self,
+        component_idx: jax.Array,
+        padded_states: tuple[jax.Array, ...],
+        keys: jax.Array,
+        layout: _GenerationLayout,
+    ) -> tuple[tuple[jax.Array, ...], chex.Array]:
+        """Generate observations while updating only the sampled component state."""
+        num_components = len(self.components)
+
+        def scan_step(
+            carry: tuple[jax.Array, tuple[jax.Array, ...]], step_key: chex.PRNGKey
+        ) -> tuple[tuple[jax.Array, tuple[jax.Array, ...]], chex.Array]:
+            idx, padded_comp_states = carry
+
+            new_padded_state, global_obs = jax.lax.switch(
+                idx,
+                [
+                    partial(
+                        self._generate_component_step,
+                        i,
+                        padded_comp_states[i],
+                        step_key,
+                        layout,
+                    )
+                    for i in range(num_components)
+                ],
+            )
+
+            new_padded_comp_states = tuple(
+                jax.lax.select(idx == i, new_padded_state, padded_comp_states[i]) for i in range(num_components)
+            )
+
+            return (idx, new_padded_comp_states), global_obs
+
+        init_carry = (component_idx, padded_states)
+        (_, final_padded_states), observations = jax.lax.scan(scan_step, init_carry, keys)
+        return final_padded_states, observations
+
+    def _generate_state_trajectory(
+        self, state: NonErgodicState, observations: chex.Array
+    ) -> tuple[NonErgodicState, chex.Array]:
+        """Reconstruct the per-token belief trajectory from generated observations."""
+
+        def inference_step(carry_state: NonErgodicState, obs: chex.Array) -> tuple[NonErgodicState, NonErgodicState]:
+            new_state = self.transition_states(carry_state, obs)
+            return new_state, carry_state
+
+        _, state_trajectory = jax.lax.scan(inference_step, state, observations)
+        return state_trajectory, observations
 
     @eqx.filter_vmap(in_axes=(None, 0, 0, None, None))
     def generate(
@@ -383,77 +502,25 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         keys = jax.random.split(key2, sequence_len)
 
         component_idx = jax.random.categorical(key1, jnp.log(state.component_beliefs))
-
-        num_components = len(self.components)
-        state_templates = state.component_states
-        flat_sizes = [_get_flat_size(s) for s in state_templates]
-        max_flat_size = max(flat_sizes)
-
-        def flatten_and_pad(s: ComponentState) -> jax.Array:
-            flat = _flatten_state(s)
-            return jnp.pad(flat, (0, max_flat_size - flat.size))
-
-        def unpad_and_unflatten(padded: jax.Array, original_size: int, template: ComponentState) -> ComponentState:
-            return _unflatten_state(padded[:original_size], template)
-
-        padded_states = tuple(flatten_and_pad(s) for s in state.component_states)
-
-        def gen_step_for_component(
-            i: int, padded_state: jax.Array, step_key: chex.PRNGKey
-        ) -> tuple[jax.Array, chex.Array]:
-            real_state = unpad_and_unflatten(padded_state, flat_sizes[i], state_templates[i])
-            local_obs = self.components[i].emit_observation(real_state, step_key)
-            new_real_state = self.components[i].transition_states(real_state, local_obs)
-            new_padded_state = flatten_and_pad(new_real_state)
-            global_obs = self.vocab_maps[i][local_obs]
-            return new_padded_state, global_obs
-
-        def scan_step(
-            carry: tuple[jax.Array, tuple[jax.Array, ...]], step_key: chex.PRNGKey
-        ) -> tuple[tuple[jax.Array, tuple[jax.Array, ...]], chex.Array]:
-            idx, padded_comp_states = carry
-
-            def gen_from_i(i: int) -> tuple[jax.Array, chex.Array]:
-                return gen_step_for_component(i, padded_comp_states[i], step_key)
-
-            new_padded_state, global_obs = jax.lax.switch(
-                idx,
-                [partial(gen_from_i, i) for i in range(num_components)],
-            )
-
-            new_padded_comp_states = tuple(
-                jax.lax.cond(
-                    idx == i,
-                    lambda ns=new_padded_state: ns,
-                    lambda ps=padded_comp_states[i]: ps,
-                )
-                for i in range(num_components)
-            )
-
-            return (idx, new_padded_comp_states), global_obs
-
-        init_carry = (component_idx, padded_states)
-        (_, final_padded_states), observations = jax.lax.scan(scan_step, init_carry, keys)
+        layout = _GenerationLayout(
+            flat_sizes=tuple(_get_flat_size(s) for s in state.component_states),
+            state_templates=state.component_states,
+            max_flat_size=max(_get_flat_size(s) for s in state.component_states),
+        )
+        padded_states = tuple(_flatten_and_pad_state(s, layout.max_flat_size) for s in state.component_states)
+        final_padded_states, observations = self._scan_component_generation(component_idx, padded_states, keys, layout)
 
         final_comp_states = tuple(
-            unpad_and_unflatten(final_padded_states[i], flat_sizes[i], state_templates[i])
-            for i in range(num_components)
+            _unpad_and_unflatten_state(final_padded_states[i], layout.flat_sizes[i], layout.state_templates[i])
+            for i in range(len(self.components))
         )
 
         one_hot_beliefs = jax.nn.one_hot(component_idx, len(self.components), dtype=self.component_weights.dtype)
 
         if return_all_states:
+            return self._generate_state_trajectory(state, observations)
 
-            def inference_step(
-                carry_state: NonErgodicState, obs: chex.Array
-            ) -> tuple[NonErgodicState, NonErgodicState]:
-                new_state = self.transition_states(carry_state, obs)
-                return new_state, carry_state
-
-            _, state_trajectory = jax.lax.scan(inference_step, state, observations)
-            return state_trajectory, observations
-        else:
-            return NonErgodicState(
-                component_beliefs=one_hot_beliefs,
-                component_states=final_comp_states,
-            ), observations
+        return NonErgodicState(
+            component_beliefs=one_hot_beliefs,
+            component_states=final_comp_states,
+        ), observations
