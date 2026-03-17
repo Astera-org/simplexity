@@ -28,8 +28,15 @@ def test_generate_data_batch():
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
-    gen_states, inputs, labels = generate_data_batch(states, hmm, batch_size, sequence_len, key)
+    result = generate_data_batch(states, hmm, batch_size, sequence_len, key)
+    gen_states = result["gen_states"]
+    belief_states = result["belief_states"]
+    prefix_probabilities = result["prefix_probabilities"]
+    inputs = result["inputs"]
+    labels = result["labels"]
     assert isinstance(gen_states, jax.Array)
+    assert isinstance(belief_states, jax.Array)
+    assert isinstance(prefix_probabilities, jax.Array)
     assert isinstance(inputs, torch.Tensor)
     assert isinstance(labels, torch.Tensor)
     assert inputs.shape == (batch_size, sequence_len - 1)
@@ -40,6 +47,8 @@ def test_generate_data_batch():
     assert torch.all(labels < hmm.vocab_size)
     assert torch.equal(inputs[:, 1:], labels[:, :-1])
     assert gen_states.shape == (batch_size, *gen_state.shape)
+    assert belief_states.shape == (batch_size, 0)
+    assert prefix_probabilities.shape == (batch_size, 0)
 
 
 def test_generate_data_batch_with_bos_token():
@@ -51,7 +60,7 @@ def test_generate_data_batch_with_bos_token():
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
     bos_token = hmm.vocab_size
-    gen_states, inputs, labels = generate_data_batch(
+    result = generate_data_batch(
         states,
         hmm,
         batch_size,
@@ -59,6 +68,9 @@ def test_generate_data_batch_with_bos_token():
         key,
         bos_token=bos_token,
     )
+    gen_states = result["gen_states"]
+    inputs = result["inputs"]
+    labels = result["labels"]
     assert isinstance(gen_states, jax.Array)
     assert isinstance(inputs, torch.Tensor)
     assert isinstance(labels, torch.Tensor)
@@ -82,7 +94,7 @@ def test_generate_data_batch_with_eos_token():
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
     eos_token = hmm.vocab_size
-    gen_states, inputs, labels = generate_data_batch(
+    result = generate_data_batch(
         states,
         hmm,
         batch_size,
@@ -90,6 +102,9 @@ def test_generate_data_batch_with_eos_token():
         key,
         eos_token=eos_token,
     )
+    gen_states = result["gen_states"]
+    inputs = result["inputs"]
+    labels = result["labels"]
     assert isinstance(gen_states, jax.Array)
     assert isinstance(inputs, torch.Tensor)
     assert isinstance(labels, torch.Tensor)
@@ -120,17 +135,22 @@ def test_generate_data_batch_with_full_history():
         key,
     )
     # Extract and type-check all fields
+    gen_states = result["gen_states"]
     belief_states = result["belief_states"]
     prefix_probs = result["prefix_probabilities"]
     inputs = result["inputs"]
+    labels = result["labels"]
 
+    assert isinstance(gen_states, jax.Array)
     assert isinstance(belief_states, jax.Array)
     assert isinstance(prefix_probs, jax.Array)
     assert isinstance(inputs, torch.Tensor)
+    assert isinstance(labels, torch.Tensor)
 
     # Without BOS, belief_states is aligned with inputs (one less than sequence_len)
     assert belief_states.shape == (batch_size, sequence_len - 1, gen_state.shape[0])
     assert prefix_probs.shape == (batch_size, inputs.shape[1])
+    assert gen_states.shape == (batch_size, *gen_state.shape)
 
 
 def test_generate_data_batch_with_full_history_bos():
@@ -150,18 +170,23 @@ def test_generate_data_batch_with_full_history_bos():
         key,
         bos_token=bos_token,
     )
+    gen_states = result["gen_states"]
     belief_states = result["belief_states"]
     prefix_probs = result["prefix_probabilities"]
     inputs = result["inputs"]
+    labels = result["labels"]
 
+    assert isinstance(gen_states, jax.Array)
     assert isinstance(belief_states, jax.Array)
     assert isinstance(prefix_probs, jax.Array)
     assert isinstance(inputs, torch.Tensor)
+    assert isinstance(labels, torch.Tensor)
 
     # With BOS, inputs has sequence_len positions (BOS + sequence_len-1 tokens)
     # belief_states is aligned with inputs
     assert inputs.shape == (batch_size, sequence_len)
     assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
     assert prefix_probs.shape == (batch_size, inputs.shape[1])
+    assert gen_states.shape == (batch_size, *gen_state.shape)
     # First input should be BOS token
     assert torch.all(inputs[:, 0] == bos_token)

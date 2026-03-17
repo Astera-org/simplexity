@@ -9,17 +9,28 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
+from typing import TypedDict
+
 import jax
 import torch
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.generator import (
+    DataBatch,
     generate_data_batch as generate_jax_data_batch,
-)
-from simplexity.generative_processes.generator import (
     generate_data_batch_with_full_history as generate_jax_data_batch_with_full_history,
 )
 from simplexity.utils.pytorch_utils import jax_to_torch
+
+
+class TorchDataBatch(TypedDict):
+    """Torch payload with tensor tokens and JAX states."""
+
+    gen_states: jax.Array | tuple[jax.Array, ...]
+    inputs: torch.Tensor
+    labels: torch.Tensor
+    belief_states: jax.Array | tuple[jax.Array, ...]
+    prefix_probabilities: jax.Array
 
 
 def generate_data_batch(
@@ -31,7 +42,7 @@ def generate_data_batch(
     bos_token: int | None = None,
     eos_token: int | None = None,
     device: str | torch.device | None = None,
-) -> tuple[jax.Array | tuple[jax.Array, ...], torch.Tensor, torch.Tensor]:
+) -> TorchDataBatch:
     """Generate a batch of data.
 
     Args:
@@ -45,9 +56,9 @@ def generate_data_batch(
         device: Optional target device for PyTorch tensors
 
     Returns:
-        Tuple of (generator states, inputs, labels)
+        Dict containing generator states, belief/prefix fields, and torch inputs/labels
     """
-    gen_states, inputs, labels = generate_jax_data_batch(
+    result = generate_jax_data_batch(
         gen_states,
         data_generator,
         batch_size,
@@ -56,7 +67,17 @@ def generate_data_batch(
         bos_token,
         eos_token,
     )
-    return gen_states, jax_to_torch(inputs, device), jax_to_torch(labels, device)
+    inputs = result["inputs"]
+    labels = result["labels"]
+    assert isinstance(inputs, jax.Array)
+    assert isinstance(labels, jax.Array)
+    return TorchDataBatch(
+        gen_states=result["gen_states"],
+        belief_states=result["belief_states"],
+        prefix_probabilities=result["prefix_probabilities"],
+        inputs=jax_to_torch(inputs, device),
+        labels=jax_to_torch(labels, device),
+    )
 
 
 def generate_data_batch_with_full_history(
@@ -68,7 +89,7 @@ def generate_data_batch_with_full_history(
     bos_token: int | None = None,
     eos_token: int | None = None,
     device: str | torch.device | None = None,
-) -> dict[str, jax.Array | torch.Tensor | tuple[jax.Array, ...]]:
+) -> TorchDataBatch:
     """Generate data plus full belief/prefix histories.
 
     Args:
@@ -82,13 +103,14 @@ def generate_data_batch_with_full_history(
         device: Optional target device for PyTorch tensors
 
     Returns:
-        Dict with keys:
+        TorchDataBatch with keys:
+            - gen_states: Final generator state (jax.Array or tuple[jax.Array, ...])
             - belief_states: Belief states (jax.Array or tuple[jax.Array, ...])
             - prefix_probabilities: Prefix probabilities (jax.Array)
             - inputs: Input tokens (torch.Tensor)
             - labels: Label tokens (torch.Tensor)
     """
-    result = generate_jax_data_batch_with_full_history(
+    result: DataBatch = generate_jax_data_batch_with_full_history(
         gen_states,
         data_generator,
         batch_size,
@@ -103,9 +125,10 @@ def generate_data_batch_with_full_history(
     assert isinstance(inputs, jax.Array)
     assert isinstance(labels, jax.Array)
 
-    return {
-        "belief_states": result["belief_states"],
-        "prefix_probabilities": result["prefix_probabilities"],
-        "inputs": jax_to_torch(inputs, device),
-        "labels": jax_to_torch(labels, device),
-    }
+    return TorchDataBatch(
+        gen_states=result["gen_states"],
+        belief_states=result["belief_states"],
+        prefix_probabilities=result["prefix_probabilities"],
+        inputs=jax_to_torch(inputs, device),
+        labels=jax_to_torch(labels, device),
+    )

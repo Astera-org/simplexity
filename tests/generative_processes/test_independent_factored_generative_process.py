@@ -114,11 +114,16 @@ class TestGenerate:
         batch_states = tuple(jnp.tile(s[None, :], (batch_size, 1)) for s in process.initial_state)
         keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
 
-        final_states, observations = process.generate(batch_states, keys, seq_len, False)
+        result = process.generate(batch_states, keys, seq_len, False)
+        final_states = result["states"]
+        observations = result["observations"]
+        all_states = result["all_states"]
 
         assert observations.shape == (batch_size, seq_len)
         assert final_states[0].shape == (batch_size, 1)
         assert final_states[1].shape == (batch_size, 1)
+        assert isinstance(all_states, tuple)
+        assert all(state.shape == (batch_size, 0) for state in all_states)
 
     def test_generate_returns_all_states_when_requested(self, two_factor_independent_process):
         """generate with return_all_states=True should return state sequences."""
@@ -129,7 +134,9 @@ class TestGenerate:
         batch_states = tuple(jnp.tile(s[None, :], (batch_size, 1)) for s in process.initial_state)
         keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
 
-        all_states, observations = process.generate(batch_states, keys, seq_len, True)
+        result = process.generate(batch_states, keys, seq_len, True)
+        all_states = result["all_states"]
+        observations = result["observations"]
 
         assert observations.shape == (batch_size, seq_len)
         assert all_states[0].shape == (batch_size, seq_len, 1)
@@ -148,7 +155,7 @@ class TestFrozenFactors:
         batch_states = tuple(jnp.tile(s[None, :], (batch_size, 1)) for s in process.initial_state)
         keys = jax.random.split(jax.random.PRNGKey(123), batch_size)
 
-        _, observations = process.generate(batch_states, keys, seq_len, False)
+        observations = process.generate(batch_states, keys, seq_len, False)["observations"]
         factor_tokens = jax.vmap(process.encoder.extract_factors_vectorized)(observations)
 
         # Factor 1 (index 1) is frozen - should be identical across batch
@@ -165,7 +172,7 @@ class TestFrozenFactors:
         batch_states = tuple(jnp.tile(s[None, :], (batch_size, 1)) for s in process.initial_state)
         keys = jax.random.split(jax.random.PRNGKey(456), batch_size)
 
-        _, observations = process.generate(batch_states, keys, seq_len, False)
+        observations = process.generate(batch_states, keys, seq_len, False)["observations"]
         factor_tokens = jax.vmap(process.encoder.extract_factors_vectorized)(observations)
 
         # Factors 0 and 2 are unfrozen - should differ across batch
@@ -186,12 +193,12 @@ class TestFrozenFactors:
 
         # First generation
         keys1 = jax.random.split(jax.random.PRNGKey(100), batch_size)
-        _, obs1 = process.generate(batch_states, keys1, seq_len, False)
+        obs1 = process.generate(batch_states, keys1, seq_len, False)["observations"]
         factor_tokens1 = jax.vmap(process.encoder.extract_factors_vectorized)(obs1)
 
         # Second generation with different sample keys
         keys2 = jax.random.split(jax.random.PRNGKey(200), batch_size)
-        _, obs2 = process.generate(batch_states, keys2, seq_len, False)
+        obs2 = process.generate(batch_states, keys2, seq_len, False)["observations"]
         factor_tokens2 = jax.vmap(process.encoder.extract_factors_vectorized)(obs2)
 
         # Frozen factor should be the same in both calls
@@ -228,7 +235,7 @@ class TestFrozenFactors:
         batch_states = tuple(jnp.tile(s[None, :], (batch_size, 1)) for s in process.initial_state)
         keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
 
-        _, observations = process.generate(batch_states, keys, seq_len, False)
+        observations = process.generate(batch_states, keys, seq_len, False)["observations"]
 
         # All batch samples should be identical
         for i in range(1, batch_size):
@@ -243,7 +250,7 @@ class TestFrozenFactors:
         batch_states = tuple(jnp.tile(s[None, :], (batch_size, 1)) for s in process.initial_state)
         keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
 
-        _, observations = process.generate(batch_states, keys, seq_len, False)
+        observations = process.generate(batch_states, keys, seq_len, False)["observations"]
 
         # All tokens should be valid
         assert jnp.all(observations >= 0)
@@ -349,7 +356,7 @@ class TestStateTransitions:  # pylint: disable=too-few-public-methods
         batch_states = tuple(jnp.tile(s[None, :], (batch_size, 1)) for s in process.initial_state)
         keys = jax.random.split(jax.random.PRNGKey(789), batch_size)
 
-        all_states, _ = process.generate(batch_states, keys, seq_len, True)
+        all_states = process.generate(batch_states, keys, seq_len, True)["all_states"]
 
         # Factor 1 states should be identical across batch
         frozen_factor_states = all_states[1]

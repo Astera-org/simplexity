@@ -28,7 +28,12 @@ def test_generate_data_batch():
     gen_state: jax.Array = hmm.initial_state
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
-    gen_states, inputs, labels = generate_data_batch(states, hmm, batch_size, sequence_len, key)
+    result = generate_data_batch(states, hmm, batch_size, sequence_len, key)
+    gen_states = result["gen_states"]
+    inputs = result["inputs"]
+    labels = result["labels"]
+    belief_states = result["belief_states"]
+    prefix_probabilities = result["prefix_probabilities"]
     assert inputs.shape == (batch_size, sequence_len - 1)
     assert labels.shape == (batch_size, sequence_len - 1)
     assert jnp.all(inputs >= 0)
@@ -37,7 +42,11 @@ def test_generate_data_batch():
     assert jnp.all(labels < hmm.vocab_size)
     chex.assert_trees_all_equal(inputs[:, 1:], labels[:, :-1])
     assert isinstance(gen_states, jax.Array)
+    assert isinstance(belief_states, jax.Array)
+    assert isinstance(prefix_probabilities, jax.Array)
     assert gen_states.shape == (batch_size, *gen_state.shape)
+    assert belief_states.shape == (batch_size, 0)
+    assert prefix_probabilities.shape == (batch_size, 0)
 
 
 def test_generate_data_batch_with_bos_token():
@@ -49,7 +58,7 @@ def test_generate_data_batch_with_bos_token():
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
     bos_token = hmm.vocab_size
-    gen_states, inputs, labels = generate_data_batch(
+    result = generate_data_batch(
         states,
         hmm,
         batch_size,
@@ -57,6 +66,9 @@ def test_generate_data_batch_with_bos_token():
         key,
         bos_token=bos_token,
     )
+    gen_states = result["gen_states"]
+    inputs = result["inputs"]
+    labels = result["labels"]
     assert inputs.shape == (batch_size, sequence_len)
     assert labels.shape == (batch_size, sequence_len)
     assert jnp.all(inputs >= 0)
@@ -78,7 +90,7 @@ def test_generate_data_batch_with_eos_token():
     states = jnp.repeat(gen_state[None, :], batch_size, axis=0)
     key = jax.random.PRNGKey(0)
     eos_token = hmm.vocab_size
-    gen_states, inputs, labels = generate_data_batch(
+    result = generate_data_batch(
         states,
         hmm,
         batch_size,
@@ -86,6 +98,9 @@ def test_generate_data_batch_with_eos_token():
         key,
         eos_token=eos_token,
     )
+    gen_states = result["gen_states"]
+    inputs = result["inputs"]
+    labels = result["labels"]
     assert inputs.shape == (batch_size, sequence_len)
     assert labels.shape == (batch_size, sequence_len)
     assert jnp.all(inputs >= 0)
@@ -114,11 +129,13 @@ def test_generate_data_batch_with_full_history():
         key,
     )
     # Extract and type-check all fields
+    gen_states = result["gen_states"]
     belief_states = result["belief_states"]
     prefix_probs = result["prefix_probabilities"]
     inputs = result["inputs"]
     labels = result["labels"]
 
+    assert isinstance(gen_states, jax.Array)
     assert isinstance(belief_states, jax.Array)
     assert isinstance(prefix_probs, jax.Array)
     assert isinstance(inputs, jax.Array)
@@ -128,6 +145,7 @@ def test_generate_data_batch_with_full_history():
     assert belief_states.shape == (batch_size, sequence_len - 1, gen_state.shape[0])
     assert prefix_probs.shape == (batch_size, inputs.shape[1])
     assert labels.shape == inputs.shape
+    assert gen_states.shape == (batch_size, *gen_state.shape)
 
 
 def test_generate_data_batch_with_full_history_bos():
@@ -147,11 +165,13 @@ def test_generate_data_batch_with_full_history_bos():
         key,
         bos_token=bos_token,
     )
+    gen_states = result["gen_states"]
     belief_states = result["belief_states"]
     prefix_probs = result["prefix_probabilities"]
     inputs = result["inputs"]
     labels = result["labels"]
 
+    assert isinstance(gen_states, jax.Array)
     assert isinstance(belief_states, jax.Array)
     assert isinstance(prefix_probs, jax.Array)
     assert isinstance(inputs, jax.Array)
@@ -163,5 +183,6 @@ def test_generate_data_batch_with_full_history_bos():
     assert belief_states.shape == (batch_size, sequence_len, gen_state.shape[0])
     assert prefix_probs.shape == (batch_size, inputs.shape[1])
     assert labels.shape == inputs.shape
+    assert gen_states.shape == (batch_size, *gen_state.shape)
     # First input should be BOS token
     assert jnp.all(inputs[:, 0] == bos_token)

@@ -9,7 +9,7 @@
 # (code quality, style, undefined names, etc.) to run normally while bypassing
 # the problematic imports checker that would crash during AST traversal.
 
-from typing import Any
+from typing import Any, TypedDict
 
 import equinox as eqx
 import jax
@@ -17,6 +17,16 @@ import jax.numpy as jnp
 
 from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.nonergodic_generative_process import NonErgodicState
+
+
+class DataBatch(TypedDict):
+    """Unified generator payload for basic and full-history generation."""
+
+    gen_states: jax.Array | tuple[jax.Array, ...]
+    inputs: jax.Array
+    labels: jax.Array
+    belief_states: jax.Array | tuple[jax.Array, ...]
+    prefix_probabilities: jax.Array
 
 
 @eqx.filter_jit
@@ -28,10 +38,13 @@ def generate_data_batch(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> tuple[jax.Array | tuple[jax.Array, ...], jax.Array, jax.Array]:
+) -> DataBatch:
     """Generate a batch of data without tracking intermediate beliefs."""
     batch_keys = jax.random.split(key, batch_size)
-    gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, False)
+    generate_result = data_generator.generate(gen_states, batch_keys, sequence_len, False)
+    tokens = generate_result["observations"]
+    final_states = generate_result["states"]
+    belief_states = generate_result["all_states"]
 
     if bos_token is not None:
         tokens = jnp.concatenate([jnp.full((batch_size, 1), bos_token), tokens], axis=1)
@@ -40,7 +53,13 @@ def generate_data_batch(
 
     inputs = tokens[:, :-1]
     labels = tokens[:, 1:]
-    return gen_states, inputs, labels
+    return DataBatch(
+        gen_states=final_states,
+        inputs=inputs,
+        labels=labels,
+        belief_states=belief_states,
+        prefix_probabilities=jnp.empty((batch_size, 0), dtype=jnp.float32),
+    )
 
 
 @eqx.filter_jit
@@ -52,10 +71,13 @@ def generate_data_batch_with_full_history(
     key: jax.Array,
     bos_token: int | None = None,
     eos_token: int | None = None,
-) -> dict[str, jax.Array | tuple[jax.Array, ...]]:
+) -> DataBatch:
     """Generate sequences plus per-token belief states and prefix probabilities."""
     batch_keys = jax.random.split(key, batch_size)
-    belief_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, True)
+    generate_result = data_generator.generate(gen_states, batch_keys, sequence_len, True)
+    belief_states = generate_result["all_states"]
+    tokens = generate_result["observations"]
+    final_states = generate_result["states"]
 
     prefix_probs = _compute_prefix_probabilities(data_generator, gen_states, tokens)
 
@@ -83,14 +105,13 @@ def generate_data_batch_with_full_history(
     input_len = inputs.shape[1]
     belief_states = _slice_belief_states(belief_states, slice(None, input_len))
 
-    result = {
-        "belief_states": belief_states,
-        "prefix_probabilities": prefix_probs,
-        "inputs": inputs,
-        "labels": labels,
-    }
-
-    return result
+    return DataBatch(
+        gen_states=final_states,
+        belief_states=belief_states,
+        prefix_probabilities=prefix_probs,
+        inputs=inputs,
+        labels=labels,
+    )
 
 
 def _slice_belief_states(
