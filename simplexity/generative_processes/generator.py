@@ -111,6 +111,7 @@ def _slice_belief_states(
                 tuple(s[:, seq_slice, ...] for s in cs) if isinstance(cs, tuple) else cs[:, seq_slice, ...]
                 for cs in belief_states.component_states
             ),
+            step=belief_states.step[:, seq_slice, ...] if belief_states.step.ndim > 1 else belief_states.step,
         )
     elif isinstance(belief_states, tuple):
         return tuple(b[:, seq_slice, ...] for b in belief_states)

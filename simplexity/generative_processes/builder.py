@@ -701,6 +701,7 @@ def build_nonergodic_process_from_spec(
     components: Sequence[dict[str, Any]],
     component_weights: Sequence[float],
     vocab_maps: Sequence[Sequence[int]] | None = None,
+    join_steps: Sequence[int] | None = None,
     device: str | None = None,
 ) -> NonErgodicGenerativeProcess:
     """Build a nonergodic process from component specifications.
@@ -716,6 +717,7 @@ def build_nonergodic_process_from_spec(
             - vocab_map: Optional per-component vocab mapping
         component_weights: Mixture weights for components (will be normalized).
         vocab_maps: Optional global vocab maps (overrides per-component).
+        join_steps: Optional per-component step at which each component joins.
         device: Device placement.
 
     Returns:
@@ -764,6 +766,7 @@ def build_nonergodic_process_from_spec(
         components=built_components,
         component_weights=component_weights,
         vocab_maps=final_vocab_maps,
+        join_steps=join_steps,
         device=device,
     )
 
@@ -771,6 +774,7 @@ def build_nonergodic_process_from_spec(
 def build_nonergodic_disjoint_vocab(
     components: Sequence[dict[str, Any]],
     component_weights: Sequence[float],
+    join_steps: Sequence[int] | None = None,
     device: str | None = None,
 ) -> NonErgodicGenerativeProcess:
     """Build a nonergodic process where each component has a fully disjoint alphabet.
@@ -781,6 +785,7 @@ def build_nonergodic_disjoint_vocab(
     Args:
         components: List of component specs (same format as build_nonergodic_process_from_spec).
         component_weights: Mixture weights for components.
+        join_steps: Optional per-component step at which each component joins.
         device: Device placement.
 
     Returns:
@@ -798,6 +803,7 @@ def build_nonergodic_disjoint_vocab(
         components=built_components,
         component_weights=component_weights,
         vocab_maps=vocab_maps,
+        join_steps=join_steps,
         device=device,
     )
 
@@ -838,6 +844,7 @@ def build_nonergodic_partial_overlap(
     overlap_frac: float = 0.7,
     mode: Literal["prefix", "sliding", "random"] = "prefix",
     seed: int | None = None,
+    join_steps: Sequence[int] | None = None,
     device: str | None = None,
 ) -> NonErgodicGenerativeProcess:
     """Build a nonergodic process with partially overlapping alphabets.
@@ -852,6 +859,7 @@ def build_nonergodic_partial_overlap(
             - "random": Each component independently samples V tokens from the global pool.
               Global pool size matches prefix mode. Requires the ``seed`` parameter.
         seed: Random seed for reproducibility. Required when mode="random".
+        join_steps: Optional per-component step at which each component joins.
         device: Device placement.
 
     Returns:
@@ -887,6 +895,7 @@ def build_nonergodic_partial_overlap(
         components=built_components,
         component_weights=component_weights,
         vocab_maps=vocab_maps,
+        join_steps=join_steps,
         device=device,
     )
 

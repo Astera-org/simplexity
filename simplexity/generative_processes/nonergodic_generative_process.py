@@ -107,10 +107,12 @@ class NonErgodicState(NamedTuple):
             Sums to 1. For generation, becomes one-hot after first emission.
         component_states: Tuple of per-component state arrays. Each element has the
             shape expected by that component's GenerativeProcess.
+        step: Scalar int32 tracking how many observations have been processed.
     """
 
     component_beliefs: jax.Array
     component_states: tuple[ComponentState, ...]
+    step: jax.Array
 
 
 class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
@@ -140,6 +142,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
     components: tuple[GenerativeProcess, ...]
     component_weights: jax.Array
     vocab_maps: tuple[jax.Array, ...]
+    join_steps: jax.Array
     _vocab_size: int
     _inverse_vocab_maps: tuple[jax.Array, ...]
     device: jax.Device  # type: ignore[valid-type]
@@ -149,6 +152,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         components: Sequence[GenerativeProcess],
         component_weights: jax.Array | Sequence[float],
         vocab_maps: Sequence[Sequence[int]] | None = None,
+        join_steps: Sequence[int] | None = None,
         device: str | None = None,
     ) -> None:
         """Initialize nonergodic generative process.
@@ -159,12 +163,17 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             vocab_maps: Optional per-component vocab mappings. vocab_maps[i] maps
                 component i's local token indices to global token indices.
                 If None, assumes all components share the same vocab [0, 1, ..., V-1].
+            join_steps: Optional per-component step at which each component begins
+                participating. None means all components join immediately (step 0).
+                At least one component must have join_steps=0.
             device: Device to place arrays on (e.g., "cpu", "gpu").
 
         Raises:
             ValueError: If components is empty, weights don't match component count,
-                vocab map count doesn't match component count, or a component
-                vocab_map contains duplicate global token indices.
+                vocab map count doesn't match component count, a component
+                vocab_map contains duplicate global token indices, join_steps
+                length doesn't match component count, join_steps contains negative
+                values, or no component has join_steps=0.
         """
         if len(components) == 0:
             raise ValueError("Must provide at least one component")
@@ -202,6 +211,20 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             inverse_maps.append(jax.device_put(inv, self.device))
         self._inverse_vocab_maps = tuple(inverse_maps)
 
+        if join_steps is None:
+            join_steps_arr = jnp.zeros(len(components), dtype=jnp.int32)
+        else:
+            if len(join_steps) != len(components):
+                raise ValueError(
+                    f"Length of join_steps ({len(join_steps)}) must match number of components ({len(components)})"
+                )
+            if any(s < 0 for s in join_steps):
+                raise ValueError("join_steps values must be non-negative")
+            if all(s > 0 for s in join_steps):
+                raise ValueError("At least one component must have join_steps=0")
+            join_steps_arr = jnp.array(join_steps, dtype=jnp.int32)
+        self.join_steps = jax.device_put(join_steps_arr, self.device)
+
     @property
     def vocab_size(self) -> int:
         """Unified vocabulary size across all components."""
@@ -209,10 +232,19 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
 
     @property
     def initial_state(self) -> NonErgodicState:
-        """Initial state with component weights and per-component initial states."""
+        """Initial state with component weights and per-component initial states.
+
+        Components with join_steps > 0 start with zero belief. The remaining
+        beliefs are normalized to sum to 1.
+        """
+        joined_mask = self.join_steps == 0
+        masked_beliefs = self.component_weights * joined_mask
+        normalizer = jnp.sum(masked_beliefs)
+        initial_beliefs = jnp.where(normalizer > 0, masked_beliefs / normalizer, masked_beliefs)
         return NonErgodicState(
-            component_beliefs=self.component_weights,
+            component_beliefs=initial_beliefs,
             component_states=tuple(c.initial_state for c in self.components),
+            step=jnp.array(0, dtype=jnp.int32),
         )
 
     @eqx.filter_jit
@@ -310,6 +342,18 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         )
         return new_comp_state, likelihood
 
+    @staticmethod
+    def _select_component_state(
+        joined: jax.Array,
+        updated_state: ComponentState,
+        initial_state: ComponentState,
+    ) -> ComponentState:
+        """Select updated or initial state based on whether the component has joined."""
+        if isinstance(updated_state, tuple) and isinstance(initial_state, tuple):
+            return tuple(jnp.where(joined, u, i) for u, i in zip(updated_state, initial_state, strict=True))
+        assert not isinstance(updated_state, tuple) and not isinstance(initial_state, tuple)
+        return jnp.where(joined, updated_state, initial_state)
+
     @eqx.filter_jit
     def transition_states(self, state: NonErgodicState, obs: chex.Array) -> NonErgodicState:
         """Update state given observation using Bayesian filtering.
@@ -319,7 +363,13 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         component's internal state only when likelihood > 0, then applies
         Bayes rule to update component_beliefs. Falls back to prior beliefs
         if all likelihoods are 0.
+
+        Components that have not yet joined (step < join_steps) keep their
+        initial state and zero belief. When a component newly joins after this
+        step, its prior weight is injected into the belief distribution.
         """
+        joined_mask = state.step >= self.join_steps
+
         new_component_states = []
         likelihoods = []
 
@@ -332,23 +382,53 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         likelihoods_arr = jnp.array(likelihoods)
         unnorm_beliefs = state.component_beliefs * likelihoods_arr
         normalizer = jnp.sum(unnorm_beliefs)
-        new_beliefs = jnp.where(
+        updated_beliefs = jnp.where(
             normalizer > 0,
             unnorm_beliefs / normalizer,
             state.component_beliefs,
         )
 
-        return NonErgodicState(
-            component_beliefs=new_beliefs,
-            component_states=tuple(new_component_states),
+        new_step = state.step + 1
+        new_joined_mask = new_step >= self.join_steps
+        newly_joined = new_joined_mask & ~joined_mask
+
+        injection = self.component_weights * newly_joined
+        has_injection = jnp.any(newly_joined)
+        beliefs_with_injection = updated_beliefs + injection
+        injection_normalizer = jnp.sum(beliefs_with_injection)
+        new_beliefs = jnp.where(
+            has_injection & (injection_normalizer > 0),
+            beliefs_with_injection / injection_normalizer,
+            updated_beliefs,
         )
 
-    @eqx.filter_jit
+        initial_states = tuple(c.initial_state for c in self.components)
+        final_component_states = tuple(
+            self._select_component_state(new_joined_mask[i], new_component_states[i], initial_states[i])
+            for i in range(len(self.components))
+        )
+
+        return NonErgodicState(
+            component_beliefs=new_beliefs,
+            component_states=final_component_states,
+            step=new_step,
+        )
+
     def probability(self, observations: jax.Array) -> jax.Array:
         """Compute P(observations) by marginalizing over components.
 
         P(obs_1:T) = sum_i P(component_i) * P(obs_1:T | component_i)
+
+        Raises:
+            NotImplementedError: When any component has join_steps > 0.
         """
+        if bool(jnp.any(self.join_steps > 0)):
+            raise NotImplementedError("probability() is not supported when any component has join_steps > 0")
+        return self._probability_impl(observations)
+
+    @eqx.filter_jit
+    def _probability_impl(self, observations: jax.Array) -> jax.Array:
+        """JIT-compiled implementation of probability()."""
 
         def compute_component_prob(i: int) -> jax.Array:
             component = self.components[i]
@@ -373,9 +453,19 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
 
         return total_prob
 
-    @eqx.filter_jit
     def log_probability(self, observations: jax.Array) -> jax.Array:
-        """Compute log P(observations) using logsumexp for numerical stability."""
+        """Compute log P(observations) using logsumexp for numerical stability.
+
+        Raises:
+            NotImplementedError: When any component has join_steps > 0.
+        """
+        if bool(jnp.any(self.join_steps > 0)):
+            raise NotImplementedError("log_probability() is not supported when any component has join_steps > 0")
+        return self._log_probability_impl(observations)
+
+    @eqx.filter_jit
+    def _log_probability_impl(self, observations: jax.Array) -> jax.Array:
+        """JIT-compiled implementation of log_probability()."""
 
         def compute_component_log_prob(i: int) -> jax.Array:
             component = self.components[i]
@@ -501,7 +591,10 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         key1, key2 = jax.random.split(key)
         keys = jax.random.split(key2, sequence_len)
 
-        component_idx = jax.random.categorical(key1, jnp.log(state.component_beliefs))
+        generation_mask = self.join_steps == 0
+        masked_weights = state.component_beliefs * generation_mask
+        masked_weights = masked_weights / jnp.sum(masked_weights)
+        component_idx = jax.random.categorical(key1, jnp.log(masked_weights))
         layout = _GenerationLayout(
             flat_sizes=tuple(_get_flat_size(s) for s in state.component_states),
             state_templates=state.component_states,
@@ -523,4 +616,5 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         return NonErgodicState(
             component_beliefs=one_hot_beliefs,
             component_states=final_comp_states,
+            step=jnp.array(sequence_len, dtype=jnp.int32),
         ), observations

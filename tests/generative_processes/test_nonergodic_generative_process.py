@@ -43,6 +43,7 @@ def _expand_state(state: NonErgodicState, batch_size: int) -> NonErgodicState:
     return NonErgodicState(
         component_beliefs=jnp.repeat(state.component_beliefs[None, :], batch_size, axis=0),
         component_states=tuple(_expand_component_state(cs, batch_size) for cs in state.component_states),
+        step=jnp.repeat(state.step[None], batch_size, axis=0),
     )
 
 
@@ -54,9 +55,11 @@ class TestNonErgodicState:
         state = NonErgodicState(
             component_beliefs=jnp.array([0.5, 0.5]),
             component_states=(jnp.array([1.0, 0.0]), jnp.array([0.5, 0.5])),
+            step=jnp.array(0, dtype=jnp.int32),
         )
         assert hasattr(state, "component_beliefs")
         assert hasattr(state, "component_states")
+        assert hasattr(state, "step")
         assert isinstance(state, tuple)
 
     def test_state_is_pytree_compatible(self):
@@ -64,6 +67,7 @@ class TestNonErgodicState:
         state = NonErgodicState(
             component_beliefs=jnp.array([0.5, 0.5]),
             component_states=(jnp.array([1.0, 0.0]), jnp.array([0.5, 0.5])),
+            step=jnp.array(0, dtype=jnp.int32),
         )
         # Should work with tree_map
         doubled = jax.tree_util.tree_map(lambda x: x * 2, state)
@@ -149,6 +153,7 @@ class TestNonErgodicGenerativeProcess:
         batch_states = NonErgodicState(
             component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
             component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
+            step=jnp.broadcast_to(state.step, (batch_size,)),
         )
         keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
 
@@ -396,6 +401,7 @@ class TestGenerateReturnAllStates:
         batch_states = NonErgodicState(
             component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
             component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
+            step=jnp.broadcast_to(state.step, (batch_size,)),
         )
         keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
 
@@ -414,6 +420,7 @@ class TestGenerateReturnAllStates:
         batch_states = NonErgodicState(
             component_beliefs=jnp.broadcast_to(state.component_beliefs, (batch_size,) + state.component_beliefs.shape),
             component_states=tuple(jnp.broadcast_to(s, (batch_size,) + s.shape) for s in state.component_states),
+            step=jnp.broadcast_to(state.step, (batch_size,)),
         )
         keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
 
@@ -509,9 +516,9 @@ class TestGenerateDataBatchWithFullHistory:
         input_len = inputs.shape[1]
         assert belief_states.component_beliefs.shape == (batch_size, input_len, 2)
         for cs in belief_states.component_states:
-            assert not isinstance(cs, tuple)
-            assert cs.shape[0] == batch_size
-            assert cs.shape[1] == input_len
+            if not isinstance(cs, tuple):
+                assert cs.shape[0] == batch_size
+                assert cs.shape[1] == input_len
 
     def test_full_history_with_bos(self):
         """Belief states should align with inputs when BOS token is used."""
@@ -544,6 +551,144 @@ class TestGenerateDataBatchWithFullHistory:
         input_len = inputs.shape[1]
         assert belief_states.component_beliefs.shape == (batch_size, input_len, 2)
         for cs in belief_states.component_states:
-            assert not isinstance(cs, tuple)
-            assert cs.shape[0] == batch_size
-            assert cs.shape[1] == input_len
+            if not isinstance(cs, tuple):
+                assert cs.shape[0] == batch_size
+                assert cs.shape[1] == input_len
+
+
+class TestJoinSteps:
+    """Tests for delayed component joining via join_steps."""
+
+    def test_join_steps_default_is_immediate(self):
+        """Without join_steps, all components join at step 0."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.6, 0.4],
+        )
+        chex.assert_trees_all_close(process.join_steps, jnp.array([0, 0], dtype=jnp.int32))
+        state = process.initial_state
+        chex.assert_trees_all_close(state.component_beliefs, jnp.array([0.6, 0.4]), atol=1e-6)
+
+    def test_initial_beliefs_exclude_unjoined(self):
+        """Components with join_steps > 0 should have 0 initial belief."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.6, 0.4],
+            join_steps=[0, 5],
+        )
+        state = process.initial_state
+        chex.assert_trees_all_close(state.component_beliefs, jnp.array([1.0, 0.0]), atol=1e-6)
+        assert int(state.step) == 0
+
+    def test_component_joins_after_n_steps(self):
+        """A delayed component should get non-zero belief after join_steps observations."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.6, 0.4],
+            join_steps=[0, 3],
+        )
+        state = process.initial_state
+        assert state.component_beliefs[1] == 0.0
+
+        for _ in range(2):
+            state = process.transition_states(state, jnp.array(0))
+            assert state.component_beliefs[1] == 0.0
+
+        state = process.transition_states(state, jnp.array(0))
+        assert state.component_beliefs[1] > 0.0
+        chex.assert_trees_all_close(jnp.sum(state.component_beliefs), 1.0, atol=1e-6)
+
+    def test_joined_component_starts_with_initial_state(self):
+        """When a component joins, its state should be the fresh initial state."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.6, 0.4],
+            join_steps=[0, 2],
+        )
+        state = process.initial_state
+        state = process.transition_states(state, jnp.array(0))
+        chex.assert_trees_all_close(state.component_states[1], coin2.initial_state, atol=1e-6)
+        state = process.transition_states(state, jnp.array(0))
+        chex.assert_trees_all_close(state.component_states[1], coin2.initial_state, atol=1e-6)
+
+    def test_generate_excludes_delayed_components(self):
+        """Only components with join_steps=0 should be sampled for generation."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.99})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.01})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.5, 0.5],
+            join_steps=[0, 5],
+        )
+        batch_size = 10
+        batch_states = _expand_state(process.initial_state, batch_size)
+        keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
+
+        _, observations = process.generate(batch_states, keys, 20, False)
+
+        assert jnp.mean(observations == 0) > 0.8
+
+    def test_probability_raises_with_join_steps(self):
+        """probability() should raise NotImplementedError when join_steps > 0."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.5, 0.5],
+            join_steps=[0, 3],
+        )
+        with pytest.raises(NotImplementedError):
+            process.probability(jnp.array([0, 1, 0]))
+
+    def test_log_probability_raises_with_join_steps(self):
+        """log_probability() should raise NotImplementedError when join_steps > 0."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        process = NonErgodicGenerativeProcess(
+            components=[coin1, coin2],
+            component_weights=[0.5, 0.5],
+            join_steps=[0, 3],
+        )
+        with pytest.raises(NotImplementedError):
+            process.log_probability(jnp.array([0, 1, 0]))
+
+    def test_join_steps_validation_mismatched_length(self):
+        """join_steps with wrong length should raise ValueError."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        with pytest.raises(ValueError, match="Length of join_steps"):
+            NonErgodicGenerativeProcess(
+                components=[coin1, coin2],
+                component_weights=[0.5, 0.5],
+                join_steps=[0],
+            )
+
+    def test_join_steps_validation_negative_values(self):
+        """Negative join_steps should raise ValueError."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        with pytest.raises(ValueError, match="non-negative"):
+            NonErgodicGenerativeProcess(
+                components=[coin1, coin2],
+                component_weights=[0.5, 0.5],
+                join_steps=[0, -1],
+            )
+
+    def test_join_steps_validation_no_immediate_component(self):
+        """All join_steps > 0 should raise ValueError."""
+        coin1 = build_hidden_markov_model("coin", {"p": 0.7})
+        coin2 = build_hidden_markov_model("coin", {"p": 0.3})
+        with pytest.raises(ValueError, match="At least one component"):
+            NonErgodicGenerativeProcess(
+                components=[coin1, coin2],
+                component_weights=[0.5, 0.5],
+                join_steps=[1, 2],
+            )
