@@ -263,12 +263,28 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             remain consistent with the full process.
         """
         indices = list(indices)
-        return NonErgodicGenerativeProcess(
-            components=[self.components[i] for i in indices],
-            component_weights=[float(self.component_weights[i]) for i in indices],
-            vocab_maps=[self.vocab_maps[i].tolist() for i in indices],
-            device=str(self.device),
-        )
+        sub = NonErgodicGenerativeProcess.__new__(NonErgodicGenerativeProcess)
+        sub_components = tuple(self.components[i] for i in indices)
+        weights = jnp.array([float(self.component_weights[i]) for i in indices])
+        weights = weights / jnp.sum(weights)
+        sub_vocab_maps = tuple(self.vocab_maps[i] for i in indices)
+
+        object.__setattr__(sub, "components", sub_components)
+        object.__setattr__(sub, "component_weights", jax.device_put(weights, self.device))
+        object.__setattr__(sub, "vocab_maps", sub_vocab_maps)
+        object.__setattr__(sub, "join_steps", jnp.zeros(len(indices), dtype=jnp.int32))
+        object.__setattr__(sub, "_vocab_size", self._vocab_size)
+        object.__setattr__(sub, "device", self.device)
+
+        inverse_maps = []
+        for vm in sub_vocab_maps:
+            inv = jnp.full((self._vocab_size,), -1, dtype=jnp.int32)
+            for local_idx in range(vm.shape[0]):
+                inv = inv.at[vm[local_idx]].set(local_idx)
+            inverse_maps.append(jax.device_put(inv, self.device))
+        object.__setattr__(sub, "_inverse_vocab_maps", tuple(inverse_maps))
+
+        return sub
 
     @eqx.filter_jit
     def observation_probability_distribution(self, state: NonErgodicState) -> jax.Array:
