@@ -247,45 +247,6 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             step=jnp.array(0, dtype=jnp.int32),
         )
 
-    def with_active_components(self, indices: Sequence[int]) -> "NonErgodicGenerativeProcess":
-        """Return a new process containing only the specified component indices.
-
-        Useful for curriculum learning: instead of masking inactive components
-        (which still costs compute in jax.lax.switch), build a smaller process
-        with only the components that have joined so far.
-
-        Args:
-            indices: Component indices to include (e.g. [0], [0, 1], [0, 1, 2]).
-
-        Returns:
-            A new NonErgodicGenerativeProcess with only the selected components.
-            Weights are re-normalized. Vocab maps are preserved so token indices
-            remain consistent with the full process.
-        """
-        indices = list(indices)
-        sub = NonErgodicGenerativeProcess.__new__(NonErgodicGenerativeProcess)
-        sub_components = tuple(self.components[i] for i in indices)
-        weights = jnp.array([float(self.component_weights[i]) for i in indices])
-        weights = weights / jnp.sum(weights)
-        sub_vocab_maps = tuple(self.vocab_maps[i] for i in indices)
-
-        object.__setattr__(sub, "components", sub_components)
-        object.__setattr__(sub, "component_weights", jax.device_put(weights, self.device))
-        object.__setattr__(sub, "vocab_maps", sub_vocab_maps)
-        object.__setattr__(sub, "join_steps", jnp.zeros(len(indices), dtype=jnp.int32))
-        object.__setattr__(sub, "_vocab_size", self._vocab_size)
-        object.__setattr__(sub, "device", self.device)
-
-        inverse_maps = []
-        for vm in sub_vocab_maps:
-            inv = jnp.full((self._vocab_size,), -1, dtype=jnp.int32)
-            for local_idx in range(vm.shape[0]):
-                inv = inv.at[vm[local_idx]].set(local_idx)
-            inverse_maps.append(jax.device_put(inv, self.device))
-        object.__setattr__(sub, "_inverse_vocab_maps", tuple(inverse_maps))
-
-        return sub
-
     @eqx.filter_jit
     def observation_probability_distribution(self, state: NonErgodicState) -> jax.Array:
         """Compute P(global_obs | state) as weighted sum over components.
@@ -630,7 +591,7 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
         key1, key2 = jax.random.split(key)
         keys = jax.random.split(key2, sequence_len)
 
-        generation_mask = self.join_steps == 0
+        generation_mask = state.step >= self.join_steps
         masked_weights = state.component_beliefs * generation_mask
         masked_weights = masked_weights / jnp.sum(masked_weights)
         component_idx = jax.random.categorical(key1, jnp.log(masked_weights))
