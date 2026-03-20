@@ -247,6 +247,29 @@ class NonErgodicGenerativeProcess(GenerativeProcess[NonErgodicState]):
             step=jnp.array(0, dtype=jnp.int32),
         )
 
+    def with_active_components(self, indices: Sequence[int]) -> "NonErgodicGenerativeProcess":
+        """Return a new process containing only the specified component indices.
+
+        Useful for curriculum learning: instead of masking inactive components
+        (which still costs compute in jax.lax.switch), build a smaller process
+        with only the components that have joined so far.
+
+        Args:
+            indices: Component indices to include (e.g. [0], [0, 1], [0, 1, 2]).
+
+        Returns:
+            A new NonErgodicGenerativeProcess with only the selected components.
+            Weights are re-normalized. Vocab maps are preserved so token indices
+            remain consistent with the full process.
+        """
+        indices = list(indices)
+        return NonErgodicGenerativeProcess(
+            components=[self.components[i] for i in indices],
+            component_weights=[float(self.component_weights[i]) for i in indices],
+            vocab_maps=[self.vocab_maps[i].tolist() for i in indices],
+            device=str(self.device),
+        )
+
     @eqx.filter_jit
     def observation_probability_distribution(self, state: NonErgodicState) -> jax.Array:
         """Compute P(global_obs | state) as weighted sum over components.
