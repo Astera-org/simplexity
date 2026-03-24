@@ -1,0 +1,15 @@
+name: shuriken
+instance:
+  _target_: simplexity.generative_processes.builder.build_hidden_markov_model
+  process_name: shuriken
+  process_params:
+    p: 0.72
+    r: 0.24
+    u: 0.36
+    v: 0.52
+  device: ${device}
+
+base_vocab_size: ???
+bos_token: ???
+eos_token: null
+vocab_size: ???
