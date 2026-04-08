@@ -76,10 +76,12 @@ Defined mathematically, not as a pluggable protocol. The spec describes the conc
 
 - **Independent:** joint = product of marginals, no inter-factor dependency
 - **Sequential chain:** factor i depends on factor i-1's emitted token via a control map
-- **Fully conditional:** each factor depends on ALL other factors' tokens via control maps over radix-encoded other-factor indices. **Important:** the joint distribution is computed as a *normalized product of conditionals* — this is an approximation, not a recovery of the true joint. When all conditional mass is zero, the distribution falls back to uniform. The spec must state this explicitly as a deliberate choice.
+- **Fully conditional:** each factor depends on ALL other factors' tokens via control maps over radix-encoded other-factor indices. **Important:** the joint distribution is computed as a *normalized product of conditionals* — this is an approximation, not a recovery of the true joint. The true joint under mutual conditioning is not available in closed form (each factor's distribution depends on all others' emissions, creating a circular dependency); the product-of-conditionals with normalization is a tractable approximation. When all conditional mass is zero, the distribution falls back to uniform. The spec must state both the approximation nature and the rationale explicitly.
 - **Conditional transitions:** emissions independent or sequential; transitions mutually conditional (hybrid of the above)
 
 For each: the math for computing the joint distribution, the math for selecting which transition matrix variant each factor uses given an observation, and the required parameters (control maps, vocab sizes, etc.).
+
+**Relationship between K_i and control maps:** K_i (the number of transition matrix variants for factor i) must satisfy K_i ≥ max(control_map_i) + 1. For independent structure, K_i = 1 always. For sequential, K_i for factor i is determined by the range of the control map, which maps V_{i-1} parent-token values to variant indices. The spec should make this constraint explicit.
 
 ### 5. Conformance test vectors
 
@@ -102,7 +104,7 @@ The conformance data needs a concrete encoding scheme for process definitions an
 - Algorithms (scan, eigendecomposition method, matrix product order)
 - How BOS/EOS/PAD are implemented (matrix augmentation, wrapper logic, or otherwise)
 - The transition matrix library (named processes like "mess3", "rrxor" — those are examples/test fixtures)
-- Frozen factors
+- Frozen factors (a batching convenience in the current implementation where certain factors in an independent factored process use a shared RNG to produce identical sequences across batch samples — not a mathematical property of the process)
 
 ## Deliverables
 
@@ -111,7 +113,8 @@ The conformance data needs a concrete encoding scheme for process definitions an
 **§1 Introduction and Notation**
 - Purpose: enable ground-up reimplementation
 - Scope: the mathematical definition of generative processes and their composition — not training, evaluation, or data pipeline concerns
-- Notation conventions *used within the spec document*: row vectors for states, 0-indexed observations, T^(x) shape [V, S, S]
+- Notation conventions *used within the spec document*: row vectors for states, T^(x) shape [V, S, S]
+- All indices are 0-based throughout the spec (observations, states, factors, variants)
 - Input convention: transition matrices are provided in row-vector convention; implementations may transform internally as needed
 
 **§2 Operations**
@@ -129,6 +132,8 @@ The conformance data needs a concrete encoding scheme for process definitions an
 - Belief update: η' = (η T̃^(x)) / (η T̃^(x) · w)
 - Sequence probability: P(x₁:T) = (η₀ T̃^(x₁) ··· T̃^(xT) w) / (η₀·w)
 - Note: when w = **1**, all formulas simplify to standard HMM (normalization by sum)
+- **Zero-denominator case:** when η T̃^(x) · w = 0 (observation impossible given current belief), the belief update is undefined. This arises only from invalid use (e.g., observing a token that has zero probability) or numerical issues, not from valid generative process operation. The spec does not prescribe a specific behavior for this case.
+- **Invalid input:** if T = Σ_x T^(x) has no positive real principal eigenvalue, the input is invalid and must be rejected
 
 **§4 Composition: Factored Processes**
 - Authoritative inputs: per-factor transition matrices [K_i, V_i, S_i, S_i], component types, initial states, conditional dependency scheme + parameters
@@ -162,13 +167,16 @@ The conformance data needs a concrete encoding scheme for process definitions an
 
 **§8 Stationary Distribution**
 - For base GHMM: derived from T̃ (the spectrally normalized net transition matrix)
-- For factored processes: when it exists (independent → product of marginals; others depend on coupling)
-- For nonergodic: no unique stationary distribution
+- For independent factored processes: product of per-factor stationary distributions
+- For non-independent factored processes: may or may not exist depending on coupling; the spec does not define a general method (implementations may compute it if desired)
+- For nonergodic: no unique stationary distribution (each component has its own)
 - For inflated: same as base
 
 **§9 Conformance Test Vectors**
 - Encoding scheme for process definitions (JSON objects with type discriminator and type-specific parameters)
 - Encoding scheme for state types (arrays for GHMM, list-of-arrays for factored, structured object for nonergodic)
+- **Tolerance:** all numerical comparisons use relative tolerance (e.g., 1e-5) to accommodate floating-point differences across implementations and platforms (JAX, NumPy, Julia, Rust, etc.). Each test vector specifies its tolerance.
+- **Generation tests:** conformance vectors only cover deterministic operations (observation distributions, belief updates, sequence probabilities, stationary distributions). Sequence generation is behaviorally specified (BOS/EOS/PAD layout, token positions) but not numerically tested — sampling depends on RNG implementation, which defeats implementation-agnosticism.
 - Test categories:
   - GHMM belief update and observation distribution
   - GHMM sequence probability

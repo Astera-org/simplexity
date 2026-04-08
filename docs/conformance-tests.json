@@ -1,0 +1,936 @@
+{
+  "version": "1.0",
+  "description": "Conformance test vectors for the Generative Processes Specification. See docs/generative-processes-spec.md S9.",
+  "default_tolerance": 1e-6,
+  "tests": [
+    {
+      "id": "hmm_obs_dist_1",
+      "category": "ghmm_hmm_case",
+      "description": "HMM observation distribution from non-uniform belief state (zero_one_random process)",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0, 1, 0],
+           [0, 0, 0],
+           [0.5, 0, 0]],
+          [[0, 0, 0],
+           [0, 0, 1],
+           [0.5, 0, 0]]
+        ]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [0.3, 0.1, 0.6]
+      },
+      "expected": [0.6, 0.4],
+      "tolerance": 1e-6
+    },
+    {
+      "id": "hmm_obs_dist_2",
+      "category": "ghmm_hmm_case",
+      "description": "HMM observation distribution from a different belief state (same process)",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0, 1, 0],
+           [0, 0, 0],
+           [0.5, 0, 0]],
+          [[0, 0, 0],
+           [0, 0, 1],
+           [0.5, 0, 0]]
+        ]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [0.5, 0.3, 0.2]
+      },
+      "expected": [0.6, 0.4],
+      "tolerance": 1e-6
+    },
+    {
+      "id": "hmm_belief_update_1",
+      "category": "ghmm_belief_update",
+      "description": "HMM belief state normalization (L1 norm since w=1)",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0, 1, 0],
+           [0, 0, 0],
+           [0.5, 0, 0]],
+          [[0, 0, 0],
+           [0, 0, 1],
+           [0.5, 0, 0]]
+        ]
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": [0.3, 0.1, 0.6],
+        "observation": 0
+      },
+      "expected": {
+        "description": "eta' = (eta T~^(0)) / sum(eta T~^(0))",
+        "state": [0.5, 0.5, 0.0]
+      },
+      "tolerance": 1e-6
+    },
+    {
+      "id": "hmm_seq_prob_1",
+      "category": "ghmm_sequence_probability",
+      "description": "HMM sequence probability for zero_one_random process (initial state = stationary = [1/3, 1/3, 1/3])",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0, 1, 0],
+           [0, 0, 0],
+           [0.5, 0, 0]],
+          [[0, 0, 0],
+           [0, 0, 1],
+           [0.5, 0, 0]]
+        ]
+      },
+      "operation": "sequence_probability",
+      "input": {
+        "observations": [1, 0, 0, 1, 1, 0]
+      },
+      "expected": 0.08333333333333333,
+      "tolerance": 1e-6,
+      "notes": "Expected value is 1/12"
+    },
+    {
+      "id": "hmm_stationary_dist",
+      "category": "ghmm_stationary_distribution",
+      "description": "Stationary distribution of zero_one_random(0.5) HMM",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0, 1, 0],
+           [0, 0, 0],
+           [0.5, 0, 0]],
+          [[0, 0, 0],
+           [0, 0, 1],
+           [0.5, 0, 0]]
+        ]
+      },
+      "operation": "stationary_distribution",
+      "input": {},
+      "expected": [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+      "tolerance": 1e-5,
+      "notes": "Stationary distribution is [1/3, 1/3, 1/3]"
+    },
+    {
+      "id": "hmm_default_initial_state",
+      "category": "ghmm_stationary_distribution",
+      "description": "When initial state is omitted, it defaults to the stationary distribution",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0, 1, 0],
+           [0, 0, 0],
+           [0.5, 0, 0]],
+          [[0, 0, 0],
+           [0, 0, 1],
+           [0.5, 0, 0]]
+        ]
+      },
+      "operation": "initial_state",
+      "input": {},
+      "expected": [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+      "tolerance": 1e-5
+    },
+    {
+      "id": "ghmm_nontrivial_w_obs_dist",
+      "category": "ghmm_nontrivial_w",
+      "description": "GHMM with non-trivial normalizing eigenvector: observation distribution from stationary state",
+      "process": {
+        "type": "ghmm",
+        "transition_matrices": [
+          [[0.6, 0.1], [0.3, 0.0]],
+          [[0.0, 0.2], [0.1, 0.4]]
+        ]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [0.60555128, 0.39444872]
+      },
+      "expected": [0.6547896528, 0.3452103472],
+      "tolerance": 1e-5,
+      "notes": "Raw T has principal eigenvalue ~0.8606, so spectral normalization applies. w ~= [1.070, 0.930], not the all-ones vector."
+    },
+    {
+      "id": "ghmm_nontrivial_w_belief_update",
+      "category": "ghmm_nontrivial_w",
+      "description": "GHMM belief update with non-trivial w after observing token 0",
+      "process": {
+        "type": "ghmm",
+        "transition_matrices": [
+          [[0.6, 0.1], [0.3, 0.0]],
+          [[0.0, 0.2], [0.1, 0.4]]
+        ]
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": [0.60555128, 0.39444872],
+        "observation": 0
+      },
+      "expected": {
+        "state": [0.8422888196, 0.1058928226]
+      },
+      "tolerance": 1e-5,
+      "notes": "eta' = (eta T~^(0)) / (eta T~^(0) . w) where w ~= [1.070, 0.930]"
+    },
+    {
+      "id": "ghmm_nontrivial_w_seq_prob",
+      "category": "ghmm_nontrivial_w",
+      "description": "GHMM sequence probability with non-trivial w",
+      "process": {
+        "type": "ghmm",
+        "transition_matrices": [
+          [[0.6, 0.1], [0.3, 0.0]],
+          [[0.0, 0.2], [0.1, 0.4]]
+        ]
+      },
+      "operation": "sequence_probability",
+      "input": {
+        "observations": [0, 1]
+      },
+      "expected": 0.1577442038,
+      "tolerance": 1e-5,
+      "notes": "P([0,1]) = (eta_0 T~^(0) T~^(1) w) / (eta_0 . w) where eta_0 = stationary distribution"
+    },
+    {
+      "id": "ghmm_nontrivial_w_stationary",
+      "category": "ghmm_stationary_distribution",
+      "description": "Stationary distribution of GHMM with non-trivial w",
+      "process": {
+        "type": "ghmm",
+        "transition_matrices": [
+          [[0.6, 0.1], [0.3, 0.0]],
+          [[0.0, 0.2], [0.1, 0.4]]
+        ]
+      },
+      "operation": "stationary_distribution",
+      "input": {},
+      "expected": [0.60555128, 0.39444872],
+      "tolerance": 1e-5,
+      "notes": "Left eigenvector of T~ at eigenvalue 1, normalized to sum to 1"
+    },
+    {
+      "id": "ghmm_obs_dist_custom_state",
+      "category": "ghmm_observation_distribution",
+      "description": "GHMM observation distribution from a non-stationary belief state",
+      "process": {
+        "type": "ghmm",
+        "transition_matrices": [
+          [[0.6, 0.1], [0.3, 0.0]],
+          [[0.0, 0.2], [0.1, 0.4]]
+        ]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [0.8, 0.2]
+      },
+      "expected": [0.7273694256, 0.2726305744],
+      "tolerance": 1e-5,
+      "notes": "From a non-stationary state [0.8, 0.2]. After spectral normalization, w ~= [1.070, 0.930]."
+    },
+    {
+      "id": "hmm_coin_obs_dist",
+      "category": "ghmm_hmm_case",
+      "description": "Simple coin process (1-state HMM) observation distribution",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0.7]],
+          [[0.3]]
+        ]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [1.0]
+      },
+      "expected": [0.7, 0.3],
+      "tolerance": 1e-6
+    },
+    {
+      "id": "hmm_coin_seq_prob",
+      "category": "ghmm_sequence_probability",
+      "description": "Coin process sequence probability",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0.7]],
+          [[0.3]]
+        ]
+      },
+      "operation": "sequence_probability",
+      "input": {
+        "observations": [0, 1, 0]
+      },
+      "expected": 0.147,
+      "tolerance": 1e-6,
+      "notes": "0.7 * 0.3 * 0.7 = 0.147"
+    },
+    {
+      "id": "hmm_even_ones",
+      "category": "ghmm_hmm_case",
+      "description": "Even ones process observation distribution from stationary state",
+      "process": {
+        "type": "hmm",
+        "transition_matrices": [
+          [[0.5, 0.0],
+           [0.0, 0.5]],
+          [[0.0, 0.5],
+           [0.5, 0.0]]
+        ]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [0.6666666666666666, 0.3333333333333333]
+      },
+      "expected": [0.5, 0.5],
+      "tolerance": 1e-6,
+      "notes": "Stationary state is [2/3, 1/3]. Both tokens equally likely from stationary."
+    },
+    {
+      "id": "token_encode_2factors",
+      "category": "factored_token_encoding",
+      "description": "Radix token encoding with two factors, vocab sizes [2, 3]",
+      "operation": "token_encode",
+      "input": {
+        "vocab_sizes": [2, 3],
+        "factor_tokens": [1, 2]
+      },
+      "expected": 5,
+      "notes": "composite = 1*3 + 2 = 5. Composite vocab size = 6."
+    },
+    {
+      "id": "token_decode_2factors",
+      "category": "factored_token_encoding",
+      "description": "Radix token decoding with two factors, vocab sizes [2, 3]",
+      "operation": "token_decode",
+      "input": {
+        "vocab_sizes": [2, 3],
+        "composite_token": 5
+      },
+      "expected": [1, 2],
+      "notes": "5 // 3 = 1 (factor 0), 5 % 3 = 2 (factor 1)"
+    },
+    {
+      "id": "token_encode_3factors",
+      "category": "factored_token_encoding",
+      "description": "Radix token encoding with three factors, vocab sizes [2, 2, 2]",
+      "operation": "token_encode",
+      "input": {
+        "vocab_sizes": [2, 2, 2],
+        "factor_tokens": [1, 0, 1]
+      },
+      "expected": 5,
+      "notes": "composite = 1*4 + 0*2 + 1*1 = 5. Composite vocab size = 8."
+    },
+    {
+      "id": "token_decode_3factors",
+      "category": "factored_token_encoding",
+      "description": "Radix token decoding with three factors, vocab sizes [2, 2, 2]",
+      "operation": "token_decode",
+      "input": {
+        "vocab_sizes": [2, 2, 2],
+        "composite_token": 5
+      },
+      "expected": [1, 0, 1],
+      "notes": "5 // 4 = 1 (factor 0), (5 % 4) // 2 = 0 (factor 1), 5 % 2 = 1 (factor 2)"
+    },
+    {
+      "id": "token_roundtrip",
+      "category": "factored_token_encoding",
+      "description": "Encode then decode must be identity for all tokens with vocab sizes [3, 2]",
+      "operation": "token_roundtrip",
+      "input": {
+        "vocab_sizes": [3, 2],
+        "all_factor_tuples": [[0,0],[0,1],[1,0],[1,1],[2,0],[2,1]]
+      },
+      "expected": [0, 1, 2, 3, 4, 5],
+      "notes": "Each tuple encodes to a unique composite token 0..5, and decodes back"
+    },
+    {
+      "id": "factored_independent_2f",
+      "category": "factored_independent",
+      "description": "Independent structure: joint distribution is product of marginals (2 factors)",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.6]], [[0.4]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.7]], [[0.3]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {"type": "independent"}
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [[1.0], [1.0]]
+      },
+      "expected": [0.42, 0.18, 0.28, 0.12],
+      "tolerance": 1e-6,
+      "notes": "P(0,0)=0.6*0.7, P(0,1)=0.6*0.3, P(1,0)=0.4*0.7, P(1,1)=0.4*0.3"
+    },
+    {
+      "id": "factored_independent_3f",
+      "category": "factored_independent",
+      "description": "Independent structure with three factors",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.5]], [[0.5]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.6]], [[0.4]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.7]], [[0.3]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {"type": "independent"}
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [[1.0], [1.0], [1.0]]
+      },
+      "expected": [0.21, 0.09, 0.14, 0.06, 0.21, 0.09, 0.14, 0.06],
+      "tolerance": 1e-6,
+      "notes": "8-token composite vocab from 2x2x2. E.g. P(0,0,0)=0.5*0.6*0.7=0.21"
+    },
+    {
+      "id": "factored_sequential_2f",
+      "category": "factored_sequential",
+      "description": "Sequential chain: factor 1 conditions on factor 0's token via control map",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.6]], [[0.4]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.7]], [[0.3]]], [[[0.2]], [[0.8]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {
+          "type": "sequential",
+          "control_maps": [null, [0, 1]]
+        }
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [[1.0], [1.0]]
+      },
+      "expected": [0.42, 0.18, 0.08, 0.32],
+      "tolerance": 1e-6,
+      "notes": "P(0,0)=0.6*0.7=0.42, P(0,1)=0.6*0.3=0.18, P(1,0)=0.4*0.2=0.08, P(1,1)=0.4*0.8=0.32"
+    },
+    {
+      "id": "factored_sequential_variant_select",
+      "category": "factored_sequential",
+      "description": "Sequential chain variant selection: factor 0 always variant 0, factor 1 via control map",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.6]], [[0.4]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.7]], [[0.3]]], [[[0.2]], [[0.8]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {
+          "type": "sequential",
+          "control_maps": [null, [0, 1]]
+        }
+      },
+      "operation": "select_variants",
+      "input": {
+        "observation_tuple": [1, 0]
+      },
+      "expected": [0, 1],
+      "notes": "Factor 0 always uses variant 0. Factor 1: control_maps[1][t_0=1] = 1."
+    },
+    {
+      "id": "factored_fully_conditional_2f",
+      "category": "factored_fully_conditional",
+      "description": "Fully conditional: normalized product-of-conditionals approximation",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.6]], [[0.4]]], [[[0.1]], [[0.9]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.7]], [[0.3]]], [[[0.2]], [[0.8]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {
+          "type": "fully_conditional",
+          "control_maps": [[0, 1], [1, 0]]
+        }
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [[1.0], [1.0]]
+      },
+      "expected": [0.16, 0.10666667, 0.37333333, 0.36],
+      "tolerance": 1e-6,
+      "notes": "Normalized product of conditionals. NOT the true joint."
+    },
+    {
+      "id": "factored_fully_conditional_distortion",
+      "category": "factored_fully_conditional",
+      "description": "Product-of-conditionals does not recover the true joint even from compatible conditionals",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.3333333333333333]], [[0.6666666666666666]]], [[[0.5714285714285714]], [[0.4285714285714286]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.2]], [[0.8]]], [[[0.4]], [[0.6]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {
+          "type": "fully_conditional",
+          "control_maps": [[0, 1], [0, 1]]
+        }
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [[1.0], [1.0]]
+      },
+      "expected": [0.06363636363636363, 0.43636363636363634, 0.25454545454545452, 0.24545454545454545],
+      "tolerance": 1e-5,
+      "notes": "Conditionals derived from target joint [0.1, 0.4, 0.2, 0.3]. POE result is [7/110, 24/55, 14/55, 27/110], which differs from target."
+    },
+    {
+      "id": "factored_fully_conditional_zero_fallback",
+      "category": "fully_conditional_zero_fallback",
+      "description": "Fully conditional falls back to uniform when all conditional mass is zero",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.0]], [[0.0]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.0]], [[0.0]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {
+          "type": "fully_conditional",
+          "control_maps": [[0, 0], [0, 0]]
+        }
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [[1.0], [1.0]]
+      },
+      "expected": [0.25, 0.25, 0.25, 0.25],
+      "tolerance": 1e-6,
+      "notes": "When Z=0, distribution falls back to uniform 1/V_composite"
+    },
+    {
+      "id": "factored_cond_trans_independent_emissions",
+      "category": "factored_conditional_transitions",
+      "description": "Conditional transitions with independent emissions: emissions use fixed variant indices",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.6]], [[0.4]]], [[[0.2]], [[0.8]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.5]], [[0.5]]], [[[0.1]], [[0.9]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {
+          "type": "conditional_transitions",
+          "control_maps_transition": [[1, 0], [0, 1]],
+          "emission_variant_indices": [1, 0]
+        }
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [[1.0], [1.0]]
+      },
+      "expected": [0.1, 0.1, 0.4, 0.4],
+      "tolerance": 1e-6,
+      "notes": "Factor 0 emits using variant 1: [0.2, 0.8]. Factor 1 emits using variant 0: [0.5, 0.5]. Joint = product."
+    },
+    {
+      "id": "factored_cond_trans_sequential_emissions",
+      "category": "factored_conditional_transitions",
+      "description": "Conditional transitions with sequential emission chain",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.6]], [[0.4]]], [[[0.2]], [[0.8]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.9]], [[0.1]]], [[[0.3]], [[0.7]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {
+          "type": "conditional_transitions",
+          "control_maps_transition": [[0, 0], [0, 0]],
+          "emission_variant_indices": [0, 0],
+          "emission_control_maps": [null, [1, 0]]
+        }
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [[1.0], [1.0]]
+      },
+      "expected": [0.18, 0.42, 0.36, 0.04],
+      "tolerance": 1e-6,
+      "notes": "Factor 0 variant 0: [0.6, 0.4]. Factor 1 conditioned on factor 0 token via emission_control_maps: t0=0 -> variant 1 -> [0.3, 0.7]; t0=1 -> variant 0 -> [0.9, 0.1]."
+    },
+    {
+      "id": "nonergodic_obs_dist",
+      "category": "nonergodic_observation_distribution",
+      "description": "Nonergodic mixture observation distribution is weighted sum of component distributions",
+      "process": {
+        "type": "nonergodic",
+        "components": [
+          {"type": "hmm", "transition_matrices": [[[0.7]], [[0.3]]]},
+          {"type": "hmm", "transition_matrices": [[[0.3]], [[0.7]]]}
+        ],
+        "weights": [0.6, 0.4],
+        "vocab_maps": [[0, 1], [0, 1]]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": {
+          "component_beliefs": [0.6, 0.4],
+          "component_states": [[1.0], [1.0]]
+        }
+      },
+      "expected": [0.54, 0.46],
+      "tolerance": 1e-6,
+      "notes": "0.6*0.7 + 0.4*0.3 = 0.54 for token 0; 0.6*0.3 + 0.4*0.7 = 0.46 for token 1"
+    },
+    {
+      "id": "nonergodic_belief_update",
+      "category": "nonergodic_belief_update",
+      "description": "Bayesian component belief update after observing token 0",
+      "process": {
+        "type": "nonergodic",
+        "components": [
+          {"type": "hmm", "transition_matrices": [[[0.7]], [[0.3]]]},
+          {"type": "hmm", "transition_matrices": [[[0.3]], [[0.7]]]}
+        ],
+        "weights": [0.6, 0.4],
+        "vocab_maps": [[0, 1], [0, 1]]
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": {
+          "component_beliefs": [0.6, 0.4],
+          "component_states": [[1.0], [1.0]]
+        },
+        "observation": 0
+      },
+      "expected": {
+        "component_beliefs": [0.7777777777777778, 0.2222222222222222]
+      },
+      "tolerance": 1e-5,
+      "notes": "Bayes: posterior[0] = 0.6*0.7 / (0.6*0.7 + 0.4*0.3) = 0.42/0.54 = 7/9"
+    },
+    {
+      "id": "nonergodic_seq_prob",
+      "category": "nonergodic_sequence_probability",
+      "description": "Nonergodic mixture sequence probability is weighted sum of component probabilities",
+      "process": {
+        "type": "nonergodic",
+        "components": [
+          {"type": "hmm", "transition_matrices": [[[0.7]], [[0.3]]]},
+          {"type": "hmm", "transition_matrices": [[[0.3]], [[0.7]]]}
+        ],
+        "weights": [0.6, 0.4],
+        "vocab_maps": [[0, 1], [0, 1]]
+      },
+      "operation": "sequence_probability",
+      "input": {
+        "observations": [0, 0, 1]
+      },
+      "expected": 0.1134,
+      "tolerance": 1e-6,
+      "notes": "0.6*(0.7*0.7*0.3) + 0.4*(0.3*0.3*0.7) = 0.6*0.147 + 0.4*0.063 = 0.0882 + 0.0252 = 0.1134"
+    },
+    {
+      "id": "nonergodic_zero_likelihood",
+      "category": "nonergodic_zero_likelihood",
+      "description": "When observation has zero likelihood under all components, both beliefs and component states revert to prior",
+      "process": {
+        "type": "nonergodic",
+        "components": [
+          {"type": "hmm", "transition_matrices": [[[1.0, 0.0], [1.0, 0.0]], [[0.0, 0.0], [0.0, 0.0]]]},
+          {"type": "hmm", "transition_matrices": [[[0.5, 0.5], [0.5, 0.5]], [[0.0, 0.0], [0.0, 0.0]]]}
+        ],
+        "weights": [0.6, 0.4],
+        "vocab_maps": [[0, 1], [0, 1]]
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": {
+          "component_beliefs": [0.6, 0.4],
+          "component_states": [[0.7, 0.3], [0.4, 0.6]]
+        },
+        "observation": 1,
+        "notes": "Token 1 has P=0 under both components at these states (state 0 only emits token 0)"
+      },
+      "expected": {
+        "component_beliefs": [0.6, 0.4],
+        "component_states": [[0.7, 0.3], [0.4, 0.6]]
+      },
+      "tolerance": 1e-6,
+      "notes": "Token 1 has probability 0 under both components. Both beliefs and component states revert to prior."
+    },
+    {
+      "id": "nonergodic_vocab_mapping",
+      "category": "nonergodic_vocab_mapping",
+      "description": "Components with different vocabulary maps contribute to different global tokens",
+      "process": {
+        "type": "nonergodic",
+        "components": [
+          {"type": "hmm", "transition_matrices": [[[0.7]], [[0.3]]]},
+          {"type": "hmm", "transition_matrices": [[[0.3]], [[0.7]]]}
+        ],
+        "weights": [0.5, 0.5],
+        "vocab_maps": [[0, 1], [0, 2]]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": {
+          "component_beliefs": [0.5, 0.5],
+          "component_states": [[1.0], [1.0]]
+        }
+      },
+      "expected": [0.5, 0.15, 0.35],
+      "tolerance": 1e-6,
+      "notes": "Global vocab size = 3. Token 0: 0.5*0.7 + 0.5*0.3 = 0.5. Token 1: 0.5*0.3 + 0 = 0.15. Token 2: 0 + 0.5*0.7 = 0.35."
+    },
+    {
+      "id": "inflation_obs_dist",
+      "category": "inflation_distribution",
+      "description": "Inflated distribution tiles base distribution scaled by 1/K",
+      "process": {
+        "type": "inflated",
+        "base_process": {
+          "type": "hmm",
+          "transition_matrices": [[[0.7]], [[0.3]]]
+        },
+        "inflation_factor": 3
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [1.0]
+      },
+      "expected": [0.23333333333333334, 0.1, 0.23333333333333334, 0.1, 0.23333333333333334, 0.1],
+      "tolerance": 1e-6,
+      "notes": "Base [0.7, 0.3] tiled 3 times, each / 3. Inflated vocab size = 6."
+    },
+    {
+      "id": "inflation_seq_prob",
+      "category": "inflation_probability",
+      "description": "Inflated sequence probability scales by (1/K)^T",
+      "process": {
+        "type": "inflated",
+        "base_process": {
+          "type": "hmm",
+          "transition_matrices": [[[0.7]], [[0.3]]]
+        },
+        "inflation_factor": 3
+      },
+      "operation": "sequence_probability",
+      "input": {
+        "observations": [0, 1, 0],
+        "notes": "Inflated tokens [0,1,0] map to base tokens [0,1,0] (all prefix 0)"
+      },
+      "expected": 0.005444444444444444,
+      "tolerance": 1e-6,
+      "notes": "P_base(0,1,0) = 0.7*0.3*0.7 = 0.147. P_inflated = 0.147 / 3^3 = 0.147/27"
+    },
+    {
+      "id": "inflation_state_dynamics_alias0",
+      "category": "inflation_distribution",
+      "description": "Inflated token 0 (prefix=0, base=0): state update uses base token 0",
+      "process": {
+        "type": "inflated",
+        "base_process": {
+          "type": "hmm",
+          "transition_matrices": [
+            [[0, 1, 0],
+             [0, 0, 0],
+             [0.5, 0, 0]],
+            [[0, 0, 0],
+             [0, 0, 1],
+             [0.5, 0, 0]]
+          ]
+        },
+        "inflation_factor": 2
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": [0.3, 0.1, 0.6],
+        "observation": 0
+      },
+      "expected": {
+        "state": [0.5, 0.5, 0.0]
+      },
+      "tolerance": 1e-6,
+      "notes": "Inflated token 0: base_token = 0 mod 2 = 0. State update uses T^(0)."
+    },
+    {
+      "id": "inflation_state_dynamics_alias1",
+      "category": "inflation_distribution",
+      "description": "Inflated token 2 (prefix=1, base=0): same base token, same state update as alias0",
+      "process": {
+        "type": "inflated",
+        "base_process": {
+          "type": "hmm",
+          "transition_matrices": [
+            [[0, 1, 0],
+             [0, 0, 0],
+             [0.5, 0, 0]],
+            [[0, 0, 0],
+             [0, 0, 1],
+             [0.5, 0, 0]]
+          ]
+        },
+        "inflation_factor": 2
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": [0.3, 0.1, 0.6],
+        "observation": 2
+      },
+      "expected": {
+        "state": [0.5, 0.5, 0.0]
+      },
+      "tolerance": 1e-6,
+      "notes": "Inflated token 2: base_token = 2 mod 2 = 0 (same as token 0). Must yield identical state."
+    },
+    {
+      "id": "inflation_double",
+      "category": "inflation_distribution",
+      "description": "Double inflation of a fair coin produces uniform distribution",
+      "process": {
+        "type": "inflated",
+        "base_process": {
+          "type": "inflated",
+          "base_process": {
+            "type": "hmm",
+            "transition_matrices": [[[0.5]], [[0.5]]]
+          },
+          "inflation_factor": 2
+        },
+        "inflation_factor": 3
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [1.0]
+      },
+      "expected": [0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333, 0.08333333333333333],
+      "tolerance": 1e-6,
+      "notes": "Base coin(0.5) -> inflate K=2 -> vocab 4 uniform -> inflate K=3 -> vocab 12, all 1/12"
+    },
+    {
+      "id": "generation_layout_bos_eos",
+      "category": "generation_layout",
+      "description": "Generated sequence layout with BOS and EOS tokens",
+      "operation": "generation_layout",
+      "input": {
+        "sequence_len": 3,
+        "total_len": 7,
+        "bos_token": 99,
+        "eos_token": 100,
+        "pad_token": 101,
+        "body_tokens": [5, 2, 8]
+      },
+      "expected": [99, 5, 2, 8, 100, 101, 101],
+      "notes": "Layout: [BOS, body_1, body_2, body_3, EOS, PAD, PAD]"
+    },
+    {
+      "id": "generation_layout_no_pad",
+      "category": "generation_layout",
+      "description": "Generated sequence layout when total_len = sequence_len + 2 (no padding needed)",
+      "operation": "generation_layout",
+      "input": {
+        "sequence_len": 3,
+        "total_len": 5,
+        "bos_token": 99,
+        "eos_token": 100,
+        "pad_token": 101,
+        "body_tokens": [5, 2, 8]
+      },
+      "expected": [99, 5, 2, 8, 100],
+      "notes": "total_len = sequence_len + 2, so no PAD tokens"
+    }
+  ]
+}
