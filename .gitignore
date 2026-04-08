@@ -5,6 +5,7 @@
 .vscode/
 __pycache__/
 data/
+docs/plans/review/
 multirun/
 outputs/
 config.ini
