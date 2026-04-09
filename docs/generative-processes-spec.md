@@ -88,26 +88,6 @@ Given an observation sequence $x_1, \ldots, x_T$, compute the probability $P(x_1
 
 When it exists and is unique, compute the stationary distribution $\boldsymbol{\pi}$ of the process. See §8 for which process types have well-defined stationary distributions.
 
-### 2.6 Sequence generation
-
-Generate sequences in batches from prescribed initial states. Generated
-sequences must support BOS (beginning-of-sequence), EOS (end-of-sequence), and
-PAD (padding) tokens with the following semantics:
-
-- Generation always produces exactly `sequence_len` body tokens from the
-  process.
-- The output sequence has a separately specified `total_len` >=
-  `sequence_len` + 2.
-- The layout is: $[\text{BOS},\, \text{body}_1, \ldots, \text{body}_{\text{sequence\_len}},\, \text{EOS},\, \text{PAD}, \ldots, \text{PAD}]$ padded to `total_len`.
-- There is no early termination. The process always runs for `sequence_len`
-  steps.
-- PAD is only relevant when `total_len` > `sequence_len` + 2.
-
-This is a generation-level concern. It does not alter the process definition or
-its transition matrices. The spec defines the semantics but not the mechanism.
-
-BOS, EOS, and PAD token indices must be outside the process's vocabulary range $\{0, \ldots, V{-}1\}$. They are framing tokens, not process observations.
-
 ## 3 Generalized Hidden Markov Model
 
 ### 3.1 Authoritative inputs
@@ -558,11 +538,43 @@ A nonergodic mixture does not have a unique stationary distribution. Each compon
 
 The stationary distribution of an inflated process is the same as the base process's stationary distribution. Inflation affects only the observation space, not the state dynamics.
 
-## 9 Conformance Test Vectors
+## 9 Addendum: Sequence Generation
 
-### 9.1 Encoding scheme
+The preceding sections define the mathematical objects and their properties. This section specifies additional requirements for generating sequences from these processes — for training, analysis, and visualization. These requirements do not alter any process definition — they concern how generated sequences are augmented and delivered for downstream consumption.
 
-#### 9.1.1 Process definitions
+### 9.1 Sequence generation
+
+Given a generative process and an initial state, generate a sequence of $n$ observations by repeatedly sampling from the observation distribution and updating the belief state.
+
+### 9.2 Sequence augmentation
+
+Raw generated sequences may be augmented with framing tokens:
+
+- **BOS** (beginning-of-sequence): prepended before the first body token
+- **EOS** (end-of-sequence): appended after the last body token
+- **PAD** (padding): fills remaining positions to reach a target length
+
+BOS, EOS, and PAD token indices must be outside the process's vocabulary range $\{0, \ldots, V{-}1\}$. They are framing tokens, not process observations, and do not participate in belief state updates.
+
+When all augmentations are applied, the output layout is:
+
+$$[\text{BOS},\, \text{body}_1, \ldots, \text{body}_n,\, \text{EOS},\, \text{PAD}, \ldots, \text{PAD}]$$
+
+padded to `total_len`, where `total_len` $\geq n + 2$. There is no early termination — the process always runs for $n$ steps. PAD is only relevant when `total_len` $> n + 2$.
+
+### 9.3 Batched generation
+
+Sequences must be generated in batches. A batch is a collection of sequences generated from prescribed initial states, returned as a single 2D structure of shape $[\text{batch\_size},\, \text{total\_len}]$.
+
+### 9.4 Device and interoperability
+
+Generated batches must be usable on both CPU and NVIDIA GPUs (CUDA). Implementations must support [DLPack](https://dmlc.github.io/dlpack/latest/) so that output tensors can be consumed by other frameworks without copying — for example, `torch.from_dlpack(output)` to train PyTorch models. This allows the generation implementation to use any framework internally as long as it exposes DLPack-compatible output.
+
+## 10 Conformance Test Vectors
+
+### 10.1 Encoding scheme
+
+#### 10.1.1 Process definitions
 
 Process definitions are encoded as JSON objects with a `type` discriminator:
 
@@ -630,13 +642,13 @@ The `hmm` type tag is a convenience for conformance testing, indicating that the
 }
 ```
 
-#### 9.1.2 State encoding
+#### 10.1.2 State encoding
 
 - **GHMM state:** a 1D array of dimension $S$
 - **Factored state:** an ordered list of 1D arrays, one per factor
 - **Nonergodic state:** an object with `component_beliefs` (1D array of dimension $C$) and `component_states` (list of state encodings, one per component)
 
-#### 9.1.3 Structure definitions
+#### 10.1.3 Structure definitions
 
 ```json
 {"type": "independent"}
@@ -655,15 +667,15 @@ For `conditional_transitions`, the emission mode is derived from the `emission_c
 
 **Initial state convention:** When a base process definition in a test vector omits `initial_state`, the default is the stationary distribution (§3.1). Tests in the `ghmm_stationary_distribution` category verify this computation independently and should be validated first, since other test vectors (particularly sequence probability) depend on correct stationary distribution computation.
 
-### 9.2 Tolerance
+### 10.2 Tolerance
 
 All numerical comparisons use relative tolerance to accommodate floating-point differences across implementations and platforms. Each test vector specifies its tolerance. A default of $10^{-6}$ relative tolerance is used unless otherwise noted.
 
-### 9.3 Generation tests
+### 10.3 Generation tests
 
-Conformance vectors cover only deterministic operations. Sequence generation is behaviorally specified (BOS/EOS/PAD layout, token positions) but not numerically tested, because sampling depends on RNG implementation.
+Conformance vectors cover only deterministic operations. Sequence generation augmentations (§9) are behaviorally specified (BOS/EOS/PAD layout, token positions) but not numerically tested, because sampling depends on RNG implementation.
 
-### 9.4 Test vectors
+### 10.4 Test vectors
 
 Test vectors are provided in the companion file `conformance-tests.json`. Each test vector has these required fields:
 
@@ -676,7 +688,7 @@ Test vectors are provided in the companion file `conformance-tests.json`. Each t
 
 And these optional fields:
 
-- `process`: process definition (§9.1.1) — omitted for operation-only tests like token encoding
+- `process`: process definition (§10.1.1) — omitted for operation-only tests like token encoding
 - `tolerance`: relative tolerance for numerical comparison (defaults to the file-level `default_tolerance` when omitted)
 - `notes`: human-readable explanation of the expected value
 
@@ -703,7 +715,7 @@ Categories covered:
 19. **inflation_probability** — Inflated sequence probability scaling
 20. **generation_layout** — BOS/EOS/PAD token layout verification
 
-## 10 Glossary
+## 11 Glossary
 
 | Term | Definition |
 |------|-----------|
