@@ -148,8 +148,13 @@ If $\lambda_1 = 1$, then $\tilde{T}^{(x)} = T^{(x)}$ (no normalization needed).
 
 From $\tilde{T}$ (the spectrally normalized net transition matrix):
 
-- **Normalizing eigenvector $\mathbf{w}$**: the right eigenvector of $\tilde{T}$ at eigenvalue 1, scaled so that $\sum_i w_i = S$ (the number of states). That is, $\tilde{T}\,\mathbf{w} = \mathbf{w}$ and $\sum_i w_i = S$.
-- **Stationary distribution $\boldsymbol{\pi}$**: the left eigenvector of $\tilde{T}$ at eigenvalue 1, normalized so that $\sum_i \pi_i = 1$. That is, $\boldsymbol{\pi}\,\tilde{T} = \boldsymbol{\pi}$ and $\sum_i \pi_i = 1$.
+- **Normalizing eigenvector $\mathbf{w}$**: the right eigenvector of $\tilde{T}$ at eigenvalue 1, scaled so that the entries sum to $S$:
+
+$$\tilde{T}\,\mathbf{w} = \mathbf{w}, \qquad \sum_i w_i = S$$
+
+- **Stationary distribution $\boldsymbol{\pi}$**: the left eigenvector of $\tilde{T}$ at eigenvalue 1, normalized to a probability distribution:
+
+$$\boldsymbol{\pi}\,\tilde{T} = \boldsymbol{\pi}, \qquad \sum_i \pi_i = 1$$
 
 **HMM as a special case:** When $T^{(x)}$ satisfies the HMM constraints (§3.2, item 3), the normalizing eigenvector is the all-ones vector: $\mathbf{w} = \mathbf{1}$ (a vector of $S$ ones). In this case, all formulas below simplify to standard HMM formulas where normalization is by the L1 norm (sum of entries).
 
@@ -277,7 +282,11 @@ $$\boldsymbol{\eta}_i' = \frac{\boldsymbol{\eta}_i\,T_i[k_i, t_i]}{\sum_s (\bold
 
 ### 4.6 Sequence probability
 
-Computed by iterating the joint observation distribution and state updates through the observation sequence. At each step, the joint observation distribution (§4.4) determines the probability of the composite token, and the per-factor state updates (§4.5) advance the state. The sequence probability is the product of per-step joint probabilities. This must go through the joint distribution (not per-factor probabilities independently), because factors may be conditionally dependent.
+Given a composite observation sequence $c_1, \ldots, c_T$ and initial per-factor states $(\boldsymbol{\eta}_0^{(0)}, \ldots, \boldsymbol{\eta}_0^{(F-1)})$:
+
+$$P(c_1, \ldots, c_T) = \prod_{t=1}^{T} P_{\text{joint}}(c_t \mid \boldsymbol{\eta}^{(0)}_{t-1}, \ldots, \boldsymbol{\eta}^{(F-1)}_{t-1})$$
+
+where $P_{\text{joint}}$ is the joint observation distribution (§4.4) and each $\boldsymbol{\eta}^{(i)}_t$ is obtained from $\boldsymbol{\eta}^{(i)}_{t-1}$ via the per-factor state update (§4.5) conditioned on $c_t$. This must go through the joint distribution (not per-factor probabilities independently), because factors may be conditionally dependent.
 
 ## 5 Conditional Dependency Schemes
 
@@ -456,10 +465,11 @@ where $P_i$ is the observation probability under component $i$'s current state. 
 
 $$\text{beliefs}'[i] = \frac{\text{beliefs}[i] \cdot \text{likelihood}[i]}{\sum_j \text{beliefs}[j] \cdot \text{likelihood}[j]}$$
 
-Each component's internal state is also updated conditioned on the observation, but only for components with positive likelihood. Specifically:
+Each component's internal state is also updated conditioned on the observation, but only for components with positive likelihood:
 
-- If $\text{likelihood}[i] > 0$, component $i$'s state is updated using the local token index: $\text{state}_i' = \text{update}(\text{state}_i, \text{inv\_map}_i(x_{\text{global}}))$.
-- If $\text{likelihood}[i] = 0$ (including when $x_{\text{global}}$ is unmapped for component $i$), component $i$'s state is unchanged: $\text{state}_i' = \text{state}_i$. The update is skipped entirely for that component — not computed and discarded, but never performed.
+$$\text{state}_i' = \begin{cases} \text{(component } i \text{'s belief update given } \text{inv\_map}_i(x_{\text{global}})\text{)} & \text{if } \text{likelihood}[i] > 0 \\ \text{state}_i & \text{if } \text{likelihood}[i] = 0 \end{cases}$$
+
+The zero-likelihood case includes when $x_{\text{global}}$ is unmapped for component $i$. The update is skipped entirely for that component — not computed and discarded, but never performed.
 
 **Zero-likelihood fallback:** When $\sum_j \text{beliefs}[j] \cdot \text{likelihood}[j] = 0$ (the observation has zero likelihood under every component), both the beliefs and all component states revert to their prior values. This prevents division-by-zero.
 
@@ -507,11 +517,13 @@ The base distribution is tiled $K$ times, each copy scaled by $1/K$. All $K$ noi
 
 ### 7.4 Belief state update
 
-State dynamics depend only on the base token:
+State dynamics depend only on the base token. Given an inflated observation, extract the base token and apply the base process's belief update:
 
-$$\text{state}' = \text{update}(\text{state},\; \text{inflated\_token} \bmod V_{\text{base}})$$
+$$x_{\text{base}} = \text{inflated\_token} \bmod V_{\text{base}}$$
 
-The noise prefix is discarded.
+$$\boldsymbol{\eta}' = \text{(base process belief update given } x_{\text{base}}\text{)}$$
+
+The noise prefix is discarded and has no effect on state.
 
 ### 7.5 Sequence probability
 
