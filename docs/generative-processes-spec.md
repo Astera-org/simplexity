@@ -26,19 +26,9 @@ The spec covers:
 The spec does **not** cover:
 
 - Training, evaluation, or data pipeline concerns
-- Class hierarchies, inheritance, abstract base classes, protocols, or API
-  shapes
-- Whether operations are methods on an object, standalone functions, or
-  something else
-- Which operations are primitive vs. derived in the implementation
-- Internal representation choices (row/column vectors, log/linear space, log
-  base)
-- Algorithms (eigendecomposition method, matrix product order, scan vs. loop)
-- The transition matrix library (named processes like "mess3", "rrxor" are
-  examples, not spec content)
-- Frozen factors (a batching convenience, not a mathematical property)
-- How BOS/EOS/PAD tokens are implemented (matrix augmentation, wrapper logic,
-  or otherwise)
+- Software architecture, programming language, or framework choices
+- Algorithms or internal representations
+- Implementation-specific conveniences or optimizations
 
 ### 1.3 Notation
 
@@ -79,10 +69,8 @@ prescriptions for implementations.
 ## 2 Operations
 
 Given a generative process (base GHMM or composite), it must be *possible* to
-obtain the following results. These are things an implementation must allow a
-user to *do* — not methods a single object must *have*. An implementation could
-use a class with methods, standalone functions, a pipeline, or any other
-structure.
+obtain the following results. The spec defines what results are required, not
+how they are organized or computed.
 
 ### 2.1 Observation probability distribution
 
@@ -364,8 +352,7 @@ A conditional dependency scheme determines:
    distributions
 2. How per-factor transition matrix variants are selected given an observation
 
-The spec defines four schemes. These are mathematical definitions, not a
-pluggable protocol.
+The spec defines four schemes as mathematical definitions.
 
 ### 5.1 Independent
 
@@ -908,7 +895,6 @@ Categories covered:
 | Control map | An array mapping token indices (or radix-encoded token tuples) to transition matrix variant indices |
 | EOS | End-of-sequence token; a framing token appended after the last body token |
 | Factor | One of the constituent GHMMs in a factored process |
-| Frozen factors | A batching convenience (excluded from this spec) where certain factors in an independent factored process use a shared RNG to produce identical sequences across batch samples. Not a mathematical property of the process |
 | GHMM | Generalized Hidden Markov Model; the fundamental process type in this spec |
 | HMM | Hidden Markov Model; a GHMM where the normalizing eigenvector is the all-ones vector |
 | Inflation factor | The multiplier K by which vocabulary inflation expands the observation space |
