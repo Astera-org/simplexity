@@ -222,6 +222,14 @@ only from invalid use (observing a token with zero probability) or numerical
 issues, not from valid generative process operation. The spec does not
 prescribe a specific behavior for this case.
 
+*Note on edge case philosophy:* The zero-denominator case in a base GHMM
+represents a logical error (conditioning on an impossible event), which is
+why no fallback is prescribed. By contrast, the nonergodic mixture (S6.4)
+and fully conditional (S5.3) prescribe specific fallback behaviors because
+zero-mass situations can arise naturally in those contexts — a mixture
+component may not cover all tokens, and the product-of-conditionals
+approximation may produce degenerate results.
+
 ### 3.6 Sequence probability
 
 Given an observation sequence x_1, ..., x_T and an initial state eta_0:
@@ -262,7 +270,9 @@ For each factor, the normalizing eigenvector w_i is **derived**, not an
 authoritative input. For each variant k of factor i, w_i[k] is the right
 eigenvector of the per-variant net transition matrix sum_x T_i[k, x] at
 eigenvalue 1, following the same construction as S3.2-S3.3. For HMM-type
-factors, w_i[k] = **1** for all k.
+factors, w_i[k] = **1** for all k regardless of the variant — this is a
+direct consequence of the HMM validity constraint (S3.2, item 3), not an
+independent definition.
 - **Conditional dependency scheme** (one of the four defined in S5) plus its
   parameters (control maps, etc.)
 - **Per-factor vocabulary sizes** V_0, ..., V_{F-1}
@@ -339,7 +349,12 @@ Given a composite observation c:
 ### 4.6 Sequence probability
 
 Computed by iterating the joint observation distribution and state updates
-through the observation sequence, analogously to the base GHMM (S3.6).
+through the observation sequence. At each step, the joint observation
+distribution (S4.4) determines the probability of the composite token, and
+the per-factor state updates (S4.5) advance the state. The sequence
+probability is the product of per-step joint probabilities. This must go
+through the joint distribution (not per-factor probabilities independently),
+because factors may be conditionally dependent.
 
 ## 5 Conditional Dependency Schemes
 
@@ -452,7 +467,12 @@ This maps the (F-1)-tuple of other-factor tokens to an integer in
 
 A hybrid scheme: emissions may be independent or follow a sequential chain,
 while transitions are mutually conditional (as in the fully conditional
-scheme).
+scheme). The key property of this scheme is that each factor may use
+**different variant indices** for computing its emission distribution vs.
+selecting its transition matrix. The emission variant determines which
+T_i[k_emit] contributes to the joint observation distribution; the
+transition variant determines which T_i[k_trans] is used for the state
+update after the observation.
 
 **Joint distribution:**
 
@@ -573,7 +593,9 @@ observation, but only for components with positive likelihood. Specifically:
 - If likelihood[i] > 0, component i's state is updated using the local token
   index: state_i' = update(state_i, inv_map_i(x_global)).
 - If likelihood[i] = 0 (including when x_global is unmapped for component i),
-  component i's state is unchanged: state_i' = state_i.
+  component i's state is unchanged: state_i' = state_i. The update is
+  skipped entirely for that component — not computed and discarded, but
+  never performed.
 
 **Zero-likelihood fallback:** When sum_j(beliefs[j] * likelihood[j]) = 0
 (the observation has zero likelihood under every component), both the beliefs
@@ -683,8 +705,8 @@ isolation (using variant 0).
 For factored processes with non-trivial conditional dependencies (sequential,
 fully conditional, or conditional transitions), the stationary distribution
 may or may not exist depending on the specific coupling. The spec does not
-define a general method for computing it. Implementations may compute it if
-desired for specific cases.
+define a general method for computing it. No known implementation currently
+computes it. Implementations may do so for specific cases if needed.
 
 ### 8.4 Nonergodic mixtures
 
@@ -730,8 +752,11 @@ stationary distribution.
 }
 ```
 
-Same as GHMM but with the additional validity constraint that entries are
-non-negative and rows of T sum to 1.
+The `hmm` type tag is a convenience for conformance testing, indicating that
+the additional validity constraints of S3.2 item 3 apply (non-negative
+entries, rows of T sum to 1). Mathematically, an HMM is a GHMM where
+w = **1**; the separate type tag signals which validation rules to check,
+not a distinct mathematical object.
 
 **Factored process:**
 
@@ -803,6 +828,13 @@ For `conditional_transitions`, the emission mode is derived from the
 `emission_control_maps` field: if present and any entry for i >= 1 is
 non-null, emissions follow a sequential chain; if absent, emissions use
 fixed `emission_variant_indices`.
+
+**Initial state convention:** When a base process definition in a test vector
+omits `initial_state`, the default is the stationary distribution (S3.1).
+Tests in the `ghmm_stationary_distribution` category verify this computation
+independently and should be validated first, since other test vectors
+(particularly sequence probability) depend on correct stationary distribution
+computation.
 
 ### 9.2 Tolerance
 
@@ -876,6 +908,7 @@ Categories covered:
 | Control map | An array mapping token indices (or radix-encoded token tuples) to transition matrix variant indices |
 | EOS | End-of-sequence token; a framing token appended after the last body token |
 | Factor | One of the constituent GHMMs in a factored process |
+| Frozen factors | A batching convenience (excluded from this spec) where certain factors in an independent factored process use a shared RNG to produce identical sequences across batch samples. Not a mathematical property of the process |
 | GHMM | Generalized Hidden Markov Model; the fundamental process type in this spec |
 | HMM | Hidden Markov Model; a GHMM where the normalizing eigenvector is the all-ones vector |
 | Inflation factor | The multiplier K by which vocabulary inflation expands the observation space |
