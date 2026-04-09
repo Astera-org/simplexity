@@ -39,15 +39,12 @@ prescriptions for implementations.
 |--------|---------|
 | $V$ | Vocabulary size (number of distinct observations) |
 | $S$ | State space size (number of hidden states) |
-| $T^{(x)}$ | Observation-conditional transition matrix for observation $x$ |
+| $T^{(x)}$ | Transition matrix for observation $x$ (principal eigenvalue of $T$ is 1; see §3.2) |
 | $T$ | Net transition matrix: $T = \sum_x T^{(x)}$ |
-| $\tilde{T}^{(x)}$ | Spectrally normalized transition matrix (see §3.2) |
-| $\tilde{T}$ | Spectrally normalized net transition matrix |
-| $\mathbf{w}$ | Normalizing eigenvector (right eigenvector of $\tilde{T}$ at eigenvalue 1) |
-| $\boldsymbol{\pi}$ | Stationary distribution (left eigenvector of $\tilde{T}$ at eigenvalue 1, normalized to sum to 1) |
+| $\mathbf{w}$ | Normalizing eigenvector (right eigenvector of $T$ at eigenvalue 1) |
+| $\boldsymbol{\pi}$ | Stationary distribution (left eigenvector of $T$ at eigenvalue 1, normalized to sum to 1) |
 | $\boldsymbol{\eta}$ | Belief state (row vector of dimension $S$) |
 | $\boldsymbol{\eta}_0$ | Initial belief state |
-| $\lambda_1$ | Principal (largest real) eigenvalue of $T$ |
 | $K$ | Number of transition matrix variants (factored processes) or inflation factor |
 | $F$ | Number of factors in a factored process |
 | $C$ | Number of components in a nonergodic mixture |
@@ -122,39 +119,29 @@ A GHMM is defined by:
 
 These are the only inputs. Everything else is derived.
 
-### 3.2 Validity and construction
+### 3.2 Validity
 
-**Validity constraints on raw input:**
+The transition matrices $T^{(x)}$ must satisfy:
 
-1. All entries of $T^{(x)}$ must be finite.
-2. The net transition matrix $T = \sum_x T^{(x)}$ must have a positive real principal eigenvalue $\lambda_1$.
+1. All entries must be finite.
+2. The net transition matrix $T = \sum_x T^{(x)}$ must have principal eigenvalue 1. If $T$ has no positive real principal eigenvalue, the input is invalid.
 3. If the input is intended as an HMM (standard hidden Markov model): all entries must be non-negative, and for each state $s$, the sum over all observations and next-states must equal 1:
 
 $$\sum_{x, s'} T^{(x)}[s, s'] = 1 \quad \forall\, s$$
 
-If $T$ has no positive real principal eigenvalue, the input is invalid.
-
-**Construction (spectral normalization):**
-
-If $\lambda_1 \neq 1$, normalize all transition matrices:
-
-$$\tilde{T}^{(x)} = T^{(x)} / \lambda_1$$
-
-After normalization, $\tilde{T} = \sum_x \tilde{T}^{(x)}$ has principal eigenvalue 1. All subsequent formulas in this spec use the normalized matrices $\tilde{T}^{(x)}$ and $\tilde{T}$.
-
-If $\lambda_1 = 1$, then $\tilde{T}^{(x)} = T^{(x)}$ (no normalization needed).
+*Note:* If the net transition matrix has a positive real principal eigenvalue $\lambda_1 \neq 1$, the matrices can be normalized by dividing each $T^{(x)}$ by $\lambda_1$. This does not change the process's observable behavior.
 
 ### 3.3 Derived quantities
 
-From $\tilde{T}$ (the spectrally normalized net transition matrix):
+From the net transition matrix $T$:
 
-- **Normalizing eigenvector $\mathbf{w}$**: the right eigenvector of $\tilde{T}$ at eigenvalue 1, scaled so that the entries sum to $S$:
+- **Normalizing eigenvector $\mathbf{w}$**: the right eigenvector of $T$ at eigenvalue 1, scaled so that the entries sum to $S$:
 
-$$\tilde{T}\,\mathbf{w} = \mathbf{w}, \qquad \sum_i w_i = S$$
+$$T\,\mathbf{w} = \mathbf{w}, \qquad \sum_i w_i = S$$
 
-- **Stationary distribution $\boldsymbol{\pi}$**: the left eigenvector of $\tilde{T}$ at eigenvalue 1, normalized to a probability distribution:
+- **Stationary distribution $\boldsymbol{\pi}$**: the left eigenvector of $T$ at eigenvalue 1, normalized to a probability distribution:
 
-$$\boldsymbol{\pi}\,\tilde{T} = \boldsymbol{\pi}, \qquad \sum_i \pi_i = 1$$
+$$\boldsymbol{\pi}\,T = \boldsymbol{\pi}, \qquad \sum_i \pi_i = 1$$
 
 **HMM as a special case:** When $T^{(x)}$ satisfies the HMM constraints (§3.2, item 3), the normalizing eigenvector is the all-ones vector: $\mathbf{w} = \mathbf{1}$ (a vector of $S$ ones). In this case, all formulas below simplify to standard HMM formulas where normalization is by the L1 norm (sum of entries).
 
@@ -162,27 +149,27 @@ $$\boldsymbol{\pi}\,\tilde{T} = \boldsymbol{\pi}, \qquad \sum_i \pi_i = 1$$
 
 Given a belief state $\boldsymbol{\eta}$:
 
-$$P(x \mid \boldsymbol{\eta}) = \frac{\boldsymbol{\eta}\,\tilde{T}^{(x)}\,\mathbf{w}}{\boldsymbol{\eta} \cdot \mathbf{w}}$$
+$$P(x \mid \boldsymbol{\eta}) = \frac{\boldsymbol{\eta}\,T^{(x)}\,\mathbf{w}}{\boldsymbol{\eta} \cdot \mathbf{w}}$$
 
-where $\boldsymbol{\eta}\,\tilde{T}^{(x)}$ is the row vector resulting from right-multiplying $\boldsymbol{\eta}$ by the $S \times S$ matrix $\tilde{T}^{(x)}$, then dotted with $\mathbf{w}$.
+where $\boldsymbol{\eta}\,T^{(x)}$ is the row vector resulting from right-multiplying $\boldsymbol{\eta}$ by the $S \times S$ matrix $T^{(x)}$, then dotted with $\mathbf{w}$.
 
 When $\mathbf{w} = \mathbf{1}$, this simplifies to:
 
-$$P(x \mid \boldsymbol{\eta}) = \frac{\sum_s (\boldsymbol{\eta}\,\tilde{T}^{(x)})_s}{\sum_s \eta_s}$$
+$$P(x \mid \boldsymbol{\eta}) = \frac{\sum_s (\boldsymbol{\eta}\,T^{(x)})_s}{\sum_s \eta_s}$$
 
 ### 3.5 Belief state update
 
 Given a belief state $\boldsymbol{\eta}$ and an observed token $x$:
 
-$$\boldsymbol{\eta}' = \frac{\boldsymbol{\eta}\,\tilde{T}^{(x)}}{\boldsymbol{\eta}\,\tilde{T}^{(x)} \cdot \mathbf{w}}$$
+$$\boldsymbol{\eta}' = \frac{\boldsymbol{\eta}\,T^{(x)}}{\boldsymbol{\eta}\,T^{(x)} \cdot \mathbf{w}}$$
 
-The numerator is the row vector $\boldsymbol{\eta}\,\tilde{T}^{(x)}$. The denominator is the scalar dot product of that vector with $\mathbf{w}$.
+The numerator is the row vector $\boldsymbol{\eta}\,T^{(x)}$. The denominator is the scalar dot product of that vector with $\mathbf{w}$.
 
 When $\mathbf{w} = \mathbf{1}$, this simplifies to:
 
-$$\boldsymbol{\eta}' = \frac{\boldsymbol{\eta}\,\tilde{T}^{(x)}}{\sum_s (\boldsymbol{\eta}\,\tilde{T}^{(x)})_s}$$
+$$\boldsymbol{\eta}' = \frac{\boldsymbol{\eta}\,T^{(x)}}{\sum_s (\boldsymbol{\eta}\,T^{(x)})_s}$$
 
-**Zero-denominator case:** When $\boldsymbol{\eta}\,\tilde{T}^{(x)} \cdot \mathbf{w} = 0$ (the observation is impossible given the current belief), the update is undefined. This arises only from invalid use (observing a token with zero probability) or numerical issues, not from valid generative process operation. The spec does not prescribe a specific behavior for this case.
+**Zero-denominator case:** When $\boldsymbol{\eta}\,T^{(x)} \cdot \mathbf{w} = 0$ (the observation is impossible given the current belief), the update is undefined. This arises only from invalid use (observing a token with zero probability) or numerical issues, not from valid generative process operation. The spec does not prescribe a specific behavior for this case.
 
 *Note on edge case philosophy:* The zero-denominator case in a base GHMM represents a logical error (conditioning on an impossible event), which is why no fallback is prescribed. By contrast, the nonergodic mixture (§6.4) and fully conditional (§5.3) prescribe specific fallback behaviors because zero-mass situations can arise naturally in those contexts — a mixture component may not cover all tokens, and the product-of-conditionals approximation may produce degenerate results.
 
@@ -190,13 +177,13 @@ $$\boldsymbol{\eta}' = \frac{\boldsymbol{\eta}\,\tilde{T}^{(x)}}{\sum_s (\boldsy
 
 Given an observation sequence $x_1, \ldots, x_T$ and an initial state $\boldsymbol{\eta}_0$:
 
-$$P(x_1, \ldots, x_T) = \frac{\boldsymbol{\eta}_0\,\tilde{T}^{(x_1)}\,\tilde{T}^{(x_2)} \cdots \tilde{T}^{(x_T)}\,\mathbf{w}}{\boldsymbol{\eta}_0 \cdot \mathbf{w}}$$
+$$P(x_1, \ldots, x_T) = \frac{\boldsymbol{\eta}_0\,T^{(x_1)}\,T^{(x_2)} \cdots T^{(x_T)}\,\mathbf{w}}{\boldsymbol{\eta}_0 \cdot \mathbf{w}}$$
 
 The numerator is the scalar obtained by left-multiplying $\boldsymbol{\eta}_0$ through the sequence of matrices and then dotting with $\mathbf{w}$. The denominator is the scalar $\boldsymbol{\eta}_0 \cdot \mathbf{w}$.
 
 When $\mathbf{w} = \mathbf{1}$:
 
-$$P(x_1, \ldots, x_T) = \frac{\sum_s (\boldsymbol{\eta}_0\,\tilde{T}^{(x_1)} \cdots \tilde{T}^{(x_T)})_s}{\sum_s (\eta_0)_s}$$
+$$P(x_1, \ldots, x_T) = \frac{\sum_s (\boldsymbol{\eta}_0\,T^{(x_1)} \cdots T^{(x_T)})_s}{\sum_s (\eta_0)_s}$$
 
 ### 3.7 Normalizing constant
 
@@ -204,7 +191,7 @@ The value $\boldsymbol{\eta}_0 \cdot \mathbf{w}$ appears as the denominator in �
 
 ## 4 Composition: Factored Processes
 
-A factored process composes $F$ component processes (each a GHMM or HMM) into a single generative process over a composite observation space.
+A factored process composes $F$ component GHMMs into a single generative process over a composite observation space.
 
 ### 4.1 Authoritative inputs
 
@@ -213,7 +200,7 @@ A factored process composes $F$ component processes (each a GHMM or HMM) into a 
   - **Component type**: "hmm" or "ghmm", determining which normalization formulas to use
   - **Initial state** $\boldsymbol{\eta}_i$ of dimension $S_i$
 
-For each factor, the normalizing eigenvector $\mathbf{w}_i$ is **derived**, not an authoritative input. For each variant $k$ of factor $i$, $\mathbf{w}_i[k]$ is the right eigenvector of the per-variant net transition matrix $\sum_x T_i[k, x]$ at eigenvalue 1, following the same construction as §3.2–§3.3. For HMM-type factors, $\mathbf{w}_i[k] = \mathbf{1}$ for all $k$ regardless of the variant — this is a direct consequence of the HMM validity constraint (§3.2, item 3), not an independent definition.
+For each factor, the normalizing eigenvector $\mathbf{w}_i$ is **derived**, not an authoritative input. For each variant $k$ of factor $i$, $\mathbf{w}_i[k]$ is the right eigenvector of the per-variant net transition matrix $\sum_x T_i[k, x]$ at eigenvalue 1, following the same derivation as §3.3. For HMM-type factors, $\mathbf{w}_i[k] = \mathbf{1}$ for all $k$ regardless of the variant — this is a direct consequence of the HMM validity constraint (§3.2, item 3), not an independent definition.
 
 - **Conditional dependency scheme** (one of the four defined in §5) plus its parameters (control maps, etc.)
 - **Per-factor vocabulary sizes** $V_0, \ldots, V_{F-1}$
@@ -545,11 +532,11 @@ The stationary distribution $\boldsymbol{\pi}$ of a generative process, when it 
 
 ### 8.1 Base GHMM
 
-$\boldsymbol{\pi}$ is the left eigenvector of $\tilde{T}$ (the spectrally normalized net transition matrix) at eigenvalue 1, normalized to sum to 1:
+$\boldsymbol{\pi}$ is the left eigenvector of $T$ at eigenvalue 1, normalized to sum to 1:
 
-$$\boldsymbol{\pi}\,\tilde{T} = \boldsymbol{\pi}, \qquad \sum_i \pi_i = 1$$
+$$\boldsymbol{\pi}\,T = \boldsymbol{\pi}, \qquad \sum_i \pi_i = 1$$
 
-This always exists for a valid GHMM (by construction, $\tilde{T}$ has eigenvalue 1).
+This always exists for a valid GHMM (by construction, $T$ has eigenvalue 1).
 
 ### 8.2 Independent factored processes
 
@@ -732,13 +719,13 @@ Categories covered:
 | HMM | Hidden Markov Model; a GHMM where the normalizing eigenvector is the all-ones vector |
 | Inflation factor | The multiplier $K$ by which vocabulary inflation expands the observation space |
 | Net transition matrix | $T = \sum_x T^{(x)}$; the sum over all observation-conditional matrices |
-| Normalizing eigenvector | The right eigenvector $\mathbf{w}$ of $\tilde{T}$ at eigenvalue 1, used for belief state normalization |
+| Normalizing eigenvector | The right eigenvector $\mathbf{w}$ of $T$ at eigenvalue 1, used for belief state normalization |
 | Observation | A discrete token emitted by the process at each time step |
 | PAD | Padding token; fills remaining positions when `total_len` > `sequence_len` + 2 |
 | Principal eigenvalue | The largest real eigenvalue of the net transition matrix $T$ |
 | Radix encoding | Mixed-radix positional encoding of per-factor tokens into a composite token |
-| Spectral normalization | Dividing all transition matrices by the principal eigenvalue to ensure $\tilde{T}$ has eigenvalue 1 |
-| Stationary distribution | The left eigenvector $\boldsymbol{\pi}$ of $\tilde{T}$ at eigenvalue 1, normalized to sum to 1; the invariant belief state |
+| Spectral normalization | Dividing transition matrices by the principal eigenvalue when it is not already 1 (see §3.2 note) |
+| Stationary distribution | The left eigenvector $\boldsymbol{\pi}$ of $T$ at eigenvalue 1, normalized to sum to 1; the invariant belief state |
 | Transition matrix | $T^{(x)}$, the $S \times S$ matrix governing state transitions when observation $x$ is emitted |
 | Variant | One of $K_i$ alternative transition matrices for a factor, selected by the conditional dependency scheme |
 | Vocabulary map | A mapping from a component's local token indices to global token indices in a nonergodic mixture |

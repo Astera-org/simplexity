@@ -154,7 +154,7 @@
       },
       "expected": [0.6547896528, 0.3452103472],
       "tolerance": 1e-5,
-      "notes": "Raw T has principal eigenvalue ~0.8606, so spectral normalization applies. w ~= [1.070, 0.930], not the all-ones vector."
+      "notes": "Net T has principal eigenvalue ~0.8606 (must be normalized to 1). After normalization, w ~= [1.070, 0.930], not the all-ones vector."
     },
     {
       "id": "ghmm_nontrivial_w_belief_update",
@@ -231,7 +231,7 @@
       },
       "expected": [0.7273694256, 0.2726305744],
       "tolerance": 1e-5,
-      "notes": "From a non-stationary state [0.8, 0.2]. After spectral normalization, w ~= [1.070, 0.930]."
+      "notes": "From a non-stationary state [0.8, 0.2]. After normalization, w ~= [1.070, 0.930]."
     },
     {
       "id": "hmm_coin_obs_dist",
