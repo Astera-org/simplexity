@@ -92,12 +92,9 @@ When it exists and is unique, compute the stationary distribution $\boldsymbol{\
 
 ### 3.1 Authoritative inputs
 
-A GHMM is defined by:
+A GHMM is defined by its **transition matrices** $T^{(x)}$ of shape $[V, S, S]$ in row-vector convention. Everything else is derived.
 
-- **Transition matrices** $T^{(x)}$ of shape $[V, S, S]$ in row-vector convention
-- **Initial state** $\boldsymbol{\eta}_0$ of dimension $S$ (optional; defaults to the stationary distribution $\boldsymbol{\pi}$ when omitted)
-
-These are the only inputs. Everything else is derived.
+An **initial state** $\boldsymbol{\eta}_0$ of dimension $S$ may optionally be provided for operations that require one (e.g., sequence probability, generation). When omitted, $\boldsymbol{\eta}_0$ defaults to the stationary distribution $\boldsymbol{\pi}$. The initial state is not part of the process definition — it is a parameter of use.
 
 ### 3.2 Validity
 
@@ -167,23 +164,18 @@ $$P(x_1, \ldots, x_T) = \frac{\sum_s (\boldsymbol{\eta}_0\,T^{(x_1)} \cdots T^{(
 
 ### 3.7 Normalizing constant
 
-The value $\boldsymbol{\eta}_0 \cdot \mathbf{w}$ appears as the denominator in §3.4, §3.5, and §3.6. This value depends on the initial state and the normalizing eigenvector. It is not guaranteed to equal 1 under the scaling convention $\sum_i w_i = S$; in general, $\boldsymbol{\pi} \cdot \mathbf{w} \neq 1$. Implementations must track this denominator explicitly.
+The value $\boldsymbol{\eta}_0 \cdot \mathbf{w}$ appears as the denominator in §3.4, §3.5, and §3.6. This value depends on the initial state and the normalizing eigenvector. It is not guaranteed to equal 1 under the scaling convention $\sum_i w_i = S$; in general, $\boldsymbol{\pi} \cdot \mathbf{w} \neq 1$.
 
 ## 4 Composition: Factored Processes
 
-A factored process composes $F$ component GHMMs into a single generative process over a composite observation space.
+A factored process composes $F$ component generative processes into a single generative process over a composite observation space.
 
 ### 4.1 Authoritative inputs
 
-- For each factor $i \in \{0, \ldots, F{-}1\}$:
-  - **Transition matrices** $T_i$ of shape $[K_i, V_i, S_i, S_i]$, where $K_i$ is the number of variants, $V_i$ is the factor's vocabulary size, and $S_i$ is the factor's state space size
-  - **Component type**: "hmm" or "ghmm", determining which normalization formulas to use
-  - **Initial state** $\boldsymbol{\eta}_i$ of dimension $S_i$
-
-For each factor, the normalizing eigenvector $\mathbf{w}_i$ is **derived**, not an authoritative input. For each variant $k$ of factor $i$, $\mathbf{w}_i[k]$ is the right eigenvector of the per-variant net transition matrix $\sum_x T_i[k, x]$ at eigenvalue 1, following the same derivation as §3.3. For HMM-type factors, $\mathbf{w}_i[k] = \mathbf{1}$ for all $k$ regardless of the variant — this is a direct consequence of the HMM validity constraint (§3.2, item 3), not an independent definition.
-
+- **$F$ component processes**, each a fully-defined generative process (may be base GHMMs, other factored processes, or any composite) with vocabulary size $V_i$
 - **Conditional dependency scheme** (one of the four defined in §5) plus its parameters (control maps, etc.)
-- **Per-factor vocabulary sizes** $V_0, \ldots, V_{F-1}$
+
+When the component processes are GHMMs with multiple transition matrix variants (as required by non-trivial conditional dependency schemes), each factor $i$ has transition matrices $T_i$ of shape $[K_i, V_i, S_i, S_i]$, where $K_i$ is the number of variants. For each variant $k$, the normalizing eigenvector $\mathbf{w}_i[k]$ is derived from $\sum_x T_i[k, x]$ following §3.3. For HMM-type factors, $\mathbf{w}_i[k] = \mathbf{1}$ for all $k$.
 
 The composite vocabulary size is $V_{\text{composite}} = V_0 \times V_1 \times \cdots \times V_{F-1}$.
 
@@ -215,17 +207,15 @@ $$\text{decode}(\text{encode}(t_0, \ldots, t_{F-1})) = (t_0, \ldots, t_{F-1})$$
 
 ### 4.3 Per-factor observation distribution
 
-For a single factor $i$ with state $\boldsymbol{\eta}_i$, transition matrix $T_i[k]$ (for variant $k$), and normalizing eigenvector $\mathbf{w}_i[k]$:
+Each factor $i$ must be able to produce an observation distribution $P_i(x \mid \text{state}_i, k)$ given its current state and a variant index $k$ selected by the conditional dependency scheme (§5).
 
-**GHMM-type factor:**
+For GHMM factors with transition matrices $T_i[k]$ and normalizing eigenvector $\mathbf{w}_i[k]$:
 
 $$P_i(x \mid \boldsymbol{\eta}_i, k) = \frac{\boldsymbol{\eta}_i\,T_i[k, x]\,\mathbf{w}_i[k]}{\boldsymbol{\eta}_i \cdot \mathbf{w}_i[k]}$$
 
-**HMM-type factor** ($\mathbf{w}_i[k] = \mathbf{1}$):
+When $\mathbf{w}_i[k] = \mathbf{1}$:
 
 $$P_i(x \mid \boldsymbol{\eta}_i, k) = \sum_s (\boldsymbol{\eta}_i\,T_i[k, x])_s$$
-
-The variant index $k$ is selected by the conditional dependency scheme (§5).
 
 ### 4.4 Joint observation distribution
 
@@ -237,13 +227,13 @@ Given a composite observation $c$:
 
 1. Decode to per-factor tokens: $(t_0, \ldots, t_{F-1}) = \text{decode}(c)$
 2. Select per-factor variants $(k_0, \ldots, k_{F-1})$ according to the conditional dependency scheme
-3. Update each factor independently:
+3. Update each factor's state conditioned on its token and selected variant
 
-**GHMM-type factor:**
+For GHMM factors:
 
 $$\boldsymbol{\eta}_i' = \frac{\boldsymbol{\eta}_i\,T_i[k_i, t_i]}{\boldsymbol{\eta}_i\,T_i[k_i, t_i] \cdot \mathbf{w}_i[k_i]}$$
 
-**HMM-type factor:**
+When $\mathbf{w}_i[k_i] = \mathbf{1}$:
 
 $$\boldsymbol{\eta}_i' = \frac{\boldsymbol{\eta}_i\,T_i[k_i, t_i]}{\sum_s (\boldsymbol{\eta}_i\,T_i[k_i, t_i])_s}$$
 
@@ -726,7 +716,7 @@ Categories covered:
 | Conditional dependency scheme | The rule governing how factors in a factored process influence each other's observation distributions and transition variant selection |
 | Control map | An array mapping token indices (or radix-encoded token tuples) to transition matrix variant indices |
 | EOS | End-of-sequence token; a framing token appended after the last body token |
-| Factor | One of the constituent GHMMs in a factored process |
+| Factor | One of the constituent generative processes in a factored process |
 | GHMM | Generalized Hidden Markov Model; the fundamental process type in this spec |
 | HMM | Hidden Markov Model; a GHMM where the normalizing eigenvector is the all-ones vector |
 | Inflation factor | The multiplier $K$ by which vocabulary inflation expands the observation space |
