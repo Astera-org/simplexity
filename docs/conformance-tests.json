@@ -1,7 +1,8 @@
 {
   "version": "1.0",
-  "description": "Conformance test vectors for the Generative Processes Specification. See docs/generative-processes-spec.md S9.",
+  "description": "Conformance test vectors for the Generative Processes Specification. See docs/generative-processes-spec.md §7.",
   "default_tolerance": 1e-6,
+  "default_abs_tolerance": 1e-12,
   "tests": [
     {
       "id": "hmm_obs_dist_1",
@@ -68,7 +69,7 @@
         "observation": 0
       },
       "expected": {
-        "description": "eta' = (eta T~^(0)) / sum(eta T~^(0))",
+        "description": "eta' = (eta T^(0)) / sum(eta T^(0))",
         "state": [0.5, 0.5, 0.0]
       },
       "tolerance": 1e-6
@@ -144,8 +145,8 @@
       "process": {
         "type": "ghmm",
         "transition_matrices": [
-          [[0.6, 0.1], [0.3, 0.0]],
-          [[0.0, 0.2], [0.1, 0.4]]
+          [[0.697224362268, 0.116204060378], [0.348612181134, 0.0]],
+          [[0.0, 0.232408120756], [0.116204060378, 0.464816241512]]
         ]
       },
       "operation": "observation_probability_distribution",
@@ -154,7 +155,7 @@
       },
       "expected": [0.6547896528, 0.3452103472],
       "tolerance": 1e-5,
-      "notes": "Net T has principal eigenvalue ~0.8606 (must be normalized to 1). After normalization, w ~= [1.070, 0.930], not the all-ones vector."
+      "notes": "Spectrally normalized GHMM with w ~= [1.070, 0.930], not the all-ones vector."
     },
     {
       "id": "ghmm_nontrivial_w_belief_update",
@@ -163,8 +164,8 @@
       "process": {
         "type": "ghmm",
         "transition_matrices": [
-          [[0.6, 0.1], [0.3, 0.0]],
-          [[0.0, 0.2], [0.1, 0.4]]
+          [[0.697224362268, 0.116204060378], [0.348612181134, 0.0]],
+          [[0.0, 0.232408120756], [0.116204060378, 0.464816241512]]
         ]
       },
       "operation": "belief_update",
@@ -176,7 +177,7 @@
         "state": [0.8422888196, 0.1058928226]
       },
       "tolerance": 1e-5,
-      "notes": "eta' = (eta T~^(0)) / (eta T~^(0) . w) where w ~= [1.070, 0.930]"
+      "notes": "eta' = (eta T^(0)) / (eta T^(0) . w) where w ~= [1.070, 0.930]"
     },
     {
       "id": "ghmm_nontrivial_w_seq_prob",
@@ -185,8 +186,8 @@
       "process": {
         "type": "ghmm",
         "transition_matrices": [
-          [[0.6, 0.1], [0.3, 0.0]],
-          [[0.0, 0.2], [0.1, 0.4]]
+          [[0.697224362268, 0.116204060378], [0.348612181134, 0.0]],
+          [[0.0, 0.232408120756], [0.116204060378, 0.464816241512]]
         ]
       },
       "operation": "sequence_probability",
@@ -195,7 +196,7 @@
       },
       "expected": 0.1577442038,
       "tolerance": 1e-5,
-      "notes": "P([0,1]) = (eta_0 T~^(0) T~^(1) w) / (eta_0 . w) where eta_0 = stationary distribution"
+      "notes": "P([0,1]) = (eta_0 T^(0) T^(1) w) / (eta_0 . w) where eta_0 represents the stationary predictive state"
     },
     {
       "id": "ghmm_nontrivial_w_stationary",
@@ -204,15 +205,15 @@
       "process": {
         "type": "ghmm",
         "transition_matrices": [
-          [[0.6, 0.1], [0.3, 0.0]],
-          [[0.0, 0.2], [0.1, 0.4]]
+          [[0.697224362268, 0.116204060378], [0.348612181134, 0.0]],
+          [[0.0, 0.232408120756], [0.116204060378, 0.464816241512]]
         ]
       },
       "operation": "stationary_distribution",
       "input": {},
       "expected": [0.60555128, 0.39444872],
       "tolerance": 1e-5,
-      "notes": "Left eigenvector of T~ at eigenvalue 1, normalized to sum to 1"
+      "notes": "Left eigenvector of the spectrally normalized net matrix at eigenvalue 1, normalized to sum to 1"
     },
     {
       "id": "ghmm_obs_dist_custom_state",
@@ -221,8 +222,8 @@
       "process": {
         "type": "ghmm",
         "transition_matrices": [
-          [[0.6, 0.1], [0.3, 0.0]],
-          [[0.0, 0.2], [0.1, 0.4]]
+          [[0.697224362268, 0.116204060378], [0.348612181134, 0.0]],
+          [[0.0, 0.232408120756], [0.116204060378, 0.464816241512]]
         ]
       },
       "operation": "observation_probability_distribution",
@@ -231,7 +232,26 @@
       },
       "expected": [0.7273694256, 0.2726305744],
       "tolerance": 1e-5,
-      "notes": "From a non-stationary state [0.8, 0.2]. After normalization, w ~= [1.070, 0.930]."
+      "notes": "From a non-stationary state [0.8, 0.2] with w ~= [1.070, 0.930]."
+    },
+    {
+      "id": "ghmm_projective_invariance_obs_dist",
+      "category": "ghmm_projective_invariance",
+      "description": "Rescaling a GHMM state representative does not change the observation law",
+      "process": {
+        "type": "ghmm",
+        "transition_matrices": [
+          [[0.697224362268, 0.116204060378], [0.348612181134, 0.0]],
+          [[0.0, 0.232408120756], [0.116204060378, 0.464816241512]]
+        ]
+      },
+      "operation": "observation_probability_distribution",
+      "input": {
+        "state": [1.6, 0.4]
+      },
+      "expected": [0.7273694256, 0.2726305744],
+      "tolerance": 1e-5,
+      "notes": "This state is 2x [0.8, 0.2], so the observation law must be identical."
     },
     {
       "id": "hmm_coin_obs_dist",
@@ -350,6 +370,36 @@
       },
       "expected": [0, 1, 2, 3, 4, 5],
       "notes": "Each tuple encodes to a unique composite token 0..5, and decodes back"
+    },
+    {
+      "id": "token_encode_sparse_explicit",
+      "category": "factored_sparse_encoding",
+      "description": "Explicit sparse composite encoding uses token_to_tuple as the authoritative map",
+      "operation": "token_encode",
+      "input": {
+        "composite_encoding": {
+          "type": "explicit",
+          "token_to_tuple": [[0, 0], [1, 0], [1, 1]]
+        },
+        "factor_tokens": [1, 0]
+      },
+      "expected": 1,
+      "notes": "The tuple [1,0] is assigned composite token 1 by array position."
+    },
+    {
+      "id": "token_decode_sparse_explicit",
+      "category": "factored_sparse_encoding",
+      "description": "Explicit sparse composite decoding inverts token_to_tuple",
+      "operation": "token_decode",
+      "input": {
+        "composite_encoding": {
+          "type": "explicit",
+          "token_to_tuple": [[0, 0], [1, 0], [1, 1]]
+        },
+        "composite_token": 2
+      },
+      "expected": [1, 1],
+      "notes": "Composite token 2 decodes to the tuple stored at array position 2."
     },
     {
       "id": "factored_independent_2f",
@@ -582,6 +632,100 @@
       "notes": "When Z=0, distribution falls back to uniform 1/V_composite"
     },
     {
+      "id": "factored_fully_conditional_zero_fallback_state",
+      "category": "fully_conditional_zero_fallback",
+      "description": "When Z=0 in fully conditional mode, observing any composite token leaves factor states unchanged",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.0]], [[0.0]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.0]], [[0.0]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {
+          "type": "fully_conditional",
+          "control_maps": [[0, 0], [0, 0]]
+        }
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": [[1.0], [1.0]],
+        "observation": 2
+      },
+      "expected": {
+        "state": [[1.0], [1.0]]
+      },
+      "tolerance": 1e-6,
+      "notes": "With the default dense 2x2 encoding, composite token 2 corresponds to tuple [1,0]. In the Z=0 branch, states freeze."
+    },
+    {
+      "id": "factored_belief_update_single_factor",
+      "category": "factored_belief_update",
+      "description": "Factored-process belief update canonicalizes per-factor states",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[
+              [[0, 1, 0],
+               [0, 0, 0],
+               [0.5, 0, 0]],
+              [[0, 0, 0],
+               [0, 0, 1],
+               [0.5, 0, 0]]
+            ]],
+            "initial_state": [0.3, 0.1, 0.6],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {"type": "independent"}
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": [[0.3, 0.1, 0.6]],
+        "observation": 0
+      },
+      "expected": {
+        "state": [[0.5, 0.5, 0.0]]
+      },
+      "tolerance": 1e-6,
+      "notes": "A one-factor factored process must update exactly as its underlying base HMM."
+    },
+    {
+      "id": "factored_sequence_probability_single_factor",
+      "category": "factored_sequence_probability",
+      "description": "Factored sequence probability over multiple steps matches the single-factor base process",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.7]], [[0.3]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          }
+        ],
+        "structure": {"type": "independent"}
+      },
+      "operation": "sequence_probability",
+      "input": {
+        "observations": [0, 1, 0]
+      },
+      "expected": 0.147,
+      "tolerance": 1e-6,
+      "notes": "For a one-factor factored process, the composite sequence law reduces to the base-process law."
+    },
+    {
       "id": "factored_cond_trans_independent_emissions",
       "category": "factored_conditional_transitions",
       "description": "Conditional transitions with independent emissions: emissions use fixed variant indices",
@@ -603,7 +747,7 @@
         ],
         "structure": {
           "type": "conditional_transitions",
-          "control_maps_transition": [[1, 0], [0, 1]],
+          "transition_control_maps": [[1, 0], [0, 1]],
           "emission_variant_indices": [1, 0]
         }
       },
@@ -637,8 +781,7 @@
         ],
         "structure": {
           "type": "conditional_transitions",
-          "control_maps_transition": [[0, 0], [0, 0]],
-          "emission_variant_indices": [0, 0],
+          "transition_control_maps": [[0, 0], [0, 0]],
           "emission_control_maps": [null, [1, 0]]
         }
       },
@@ -649,6 +792,46 @@
       "expected": [0.18, 0.42, 0.36, 0.04],
       "tolerance": 1e-6,
       "notes": "Factor 0 variant 0: [0.6, 0.4]. Factor 1 conditioned on factor 0 token via emission_control_maps: t0=0 -> variant 1 -> [0.3, 0.7]; t0=1 -> variant 0 -> [0.9, 0.1]."
+    },
+    {
+      "id": "factored_cond_trans_update_semantics",
+      "category": "factored_conditional_transitions",
+      "description": "Transition control maps determine post-observation factor updates after the full tuple is known",
+      "process": {
+        "type": "factored",
+        "factors": [
+          {
+            "component_type": "hmm",
+            "transition_matrices": [[[[0.6]], [[0.4]]]],
+            "initial_state": [1.0],
+            "vocab_size": 2
+          },
+          {
+            "component_type": "hmm",
+            "transition_matrices": [
+              [[[1.0, 0.0], [1.0, 0.0]]],
+              [[[0.0, 1.0], [0.0, 1.0]]]
+            ],
+            "initial_state": [0.3, 0.7],
+            "vocab_size": 1
+          }
+        ],
+        "structure": {
+          "type": "conditional_transitions",
+          "transition_control_maps": [[0], [0, 1]],
+          "emission_variant_indices": [0, 0]
+        }
+      },
+      "operation": "belief_update",
+      "input": {
+        "state": [[1.0], [0.3, 0.7]],
+        "observation": 1
+      },
+      "expected": {
+        "state": [[1.0], [0.0, 1.0]]
+      },
+      "tolerance": 1e-6,
+      "notes": "With the default dense 2x1 encoding, composite token 1 corresponds to tuple [1,0]. Factor 1 therefore uses transition variant 1 and updates to state [0,1]."
     },
     {
       "id": "nonergodic_obs_dist",
