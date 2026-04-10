@@ -18,8 +18,7 @@ The spec covers:
 
 - The definition and construction of generalized hidden Markov models (GHMMs)
 - Operations that must be possible on any generative process
-- Composition schemes: factored processes, nonergodic mixtures, vocabulary
-  inflation
+- Composition schemes: factored processes, nonergodic mixtures
 - Conditional dependency schemes for factored processes
 - Conformance test vectors for verifying correctness
 
@@ -45,7 +44,7 @@ prescriptions for implementations.
 | $\boldsymbol{\pi}$ | Stationary distribution (left eigenvector of $T$ at eigenvalue 1, normalized to sum to 1) |
 | $\boldsymbol{\eta}$ | Belief state (row vector of dimension $S$) |
 | $\boldsymbol{\eta}_0$ | Initial belief state |
-| $K$ | Number of transition matrix variants (factored processes) or inflation factor |
+| $K$ | Number of transition matrix variants (factored processes) |
 | $F$ | Number of factors in a factored process |
 | $C$ | Number of components in a nonergodic mixture |
 
@@ -308,7 +307,7 @@ where $P_{\text{joint}}$ is the joint observation distribution (§4.3.4) and eac
 
 An edge from factor $j$ to factor $i$ means that factor $i$'s behavior is influenced by factor $j$'s emitted observation. The total function $\sigma_i$ (§4.3.1) selects which transition matrix variant governs factor $i$ — since a GHMM's transition matrix determines both its observation distribution and its state update, a single $\sigma_i$ per factor is sufficient.
 
-> **Open question:** Some existing implementations use separate mappings for observation distribution conditioning and state update conditioning (e.g., observations follow a sequential chain while state updates are fully conditional). We believe these can always be refactored into a single $\sigma_i$ with a suitably constructed set of transition matrix variants — for HMMs this holds because variants can share row sums (same observation probabilities) while differing in next-state distributions. For GHMMs with $\mathbf{w} \neq \mathbf{1}$ the argument is less obvious. This has not been rigorously proven, and there may be cases where the split is genuinely irreducible. The conformance tests (§8) encode the split representation where it appears in the reference implementation.
+> **Open question:** Some existing implementations use separate mappings for observation distribution conditioning and state update conditioning (e.g., observations follow a sequential chain while state updates are fully conditional). We believe these can always be refactored into a single $\sigma_i$ with a suitably constructed set of transition matrix variants — for HMMs this holds because variants can share row sums (same observation probabilities) while differing in next-state distributions. For GHMMs with $\mathbf{w} \neq \mathbf{1}$ the argument is less obvious. This has not been rigorously proven, and there may be cases where the split is genuinely irreducible. The conformance tests (§7) encode the split representation where it appears in the reference implementation.
 
 #### 4.6.1 Graph topologies
 
@@ -395,7 +394,7 @@ $$P(x^1, \ldots, x^F) = \frac{1}{V_{\text{composite}}}$$
 
 #### 4.6.4 Hybrid conditioning in the reference implementation
 
-The reference implementation includes a scheme where emissions and transitions use different $\sigma$ functions (e.g., sequential emissions with fully-conditional transitions). The conformance tests (§8) encode this as separate `emission_control_maps` and `control_maps_transition` fields. Per the open question in §4.6, we expect this to be expressible as a single $\sigma_i$ with an appropriate set of variants, but the conformance tests preserve the split representation.
+The reference implementation includes a scheme where emissions and transitions use different $\sigma$ functions (e.g., sequential emissions with fully-conditional transitions). The conformance tests (§7) encode this as separate `emission_control_maps` and `control_maps_transition` fields. Per the open question in §4.6, we expect this to be expressible as a single $\sigma_i$ with an appropriate set of variants, but the conformance tests preserve the split representation.
 
 ### 4.7 Stationary distribution
 
@@ -460,60 +459,15 @@ Generation samples a single component $i$ from $\boldsymbol{\beta}$, generates t
 
 A nonergodic mixture does not have a unique stationary distribution. Each component has its own, but there is no single distribution that is invariant for the mixture as a whole. The initial state is the component weights $\mathbf{w}_{\text{mix}}$ plus the per-component initial states.
 
-## 6 Addendum: Vocabulary Inflation
-
-Vocabulary inflation wraps any generative process and multiplies its observation space by a factor $K$, adding $K{-}1$ "noise aliases" for each base token.
-
-### 6.1 Authoritative inputs
-
-- **Base process**: any fully-defined generative process with vocabulary size $V_{\text{base}}$
-- **Inflation factor** $K \geq 2$
-
-The inflated vocabulary size is $V_{\text{inflated}} = K \cdot V_{\text{base}}$.
-
-### 6.2 Token encoding
-
-Each inflated observation $y \in \{1, \ldots, V_{\text{inflated}}\}$ corresponds to a pair $(p, x_{\text{base}})$ where $p \in \{1, \ldots, K\}$ is the noise prefix and $x_{\text{base}} \in \{1, \ldots, V_{\text{base}}\}$ is the base token:
-
-$$y = (p - 1) \cdot V_{\text{base}} + x_{\text{base}}$$
-
-$$x_{\text{base}} = ((y - 1) \bmod V_{\text{base}}) + 1, \qquad p = \lfloor (y - 1) / V_{\text{base}} \rfloor + 1$$
-
-### 6.3 Observation probability distribution
-
-$$P(y \mid \boldsymbol{\eta}) = \frac{P_{\text{base}}(x_{\text{base}} \mid \boldsymbol{\eta})}{K}$$
-
-All $K$ noise aliases of a given base token have equal probability.
-
-### 6.4 Belief state update
-
-State dynamics depend only on the base token; the noise prefix has no effect on state:
-
-$$\boldsymbol{\eta}' = \text{(base process belief update given } x_{\text{base}}\text{)}$$
-
-### 6.5 Sequence probability
-
-$$P(y_1, \ldots, y_T) = P_{\text{base}}(x_{\text{base},1}, \ldots, x_{\text{base},T}) \cdot (1/K)^T$$
-
-Per-token loss increases by exactly $\log K$ (in any log base).
-
-### 6.6 Emission
-
-An inflated observation is produced by sampling $x_{\text{base}}$ from the base process and $p$ uniformly from $\{1, \ldots, K\}$, then encoding as $y = (p - 1) \cdot V_{\text{base}} + x_{\text{base}}$.
-
-### 6.7 Stationary distribution
-
-The stationary distribution of an inflated process is the same as the base process's stationary distribution. Inflation affects only the observation space, not the state dynamics.
-
-## 7 Addendum: Sequence Generation
+## 6 Addendum: Sequence Generation
 
 The preceding sections define the mathematical objects and their properties. This section specifies additional requirements for generating sequences from these processes — for training, analysis, and visualization. These requirements do not alter any process definition — they concern how generated sequences are augmented and delivered for downstream consumption.
 
-### 7.1 Sequence generation
+### 6.1 Sequence generation
 
 Given a generative process and an initial state, generate a sequence of $n$ observations by repeatedly sampling from the observation distribution and updating the belief state.
 
-### 7.2 Sequence augmentation
+### 6.2 Sequence augmentation
 
 Raw generated sequences may be augmented with framing tokens:
 
@@ -529,21 +483,21 @@ $$[\text{BOS},\, \text{body}_1, \ldots, \text{body}_n,\, \text{EOS},\, \text{PAD
 
 padded to total length $L \geq n + 2$. There is no early termination — the process always runs for $n$ steps. PAD is only relevant when $L > n + 2$.
 
-### 7.3 Batched generation
+### 6.3 Batched generation
 
 Sequences must be producible in batches: a collection of sequences generated from prescribed initial states, all of the same total length $L$.
 
-### 7.4 Device and interoperability
+### 6.4 Device and interoperability
 
 Generated batches must be usable on both CPU and NVIDIA GPUs (CUDA). Implementations must support [DLPack](https://dmlc.github.io/dlpack/latest/) so that output tensors can be consumed by other frameworks without copying — for example, `torch.from_dlpack(output)` to train PyTorch models. This allows the generation implementation to use any framework internally as long as it exposes DLPack-compatible output.
 
-## 8 Conformance Test Vectors
+## 7 Conformance Test Vectors
 
-### 8.1 Encoding scheme
+### 7.1 Encoding scheme
 
 **Index convention note:** Conformance test JSON uses 0-based array indexing as is standard for JSON and programming languages, while the spec's mathematical notation uses 1-based indexing. The first element of a JSON array corresponds to index 1 in the spec.
 
-#### 8.1.1 Process definitions
+#### 7.1.1 Process definitions
 
 Process definitions are encoded as JSON objects with a `type` discriminator:
 
@@ -601,23 +555,13 @@ The `hmm` type tag is a convenience for conformance testing, indicating that the
 }
 ```
 
-**Vocabulary inflation:**
-
-```json
-{
-  "type": "inflated",
-  "base_process": {...},
-  "inflation_factor": 3
-}
-```
-
-#### 8.1.2 State encoding
+#### 7.1.2 State encoding
 
 - **GHMM state:** a 1D array of dimension $S$
 - **Factored state:** an ordered list of 1D arrays, one per factor
 - **Nonergodic state:** an object with `component_beliefs` (1D array of dimension $C$) and `component_states` (list of state encodings, one per component)
 
-#### 8.1.3 Structure definitions
+#### 7.1.3 Structure definitions
 
 ```json
 {"type": "independent"}
@@ -636,15 +580,15 @@ For `conditional_transitions`, the emission mode is derived from the `emission_c
 
 **Initial state convention:** When a base process definition in a test vector omits `initial_state`, the default is the stationary distribution (§3.1). Tests in the `ghmm_stationary_distribution` category verify this computation independently and should be validated first, since other test vectors (particularly sequence probability) depend on correct stationary distribution computation.
 
-### 8.2 Tolerance
+### 7.2 Tolerance
 
 All numerical comparisons use relative tolerance to accommodate floating-point differences across implementations and platforms. Each test vector specifies its tolerance. A default of $10^{-6}$ relative tolerance is used unless otherwise noted.
 
-### 8.3 Generation tests
+### 7.3 Generation tests
 
-Conformance vectors cover only deterministic operations. Sequence generation augmentations (§7) are behaviorally specified (BOS/EOS/PAD layout, token positions) but not numerically tested, because sampling depends on RNG implementation.
+Conformance vectors cover only deterministic operations. Sequence generation augmentations (§6) are behaviorally specified (BOS/EOS/PAD layout, token positions) but not numerically tested, because sampling depends on RNG implementation.
 
-### 8.4 Test vectors
+### 7.4 Test vectors
 
 Test vectors are provided in the companion file `conformance-tests.json`. Each test vector has these required fields:
 
@@ -657,7 +601,7 @@ Test vectors are provided in the companion file `conformance-tests.json`. Each t
 
 And these optional fields:
 
-- `process`: process definition (§8.1.1) — omitted for operation-only tests like token encoding
+- `process`: process definition (§7.1.1) — omitted for operation-only tests like token encoding
 - `tolerance`: relative tolerance for numerical comparison (defaults to the file-level `default_tolerance` when omitted)
 - `notes`: human-readable explanation of the expected value
 
@@ -680,11 +624,9 @@ Categories covered:
 15. **nonergodic_sequence_probability** — Mixture sequence probability
 16. **nonergodic_zero_likelihood** — Zero-likelihood fallback (beliefs revert to prior)
 17. **nonergodic_vocab_mapping** — Different vocabulary maps across components
-18. **inflation_distribution** — Inflated distribution scaling
-19. **inflation_probability** — Inflated sequence probability scaling
-20. **generation_layout** — BOS/EOS/PAD token layout verification
+18. **generation_layout** — BOS/EOS/PAD token layout verification
 
-## 9 Glossary
+## 8 Glossary
 
 | Term | Definition |
 |------|-----------|
@@ -693,12 +635,11 @@ Categories covered:
 | Component | One of the constituent processes in a nonergodic mixture |
 | Composite token | A single integer encoding the joint observation of all factors in a factored process |
 | Conditional dependency | A relationship between factors in a factored process, where one factor's observation influences another's behavior via the total function $\sigma_i$ (§4.6) |
-| Control map | A lookup-table encoding of $\sigma_i$ used in the conformance tests (§8); maps token indices to variant indices |
+| Control map | A lookup-table encoding of $\sigma_i$ used in the conformance tests (§7); maps token indices to variant indices |
 | EOS | End-of-sequence token; a framing token appended after the last body token |
 | Factor | One of the constituent generative processes in a factored process |
 | GHMM | Generalized Hidden Markov Model; the fundamental process type in this spec |
 | HMM | Hidden Markov Model; a GHMM where the normalizing eigenvector is the all-ones vector |
-| Inflation factor | The multiplier $K$ by which vocabulary inflation expands the observation space |
 | Net transition matrix | $T = \sum_x T^{(x)}$; the sum over all observation-conditional matrices |
 | Normalizing eigenvector | The right eigenvector $\mathbf{w}$ of $T$ at eigenvalue 1, used for belief state normalization |
 | Observation | A discrete token emitted by the process at each time step |
