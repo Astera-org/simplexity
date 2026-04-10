@@ -313,7 +313,7 @@ An edge from factor $j$ to factor $i$ means that factor $i$'s behavior is influe
 
 The graph topology determines the overall dependency structure among factors. Different topologies have different computational properties.
 
-**Independent (no edges)**
+##### 4.6.1.1 Independent (no edges)
 
 No factor depends on any other. Each factor emits independently and their observations are combined into a composite token.
 
@@ -333,7 +333,7 @@ The joint is the product of marginals. In the discrete variant realization: $k_i
 
 *Required parameters:* None.
 
-**Sequential chain (linear DAG)**
+##### 4.6.1.2 Sequential chain (linear DAG)
 
 Factor $i$'s distribution depends on factor $(i{-}1)$'s observation. Factor 1 has no dependencies.
 
@@ -353,7 +353,7 @@ $$P(x^1, \ldots, x^F) = P(x^1 \mid \boldsymbol{\eta}^1) \cdot \prod_{i=2}^{F} P(
 
 Factor 1 has no parent ($\text{deps}(1) = \emptyset$). Each subsequent factor has $\text{deps}(i) = \{i{-}1\}$, so $\sigma_i : \{1, \ldots, V_{i-1}\} \to \{1, \ldots, K_i\}$.
 
-**Other DAG topologies**
+##### 4.6.1.3 Other DAG topologies
 
 The independent and sequential chain topologies are the two defined in this spec. Other acyclic topologies are possible (e.g., tree-structured dependencies, skip connections). The same principles apply: edges carry conditioning relationships, and the joint distribution factors according to the DAG structure with exact computation at each node.
 
