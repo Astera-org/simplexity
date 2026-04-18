@@ -59,6 +59,9 @@ penzai = [
     "orbax-checkpoint",
     "penzai",
 ] # Deprecated: penzai is no longer maintained.
+mup = [
+    "mup>=1.0.0",
+]
 
 [project.scripts]
 simplexity-multirun = "simplexity.cli.run_parallel:main"

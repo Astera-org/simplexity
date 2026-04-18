@@ -16,6 +16,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from simplexity.exceptions import ConfigValidationError, DeviceResolutionError
 from simplexity.logger import SIMPLEXITY_LOGGER
 from simplexity.structured_configs.instance import InstanceConfig, validate_instance_config
+from simplexity.structured_configs.mup import MuPConfig, validate_mup_config
 from simplexity.structured_configs.validation import (
     validate_non_negative_int,
     validate_nonempty_str,
@@ -187,6 +188,7 @@ class PredictiveModelConfig:
     instance: InstanceConfig
     name: str | None = None
     load_checkpoint_step: int | None = None
+    mup: MuPConfig | None = None
 
 
 def is_predictive_model_target(target: str) -> bool:
@@ -228,3 +230,9 @@ def validate_predictive_model_config(cfg: DictConfig) -> None:
             raise ConfigValidationError("PredictiveModelConfig.instance must be a predictive model target")
     validate_nonempty_str(name, "PredictiveModelConfig.name", is_none_allowed=True)
     validate_non_negative_int(load_checkpoint_step, "PredictiveModelConfig.load_checkpoint_step", is_none_allowed=True)
+
+    mup_cfg = cfg.get("mup")
+    if mup_cfg is not None:
+        validate_mup_config(mup_cfg)
+        if mup_cfg.get("enabled", False) and not is_hooked_transformer_config(instance):
+            raise ConfigValidationError("PredictiveModelConfig.mup currently supports only HookedTransformer")

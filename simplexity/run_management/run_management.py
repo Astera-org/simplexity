@@ -457,6 +457,35 @@ def _load_checkpoint(model: Any, persisters: dict[str, ModelPersister] | None, l
         raise RuntimeError("Unable to load model checkpoint")
 
 
+def _maybe_apply_mup(cfg: DictConfig, instance_key: str, instance_config_config: DictConfig | None, model: Any) -> Any:
+    """Apply muP to `model` if the sibling `mup` block is enabled.
+
+    Ordering note: muP must be applied before any checkpoint load because
+    `mup.set_base_shapes(..., rescale_params=True)` rewrites parameter data.
+    """
+    mup_key = instance_key.rsplit(".", 1)[0] + ".mup"
+    mup_cfg: DictConfig | None = OmegaConf.select(cfg, mup_key, throw_on_missing=False, default=None)
+    if mup_cfg is None or not mup_cfg.get("enabled", False):
+        return model
+    if instance_config_config is None:
+        SIMPLEXITY_LOGGER.warning("[muP] skipped: could not locate HookedTransformer cfg block")
+        return model
+    from simplexity.predictive_models.mup import apply_mup_to_hooked_transformer, default_overrides
+
+    base_overrides, delta_overrides = default_overrides(
+        instance_config_config,
+        base_d_model=mup_cfg.base_d_model,
+        delta_d_model=mup_cfg.delta_d_model,
+        base_d_head=mup_cfg.get("base_d_head"),
+        base_d_mlp=mup_cfg.get("base_d_mlp"),
+        delta_d_head=mup_cfg.get("delta_d_head"),
+        delta_d_mlp=mup_cfg.get("delta_d_mlp"),
+    )
+    return apply_mup_to_hooked_transformer(
+        model, base_overrides, delta_overrides, rescale_params=mup_cfg.get("rescale_params", True)
+    )
+
+
 def _setup_predictive_models(
     cfg: DictConfig, instance_keys: list[str], persisters: dict[str, ModelPersister] | None
 ) -> dict[str, Any] | None:
@@ -470,6 +499,7 @@ def _setup_predictive_models(
             vocab_size = _get_attribute_value(cfg, instance_keys, "vocab_size")
             resolve_nested_model_config(instance_config_config, vocab_size=vocab_size)
         model = _instantiate_predictive_model(cfg, instance_key)
+        model = _maybe_apply_mup(cfg, instance_key, instance_config_config, model)
         step_key = instance_key.rsplit(".", 1)[0] + ".load_checkpoint_step"
         load_checkpoint_step: int | None = OmegaConf.select(cfg, step_key, throw_on_missing=True)
         if load_checkpoint_step is not None:

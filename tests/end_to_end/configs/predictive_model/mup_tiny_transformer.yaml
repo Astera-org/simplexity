@@ -1,0 +1,24 @@
+name: mup_tiny_transformer
+instance:
+  _target_: transformer_lens.HookedTransformer
+  cfg:
+    _target_: transformer_lens.HookedTransformerConfig
+    d_model: 16
+    d_head: 4
+    n_heads: 4
+    n_layers: 1
+    n_ctx: 128
+    d_mlp: 64
+    d_vocab: ???
+    act_fn: "relu"
+    normalization_type: "LN"
+    device: ${device}
+    seed: ${seed}
+
+load_checkpoint_step: null
+
+mup:
+  enabled: true
+  base_d_model: 8
+  delta_d_model: 24
+  rescale_params: true
