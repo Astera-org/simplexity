@@ -198,6 +198,11 @@ def mess3(x: float, a: float) -> jax.Array:
     )
 
 
+def mess3_order_zero() -> jax.Array:
+    """Creates the order-zero transition matrix for the Mess3 Process: uniform i.i.d. over 3 symbols."""
+    return jnp.array([[[1 / 3]], [[1 / 3]], [[1 / 3]]])
+
+
 def mess3_order_one(x: float, a: float) -> jax.Array:
     """Creates the order-one transition matrices for the Mess3 Process."""
     A = 0.5 * (1 - 2 * a + 3 * a**2 - x + 6 * a * x - 9 * a**2 * x)
@@ -459,6 +464,7 @@ HMM_MATRIX_FUNCTIONS = {
     "leopard": leopard,
     "matching_parens": matching_parens,
     "mess3": mess3,
+    "mess3_order_zero": mess3_order_zero,
     "mess3_order_one": mess3_order_one,
     "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,
