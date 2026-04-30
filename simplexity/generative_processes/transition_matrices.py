@@ -430,6 +430,28 @@ def tom_quantum(alpha: float, beta: float) -> jax.Array:
 
     return transition_matrices
 
+def wing(x: float, y: float) -> jax.Array:                                                                                                                                                                                               
+    """Creates a transition matrix for the Wing Process."""          
+
+    assert 0 <= x <= 1, f"x must be in [0, 1], got {x}"
+    assert 0 <= y <= 1, f"y must be in [0, 1], got {y}"                                                                                                                                                                                  
+                
+    b = (1 - x) / 2                                                                                                                                                                                                                      
+                
+    return jnp.array(
+        [
+            [
+                [0,     b,           0      ],
+                [0,     y * x,       0.5 * b],                                                                                                                                                                                           
+                [b,     0,           0      ],
+            ],                                                                                                                                                                                                                           
+            [   
+                [x,     0,           b      ],
+                [b,     (1 - y) * x, 0.5 * b],
+                [0,     b,           x      ],                                                                                                                                                                                           
+            ],
+        ]                                                                                                                                                                                                                                
+    ) 
 
 def zero_one_random(p: float) -> jax.Array:
     """Creates a transition matrix for the Zero One Random (Z1R) Process.
@@ -451,7 +473,7 @@ def zero_one_random(p: float) -> jax.Array:
                 [p, 0, 0],
             ],
         ]
-    )
+    ) 
 
 
 HMM_MATRIX_FUNCTIONS = {
@@ -471,6 +493,7 @@ HMM_MATRIX_FUNCTIONS = {
     "rrxor": rrxor,
     "sns": sns,
     "stair": stair,
+    "wing": wing,
     "zero_one_random": zero_one_random,
 }
 
