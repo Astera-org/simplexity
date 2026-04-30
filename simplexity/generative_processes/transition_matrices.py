@@ -453,6 +453,46 @@ def wing(x: float, y: float) -> jax.Array:
         ]                                                                                                                                                                                                                                
     ) 
 
+def wing_order_one(x: float, y: float) -> jax.Array:
+    """Creates the order-one transition matrices for the Wing Process."""
+    assert 0 <= x <= 1, f"x must be in [0, 1], got {x}"                                                                                                                                                                                  
+    assert 0 <= y <= 1, f"y must be in [0, 1], got {y}"
+                                                                                                                                                                                                                                        
+    p = 2 - 4 * x + 2 * x**2 + 3 * x * y - 3 * x**2 * y + 4 * x**2 * y**2                                                                                                                                                                
+    q = -3 + x + 2 * x**2 - x * y - 3 * x**2 * y + 4 * x**2 * y**2                                                                                                                                                                       
+    r = 4 + 6 * x + 2 * x**2 - 5 * x * y - 3 * x**2 * y + 4 * x**2 * y**2                                                                                                                                                                
+                                                        
+    d1 = 5 - 5 * x + 4 * x * y                                                                                                                                                                                                           
+    d2 = -7 - 5 * x + 4 * x * y                           
+                                                                                                                                                                                                                                        
+    return jnp.array(                                     
+        [
+            [
+                [p / d1,  0      ],
+                [q / d2,  0      ],                                                                                                                                                                                                      
+            ],
+            [                                                                                                                                                                                                                            
+                [0,      -q / d1 ],                       
+                [0,      -r / d2 ],
+            ],
+        ]                                                                                                                                                                                                                                
+    )
+
+def wing_order_zero(x: float, y: float) -> jax.Array:
+    """Creates the order-zero transition matrices for the Wing Process."""
+    assert 0 <= x <= 1, f"x must be in [0, 1], got {x}"                                                                                                                                                                                  
+    assert 0 <= y <= 1, f"y must be in [0, 1], got {y}"                                                                                                                                                                                  
+                                                                                                                                                                                                                                        
+    d1 = 5 - 5 * x + 4 * x * y                                                                                                                                                                                                           
+    d2 = 7 + 5 * x - 4 * x * y
+                                                                                                                                                                                                                                        
+    return jnp.array(
+        [
+            [[d1 / 12]],
+            [[d2 / 12]],                                                                                                                                                                                                                 
+        ]
+    )   
+
 def zero_one_random(p: float) -> jax.Array:
     """Creates a transition matrix for the Zero One Random (Z1R) Process.
 
@@ -494,6 +534,8 @@ HMM_MATRIX_FUNCTIONS = {
     "sns": sns,
     "stair": stair,
     "wing": wing,
+    "wing_order_one": wing_order_one,
+    "wing_order_zero": wing_order_zero,
     "zero_one_random": zero_one_random,
 }
 
