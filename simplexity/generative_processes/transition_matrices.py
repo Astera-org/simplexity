@@ -11,6 +11,7 @@ def get_stationary_state(state_transition_matrix: jax.Array) -> jax.Array:
     assert stationary_state.shape == (state_transition_matrix.shape[1], 1)
     return stationary_state.squeeze(axis=-1) / jnp.sum(stationary_state)
 
+
 def arch(a: float) -> jax.Array:
     """Creates a transition matrix for the Arch Process."""
     assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
@@ -38,18 +39,6 @@ def arch(a: float) -> jax.Array:
         ]
     )
 
-def arch_order_zero(a: float) -> jax.Array:
-    """Creates the order-zero transition matrices for the Arch Process."""
-    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
-    p1 = a / 2
-    p2 = (20 + 109 * a) / 600
-    return jnp.array(
-        [
-            [[p1]],
-            [[p2]],
-            [[1 - p1 - p2]],
-        ]
-    )
 
 def arch_order_one(a: float) -> jax.Array:
     """Creates the order-one transition matrices for the Arch Process."""
@@ -75,6 +64,21 @@ def arch_order_one(a: float) -> jax.Array:
             ],
         ]
     )
+
+
+def arch_order_zero(a: float) -> jax.Array:
+    """Creates the order-zero transition matrices for the Arch Process."""
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
+    p1 = a / 2
+    p2 = (20 + 109 * a) / 600
+    return jnp.array(
+        [
+            [[p1]],
+            [[p2]],
+            [[1 - p1 - p2]],
+        ]
+    )
+
 
 def coin(p: float):
     """Create a transition matrix for a simple coin-flip Process."""
@@ -146,19 +150,6 @@ def fan(x: float) -> jax.Array:
     ])
 
 
-def fern(x: float) -> jax.Array:
-    """Creates a transition matrix for the Fern Process."""
-    assert 0.0 <= x <= 1.0
-    return jnp.array([
-        [[0.3942, 0.00512, 0.0381],
-         [0.0, 0.53, 0.0],
-         [0.0, 0.326 * x, 0.554]],
-        [[0.3358, 0.01088, 0.2159],
-         [0.0, 0.0, 0.47],
-         [0.12, 0.326 * (1 - x), 0.0]],
-    ])
-
-
 def fanizza(alpha: float, lamb: float) -> jax.Array:
     """Creates a transition matrix for the Faniza Process."""
     a_la = (1 - lamb * jnp.cos(alpha) + lamb * jnp.sin(alpha)) / (1 - 2 * lamb * jnp.cos(alpha) + lamb**2)
@@ -183,6 +174,19 @@ def fanizza(alpha: float, lamb: float) -> jax.Array:
     )
 
     return jnp.stack([da, db], axis=0)
+
+
+def fern(x: float) -> jax.Array:
+    """Creates a transition matrix for the Fern Process."""
+    assert 0.0 <= x <= 1.0
+    return jnp.array([
+        [[0.3942, 0.00512, 0.0381],
+         [0.0, 0.53, 0.0],
+         [0.0, 0.326 * x, 0.554]],
+        [[0.3358, 0.01088, 0.2159],
+         [0.0, 0.0, 0.47],
+         [0.12, 0.326 * (1 - x), 0.0]],
+    ])
 
 
 def leaky_rrxor(p1: float, p2: float, epsilon: float) -> jax.Array:
@@ -262,11 +266,6 @@ def mess3(x: float, a: float) -> jax.Array:
     )
 
 
-def mess3_order_zero() -> jax.Array:
-    """Creates the order-zero transition matrix for the Mess3 Process: uniform i.i.d. over 3 symbols."""
-    return jnp.array([[[1 / 3]], [[1 / 3]], [[1 / 3]]])
-
-
 def mess3_order_one(x: float, a: float) -> jax.Array:
     """Creates the order-one transition matrices for the Mess3 Process."""
     A = 0.5 * (1 - 2 * a + 3 * a**2 - x + 6 * a * x - 9 * a**2 * x)
@@ -290,6 +289,11 @@ def mess3_order_one(x: float, a: float) -> jax.Array:
             ],
         ]
     )
+
+
+def mess3_order_zero() -> jax.Array:
+    """Creates the order-zero transition matrix for the Mess3 Process: uniform i.i.d. over 3 symbols."""
+    return jnp.array([[[1 / 3]], [[1 / 3]], [[1 / 3]]])
 
 
 def mr_name(p: float, q: float) -> jax.Array:
@@ -460,6 +464,71 @@ def stair(x: float) -> jax.Array:
     ])
 
 
+def strata(a: float, t0: float, t1: float) -> jax.Array:
+    """Creates a transition matrix for the Strata Process."""
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
+    assert 0 <= t0 <= 1, f"t0 must be in [0, 1], got {t0}"
+    assert 0 <= t1 <= 1, f"t1 must be in [0, 1], got {t1}"
+    b = (1 - a) / 2
+    return jnp.array(
+        [
+            [
+                [t0 * a, 0.0, 0.0],
+                [0.0, t1 * a, 0.0],
+                [0.0, 0.0, 0.0],
+            ],
+            [
+                [(1 - t0) * a, b, b],
+                [b, (1 - t1) * a, b],
+                [b, b, a],
+            ],
+        ]
+    )
+
+
+def strata_order_one(a: float, t0: float, t1: float) -> jax.Array:
+    """Creates the order-one transition matrices for the Strata Process."""
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
+    assert 0 <= t0 <= 1, f"t0 must be in [0, 1], got {t0}"
+    assert 0 <= t1 <= 1, f"t1 must be in [0, 1], got {t1}"
+
+    n1 = a * (t0**2 + t1**2)
+    n2 = -t0 + a * t0**2 - t1 + a * t1**2
+    n3 = 3 - 2 * a * t0 + a**2 * t0**2 - 2 * a * t1 + a**2 * t1**2
+
+    d1 = t0 + t1
+    d2 = -3 + a * t0 + a * t1
+
+    return jnp.array(
+        [
+            [
+                [n1 / d1,     0       ],
+                [a * n2 / d2, 0       ],
+            ],
+            [
+                [0,           -n2 / d1],
+                [0,           -n3 / d2],
+            ],
+        ]
+    )
+
+
+def strata_order_zero(a: float, t0: float, t1: float) -> jax.Array:
+    """Creates the order-zero transition matrices for the Strata Process."""
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
+    assert 0 <= t0 <= 1, f"t0 must be in [0, 1], got {t0}"
+    assert 0 <= t1 <= 1, f"t1 must be in [0, 1], got {t1}"
+
+    p = a * (t0 + t1) / 3
+
+    return jnp.array(
+        [
+            [[p]],
+            [[1 - p]],
+        ]
+    )
+
+
 def tom_quantum(alpha: float, beta: float) -> jax.Array:
     """Creates a transition matrix for the Tom Quantum Process."""
     gamma2 = 1 / (4 * (alpha**2 + beta**2))
@@ -494,68 +563,71 @@ def tom_quantum(alpha: float, beta: float) -> jax.Array:
 
     return transition_matrices
 
-def wing(x: float, y: float) -> jax.Array:                                                                                                                                                                                               
-    """Creates a transition matrix for the Wing Process."""          
 
+def wing(x: float, y: float) -> jax.Array:
+    """Creates a transition matrix for the Wing Process."""
     assert 0 <= x <= 1, f"x must be in [0, 1], got {x}"
-    assert 0 <= y <= 1, f"y must be in [0, 1], got {y}"                                                                                                                                                                                  
-                
-    b = (1 - x) / 2                                                                                                                                                                                                                      
-                
+    assert 0 <= y <= 1, f"y must be in [0, 1], got {y}"
+
+    b = (1 - x) / 2
+
     return jnp.array(
         [
             [
-                [0,     b,           0      ],
-                [0,     y * x,       0.5 * b],                                                                                                                                                                                           
-                [b,     0,           0      ],
-            ],                                                                                                                                                                                                                           
-            [   
-                [x,     0,           b      ],
-                [b,     (1 - y) * x, 0.5 * b],
-                [0,     b,           x      ],                                                                                                                                                                                           
+                [0, b,           0      ],
+                [0, y * x,       0.5 * b],
+                [b, 0,           0      ],
             ],
-        ]                                                                                                                                                                                                                                
-    ) 
+            [
+                [x, 0,           b      ],
+                [b, (1 - y) * x, 0.5 * b],
+                [0, b,           x      ],
+            ],
+        ]
+    )
+
 
 def wing_order_one(x: float, y: float) -> jax.Array:
     """Creates the order-one transition matrices for the Wing Process."""
-    assert 0 <= x <= 1, f"x must be in [0, 1], got {x}"                                                                                                                                                                                  
+    assert 0 <= x <= 1, f"x must be in [0, 1], got {x}"
     assert 0 <= y <= 1, f"y must be in [0, 1], got {y}"
-                                                                                                                                                                                                                                        
-    p = 2 - 4 * x + 2 * x**2 + 3 * x * y - 3 * x**2 * y + 4 * x**2 * y**2                                                                                                                                                                
-    q = -3 + x + 2 * x**2 - x * y - 3 * x**2 * y + 4 * x**2 * y**2                                                                                                                                                                       
-    r = 4 + 6 * x + 2 * x**2 - 5 * x * y - 3 * x**2 * y + 4 * x**2 * y**2                                                                                                                                                                
-                                                        
-    d1 = 5 - 5 * x + 4 * x * y                                                                                                                                                                                                           
-    d2 = -7 - 5 * x + 4 * x * y                           
-                                                                                                                                                                                                                                        
-    return jnp.array(                                     
+
+    p = 2 - 4 * x + 2 * x**2 + 3 * x * y - 3 * x**2 * y + 4 * x**2 * y**2
+    q = -3 + x + 2 * x**2 - x * y - 3 * x**2 * y + 4 * x**2 * y**2
+    r = 4 + 6 * x + 2 * x**2 - 5 * x * y - 3 * x**2 * y + 4 * x**2 * y**2
+
+    d1 = 5 - 5 * x + 4 * x * y
+    d2 = -7 - 5 * x + 4 * x * y
+
+    return jnp.array(
         [
             [
                 [p / d1,  0      ],
-                [q / d2,  0      ],                                                                                                                                                                                                      
+                [q / d2,  0      ],
             ],
-            [                                                                                                                                                                                                                            
-                [0,      -q / d1 ],                       
+            [
+                [0,      -q / d1 ],
                 [0,      -r / d2 ],
             ],
-        ]                                                                                                                                                                                                                                
+        ]
     )
+
 
 def wing_order_zero(x: float, y: float) -> jax.Array:
     """Creates the order-zero transition matrices for the Wing Process."""
-    assert 0 <= x <= 1, f"x must be in [0, 1], got {x}"                                                                                                                                                                                  
-    assert 0 <= y <= 1, f"y must be in [0, 1], got {y}"                                                                                                                                                                                  
-                                                                                                                                                                                                                                        
-    d1 = 5 - 5 * x + 4 * x * y                                                                                                                                                                                                           
+    assert 0 <= x <= 1, f"x must be in [0, 1], got {x}"
+    assert 0 <= y <= 1, f"y must be in [0, 1], got {y}"
+
+    d1 = 5 - 5 * x + 4 * x * y
     d2 = 7 + 5 * x - 4 * x * y
-                                                                                                                                                                                                                                        
+
     return jnp.array(
         [
             [[d1 / 12]],
-            [[d2 / 12]],                                                                                                                                                                                                                 
+            [[d2 / 12]],
         ]
-    )   
+    )
+
 
 def zero_one_random(p: float) -> jax.Array:
     """Creates a transition matrix for the Zero One Random (Z1R) Process.
@@ -577,13 +649,13 @@ def zero_one_random(p: float) -> jax.Array:
                 [p, 0, 0],
             ],
         ]
-    ) 
+    )
 
 
 HMM_MATRIX_FUNCTIONS = {
     "arch": arch,
-    "arch_order_zero": arch_order_zero,
     "arch_order_one": arch_order_one,
+    "arch_order_zero": arch_order_zero,
     "coin": coin,
     "days_of_week": days_of_week,
     "even_ones": even_ones,
@@ -593,13 +665,16 @@ HMM_MATRIX_FUNCTIONS = {
     "leopard": leopard,
     "matching_parens": matching_parens,
     "mess3": mess3,
-    "mess3_order_zero": mess3_order_zero,
     "mess3_order_one": mess3_order_one,
+    "mess3_order_zero": mess3_order_zero,
     "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,
     "rrxor": rrxor,
     "sns": sns,
     "stair": stair,
+    "strata": strata,
+    "strata_order_one": strata_order_one,
+    "strata_order_zero": strata_order_zero,
     "wing": wing,
     "wing_order_one": wing_order_one,
     "wing_order_zero": wing_order_zero,
