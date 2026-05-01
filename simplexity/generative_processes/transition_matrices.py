@@ -11,6 +11,70 @@ def get_stationary_state(state_transition_matrix: jax.Array) -> jax.Array:
     assert stationary_state.shape == (state_transition_matrix.shape[1], 1)
     return stationary_state.squeeze(axis=-1) / jnp.sum(stationary_state)
 
+def arch(a: float) -> jax.Array:
+    """Creates a transition matrix for the Arch Process."""
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
+    b = (1 - a) / 3
+    return jnp.array(
+        [
+            [
+                [0.8 * a, 0.0, 0.0, 0.0],
+                [0.0, 0.2 * a, 0.0, 0.0],
+                [0.0, 0.0, 0.4 * a, 0.0],
+                [0.0, 0.0, 0.0, 0.6 * a],
+            ],
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.4 * a, 0.0, 0.4 * b],
+                [0.0, 0.0, 0.3 * a, 0.0],
+                [0.0, 0.0, 0.0, 0.16 * a],
+            ],
+            [
+                [0.2 * a, b, b, b],
+                [b, 0.4 * a, b, 0.6 * b],
+                [b, b, 0.3 * a, b],
+                [b, b, b, 0.24 * a],
+            ],
+        ]
+    )
+
+def arch_order_zero(a: float) -> jax.Array:
+    """Creates the order-zero transition matrices for the Arch Process."""
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
+    p1 = a / 2
+    p2 = (20 + 109 * a) / 600
+    return jnp.array(
+        [
+            [[p1]],
+            [[p2]],
+            [[1 - p1 - p2]],
+        ]
+    )
+
+def arch_order_one(a: float) -> jax.Array:
+    """Creates the order-one transition matrices for the Arch Process."""
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
+    d1 = 20 + 109 * a
+    d2 = -580 + 409 * a
+    return jnp.array(
+        [
+            [
+                [3 * a / 5, 0, 0],
+                [6 * a * (10 + 27 * a) / (5 * d1), 0, 0],
+                [18 * a * (-80 + 59 * a) / (5 * d2), 0, 0],
+            ],
+            [
+                [0, (10 + 101 * a) / 750, 0],
+                [0, a * (560 + 1507 * a) / (50 * d1), 0],
+                [0, (-1000 - 4690 * a + 3527 * a**2) / (50 * d2), 0],
+            ],
+            [
+                [0, 0, (740 - 551 * a) / 750],
+                [0, 0, (1000 + 4290 * a - 3127 * a**2) / (50 * d1)],
+                [0, 0, -(28000 - 39540 * a + 14147 * a**2) / (50 * d2)],
+            ],
+        ]
+    )
 
 def coin(p: float):
     """Create a transition matrix for a simple coin-flip Process."""
@@ -517,6 +581,9 @@ def zero_one_random(p: float) -> jax.Array:
 
 
 HMM_MATRIX_FUNCTIONS = {
+    "arch": arch,
+    "arch_order_zero": arch_order_zero,
+    "arch_order_one": arch_order_one,
     "coin": coin,
     "days_of_week": days_of_week,
     "even_ones": even_ones,
