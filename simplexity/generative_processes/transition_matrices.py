@@ -450,6 +450,61 @@ def sns(p: float, q: float):
         ]
     )
 
+def spiral(a: float) -> jax.Array:
+    """Creates a transition matrix for the Spiral Process.
+    """                                                                                                                                                                                                        
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"
+                                                                                                                                                                                                                
+    return jnp.array(                                  
+        [
+            [
+                [0.2 * a,        0,     0      ],
+                [0,              0,     0      ],                                                                                                                                                              
+                [0.25 * (1 - a), 0,     0.5 * a],
+            ],                                                                                                                                                                                                 
+            [                                          
+                [0.8 * a,        1 - a, 0      ],                                                                                                                                                              
+                [0,              a,     1 - a  ],      
+                [0.75 * (1 - a), 0,     0.5 * a],
+            ],                                                                                                                                                                                                 
+        ]
+    )  
+
+def spiral_order_one(a: float) -> jax.Array:
+    """Creates the order-one transition matrices for the Spiral Process."""
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"                                                                                                                                                        
+
+    n1 = a * (35 + 23 * a)                                                                                                                                                                                     
+    n2 = -50 - 55 * a + 23 * a**2
+    n3 = 500 - 145 * a + 23 * a**2                                                                                                                                                                             
+
+    d1 = 10 * (5 + 9 * a)                                                                                                                                                                                      
+    d2 = 10 * (-55 + 9 * a)
+                                                                                                                                                                                                                
+    return jnp.array(
+        [                                                                                                                                                                                                      
+            [        
+                [n1 / d1,  0      ],
+                [n2 / d2,  0      ],                                                                                                                                                                           
+            ],
+            [                                                                                                                                                                                                  
+                [0,       -n2 / d1],
+                [0,       -n3 / d2],
+            ],
+        ]
+    )
+
+def spiral_order_zero(a: float) -> jax.Array:                                                                                                                                                                  
+    """Creates the order-zero transition matrices for the Spiral Process."""                                                                                                                                 
+    assert 0 <= a <= 1, f"a must be in [0, 1], got {a}"                                                                                                                                                        
+                                                                                                                                                                                                                
+    return jnp.array(                                                                                                                                                                                          
+        [                                                                                                                                                                                                      
+            [[(5 + 9 * a) / 60]],                      
+            [[(55 - 9 * a) / 60]],
+        ]
+    )
+
 
 def stair(x: float) -> jax.Array:
     """Creates a transition matrix for the Stair Process."""
@@ -671,7 +726,10 @@ HMM_MATRIX_FUNCTIONS = {
     "no_consecutive_ones": no_consecutive_ones,
     "rrxor": rrxor,
     "sns": sns,
-    "stair": stair,
+    "spiral": spiral,
+    "spiral_order_one": spiral_order_one,
+    "spiral_order_zero": spiral_order_zero,
+    "stair": stair, 
     "strata": strata,
     "strata_order_one": strata_order_one,
     "strata_order_zero": strata_order_zero,
