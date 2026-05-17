@@ -53,7 +53,7 @@ This should create a new python environment at `.venv` and install the dependenc
 Model training is configured using [Hydra](https://hydra.cc/) with config files specified in the `simplexity/configs` directory. To train a model using the configuration specified in `simplexity/configs/train_model.yaml`, run:
 
 ```bash
-uv run python simplexity/train_model.py
+uv run python simplexity/run.py
 ```
 
 An experiment comprised of several runs can be executed to perform a hyperparameter search or otherwise run multiple trials with different parameters using [Optuna](https://optuna.org/). To run an experiment using the configuration specified in `simplexity/configs/experiment.yaml`, run:
