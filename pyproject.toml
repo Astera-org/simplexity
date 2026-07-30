@@ -92,6 +92,10 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "test_*.py" = ["D"]
 "*.ipynb" = ["D"]
+# Verbatim copies of upstream generators modules, which follow that repo's conventions
+# (ZEN.md: "Eschew excess documentation"). Keeping them unedited is what makes diffing
+# against upstream to pick up improvements possible.
+"tests/vendored_process/generators_copy/*" = ["D"]
 
 [tool.pylint.MASTER]
 # Add project root to Python path so pylint can resolve simplexity imports
@@ -130,6 +134,8 @@ addopts = [
     # To check overall coverage locally, use: pytest --cov-fail-under=80
 ]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+# Makes the repo root importable so tests can import vendored process fixtures under tests/.
+pythonpath = ["."]
 
 [tool.coverage.run]
 source = ["simplexity"]
@@ -156,6 +162,8 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
     "@abstractmethod",
+    # Protocol method bodies, the structural counterpart to @abstractmethod above.
+    '^\s*\.\.\.$',
 ]
 show_missing = true
 skip_covered = false

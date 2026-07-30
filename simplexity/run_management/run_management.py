@@ -36,13 +36,14 @@ from mlflow.exceptions import MlflowException, RestException
 from omegaconf import DictConfig, OmegaConf
 from torch.nn import Module as PytorchModel
 
-from simplexity.generative_processes.generative_process import GenerativeProcess
+from simplexity.exceptions import ConfigValidationError
 from simplexity.logger import SIMPLEXITY_LOGGER, add_handlers_to_existing_loggers, get_log_files, remove_log_files
 from simplexity.logging.logger import Logger
 from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.components import Components
+from simplexity.run_management.protocols import GenerativeProcess, missing_generative_process_members
 from simplexity.run_management.run_logging import (
     log_environment_artifacts,
     log_git_info,
@@ -56,7 +57,9 @@ from simplexity.structured_configs.activation_tracker import (
 )
 from simplexity.structured_configs.base import resolve_base_config, validate_base_config
 from simplexity.structured_configs.generative_process import (
-    is_generative_process_target,
+    GENERATIVE_PROCESS_COMPONENT,
+    claims_generative_process_instance_key,
+    declares_generative_process_instance_key,
     resolve_generative_process_config,
     validate_generative_process_config,
 )
@@ -91,8 +94,10 @@ from simplexity.structured_configs.predictive_model import (
 )
 from simplexity.utils.config_utils import (
     filter_instance_keys,
+    filter_instance_keys_by,
     get_config,
     get_instance_keys,
+    get_instance_target,
     typed_instantiate,
 )
 from simplexity.utils.jnp_utils import resolve_jax_device
@@ -328,44 +333,73 @@ def _setup_logging(cfg: DictConfig, instance_keys: list[str], *, strict: bool) -
 
 
 def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> GenerativeProcess:
-    """Setup the generative process."""
+    """Instantiate a generative process and resolve its config's vocabulary fields.
+
+    The process is accepted on the strength of the operations it provides rather than the class it
+    inherits from, so that a process vendored into the consumer's project conforms on equal terms
+    with one implemented in simplexity.
+    """
     instance_config = OmegaConf.select(cfg, instance_key, throw_on_missing=True)
-    if instance_config:
-        generative_process = typed_instantiate(instance_config, GenerativeProcess)
-        SIMPLEXITY_LOGGER.info(
-            "[generative process] instantiated generative process: %s", generative_process.__class__.__name__
+    if instance_config is None:
+        raise KeyError(instance_key)
+    generative_process = hydra.utils.instantiate(instance_config)
+    missing_members = missing_generative_process_members(generative_process)
+    if missing_members:
+        raise ConfigValidationError(
+            f"{instance_key} instantiated {type(generative_process).__name__}, which is not a generative process: "
+            f"missing {', '.join(missing_members)}"
         )
-        config_key = instance_key.rsplit(".", 1)[0]
-        generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key)
-        if generative_process_config is None:
-            raise RuntimeError("Error selecting generative process config")
-        base_vocab_size = generative_process.vocab_size
-        resolve_generative_process_config(generative_process_config, base_vocab_size)
-        return generative_process
-    raise KeyError
+    SIMPLEXITY_LOGGER.info(
+        "[generative process] instantiated generative process: %s", generative_process.__class__.__name__
+    )
+    config_key = instance_key.rsplit(".", 1)[0]
+    generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key)
+    if generative_process_config is None:
+        raise RuntimeError("Error selecting generative process config")
+    resolve_generative_process_config(generative_process_config, generative_process.vocab_size)
+    return generative_process
+
+
+def _assert_declared_processes_were_claimed(cfg: DictConfig, instance_keys: list[str], claimed: list[str]) -> None:
+    """Fail loudly when a section declares a generative process that discovery then discarded.
+
+    Discovery drops config sections it cannot validate, which is the right default for an
+    unrecognized target but wrong for a section that explicitly declared its intent: silently
+    proceeding leaves `components.generative_processes` as None, indistinguishable from a config
+    that configures no process at all.
+    """
+    discarded = [
+        instance_key
+        for instance_key in instance_keys
+        if instance_key not in claimed and declares_generative_process_instance_key(cfg, instance_key)
+    ]
+    if discarded:
+        raise ConfigValidationError(
+            f"config declares generative processes at {', '.join(discarded)}, but their configs are invalid; "
+            "see the preceding validation warnings"
+        )
 
 
 def _setup_generative_processes(cfg: DictConfig, instance_keys: list[str]) -> dict[str, GenerativeProcess] | None:
-    instance_keys = filter_instance_keys(
+    claimed_instance_keys = filter_instance_keys_by(
         cfg,
         instance_keys,
-        is_generative_process_target,
+        claims_generative_process_instance_key,
         validate_fn=validate_generative_process_config,
         component_name="generative process",
     )
-    if instance_keys:
-        generative_processes = {}
-        for instance_key in instance_keys:
-            generative_process = _instantiate_generative_process(cfg, instance_key)
-            config_key = instance_key.rsplit(".", 1)[0]
-            generative_process_config: DictConfig | None = OmegaConf.select(cfg, config_key)
-            if generative_process_config is None:
-                raise RuntimeError("Error selecting generative process config")
-            base_vocab_size = generative_process.vocab_size
-            resolve_generative_process_config(generative_process_config, base_vocab_size)
-            generative_processes[instance_key] = generative_process
-        return generative_processes
-    SIMPLEXITY_LOGGER.info("[generative process] no generative process configs found")
+    _assert_declared_processes_were_claimed(cfg, instance_keys, claimed_instance_keys)
+    if claimed_instance_keys:
+        return {
+            instance_key: _instantiate_generative_process(cfg, instance_key) for instance_key in claimed_instance_keys
+        }
+    unclaimed = {instance_key: get_instance_target(cfg, instance_key) for instance_key in instance_keys}
+    SIMPLEXITY_LOGGER.info(
+        "[generative process] no generative process configs found; considered %s. A process implemented outside "
+        "simplexity must set component: %s on its config section to be recognized.",
+        unclaimed,
+        GENERATIVE_PROCESS_COMPONENT,
+    )
     return None
 
 
@@ -408,10 +442,10 @@ def _get_persister(persisters: dict[str, ModelPersister] | None) -> ModelPersist
 
 def _get_attribute_value(cfg: DictConfig, instance_keys: list[str], attribute_name: str) -> int | None:
     """Get the vocab size."""
-    instance_keys = filter_instance_keys(
+    instance_keys = filter_instance_keys_by(
         cfg,
         instance_keys,
-        is_generative_process_target,
+        claims_generative_process_instance_key,
         validate_fn=validate_generative_process_config,
         component_name="generative process",
     )

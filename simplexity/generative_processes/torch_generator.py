@@ -12,13 +12,13 @@
 import jax
 import torch
 
-from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.generator import (
     generate_data_batch as generate_jax_data_batch,
 )
 from simplexity.generative_processes.generator import (
     generate_data_batch_with_full_history as generate_jax_data_batch_with_full_history,
 )
+from simplexity.run_management.protocols import GenerativeProcess
 from simplexity.utils.pytorch_utils import jax_to_torch
 
 

@@ -13,10 +13,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from simplexity.activations.activation_tracker import ActivationTracker
-from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.logging.logger import Logger
 from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.model_persister import ModelPersister
+from simplexity.run_management.protocols import GenerativeProcess
 
 
 @dataclass

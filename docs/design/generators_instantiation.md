@@ -1,6 +1,6 @@
 # Instantiating vendored generative processes under `managed_run`
 
-**Status:** design proposal, awaiting direction
+**Status:** accepted and implemented; see §8 for the decisions taken and §9 for what remains open
 **Scope:** how `simplexity`'s run management instantiates generative processes that live in the
 *consumer's* repository, as a precondition for deprecating `simplexity/generative_processes`
 in favour of [`generators`](https://github.com/Astera-org/generators)
@@ -34,6 +34,10 @@ the SPEC's operations, let the config section *declare* itself as a generative p
 being sniffed by namespace, and make a declared-but-nonconforming section a hard error instead of a
 silent skip. Deprecate `simplexity/generative_processes` by warning and documentation, not
 deletion, and only after the four capability gaps in §4.3 have homes.
+
+This was accepted and is implemented on this branch — §8 records the decisions, §9 what is still
+open, §10 what changed. §§2-7 are the analysis as written before the decision, kept as the argument
+for it. `docs/generators_migration.md` is the consumer-facing guide.
 
 Measured up front, so the rest of this document argues from evidence rather than expectation
 (§3 has the reproduction):
@@ -497,52 +501,102 @@ it is the main reason B3 (additive) is recommended over B2 (migrate every config
 
 ---
 
-## 8 Open questions
+## 8 Decisions taken
 
-Ordered by how much they block.
+Recorded 2026-07-30. §9 lists what is still open.
 
-**Q1 — Reading A or Reading B (§4)?** Does `simplexity` become a runner that consumes
-consumer-owned processes, or does it vendor `generators` internally and stay the place processes
-live? Everything else follows from this. My recommendation is A.
+**D1 — Reading A (§4.1).** `simplexity` becomes a runner; processes live in consumers' projects.
+This document's recommendation, adopted.
 
-**Q2 — Who owns the four capability gaps (§4.3), especially the mixed-state tree?** Under Reading
-A, `mixed_state_presentation.py` is *consumer-side analysis* that happens to live in the deprecated
-package — it should move somewhere stable in `simplexity` (e.g. `simplexity/analysis/`) and operate
-on the protocol. But it is 576 lines and two `eden-experiments` consumers import it directly. Move
-it, leave it, or vendor it per-project?
+**D2 — Full deprecation is gated on generators reaching feature parity.** The first change ships
+a `PendingDeprecationWarning` on `simplexity.generative_processes` immediately, chosen over both
+docs-only signposting and a full `DeprecationWarning`. `PendingDeprecationWarning` is ignored by
+default in CPython, so it does not add noise to teammates' runs, while still surfacing in pytest
+and for anyone running with warnings enabled.
 
-**Q3 — Conformance vectors do not exist yet.** SPEC §7 specifies the encoding; no fixtures ship.
-Under a structural contract, the vectors are the only thing keeping a consumer's modified copy
-mathematically honest — the Protocol check cannot do it (§5.1). Is generating them in
-`generators` a prerequisite for this deprecation, a parallel task, or somebody else's? If they are
-not coming soon, the migration guide's safety story has a hole and should say so.
+The gating clause has a consequence worth making explicit, because it revises §4.3 of this
+document: if full deprecation waits on *generators* achieving parity, then the four capability gaps
+are **upstream generators work**, not simplexity re-homing. §4.3 originally proposed moving
+`mixed_state_presentation.py` into a stable simplexity home; under D2 the primary path is instead
+that generators grows the capability. See Q1 in §9 — the mixed-state tree is the case where this
+distinction genuinely bites, because it is arguably belief-state *analysis* rather than a process
+operation, and analysis is not obviously in generators' scope.
 
-**Q4 — How teammate-visible should stage 2 be?** A `DeprecationWarning` on
-`generative_processes` import fires in every teammate's run. Do you want that in this PR, in a
-follow-up after you have told the team, or not at all (docs-only deprecation, matching the existing
-`pyproject.toml` idiom)?
+**D3 — One PR to `main`**, carrying design and implementation together, held to `main`'s bar: new
+tests for new behaviour, coverage of failure modes, all static checks passing, no suppressions
+without justification.
 
-**Q5 — Does `transition_matrices.py` get deprecated too?** It is 16 process families, and it is
-*data* rather than behavior — the most reusable, least contentious part of the package.
-`generators` covers ~5 of them and its USAGE.md disclaims owning a process zoo while shipping
-`transition_matrices/` anyway. Options: keep it in `simplexity` as data (my lean), upstream the
-missing 11 into `generators`, or push each consumer to vendor what they use. This one has real
-duplication consequences either way.
+## 9 Open questions
 
-**Q6 — PR target: `dev` or `main`?** `CONTRIBUTING.md` defines a two-tier process and `dev` is
-live (`origin/dev` at `5ca03a4`). Design-stage work with an evolving interface reads like `dev` to
-me, but `main`'s bar is what the interface-stability language actually asks for. Also: should the
-design doc land as its own PR ahead of the implementation, so the interface decision is reviewable
-without the diff?
+Renumbered; the questions D1-D3 resolved are gone.
 
-**Q7 — Does the design doc's location work?** This file is at `docs/design/generators_instantiation.md`.
-The repo's `docs/` is currently flat with two files (`databricks_model_registry.md`,
-`LOAD_SUBCONFIGS.md`) and no `design/` subdirectory, so I introduced one; say if you would rather
-it be flat.
+**Q1 — Does the mixed-state tree belong in generators or in simplexity?** Under D2 the gaps close
+upstream, but `mixed_state_presentation.py` (576 lines) enumerates the belief-state tree and
+computes myopic entropy: that is analysis *over* a process, not an operation *of* one, and
+generators' SPEC covers belief updates rather than tree enumeration. Two `eden-experiments`
+consumers import it directly. If it is not going upstream, parity is unreachable by definition and
+it needs a stable simplexity home instead (`simplexity/analysis/` operating on the protocol).
+This is the single largest open item and it gates the deprecation timeline under D2.
 
-**Q8 — Naming.** The protocol's name and home are the most visible artifact of this change and
-will outlive the deprecation. Reusing `GenerativeProcess` for the Protocol is clearest for
-consumers but collides with the ABC of the same name in the package being deprecated. Options:
-`GenerativeProcessProtocol` (explicit, ugly), `GenerativeProcess` in a new namespace (clean at the
-call site, confusing during the transition), or something that names the capability rather than the
-noun. Your call — this is a taste question with a long tail.
+**Q2 — Conformance vectors still do not exist.** SPEC §7 specifies the encoding; no fixtures ship
+in generators. Under a structural contract they are the only thing that keeps a consumer's modified
+copy mathematically honest, because the protocol check verifies that members exist and nothing
+about what they compute (§5.1). The migration guide currently tells consumers to wire up vectors
+and then admits they are unavailable. Is generating them upstream work you want to schedule, or
+should simplexity offer a conformance harness against its own implementations as an interim?
+
+**Q3 — Does `transition_matrices.py` get deprecated too?** 16 process families, and it is *data*
+rather than behaviour — the most reusable and least contentious part of the package. `generators`
+covers ~5 and its USAGE.md disclaims owning a process zoo while shipping `transition_matrices/`
+anyway. Options: keep it in `simplexity` as data (my lean), upstream the missing families, or have
+each consumer vendor what it uses. Under D2 this also affects what "parity" means.
+
+**Q4 — Protocol naming.** Shipped as `GenerativeProcess` in
+`simplexity/run_management/protocols.py`, deliberately reusing the name so that the call site reads
+correctly once the ABC retires. The cost is two classes named `GenerativeProcess` during the
+transition — the ABC in `generative_processes/generative_process.py` and the protocol. The runner
+now references only the protocol, so the ambiguity is confined to readers rather than to code.
+Renaming is cheap; say the word if you would rather it be explicit
+(`GenerativeProcessProtocol`) or live somewhere else.
+
+**Q5 — The declaration field is named `component`.** A section sets `component: generative_process`
+to claim a process implemented outside simplexity. `component` matches the runner's existing
+internal vocabulary (`Components`, `component_name`), and `component_type` was unavailable because
+factored-process specs already use it for `hmm` / `ghmm`. Alternatives considered and rejected:
+`kind` (less specific), and a boolean escape hatch like `external: true` (describes the exception
+rather than the role, so it ages badly once declaration becomes the norm under Reading A).
+
+**Q6 — Should existing configs adopt the declaration?** Discovery keeps the namespace prefix as a
+fast path, so the 11 in-repo configs and teammates' in-flight branches needed no changes. Under
+Reading A every process config eventually declares itself and the prefix path retires. Migrating
+the in-repo configs now is a small mechanical change that would make the intent uniform; leaving
+them is less churn against the 60+ open branches. Deferred to you.
+
+**Q7 — Two lint errors and 20 pyright errors pre-date this branch.**
+`tests/generative_processes/test_data_prefetcher.py` has 3 ruff findings (SIM117 ×2, PT012) at
+`HEAD`, and pyright reports 20 unresolved-import errors for the uninstalled `penzai` and `aws`
+optional extras. Both are in files this change does not touch, so they are left alone rather than
+folded into an unrelated diff. `main`'s bar says all checks must pass, so someone should decide
+whether that is a separate cleanup PR or an accepted baseline.
+
+## 10 Appendix: what the implementation changed
+
+| File | Change |
+| --- | --- |
+| `simplexity/run_management/protocols.py` | New. `GenerativeProcess` and `LogSpaceGenerativeProcess` protocols, plus `missing_generative_process_members` for actionable errors. |
+| `simplexity/utils/config_utils.py` | `filter_instance_keys_by` takes a config-aware predicate; `filter_instance_keys` reimplemented over it, unchanged for callers. Added `get_instance_target`. |
+| `simplexity/structured_configs/generative_process.py` | `component` field; `declares_generative_process`, `declares_generative_process_instance_key`, `claims_generative_process_instance_key`; validation accepts declared foreign targets and explains the declaration when rejecting. |
+| `simplexity/run_management/run_management.py` | Discovery via the claims predicate (both in setup and vocabulary resolution); protocol check replacing the nominal `typed_instantiate`; declared-but-invalid now raises; the not-found log names what it considered; removed the duplicated resolve. |
+| `simplexity/run_management/components.py` | `generative_processes` typed by the protocol. |
+| `simplexity/generative_processes/generator.py`, `torch_generator.py` | Accept any conforming process. Narrowed `tokens` at the `generate` boundary, which also cleared pre-existing pyright looseness that `filter_vmap` had been masking. |
+| `simplexity/generative_processes/__init__.py` | New. `PendingDeprecationWarning`. |
+| `docs/generators_migration.md` | New. Consumer-facing migration guide. |
+| `tests/vendored_process/` | New. Verbatim generators copies at `b1242ea`, plus the adapter that is the worked example. |
+| `tests/end_to_end/test_vendored_process_training.py` | New. The acceptance test: a vendored process trains under `@managed_run()`. |
+| `pyproject.toml` | `pythonpath = ["."]` so tests can import the fixture; ruff ignores docstring rules for the verbatim vendored copies. |
+
+One friction point worth recording, because every consumer will hit it: **vendored code arrives with
+the upstream repo's conventions.** Generators' `ZEN.md` says "Eschew excess documentation," so its
+modules have no docstrings and fail simplexity's `D` lint rules. Editing them to comply would
+defeat the ability to diff against upstream, so the vendored directory is excluded from those rules
+instead. Consumers vendoring generators into their own projects will need the same exclusion.
