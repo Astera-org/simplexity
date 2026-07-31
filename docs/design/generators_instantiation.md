@@ -3,7 +3,7 @@
 **Status:** accepted and implemented; see §8 for the decisions taken and §9 for what remains open
 **Scope:** how `simplexity`'s run management instantiates generative processes that live in the
 *consumer's* repository, as a precondition for deprecating `simplexity/generative_processes`
-in favour of [`generators`](https://github.com/Astera-org/generators)
+in favour of [`generators`](https://github.com/ealt/generators)
 **Branch:** `feat/generators-instantiation`
 
 ---
@@ -572,7 +572,14 @@ Reading A every process config eventually declares itself and the prefix path re
 the in-repo configs now is a small mechanical change that would make the intent uniform; leaving
 them is less churn against the 60+ open branches. Deferred to you.
 
-**Q7 — Two lint errors and 20 pyright errors pre-date this branch.**
+**Q7 — Where does `generators` live?** The repository is currently `ealt/generators` (public);
+`Astera-org/generators` does not exist. Every reference in this change points at `ealt/generators`
+because that is what resolves today. If the intent is for it to become an Astera-org repository,
+that should happen before consumers start vendoring from it in earnest: a shared Astera repo whose
+deprecation notice points at an individual's account is awkward, and the URL appears in a runtime
+warning message that teammates will see.
+
+**Q8 — Two lint errors and 20 pyright errors pre-date this branch.**
 `tests/generative_processes/test_data_prefetcher.py` has 3 ruff findings (SIM117 ×2, PT012) at
 `HEAD`, and pyright reports 20 unresolved-import errors for the uninstalled `penzai` and `aws`
 optional extras. Both are in files this change does not touch, so they are left alone rather than

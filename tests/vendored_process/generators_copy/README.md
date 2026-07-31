@@ -1,6 +1,6 @@
 # Vendored generators modules
 
-Verbatim copies of [generators](https://github.com/Astera-org/generators) at commit `b1242ea`,
+Verbatim copies of [generators](https://github.com/ealt/generators) at commit `b1242ea`,
 apart from rewriting the module-level import to this package's path:
 
 | File | Upstream path |

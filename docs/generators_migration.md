@@ -1,7 +1,7 @@
 # Migrating to a vendored generative process
 
 Generative processes are moving out of simplexity and into your own project, sourced from
-[generators](https://github.com/Astera-org/generators). This guide shows how to run a vendored
+[generators](https://github.com/ealt/generators). This guide shows how to run a vendored
 process under `@managed_run()`.
 
 Nothing is removed yet. `simplexity.generative_processes` remains fully supported and emits only a

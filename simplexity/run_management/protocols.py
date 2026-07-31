@@ -2,7 +2,7 @@
 
 A component is identified by what it can do, not by where its code lives. This matters for
 generative processes: the reference implementations in
-[generators](https://github.com/Astera-org/generators) are distributed by copying rather than
+[generators](https://github.com/ealt/generators) are distributed by copying rather than
 by import, so a conforming process may be a project-local module that shares no namespace or
 base class with simplexity.
 
