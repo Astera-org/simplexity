@@ -87,6 +87,7 @@ def test_declared_process_with_an_invalid_config_raises() -> None:
 
 
 def test_declared_process_error_names_the_offending_key() -> None:
+    """The error identifies which section is at fault."""
     cfg = _process_cfg({"_target_": ""}, declare=True)
     with pytest.raises(ConfigValidationError, match="generative_process.instance"):
         _setup(cfg)
@@ -105,12 +106,14 @@ def test_instantiating_a_non_process_raises_naming_missing_members() -> None:
 
 
 def test_instantiating_a_non_process_lists_the_absent_operations() -> None:
+    """The error names the specific operations that are missing."""
     cfg = _process_cfg({"_target_": "builtins.dict"}, declare=True)
     with pytest.raises(ConfigValidationError, match="emit_observation"):
         _instantiate_generative_process(cfg, "generative_process.instance")
 
 
 def test_instantiating_a_missing_instance_key_raises_key_error() -> None:
+    """An instance key that does not exist is a KeyError, not a silent None."""
     cfg = _process_cfg(FOREIGN_INSTANCE, declare=True)
     with pytest.raises(KeyError):
         _instantiate_generative_process(cfg, "generative_process.absent")

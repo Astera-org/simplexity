@@ -93,10 +93,12 @@ def test_minimal_object_satisfies_the_core_protocol() -> None:
 
 
 def test_core_process_does_not_satisfy_the_log_space_protocol() -> None:
+    """A process without log-space operations conforms to the core contract only."""
     assert not isinstance(MinimalProcess(), LogSpaceGenerativeProcess)
 
 
 def test_log_space_process_satisfies_both_protocols() -> None:
+    """A process providing everything conforms to both."""
     process = LogSpaceProcess()
     assert isinstance(process, GenerativeProcess)
     assert isinstance(process, LogSpaceGenerativeProcess)
@@ -119,6 +121,7 @@ def test_omitting_any_core_member_breaks_conformance(member: str) -> None:
 
 
 def test_missing_members_are_empty_for_a_conforming_process() -> None:
+    """A conforming process reports nothing missing."""
     assert missing_generative_process_members(MinimalProcess()) == []
 
 
@@ -128,8 +131,6 @@ def test_missing_members_are_reported_sorted() -> None:
 
 
 def test_missing_members_for_a_partially_conforming_object() -> None:
-    class HalfProcess:
-        vocab_size = 2
-        initial_state = jnp.zeros(2)
-
-    assert missing_generative_process_members(HalfProcess()) == sorted(CORE_MEMBERS - {"vocab_size", "initial_state"})
+    """Only the absent members are reported, not the ones provided."""
+    half_process = type("HalfProcess", (), {"vocab_size": 2, "initial_state": jnp.zeros(2)})()
+    assert missing_generative_process_members(half_process) == sorted(CORE_MEMBERS - {"vocab_size", "initial_state"})

@@ -419,7 +419,7 @@ def test_filter_instance_keys_by_applies_validation() -> None:
     """Test that a claimed instance key still has to validate."""
     cfg = DictConfig({"component1": DictConfig({"instance": DictConfig({TARGET: "some_callable"})})})
 
-    def claims_fn(cfg: DictConfig, instance_key: str) -> bool:
+    def claims_fn(_cfg: DictConfig, _instance_key: str) -> bool:
         return True
 
     def validate_fn(cfg: DictConfig) -> None:

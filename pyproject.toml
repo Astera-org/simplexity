@@ -105,7 +105,19 @@ load-plugins = ["pylint_per_file_ignores"]
 [tool.pylint."MESSAGES CONTROL"]
 # Disable line-too-long check since ruff handles line length (120 chars)
 disable = ["line-too-long", "duplicate-code"]
-per-file-ignores = ["tests/**:redefined-outer-name"]
+per-file-ignores = [
+    "tests/**:redefined-outer-name",
+    # Verbatim copies of upstream generators modules. They follow that repo's conventions --
+    # no docstrings (ZEN.md: "Eschew excess documentation") and notation-faithful names that
+    # mirror the mathematics (VARIABLE_NAMING.md: Ts, T, Vs). Editing them to satisfy this
+    # repo's style would defeat diffing against upstream to pick up improvements.
+    "tests/vendored_process/generators_copy/**:missing-module-docstring,missing-class-docstring,missing-function-docstring,invalid-name",
+    # Pre-existing debt, newly in scope: this subpackage had no __init__.py, so `pylint simplexity`
+    # never walked into it. Adding one (to carry the pending-deprecation warning) brought 21 modules
+    # into scope at once. The package is pending deprecation, so refactoring it is not worthwhile;
+    # tracked in https://github.com/Astera-org/simplexity/issues/199.
+    "simplexity/generative_processes/**:too-many-arguments,too-many-locals,too-many-instance-attributes,unused-argument,invalid-name",
+]
 
 [tool.pylint.IMPORTS]
 # Ignore simplexity module to prevent astroid crashes during import resolution

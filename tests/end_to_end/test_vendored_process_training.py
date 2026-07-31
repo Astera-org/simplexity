@@ -6,6 +6,7 @@ copy, not an import, and neither it nor its adapter references
 `simplexity.generative_processes`.
 """
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,9 @@ from omegaconf import DictConfig
 from transformer_lens import HookedTransformer
 
 import simplexity
+from simplexity.generative_processes.generative_process import (
+    GenerativeProcess as GenerativeProcessBaseClass,
+)
 from simplexity.generative_processes.torch_generator import generate_data_batch
 from simplexity.run_management.protocols import GenerativeProcess, LogSpaceGenerativeProcess
 from tests.vendored_process.adapter import VendoredGhmmProcess
@@ -91,10 +95,6 @@ def test_vendored_process_is_instantiated(training_result: dict[str, Any]):
 
 def test_vendored_process_is_not_a_simplexity_process(training_result: dict[str, Any]):
     """The process conforms structurally without inheriting from simplexity."""
-    from simplexity.generative_processes.generative_process import (
-        GenerativeProcess as GenerativeProcessBaseClass,
-    )
-
     process = training_result["process"]
     assert not isinstance(process, GenerativeProcessBaseClass)
     assert isinstance(process, GenerativeProcess)
@@ -125,4 +125,4 @@ def test_training_steps_produce_finite_losses(training_result: dict[str, Any]):
     """Training runs end to end on vendored-process data."""
     losses = training_result["losses"]
     assert len(losses) == NUM_STEPS
-    assert all(loss > 0 and loss == loss for loss in losses)
+    assert all(loss > 0 and math.isfinite(loss) for loss in losses)
