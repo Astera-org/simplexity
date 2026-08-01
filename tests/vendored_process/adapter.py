@@ -23,7 +23,7 @@ from tests.vendored_process.generators_copy.classical import mess
 class VendoredGhmmProcess(eqx.Module):
     """A generalized hidden Markov model backed by vendored generators code.
 
-    Structurally satisfies `simplexity.run_management.protocols.GenerativeProcess` without
+    Structurally satisfies `simplexity.run_management.protocols.GenerativeProcessProtocol` without
     importing or subclassing anything from `simplexity.generative_processes`.
     """
 

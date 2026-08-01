@@ -23,7 +23,7 @@ from simplexity.generative_processes.generative_process import (
     GenerativeProcess as GenerativeProcessBaseClass,
 )
 from simplexity.generative_processes.torch_generator import generate_data_batch
-from simplexity.run_management.protocols import GenerativeProcess, LogSpaceGenerativeProcess
+from simplexity.run_management.protocols import GenerativeProcessProtocol, LogSpaceGenerativeProcessProtocol
 from tests.vendored_process.adapter import VendoredGhmmProcess
 
 CONFIG_DIR = str(Path(__file__).parent / "configs")
@@ -97,12 +97,12 @@ def test_vendored_process_is_not_a_simplexity_process(training_result: dict[str,
     """The process conforms structurally without inheriting from simplexity."""
     process = training_result["process"]
     assert not isinstance(process, GenerativeProcessBaseClass)
-    assert isinstance(process, GenerativeProcess)
+    assert isinstance(process, GenerativeProcessProtocol)
 
 
 def test_vendored_process_lacks_log_space_operations(training_result: dict[str, Any]):
     """Log-space operations are an optional extension that generators does not provide."""
-    assert not isinstance(training_result["process"], LogSpaceGenerativeProcess)
+    assert not isinstance(training_result["process"], LogSpaceGenerativeProcessProtocol)
 
 
 def test_vocabulary_fields_resolve_from_the_vendored_process(training_result: dict[str, Any]):

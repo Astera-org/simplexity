@@ -16,7 +16,7 @@ from simplexity.activations.activation_tracker import ActivationTracker
 from simplexity.logging.logger import Logger
 from simplexity.metrics.metric_tracker import MetricTracker
 from simplexity.persistence.model_persister import ModelPersister
-from simplexity.run_management.protocols import GenerativeProcess
+from simplexity.run_management.protocols import GenerativeProcessProtocol
 
 
 @dataclass
@@ -24,7 +24,7 @@ class Components:
     """Components for the run."""
 
     loggers: dict[str, Logger] | None = None
-    generative_processes: dict[str, GenerativeProcess] | None = None
+    generative_processes: dict[str, GenerativeProcessProtocol] | None = None
     persisters: dict[str, ModelPersister] | None = None
     predictive_models: dict[str, Any] | None = None  # TODO: improve typing
     optimizers: dict[str, Any] | None = None  # TODO: improve typing
@@ -36,7 +36,7 @@ class Components:
         """Get the logger."""
         return self._get_instance_by_key(self.loggers, key, "logger")
 
-    def get_generative_process(self, key: str | None = None) -> GenerativeProcess | None:
+    def get_generative_process(self, key: str | None = None) -> GenerativeProcessProtocol | None:
         """Get the generative process."""
         return self._get_instance_by_key(self.generative_processes, key, "generative process")
 

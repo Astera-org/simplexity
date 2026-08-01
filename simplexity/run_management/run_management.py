@@ -43,7 +43,7 @@ from simplexity.logging.mlflow_logger import MLFlowLogger
 from simplexity.persistence.mlflow_persister import MLFlowPersister
 from simplexity.persistence.model_persister import ModelPersister
 from simplexity.run_management.components import Components
-from simplexity.run_management.protocols import GenerativeProcess, missing_generative_process_members
+from simplexity.run_management.protocols import GenerativeProcessProtocol, missing_generative_process_members
 from simplexity.run_management.run_logging import (
     log_environment_artifacts,
     log_git_info,
@@ -332,7 +332,7 @@ def _setup_logging(cfg: DictConfig, instance_keys: list[str], *, strict: bool) -
     return None
 
 
-def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> GenerativeProcess:
+def _instantiate_generative_process(cfg: DictConfig, instance_key: str) -> GenerativeProcessProtocol:
     """Instantiate a generative process and resolve its config's vocabulary fields.
 
     The process is accepted on the strength of the operations it provides rather than the class it
@@ -380,7 +380,9 @@ def _assert_declared_processes_were_claimed(cfg: DictConfig, instance_keys: list
         )
 
 
-def _setup_generative_processes(cfg: DictConfig, instance_keys: list[str]) -> dict[str, GenerativeProcess] | None:
+def _setup_generative_processes(
+    cfg: DictConfig, instance_keys: list[str]
+) -> dict[str, GenerativeProcessProtocol] | None:
     claimed_instance_keys = filter_instance_keys_by(
         cfg,
         instance_keys,

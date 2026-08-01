@@ -16,13 +16,13 @@ import jax
 import jax.numpy as jnp
 
 from simplexity.generative_processes.nonergodic_generative_process import NonErgodicState
-from simplexity.run_management.protocols import GenerativeProcess
+from simplexity.run_management.protocols import GenerativeProcessProtocol
 
 
 @eqx.filter_jit
 def generate_data_batch(
     gen_states: jax.Array | tuple[jax.Array, ...],
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProcessProtocol,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
@@ -47,7 +47,7 @@ def generate_data_batch(
 @eqx.filter_jit
 def generate_data_batch_with_full_history(
     gen_states: jax.Array | tuple[jax.Array, ...],
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProcessProtocol,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
@@ -121,7 +121,7 @@ def _slice_belief_states(
 
 
 def _compute_prefix_probabilities(
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProcessProtocol,
     initial_states: jax.Array | tuple[jax.Array, ...],
     tokens: jax.Array,
 ) -> jax.Array:

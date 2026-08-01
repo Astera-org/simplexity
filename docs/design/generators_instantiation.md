@@ -526,9 +526,31 @@ operation, and analysis is not obviously in generators' scope.
 tests for new behaviour, coverage of failure modes, all static checks passing, no suppressions
 without justification.
 
+**D4 — Protocol named `GenerativeProcessProtocol`.** I had shipped it as `GenerativeProcess`,
+reusing the name so the call site would read correctly once the ABC retires. Overruled, correctly:
+that argument optimizes an end state gated on Q1, which is unresolved and is the largest open item
+here — so the transition window is of unbounded length, and throughout it two classes named
+`GenerativeProcess` live in two modules. My own defence, that the ambiguity is "confined to readers
+rather than to code", is the argument *for* renaming: readers are who naming serves, and the readers
+are teammates on 60+ branches reading tracebacks, error strings and review diffs where the bare name
+does not say which of the two it is. The usual counter — that Python's protocols carry no `Protocol`
+suffix (`Iterable`, `Sequence`) — does not apply, because none of those coexist with a same-named ABC
+in the same codebase. The collision decides it, not the convention. Cost is asymmetric too: the
+protocol is referenced from one module, so a later rename is trivial, while the collision is paid
+continuously.
+
+The extension protocol was renamed to `LogSpaceGenerativeProcessProtocol` for the same reason applied
+one step further: it does not itself collide with anything, but a suffixed and an unsuffixed name
+sitting side by side in one module tells a reader nothing about which is a protocol.
+
+**D5 — The declaration field stays `component`.** It matches the runner's existing vocabulary
+(`Components`, `component_name`); `component_type` is genuinely taken by factored-process specs
+(`hmm` / `ghmm`); `kind` is vaguer; and `external: true` names the exception rather than the role, so
+it ages badly exactly when declaration becomes the norm.
+
 ## 9 Open questions
 
-Renumbered; the questions D1-D3 resolved are gone.
+Renumbered as questions are resolved; D1-D5 above are settled.
 
 **Q1 — Does the mixed-state tree belong in generators or in simplexity?** Under D2 the gaps close
 upstream, but `mixed_state_presentation.py` (576 lines) enumerates the belief-state tree and
@@ -551,35 +573,20 @@ covers ~5 and its USAGE.md disclaims owning a process zoo while shipping `transi
 anyway. Options: keep it in `simplexity` as data (my lean), upstream the missing families, or have
 each consumer vendor what it uses. Under D2 this also affects what "parity" means.
 
-**Q4 — Protocol naming.** Shipped as `GenerativeProcess` in
-`simplexity/run_management/protocols.py`, deliberately reusing the name so that the call site reads
-correctly once the ABC retires. The cost is two classes named `GenerativeProcess` during the
-transition — the ABC in `generative_processes/generative_process.py` and the protocol. The runner
-now references only the protocol, so the ambiguity is confined to readers rather than to code.
-Renaming is cheap; say the word if you would rather it be explicit
-(`GenerativeProcessProtocol`) or live somewhere else.
-
-**Q5 — The declaration field is named `component`.** A section sets `component: generative_process`
-to claim a process implemented outside simplexity. `component` matches the runner's existing
-internal vocabulary (`Components`, `component_name`), and `component_type` was unavailable because
-factored-process specs already use it for `hmm` / `ghmm`. Alternatives considered and rejected:
-`kind` (less specific), and a boolean escape hatch like `external: true` (describes the exception
-rather than the role, so it ages badly once declaration becomes the norm under Reading A).
-
-**Q6 — Should existing configs adopt the declaration?** Discovery keeps the namespace prefix as a
+**Q4 — Should existing configs adopt the declaration?** Discovery keeps the namespace prefix as a
 fast path, so the 11 in-repo configs and teammates' in-flight branches needed no changes. Under
 Reading A every process config eventually declares itself and the prefix path retires. Migrating
 the in-repo configs now is a small mechanical change that would make the intent uniform; leaving
 them is less churn against the 60+ open branches. Deferred to you.
 
-**Q7 — Where does `generators` live?** The repository is currently `ealt/generators` (public);
+**Q5 — Where does `generators` live?** The repository is currently `ealt/generators` (public);
 `Astera-org/generators` does not exist. Every reference in this change points at `ealt/generators`
 because that is what resolves today. If the intent is for it to become an Astera-org repository,
 that should happen before consumers start vendoring from it in earnest: a shared Astera repo whose
 deprecation notice points at an individual's account is awkward, and the URL appears in a runtime
 warning message that teammates will see.
 
-**Q8 — Two lint errors and 20 pyright errors pre-date this branch.**
+**Q6 — Two lint errors and 20 pyright errors pre-date this branch.**
 `tests/generative_processes/test_data_prefetcher.py` has 3 ruff findings (SIM117 ×2, PT012) at
 `HEAD`, and pyright reports 20 unresolved-import errors for the uninstalled `penzai` and `aws`
 optional extras. Both are in files this change does not touch, so they are left alone rather than
@@ -590,7 +597,7 @@ whether that is a separate cleanup PR or an accepted baseline.
 
 | File | Change |
 | --- | --- |
-| `simplexity/run_management/protocols.py` | New. `GenerativeProcess` and `LogSpaceGenerativeProcess` protocols, plus `missing_generative_process_members` for actionable errors. |
+| `simplexity/run_management/protocols.py` | New. `GenerativeProcessProtocol` and `LogSpaceGenerativeProcessProtocol`, plus `missing_generative_process_members` for actionable errors. |
 | `simplexity/utils/config_utils.py` | `filter_instance_keys_by` takes a config-aware predicate; `filter_instance_keys` reimplemented over it, unchanged for callers. Added `get_instance_target`. |
 | `simplexity/structured_configs/generative_process.py` | `component` field; `declares_generative_process`, `declares_generative_process_instance_key`, `claims_generative_process_instance_key`; validation accepts declared foreign targets and explains the declaration when rejecting. |
 | `simplexity/run_management/run_management.py` | Discovery via the claims predicate (both in setup and vocabulary resolution); protocol check replacing the nominal `typed_instantiate`; declared-but-invalid now raises; the not-found log names what it considered; removed the duplicated resolve. |

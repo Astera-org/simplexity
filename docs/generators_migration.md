@@ -22,7 +22,7 @@ than by where its code lives.
 
 ## The contract
 
-Your process must provide `simplexity.run_management.protocols.GenerativeProcess`:
+Your process must provide `simplexity.run_management.protocols.GenerativeProcessProtocol`:
 
 | Member | Meaning |
 | --- | --- |
@@ -36,7 +36,7 @@ Your process must provide `simplexity.run_management.protocols.GenerativeProcess
 
 It is a `Protocol`, so you do not inherit from anything — an object with these members conforms.
 
-Belief-state analysis additionally needs `LogSpaceGenerativeProcess`
+Belief-state analysis additionally needs `LogSpaceGenerativeProcessProtocol`
 (`log_observation_probability_distribution`, `log_probability`). Generators does not provide
 log-space operations, so add them only if your run does belief analysis; training and generation
 never call them.

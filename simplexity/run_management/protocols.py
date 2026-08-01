@@ -7,7 +7,7 @@ by import, so a conforming process may be a project-local module that shares no 
 base class with simplexity.
 
 The operations mirror the generators specification, which fixes required results rather than
-their organization (SPEC.md sections 2 and 6.1). `GenerativeProcess` covers the operations the
+their organization (SPEC.md sections 2 and 6.1). `GenerativeProcessProtocol` covers the operations the
 runner and the training path exercise; log-space operations are a separate protocol because
 only belief-state analysis needs them.
 """
@@ -34,12 +34,16 @@ def _protocol_member_names(protocol: type) -> frozenset[str]:
 
 
 @runtime_checkable
-class GenerativeProcess(Protocol):
+class GenerativeProcessProtocol(Protocol):
     """A probabilistic model over observation sequences that run management can drive.
 
-    Implementations may be simplexity classes, subclasses of
-    `simplexity.generative_processes.generative_process.GenerativeProcess`, or project-local
-    modules vendored from generators and adapted. Only the members below are required.
+    Named for the contract rather than the concept, because the concept's other name is taken:
+    `simplexity.generative_processes.generative_process.GenerativeProcess` is the abstract base
+    class that in-repo processes inherit from. This is the structural contract they satisfy, which
+    a process implemented anywhere can satisfy equally.
+
+    Implementations may be subclasses of that base class or project-local modules vendored from
+    generators and adapted. Only the members below are required.
     """
 
     @property
@@ -76,7 +80,7 @@ class GenerativeProcess(Protocol):
 
 
 @runtime_checkable
-class LogSpaceGenerativeProcess(GenerativeProcess, Protocol):
+class LogSpaceGenerativeProcessProtocol(GenerativeProcessProtocol, Protocol):
     """A generative process that also exposes log-space operations.
 
     Required only by belief-state analysis, such as mixed-state presentation, where working in
@@ -93,12 +97,12 @@ class LogSpaceGenerativeProcess(GenerativeProcess, Protocol):
         ...
 
 
-GENERATIVE_PROCESS_MEMBERS = _protocol_member_names(GenerativeProcess)
-LOG_SPACE_GENERATIVE_PROCESS_MEMBERS = _protocol_member_names(LogSpaceGenerativeProcess)
+GENERATIVE_PROCESS_MEMBERS = _protocol_member_names(GenerativeProcessProtocol)
+LOG_SPACE_GENERATIVE_PROCESS_MEMBERS = _protocol_member_names(LogSpaceGenerativeProcessProtocol)
 
 
 def missing_generative_process_members(obj: object) -> list[str]:
-    """List the `GenerativeProcess` members that an object does not provide.
+    """List the `GenerativeProcessProtocol` members that an object does not provide.
 
     `isinstance` against a runtime-checkable protocol reports only whether an object conforms.
     Reporting *which* members are absent turns a rejected config into an actionable error.
