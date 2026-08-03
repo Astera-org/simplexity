@@ -30,7 +30,7 @@ from simplexity.structured_configs.validation import (
     validate_sequence,
     validate_transition_matrices,
 )
-from simplexity.utils.config_utils import dynamic_resolve
+from simplexity.utils.config_utils import dynamic_resolve, get_instance_target
 
 
 @dataclass
@@ -372,12 +372,23 @@ def validate_hidden_markov_model_instance_config(cfg: DictConfig) -> None:
     validate_initial_state(initial_state, transition_matrices.shape[1], "HiddenMarkovModelInstanceConfig.initial_state")
 
 
+GENERATIVE_PROCESS_COMPONENT = "generative_process"
+
+
 @dataclass
 class GenerativeProcessConfig:
-    """Base configuration for generative processes."""
+    """Base configuration for generative processes.
+
+    Attributes:
+        component: Set to `GENERATIVE_PROCESS_COMPONENT` to declare that this section configures a
+            generative process whose implementation lives outside simplexity, such as a project-local
+            module vendored from generators. Sections whose `instance._target_` is a simplexity
+            generative process are recognized without it.
+    """
 
     instance: InstanceConfig
     name: str | None = None
+    component: str | None = None
     base_vocab_size: int = MISSING
     bos_token: int | None = MISSING
     eos_token: int | None = MISSING
@@ -396,6 +407,35 @@ def is_generative_process_config(cfg: DictConfig) -> bool:
     if isinstance(target, str):
         return is_generative_process_target(target)
     return False
+
+
+def declares_generative_process(cfg: DictConfig) -> bool:
+    """Check if a config section declares itself to configure a generative process.
+
+    Args:
+        cfg: The component's config section, not its nested instance config.
+    """
+    return cfg.get("component", None) == GENERATIVE_PROCESS_COMPONENT
+
+
+def declares_generative_process_instance_key(cfg: DictConfig, instance_key: str) -> bool:
+    """Check if the section owning an instance key declares itself a generative process."""
+    section = OmegaConf.select(cfg, instance_key.rsplit(".", 1)[0], throw_on_missing=False)
+    return isinstance(section, DictConfig) and declares_generative_process(section)
+
+
+def claims_generative_process_instance_key(cfg: DictConfig, instance_key: str) -> bool:
+    """Check if an instance key configures a generative process.
+
+    A target under `simplexity.generative_processes` identifies a process by itself. Any other
+    target must be claimed by an explicit declaration on the owning section, because processes
+    vendored from generators live in the consumer's own namespace and cannot be recognized from
+    their import path.
+    """
+    target = get_instance_target(cfg, instance_key)
+    if target is not None and is_generative_process_target(target):
+        return True
+    return declares_generative_process_instance_key(cfg, instance_key)
 
 
 def validate_generative_process_config(cfg: DictConfig) -> None:
@@ -423,8 +463,11 @@ def validate_generative_process_config(cfg: DictConfig) -> None:
         validate_hidden_markov_model_instance_config(instance)
     else:
         validate_instance_config(instance)
-        if not is_generative_process_config(instance):
-            raise ConfigValidationError("GenerativeProcessConfig.instance must be a generative process target")
+        if not is_generative_process_config(instance) and not declares_generative_process(cfg):
+            raise ConfigValidationError(
+                "GenerativeProcessConfig.instance must be a generative process target, or the section must set "
+                f"component: {GENERATIVE_PROCESS_COMPONENT} to declare a process implemented outside simplexity"
+            )
     validate_nonempty_str(name, "GenerativeProcessConfig.name", is_none_allowed=True)
 
     _base_vocab_size: int | None = None

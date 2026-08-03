@@ -1,0 +1,16 @@
+# A generative process vendored from generators into the consumer's own project.
+#
+# The target is a project-local factory, not a simplexity class, so `component` declares what this
+# section configures. Without that declaration run management cannot tell a vendored process from
+# any other instance config, because a vendored process shares no namespace with simplexity.
+name: vendored_mess3
+component: generative_process
+instance:
+  _target_: tests.vendored_process.adapter.build_vendored_mess3
+  x: 0.15
+  a: 0.6
+
+base_vocab_size: ???
+bos_token: ???
+eos_token: null
+vocab_size: ???

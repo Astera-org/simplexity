@@ -31,6 +31,9 @@ from simplexity.structured_configs.generative_process import (
     HiddenMarkovModelInstanceConfig,
     InstanceConfig,
     NonergodicHiddenMarkovModelBuilderInstanceConfig,
+    claims_generative_process_instance_key,
+    declares_generative_process,
+    declares_generative_process_instance_key,
     is_generalized_hidden_markov_model_builder_config,
     is_generalized_hidden_markov_model_builder_target,
     is_generalized_hidden_markov_model_config,
@@ -1029,3 +1032,70 @@ class TestFactoredProcessBuilders:
         cfg = self._make_factored_process_cfg(structure_type, extra_instance_fields)
         # All these cases pass config validation (builder will validate later)
         validate_generative_process_config(cfg)
+
+
+class TestForeignGenerativeProcessDeclaration:
+    """Tests for declaring a generative process implemented outside simplexity.
+
+    Processes vendored from generators live in the consumer's namespace, so their configs cannot
+    be recognized from `_target_` and must declare themselves instead.
+    """
+
+    FOREIGN_TARGET = "my_project.processes.factory.build_process"
+
+    def _make_cfg(self, target: str, component: str | None) -> DictConfig:
+        section: dict[str, Any] = {"name": "process", "instance": {"_target_": target}}
+        if component is not None:
+            section["component"] = component
+        section |= {"base_vocab_size": MISSING, "bos_token": MISSING, "eos_token": None, "vocab_size": MISSING}
+        return OmegaConf.create({"generative_process": section})
+
+    def test_declares_generative_process_true(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, "generative_process")
+        assert declares_generative_process(cfg.generative_process)
+
+    def test_declares_generative_process_false_when_absent(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, None)
+        assert not declares_generative_process(cfg.generative_process)
+
+    def test_declares_generative_process_false_for_another_component(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, "predictive_model")
+        assert not declares_generative_process(cfg.generative_process)
+
+    def test_declares_instance_key(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, "generative_process")
+        assert declares_generative_process_instance_key(cfg, "generative_process.instance")
+
+    def test_declares_instance_key_false_for_unknown_key(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, "generative_process")
+        assert not declares_generative_process_instance_key(cfg, "absent.instance")
+
+    def test_claims_declared_foreign_instance_key(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, "generative_process")
+        assert claims_generative_process_instance_key(cfg, "generative_process.instance")
+
+    def test_does_not_claim_undeclared_foreign_instance_key(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, None)
+        assert not claims_generative_process_instance_key(cfg, "generative_process.instance")
+
+    def test_claims_simplexity_instance_key_without_declaration(self) -> None:
+        cfg = self._make_cfg("simplexity.generative_processes.hidden_markov_model.HiddenMarkovModel", None)
+        assert claims_generative_process_instance_key(cfg, "generative_process.instance")
+
+    def test_does_not_claim_instance_key_without_a_target(self) -> None:
+        cfg = OmegaConf.create({"generative_process": {"instance": {"process_name": "mess3"}}})
+        assert not claims_generative_process_instance_key(cfg, "generative_process.instance")
+
+    def test_validation_accepts_a_declared_foreign_config(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, "generative_process")
+        validate_generative_process_config(cfg.generative_process)
+
+    def test_validation_rejects_an_undeclared_foreign_config(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, None)
+        with pytest.raises(ConfigValidationError, match="must be a generative process target"):
+            validate_generative_process_config(cfg.generative_process)
+
+    def test_rejection_message_explains_the_declaration(self) -> None:
+        cfg = self._make_cfg(self.FOREIGN_TARGET, None)
+        with pytest.raises(ConfigValidationError, match="component: generative_process"):
+            validate_generative_process_config(cfg.generative_process)

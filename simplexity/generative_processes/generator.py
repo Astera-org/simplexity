@@ -15,14 +15,14 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from simplexity.generative_processes.generative_process import GenerativeProcess
 from simplexity.generative_processes.nonergodic_generative_process import NonErgodicState
+from simplexity.run_management.protocols import GenerativeProcessProtocol
 
 
 @eqx.filter_jit
 def generate_data_batch(
     gen_states: jax.Array | tuple[jax.Array, ...],
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProcessProtocol,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
@@ -31,7 +31,8 @@ def generate_data_batch(
 ) -> tuple[jax.Array | tuple[jax.Array, ...], jax.Array, jax.Array]:
     """Generate a batch of data without tracking intermediate beliefs."""
     batch_keys = jax.random.split(key, batch_size)
-    gen_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, False)
+    gen_states, generated = data_generator.generate(gen_states, batch_keys, sequence_len, False)
+    tokens = jnp.asarray(generated)
 
     if bos_token is not None:
         tokens = jnp.concatenate([jnp.full((batch_size, 1), bos_token), tokens], axis=1)
@@ -46,7 +47,7 @@ def generate_data_batch(
 @eqx.filter_jit
 def generate_data_batch_with_full_history(
     gen_states: jax.Array | tuple[jax.Array, ...],
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProcessProtocol,
     batch_size: int,
     sequence_len: int,
     key: jax.Array,
@@ -55,7 +56,8 @@ def generate_data_batch_with_full_history(
 ) -> dict[str, jax.Array | tuple[jax.Array, ...]]:
     """Generate sequences plus per-token belief states and prefix probabilities."""
     batch_keys = jax.random.split(key, batch_size)
-    belief_states, tokens = data_generator.generate(gen_states, batch_keys, sequence_len, True)
+    belief_states, generated = data_generator.generate(gen_states, batch_keys, sequence_len, True)
+    tokens = jnp.asarray(generated)
 
     prefix_probs = _compute_prefix_probabilities(data_generator, gen_states, tokens)
 
@@ -119,7 +121,7 @@ def _slice_belief_states(
 
 
 def _compute_prefix_probabilities(
-    data_generator: GenerativeProcess,
+    data_generator: GenerativeProcessProtocol,
     initial_states: jax.Array | tuple[jax.Array, ...],
     tokens: jax.Array,
 ) -> jax.Array:

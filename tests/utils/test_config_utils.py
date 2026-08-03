@@ -9,8 +9,10 @@ from simplexity.utils.config_utils import (
     TARGET,
     dynamic_resolve,
     filter_instance_keys,
+    filter_instance_keys_by,
     get_config,
     get_instance_keys,
+    get_instance_target,
     typed_instantiate,
 )
 
@@ -372,3 +374,61 @@ def test_typed_instantiate_with_string_expected_type() -> None:
     obj = typed_instantiate(cfg, "builtins.str")
     assert obj == "42"
     assert isinstance(obj, str)
+
+
+def test_get_instance_target() -> None:
+    """Test reading an instance key's target."""
+    cfg = DictConfig({"instance": DictConfig({TARGET: "some_callable"})})
+    assert get_instance_target(cfg, "instance") == "some_callable"
+
+
+def test_get_instance_target_missing_key() -> None:
+    """Test reading the target of an absent instance key."""
+    cfg = DictConfig({"instance": DictConfig({TARGET: "some_callable"})})
+    assert get_instance_target(cfg, "absent") is None
+
+
+def test_get_instance_target_non_string() -> None:
+    """Test reading a target that is not a string."""
+    cfg = DictConfig({"instance": DictConfig({TARGET: None})})
+    assert get_instance_target(cfg, "instance") is None
+
+
+def test_filter_instance_keys_by_consults_the_whole_config() -> None:
+    """Test filtering by a predicate that reads beyond the instance's target.
+
+    Components whose implementations may live outside simplexity cannot be identified from the
+    target string alone, so the predicate receives the config and the instance key.
+    """
+    cfg = DictConfig(
+        {
+            "component1": DictConfig({"instance": DictConfig({TARGET: "foreign_callable"}), "claimed": True}),
+            "component2": DictConfig({"instance": DictConfig({TARGET: "foreign_callable"}), "claimed": False}),
+        }
+    )
+
+    def claims_fn(cfg: DictConfig, instance_key: str) -> bool:
+        section = OmegaConf.select(cfg, instance_key.rsplit(".", 1)[0])
+        return bool(section and section.get("claimed", False))
+
+    instance_keys = ["component1.instance", "component2.instance"]
+    assert filter_instance_keys_by(cfg, instance_keys, claims_fn) == ["component1.instance"]
+
+
+def test_filter_instance_keys_by_applies_validation() -> None:
+    """Test that a claimed instance key still has to validate."""
+    cfg = DictConfig({"component1": DictConfig({"instance": DictConfig({TARGET: "some_callable"})})})
+
+    def claims_fn(_cfg: DictConfig, _instance_key: str) -> bool:
+        return True
+
+    def validate_fn(cfg: DictConfig) -> None:
+        raise ConfigValidationError("invalid")
+
+    assert filter_instance_keys_by(cfg, ["component1.instance"], claims_fn, validate_fn, "test") == []
+
+
+def test_filter_instance_keys_by_rejects_everything_when_predicate_is_false() -> None:
+    """Test filtering when the predicate claims nothing."""
+    cfg = DictConfig({"component1": DictConfig({"instance": DictConfig({TARGET: "some_callable"})})})
+    assert filter_instance_keys_by(cfg, ["component1.instance"], lambda _cfg, _key: False) == []

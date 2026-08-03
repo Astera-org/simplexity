@@ -53,6 +53,42 @@ def _validate(
     return True
 
 
+def get_instance_target(cfg: DictConfig, instance_key: str) -> str | None:
+    """Get the `_target_` of an instance key, or None if it is absent or not a string."""
+    target = OmegaConf.select(cfg, f"{instance_key}._target_", throw_on_missing=False)
+    return target if isinstance(target, str) else None
+
+
+def filter_instance_keys_by(
+    cfg: DictConfig,
+    instance_keys: list[str],
+    claims_fn: Callable[[DictConfig, str], bool],
+    validate_fn: Callable[[DictConfig], None] | None = None,
+    component_name: str | None = None,
+) -> list[str]:
+    """Filter instance keys by a predicate over the whole config.
+
+    Components whose implementations may live outside simplexity cannot be identified from the
+    `_target_` string alone, so the predicate receives the config and the instance key and may
+    consult anything it needs, such as an explicit declaration on the component's config section.
+
+    Args:
+        cfg: The full config.
+        instance_keys: Candidate instance keys.
+        claims_fn: Predicate deciding whether an instance key belongs to this component.
+        validate_fn: Optional validator applied to the instance key's parent config section.
+        component_name: Component name used to prefix log messages.
+
+    Returns:
+        The instance keys claimed by `claims_fn` whose configs validate.
+    """
+    return [
+        instance_key
+        for instance_key in instance_keys
+        if claims_fn(cfg, instance_key) and _validate(cfg, instance_key, validate_fn, component_name)
+    ]
+
+
 def filter_instance_keys(
     cfg: DictConfig,
     instance_keys: list[str],
@@ -61,12 +97,12 @@ def filter_instance_keys(
     component_name: str | None = None,
 ) -> list[str]:
     """Filter instance keys by filter function to their targets."""
-    filtered_instance_keys: list[str] = []
-    for instance_key in instance_keys:
-        target = OmegaConf.select(cfg, f"{instance_key}._target_", throw_on_missing=False)
-        if isinstance(target, str) and filter_fn(target) and _validate(cfg, instance_key, validate_fn, component_name):
-            filtered_instance_keys.append(instance_key)
-    return filtered_instance_keys
+
+    def claims_fn(cfg: DictConfig, instance_key: str) -> bool:
+        target = get_instance_target(cfg, instance_key)
+        return target is not None and filter_fn(target)
+
+    return filter_instance_keys_by(cfg, instance_keys, claims_fn, validate_fn, component_name)
 
 
 def get_config(args: tuple[Any, ...], kwargs: dict[str, Any]) -> DictConfig:
