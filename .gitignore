@@ -7,6 +7,7 @@ __pycache__/
 data/
 multirun/
 outputs/
+references/
 config.ini
 *temp*
 # MLflow tracking data

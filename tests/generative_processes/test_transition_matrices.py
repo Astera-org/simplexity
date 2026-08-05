@@ -17,6 +17,7 @@ from simplexity.generative_processes.transition_matrices import (
     no_consecutive_ones,
     post_quantum,
     rrxor,
+    shuriken,
     sns,
     tom_quantum,
     zero_one_random,
@@ -202,6 +203,51 @@ def test_rrxor():
     state_transition_matrix = jnp.sum(transition_matrices, axis=0)
     stationary_distribution = get_stationary_state(state_transition_matrix.T)
     assert jnp.allclose(stationary_distribution, jnp.array([2, 1, 1, 1, 1]) / 6)
+
+
+def test_shuriken():
+    """Test the shuriken transition matrices."""
+    transition_matrices = shuriken()
+    assert transition_matrices.shape == (2, 3, 3)
+    validate_hmm_transition_matrices(transition_matrices)
+
+
+def test_shuriken_custom_params():
+    """Test the shuriken transition matrices with custom parameters."""
+    transition_matrices = shuriken(p=0.8, r=0.3, u=0.4, v=0.5)
+    assert transition_matrices.shape == (2, 3, 3)
+    validate_hmm_transition_matrices(transition_matrices)
+
+
+def test_shuriken_minimality_determinant():
+    """Test that the minimality determinant matches the closed-form expression.
+
+    For pure states A=[1,0,0], B=[0,1,0], C=[0,0,1], construct
+    M = [[1, P(0|A), P(00|A)],
+         [1, P(0|B), P(00|B)],
+         [1, P(0|C), P(00|C)]]
+    and verify |det(M)| = (p-r)^2 * (p-v).
+
+    The nonzero determinant confirms that the three pure-state predictive distributions
+    are linearly independent, establishing that the model is minimal (3 states are needed).
+    """
+    p, r, u, v = 0.72, 0.24, 0.36, 0.52
+    transition_matrices = shuriken(p=p, r=r, u=u, v=v)
+    t0 = transition_matrices[0]
+
+    pure_states = jnp.eye(3)
+    p0 = jnp.sum(pure_states @ t0, axis=-1)
+    next_states = pure_states @ t0
+    next_states_normalized = next_states / p0[:, None]
+    p00 = p0 * jnp.sum(next_states_normalized @ t0, axis=-1)
+
+    m = jnp.stack([jnp.ones(3), p0, p00], axis=-1)
+    actual_abs_det = jnp.abs(jnp.linalg.det(m))
+    expected_abs_det = (p - r) ** 2 * (p - v)
+
+    assert jnp.isclose(actual_abs_det, expected_abs_det, atol=1e-6), (
+        f"Minimality determinant |det(M)|={actual_abs_det} != expected {expected_abs_det}"
+    )
 
 
 def test_sns():

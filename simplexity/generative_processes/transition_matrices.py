@@ -342,6 +342,51 @@ def tom_quantum(alpha: float, beta: float) -> jax.Array:
     return transition_matrices
 
 
+def shuriken(p: float = 0.72, r: float = 0.24, u: float = 0.36, v: float = 0.52) -> jax.Array:
+    """Creates transition matrices for the Shuriken Process.
+
+    A parameterized family of 3-state binary edge-emitting nonunifilar HMMs.
+
+    States: A, B, C
+    Alphabet: {0, 1}
+
+    Symbol-labeled transition matrices where T[x, i, j] = P(next_state=j, emit x | current_state=i):
+
+        T0 = [[u,   p-u, 0  ],    T1 = [[0,   0,   1-p],
+               [0,   v,   p-v],           [1-p, 0,   0  ],
+               [r,   0,   0  ]]           [0,   1-r, 0  ]]
+
+    The generator is minimal (all 3 hidden states are needed) when the minimality determinant
+    det(M) = -(p - r)^2 * (p - v) is nonzero, i.e. when p != r and p != v. Keeping these
+    differences large also improves numerical conditioning. The suggested parameter constraints
+        0 < r < p < 1, 0 < u < p, 0 < v < p
+    ensure minimality and that all matrix entries are non-negative.
+
+    Args:
+        p: P(emit 0) from states A and B. Also 1 - P(emit 1) from those states.
+        r: P(emit 0) from state C. Must differ from p for minimality.
+        u: P(emit 0, stay in A | state A). Controls the A/B split when emitting 0 from A.
+        v: P(emit 0, stay in B | state B). Must differ from p for minimality.
+
+    Returns:
+        Transition matrices of shape (2, 3, 3).
+    """
+    return jnp.array(
+        [
+            [
+                [u, p - u, 0],
+                [0, v, p - v],
+                [r, 0, 0],
+            ],
+            [
+                [0, 0, 1 - p],
+                [1 - p, 0, 0],
+                [0, 1 - r, 0],
+            ],
+        ]
+    )
+
+
 def zero_one_random(p: float) -> jax.Array:
     """Creates a transition matrix for the Zero One Random (Z1R) Process.
 
@@ -375,6 +420,7 @@ HMM_MATRIX_FUNCTIONS = {
     "mr_name": mr_name,
     "no_consecutive_ones": no_consecutive_ones,
     "rrxor": rrxor,
+    "shuriken": shuriken,
     "sns": sns,
     "zero_one_random": zero_one_random,
 }
