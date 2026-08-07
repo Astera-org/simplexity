@@ -213,6 +213,26 @@ def test_generate_with_intermediate_states(model_name: str, request: pytest.Fixt
     assert observations.shape == (batch_size, sequence_len)
 
 
+@pytest.mark.parametrize("model_name", ["z1r", "fanizza_model"])
+def test_generate_with_obs_dist(model_name: str, request: pytest.FixtureRequest):
+    model: GeneralizedHiddenMarkovModel = request.getfixturevalue(model_name)
+    batch_size = 4
+    sequence_len = 10
+
+    initial_states = jnp.repeat(model.initial_state[None, :], batch_size, axis=0)
+    keys = jax.random.split(jax.random.PRNGKey(0), batch_size)
+    intermediate_states, observations, obs_probs = model.generate_with_obs_dist(initial_states, keys, sequence_len)
+    assert intermediate_states.shape == (batch_size, sequence_len, model.num_states)
+    assert observations.shape == (batch_size, sequence_len)
+    assert obs_probs.shape == (batch_size, sequence_len, model.vocab_size)
+    last_intermediate_states = intermediate_states[:, -1, :]
+
+    final_states, observations, obs_probs = model.generate_with_obs_dist(last_intermediate_states, keys, sequence_len)
+    assert final_states.shape == (batch_size, sequence_len, model.num_states)
+    assert observations.shape == (batch_size, sequence_len)
+    assert obs_probs.shape == (batch_size, sequence_len, model.vocab_size)
+
+
 def test_hmm_observation_probability_distribution(z1r: GeneralizedHiddenMarkovModel):
     """Test observation probability distribution in probability space."""
     state = jnp.array([0.3, 0.1, 0.6])
