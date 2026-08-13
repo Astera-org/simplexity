@@ -1,0 +1,41 @@
+defaults:
+ - _self_
+ - generative_process@training_data_generator: wonka_dursley
+ - generative_process@validation_data_generator: wonka_dursley
+ - predictive_model: transformer
+ - persistence: local_penzai_persister
+ - logging: file_logger
+ - training: small
+ - evaluation@validation: small
+
+seed: 42
+experiment_name: integration_test
+run_name: integration_test_run
+
+# Override with smaller values for faster testing
+training:
+  n_steps: 10
+  checkpoint_frequency: 5
+  metric_frequency: 5
+  metric_samples: 8
+
+validation:
+  batch_size: 8
+  batches: 2
+
+# Ensure we use small model for testing
+predictive_model:
+  n_layers: 2
+  d_model: 32
+  d_ff: 64
+  n_heads: 2
+  max_length: 64
+
+# Override paths for testing
+logging:
+  instance:
+    file_path: /tmp/simplexity_test_logs/test.log
+
+persistence:
+  instance:
+    directory: /tmp/simplexity_test_checkpoints
