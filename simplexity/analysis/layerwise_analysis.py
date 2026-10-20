@@ -39,7 +39,14 @@ class AnalysisRegistration:
 
 def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     provided = dict(kwargs or {})
-    allowed = {"fit_intercept", "concat_belief_states", "compute_subspace_orthogonality", "use_svd", "rcond_values"}
+    allowed = {
+        "fit_intercept",
+        "concat_belief_states",
+        "compute_subspace_orthogonality",
+        "use_svd",
+        "rcond",
+        "rcond_values",
+    }
     unexpected = set(provided) - allowed
     if unexpected:
         raise ValueError(f"Unexpected linear_regression kwargs: {sorted(unexpected)}")
@@ -48,9 +55,12 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
     resolved_kwargs["concat_belief_states"] = bool(provided.get("concat_belief_states", False))
     resolved_kwargs["compute_subspace_orthogonality"] = bool(provided.get("compute_subspace_orthogonality", False))
     rcond_values = provided.get("rcond_values")
+    rcond = provided.get("rcond")
     use_svd = bool(provided.get("use_svd", False))
     resolved_kwargs["use_svd"] = use_svd
     if use_svd:
+        if rcond is not None:
+            raise ValueError("rcond is only used when use_svd is False; use rcond_values instead")
         if rcond_values is not None:
             if not isinstance(rcond_values, (list, tuple)):
                 raise TypeError("rcond_values must be a sequence of floats")
@@ -58,8 +68,15 @@ def _validate_linear_regression_kwargs(kwargs: Mapping[str, Any] | None) -> dict
                 raise ValueError("rcond_values must not be empty")
             rcond_values = tuple(float(v) for v in rcond_values)
         resolved_kwargs["rcond_values"] = rcond_values
-    elif rcond_values is not None:
-        raise ValueError("rcond_values are only used when use_svd is True")
+    else:
+        if rcond_values is not None:
+            raise ValueError("rcond_values are only used when use_svd is True")
+        if rcond is not None:
+            if isinstance(rcond, bool) or not isinstance(rcond, (int, float)):
+                raise TypeError("rcond must be a float or None")
+            if rcond < 0:
+                raise ValueError("rcond must be non-negative")
+            resolved_kwargs["rcond"] = float(rcond)
     return resolved_kwargs
 
 

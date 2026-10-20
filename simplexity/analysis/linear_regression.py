@@ -29,6 +29,60 @@ def _design_matrix(x: jax.Array, fit_intercept: bool) -> jax.Array:
     return x
 
 
+def default_rcond(n_columns: int, dtype: Any = jnp.float32) -> float:
+    """Relative singular-value cutoff used when a caller does not supply one.
+
+    Scaled by the number of design columns, not by ``max(n_rows, n_columns)``. The column count is
+    the dimension that governs the conditioning of the solve; the row count is not, and using it
+    makes the cutoff grow with the dataset so that fitting on more data discards more of the design.
+    """
+    return float(n_columns) * float(jnp.finfo(dtype).eps)
+
+
+def _resolve_rcond(rcond: float | None, weighted_design: jax.Array) -> float:
+    if rcond is None:
+        return default_rcond(weighted_design.shape[1], weighted_design.dtype)
+    if rcond < 0:
+        raise ValueError("rcond must be non-negative")
+    return float(rcond)
+
+
+def _prepare_problem(
+    x: jax.Array,
+    y: jax.Array,
+    weights: jax.Array | np.ndarray | None,
+    fit_intercept: bool,
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Standardize inputs and build the weighted design shared by every solver here."""
+    x_arr = standardize_features(x)
+    y_arr = standardize_targets(y)
+    if x_arr.shape[0] != y_arr.shape[0]:
+        raise ValueError("Features and targets must share the same first dimension")
+    if x_arr.shape[0] == 0:
+        raise ValueError("At least one sample is required")
+    w_arr = normalize_weights(weights, x_arr.shape[0])
+    if w_arr is None:
+        w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
+    design = _design_matrix(x_arr, fit_intercept)
+    sqrt_w = jnp.sqrt(w_arr)[:, None]
+    return x_arr, y_arr, w_arr, design, design * sqrt_w, y_arr * sqrt_w
+
+
+def _spectrum_diagnostics(s: jax.Array, threshold: float, rcond: float) -> dict[str, float]:
+    """Report what the cutoff kept, so a caller can see truncation instead of inferring it."""
+    n_values = int(s.size)
+    effective_rank = int(jnp.sum(s > threshold)) if n_values else 0
+    smallest = float(s[-1]) if n_values else 0.0
+    largest = float(s[0]) if n_values else 0.0
+    condition = largest / smallest if smallest > 0 else float("inf")
+    return {
+        "effective_rank": float(effective_rank),
+        "n_singular_values": float(n_values),
+        "rcond": float(rcond),
+        "condition_number": condition,
+    }
+
+
 def _regression_metrics(
     predictions: jax.Array,
     targets: jax.Array,
@@ -53,49 +107,85 @@ def _regression_metrics(
     }
 
 
+def _beta_arrays(
+    beta: jax.Array,
+    predictions: jax.Array,
+    targets: jax.Array,
+    fit_intercept: bool,
+) -> dict[str, jax.Array]:
+    if fit_intercept:
+        return {"projected": predictions, "targets": targets, "coeffs": beta[1:], "intercept": beta[:1]}
+    return {"projected": predictions, "targets": targets, "coeffs": beta}
+
+
 def linear_regression(
     x: jax.Array,
     y: jax.Array,
     weights: jax.Array | np.ndarray | None,
     *,
+    rcond: float | None = None,
     fit_intercept: bool = True,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Weighted linear regression using a closed-form least squares solution."""
-    x_arr = standardize_features(x)
-    y_arr = standardize_targets(y)
-    if x_arr.shape[0] != y_arr.shape[0]:
-        raise ValueError("Features and targets must share the same first dimension")
-    if x_arr.shape[0] == 0:
-        raise ValueError("At least one sample is required")
-    w_arr = normalize_weights(weights, x_arr.shape[0])
-    if w_arr is None:
-        w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
-    design = _design_matrix(x_arr, fit_intercept)
-    sqrt_w = jnp.sqrt(w_arr)[:, None]
-    weighted_design = design * sqrt_w
-    weighted_targets = y_arr * sqrt_w
-    beta, _, _, _ = jnp.linalg.lstsq(weighted_design, weighted_targets, rcond=None)
+    """Weighted linear regression using a closed-form least squares solution.
+
+    Singular directions of the weighted design below ``rcond * max_singular_value`` are discarded.
+    That truncation is regularisation, so it is a parameter rather than a hidden default: pass
+    ``rcond=0.0`` for an untruncated solve, or a larger value to regularise a near-singular design.
+    The returned scalars report ``effective_rank`` and ``condition_number`` so that a caller can
+    see how much of the design was used.
+
+    Args:
+        x: Features, shape ``(n_samples, n_features)``.
+        y: Targets, shape ``(n_samples, n_targets)``.
+        weights: Per-sample weights, or None for uniform weights.
+        rcond: Relative singular-value cutoff. None uses :func:`default_rcond`.
+        fit_intercept: Whether to prepend an intercept column to the design.
+
+    Returns:
+        Scalar metrics (computed in-sample; use :func:`score_regression` for held-out data) and
+        arrays holding the fitted coefficients and projections.
+    """
+    _, y_arr, w_arr, design, weighted_design, weighted_targets = _prepare_problem(x, y, weights, fit_intercept)
+    resolved_rcond = _resolve_rcond(rcond, weighted_design)
+    u, s, vh = jnp.linalg.svd(weighted_design, full_matrices=False)
+    max_singular = float(s[0]) if s.size else 0.0
+    threshold = resolved_rcond * max_singular
+    beta = _compute_beta_from_svd(u, s, vh, weighted_targets, threshold)
     predictions = design @ beta
-    scalars = _regression_metrics(predictions, y_arr, w_arr)
-
-    if fit_intercept:
-        arrays = {
-            "projected": predictions,
-            "targets": y_arr,
-            "coeffs": beta[1:],
-            "intercept": beta[:1],
-        }
-    else:
-        arrays = {
-            "projected": predictions,
-            "targets": y_arr,
-            "coeffs": beta,
-        }
-
-    return scalars, arrays
+    scalars = dict(_regression_metrics(predictions, y_arr, w_arr))
+    scalars.update(_spectrum_diagnostics(s, threshold, resolved_rcond))
+    return scalars, _beta_arrays(beta, predictions, y_arr, fit_intercept)
 
 
-def _compute_regression_metrics(  # pylint: disable=too-many-arguments
+def score_regression(
+    x: jax.Array,
+    y: jax.Array,
+    weights: jax.Array | np.ndarray | None,
+    coeffs: jax.Array,
+    intercept: jax.Array | None = None,
+) -> Mapping[str, float]:
+    """Score fitted coefficients on data they were not fitted to.
+
+    :func:`linear_regression` reports metrics in-sample. Pass its ``coeffs`` and ``intercept``
+    here with held-out features and targets to obtain an out-of-sample ``r2`` on the same
+    weighting convention, rather than reimplementing it per caller.
+
+    Args:
+        x: Held-out features, shape ``(n_samples, n_features)``.
+        y: Held-out targets, shape ``(n_samples, n_targets)``.
+        weights: Per-sample weights for the held-out rows, or None for uniform weights.
+        coeffs: Fitted coefficients, shape ``(n_features, n_targets)``.
+        intercept: Fitted intercept, shape ``(1, n_targets)``, or None if none was fitted.
+
+    Returns:
+        The same scalar metrics as a fit, computed on the supplied data.
+    """
+    fit_intercept = intercept is not None
+    beta = jnp.concatenate([intercept, coeffs], axis=0) if intercept is not None else coeffs
+    return _compute_regression_metrics(x, y, weights, beta, fit_intercept=fit_intercept)
+
+
+def _compute_regression_metrics(
     x: jax.Array,
     y: jax.Array,
     weights: jax.Array | np.ndarray | None,
@@ -104,20 +194,10 @@ def _compute_regression_metrics(  # pylint: disable=too-many-arguments
     *,
     fit_intercept: bool = True,
 ) -> Mapping[str, float]:
-    x_arr = standardize_features(x)
-    y_arr = standardize_targets(y)
-    if x_arr.shape[0] != y_arr.shape[0]:
-        raise ValueError("Features and targets must share the same first dimension")
-    if x_arr.shape[0] == 0:
-        raise ValueError("At least one sample is required")
-    w_arr = normalize_weights(weights, x_arr.shape[0])
-    if w_arr is None:
-        w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
+    _, y_arr, w_arr, design, _, _ = _prepare_problem(x, y, weights, fit_intercept)
     if predictions is None:
-        design = _design_matrix(x_arr, fit_intercept)
         predictions = design @ beta
-    scalars = _regression_metrics(predictions, y_arr, w_arr)
-    return scalars
+    return _regression_metrics(predictions, y_arr, w_arr)
 
 
 def _compute_beta_from_svd(
@@ -141,20 +221,25 @@ def linear_regression_svd(
     rcond_values: Sequence[float] | None = None,
     fit_intercept: bool = True,
 ) -> tuple[Mapping[str, float], Mapping[str, jax.Array]]:
-    """Weighted linear regression solved via SVD with configurable rcond search."""
-    x_arr = standardize_features(x)
-    y_arr = standardize_targets(y)
-    if x_arr.shape[0] != y_arr.shape[0]:
-        raise ValueError("Features and targets must share the same first dimension")
-    if x_arr.shape[0] == 0:
-        raise ValueError("At least one sample is required")
-    w_arr = normalize_weights(weights, x_arr.shape[0])
-    if w_arr is None:
-        w_arr = jnp.ones(x_arr.shape[0], dtype=x_arr.dtype) / x_arr.shape[0]
-    design = _design_matrix(x_arr, fit_intercept)
-    sqrt_w = jnp.sqrt(w_arr)[:, None]
-    weighted_design = design * sqrt_w
-    weighted_targets = y_arr * sqrt_w
+    """Weighted linear regression solved via SVD with a search over candidate rcond values.
+
+    The candidate chosen is the one with the lowest error **on the data it was fitted to**, which
+    cannot identify a value that regularises: a cutoff only helps out-of-sample. Select a cutoff
+    on held-out data with :func:`linear_regression` and :func:`score_regression` instead when the
+    design is near-singular.
+
+    Args:
+        x: Features, shape ``(n_samples, n_features)``.
+        y: Targets, shape ``(n_samples, n_targets)``.
+        weights: Per-sample weights, or None for uniform weights.
+        rcond_values: Candidate relative cutoffs. None uses a single ``1e-15``.
+        fit_intercept: Whether to prepend an intercept column to the design.
+
+    Returns:
+        Scalar metrics for the selected candidate, including ``best_rcond`` and the spectrum
+        diagnostics, and arrays holding its coefficients and projections.
+    """
+    _, y_arr, w_arr, design, weighted_design, weighted_targets = _prepare_problem(x, y, weights, fit_intercept)
     u, s, vh = jnp.linalg.svd(weighted_design, full_matrices=False)
     max_singular = float(s[0]) if s.size else 0.0
     rconds = tuple(rcond_values) if rcond_values else (1e-15,)
@@ -182,22 +267,9 @@ def linear_regression_svd(
     assert best_beta is not None
     scalars = dict(best_scalars)
     scalars["best_rcond"] = float(best_rcond)
+    scalars.update(_spectrum_diagnostics(s, best_rcond * max_singular, float(best_rcond)))
 
-    if fit_intercept:
-        arrays = {
-            "projected": best_pred,
-            "targets": y_arr,
-            "coeffs": best_beta[1:],
-            "intercept": best_beta[:1],
-        }
-    else:
-        arrays = {
-            "projected": best_pred,
-            "targets": y_arr,
-            "coeffs": best_beta,
-        }
-
-    return scalars, arrays
+    return scalars, _beta_arrays(best_beta, best_pred, y_arr, fit_intercept)
 
 
 def _process_individual_factors(
@@ -229,6 +301,9 @@ def _merge_results_with_suffix(
     arrays.update({f"{key}/{suffix}": value for key, value in results_arrays.items()})
 
 
+_METRICS_KWARGS = frozenset({"fit_intercept"})
+
+
 def _split_concat_results(
     layer_activations: jax.Array,
     weights: jax.Array,
@@ -253,9 +328,7 @@ def _split_concat_results(
     else:
         intercepts_list = [None] * len(belief_states)
 
-    # Only recompute scalar metrics, reuse projections and coefficients
-    # Filter out rcond_values from kwargs (only relevant for SVD during fitting, not metrics)
-    metrics_kwargs = {k: v for k, v in kwargs.items() if k != "rcond_values"}
+    metrics_kwargs = {k: v for k, v in kwargs.items() if k in _METRICS_KWARGS}
 
     results = []
     for factor, coeffs, intercept, projections, targets in zip(

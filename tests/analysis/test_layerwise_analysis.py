@@ -291,3 +291,32 @@ def test_linear_regression_use_svd_defaults_false() -> None:
     params = validator({})
 
     assert params["use_svd"] is False
+
+
+def test_linear_regression_accepts_rcond() -> None:
+    """linear_regression validator should pass rcond through to the solver."""
+    from simplexity.analysis.layerwise_analysis import ANALYSIS_REGISTRY
+
+    validator = ANALYSIS_REGISTRY["linear_regression"].validator
+    assert validator({"rcond": 1e-6})["rcond"] == pytest.approx(1e-6)
+    assert "rcond" not in validator({})
+
+
+def test_linear_regression_rejects_invalid_rcond() -> None:
+    """A cutoff a caller cannot have meant must be refused, not silently coerced."""
+    from simplexity.analysis.layerwise_analysis import ANALYSIS_REGISTRY
+
+    validator = ANALYSIS_REGISTRY["linear_regression"].validator
+    with pytest.raises(ValueError, match="rcond must be non-negative"):
+        validator({"rcond": -1.0})
+    with pytest.raises(TypeError, match="rcond must be a float or None"):
+        validator({"rcond": "small"})
+
+
+def test_linear_regression_svd_rejects_scalar_rcond() -> None:
+    """The SVD path searches rcond_values; a scalar rcond there would be silently ignored."""
+    from simplexity.analysis.layerwise_analysis import ANALYSIS_REGISTRY
+
+    validator = ANALYSIS_REGISTRY["linear_regression_svd"].validator
+    with pytest.raises(ValueError, match="rcond is only used when use_svd is False"):
+        validator({"rcond": 1e-6})
