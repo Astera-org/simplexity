@@ -91,10 +91,18 @@ class LinearRegressionAnalysis(LayerwiseAnalysis):
         use_probs_as_weights: bool = False,
         skip_first_token: bool = False,
         skip_deduplication: bool = True,
+        rcond: float | None = None,
         fit_intercept: bool = True,
         concat_belief_states: bool = False,
         compute_subspace_orthogonality: bool = False,
     ) -> None:
+        analysis_kwargs: dict[str, Any] = {
+            "fit_intercept": fit_intercept,
+            "concat_belief_states": concat_belief_states,
+            "compute_subspace_orthogonality": compute_subspace_orthogonality,
+        }
+        if rcond is not None:
+            analysis_kwargs["rcond"] = float(rcond)
         super().__init__(
             analysis_type="linear_regression",
             last_token_only=last_token_only,
@@ -102,11 +110,7 @@ class LinearRegressionAnalysis(LayerwiseAnalysis):
             use_probs_as_weights=use_probs_as_weights,
             skip_first_token=skip_first_token,
             skip_deduplication=skip_deduplication,
-            analysis_kwargs={
-                "fit_intercept": fit_intercept,
-                "concat_belief_states": concat_belief_states,
-                "compute_subspace_orthogonality": compute_subspace_orthogonality,
-            },
+            analysis_kwargs=analysis_kwargs,
         )
 
 

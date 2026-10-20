@@ -13,13 +13,16 @@
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from simplexity.analysis.linear_regression import (
+    default_rcond,
     get_robust_basis,
     layer_linear_regression,
     linear_regression,
     linear_regression_svd,
+    score_regression,
 )
 
 
@@ -1211,3 +1214,114 @@ def test_get_robust_basis_single_vector():
     expected_norm = jnp.linalg.norm(vector)
     parallel_tol = dim * eps * expected_norm
     assert jnp.allclose(jnp.abs(basis.T @ vector), expected_norm, atol=parallel_tol)
+
+
+def _tall_well_conditioned_design(
+    n_rows: int,
+    n_features: int = 8,
+    condition: float = 1e4,
+    seed: int = 0,
+) -> tuple[jax.Array, jax.Array]:
+    """A tall design whose condition number needs no truncation at all.
+
+    ``max(n_rows, n_columns) * eps`` exceeds ``1 / condition`` once ``n_rows`` is large, so a
+    row-scaled cutoff discards well-conditioned directions purely because the dataset is big.
+    """
+    rng = np.random.default_rng(seed)
+    scales = np.logspace(0.0, -np.log10(condition), n_features)
+    rotation, _ = np.linalg.qr(rng.standard_normal((n_features, n_features)))
+    x = rng.standard_normal((n_rows, n_features)) @ ((rotation * scales) @ rotation.T)
+    coeffs = rotation @ ((scales**-1.0)[:, None] * rng.standard_normal((n_features, 3)))
+    y = x @ coeffs
+    return jnp.asarray(x, dtype=jnp.float32), jnp.asarray(y / y.std(), dtype=jnp.float32)
+
+
+def _float64_reference(x: jax.Array, y: jax.Array) -> np.ndarray:
+    design = np.concatenate([np.ones((x.shape[0], 1)), np.asarray(x, dtype=np.float64)], axis=1)
+    beta, *_ = np.linalg.lstsq(design, np.asarray(y, dtype=np.float64), rcond=None)
+    return beta
+
+
+def test_linear_regression_does_not_truncate_a_well_conditioned_design() -> None:
+    """Regression for #201: the default cutoff must not discard usable directions.
+
+    Fails on a row-scaled cutoff, which at 20000 rows zeroes every direction below 2.4e-3 of the
+    largest and so recovers coefficients far from the float64 solution.
+    """
+    x, y = _tall_well_conditioned_design(n_rows=20000)
+    reference = _float64_reference(x, y)
+
+    scalars, arrays = linear_regression(x, y, None)
+    beta = np.concatenate([np.asarray(arrays["intercept"]), np.asarray(arrays["coeffs"])], axis=0)
+
+    assert scalars["condition_number"] < 1e5
+    assert scalars["effective_rank"] == scalars["n_singular_values"]
+    chex.assert_trees_all_close(beta, reference.astype(np.float32), rtol=1e-2, atol=1e-2)
+
+
+def test_linear_regression_cutoff_is_independent_of_row_count() -> None:
+    """Regression for #201: fitting on more rows must not discard more of the design."""
+    ranks = []
+    for n_rows in (2000, 20000, 60000):
+        x, y = _tall_well_conditioned_design(n_rows=n_rows)
+        scalars, _ = linear_regression(x, y, None)
+        ranks.append((scalars["effective_rank"], scalars["n_singular_values"]))
+
+    assert len({rank for rank, _ in ranks}) == 1, f"effective rank varied with row count: {ranks}"
+    assert all(rank == total for rank, total in ranks)
+
+
+def test_linear_regression_rcond_is_honoured() -> None:
+    """An explicit cutoff must take effect, so a caller can choose the regularisation."""
+    x, y = _tall_well_conditioned_design(n_rows=20000)
+
+    untruncated, _ = linear_regression(x, y, None, rcond=0.0)
+    truncated, _ = linear_regression(x, y, None, rcond=1e-1)
+
+    assert untruncated["effective_rank"] == untruncated["n_singular_values"]
+    assert truncated["effective_rank"] < untruncated["effective_rank"]
+    assert truncated["r2"] < untruncated["r2"]
+
+
+def test_linear_regression_rejects_negative_rcond() -> None:
+    x, y = _tall_well_conditioned_design(n_rows=200)
+    with pytest.raises(ValueError, match="rcond must be non-negative"):
+        linear_regression(x, y, None, rcond=-1.0)
+
+
+def test_default_rcond_scales_with_columns_not_rows() -> None:
+    eps = float(jnp.finfo(jnp.float32).eps)
+    assert default_rcond(9) == pytest.approx(9 * eps)
+    assert default_rcond(9) == default_rcond(9)
+
+
+def test_score_regression_evaluates_held_out_data() -> None:
+    """The scorer must read the data it is given, not the data the fit saw."""
+    x, y = _tall_well_conditioned_design(n_rows=4000)
+    x_fit, y_fit, x_held, y_held = x[:3000], y[:3000], x[3000:], y[3000:]
+
+    scalars, arrays = linear_regression(x_fit, y_fit, None, rcond=0.0)
+    held = score_regression(x_held, y_held, None, arrays["coeffs"], arrays["intercept"])
+    in_sample = score_regression(x_fit, y_fit, None, arrays["coeffs"], arrays["intercept"])
+
+    assert in_sample["r2"] == pytest.approx(scalars["r2"], abs=1e-4)
+    assert held["r2"] > 0.9
+    assert held["r2"] != in_sample["r2"]
+
+
+def test_score_regression_without_intercept() -> None:
+    x, y = _tall_well_conditioned_design(n_rows=2000)
+    _, arrays = linear_regression(x, y, None, rcond=0.0, fit_intercept=False)
+    assert "intercept" not in arrays
+
+    held = score_regression(x, y, None, arrays["coeffs"])
+    assert held["r2"] > 0.9
+
+
+def test_linear_regression_svd_reports_spectrum_diagnostics() -> None:
+    x, y = _tall_well_conditioned_design(n_rows=2000)
+    scalars, _ = linear_regression_svd(x, y, None, rcond_values=[1e-10, 1e-1])
+
+    assert scalars["rcond"] == scalars["best_rcond"]
+    assert scalars["effective_rank"] <= scalars["n_singular_values"]
+    assert scalars["condition_number"] > 1.0
